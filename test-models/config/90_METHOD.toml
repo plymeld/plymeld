@@ -1,0 +1,20 @@
+#:schema ../../plymeld.schema.json
+# Test config: plymeld's own methods. Placeholder values, not measured.
+
+[method.search]
+time.max = "120 s"
+
+[method.search.baseline]
+layer.height_share = "50%"
+
+[method.search.log]
+enabled = "true"
+file = ""
+
+[method.search.zero_scale]
+unsupported_area = "500 mm2"
+support.interface = "500 mm2"
+
+[method.slicing]
+tolerance = "= tool.bore / 32"
+close_gaps = "= tool.bore / 8"

@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# plymeld's "text matches reality" rule (CONTRIBUTING.md), a git commit-msg hook (installed by tools/install-git-hooks.sh;
+# CONTRIBUTING.md, "The commit check"): a commit that changes main Kotlin code but no doc, CHANGELOG, *.md or
+# plymeld.schema.json is refused unless its message says why with "no-docs: <reason>". `git commit --no-verify` skips
+# it.
+set -euo pipefail
+msg_file="$1"
+changed="$(git diff --cached --name-only)"
+[ -n "$changed" ] || exit 0
+code="$(printf '%s\n' "$changed" | grep -E '/src/main/.*\.kts?$' || true)"
+text="$(printf '%s\n' "$changed" | grep -E '(\.md$|^docs/|^plymeld\.schema\.json$)' || true)"
+if [ -n "$code" ] && [ -z "$text" ] && ! grep -q 'no-docs:' "$msg_file"; then
+  {
+    echo "plymeld commit check: REFUSED: this commit changes code but no doc, CHANGELOG or schema:"
+    printf '%s\n' "$code" | head -n 5 | sed 's/^/  /'
+    echo "Per CONTRIBUTING.md 'Text matches reality', fix the text this change makes wrong in the same commit (help, README,"
+    echo "FEATURES, docs, KDoc), or put 'no-docs: <why no text changes>' in the commit message."
+  } >&2
+  exit 1
+fi
+exit 0

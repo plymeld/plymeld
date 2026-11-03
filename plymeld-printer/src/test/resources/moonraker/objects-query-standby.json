@@ -1,0 +1,12 @@
+{
+  "result": {
+    "eventtime": 12346.0,
+    "status": {
+      "print_stats": {"filename": "", "total_duration": 0.0, "print_duration": 0.0, "filament_used": 0.0, "state": "standby", "message": "", "info": {"total_layer": null, "current_layer": null}},
+      "display_status": {"progress": 0.0, "message": null},
+      "extruder": {"temperature": 24.1, "target": 0.0, "power": 0.0, "can_extrude": false},
+      "heater_bed": {"temperature": 23.9, "target": 0.0, "power": 0.0},
+      "gcode_move": {"speed_factor": 1.0, "speed": 1500.0, "extrude_factor": 1.0}
+    }
+  }
+}

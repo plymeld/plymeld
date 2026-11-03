@@ -1,0 +1,83 @@
+{
+  "resources":{
+  "includes":[{
+    "pattern":"\\QMETA-INF/linux/x64/org/lwjgl/glfw/libglfw.so.sha1\\E"
+  }, {
+    "pattern":"\\QMETA-INF/linux/x64/org/lwjgl/liblwjgl.so.sha1\\E"
+  }, {
+    "pattern":"\\QMETA-INF/linux/x64/org/lwjgl/opengl/liblwjgl_opengl.so.sha1\\E"
+  }, {
+    "pattern":"\\QMETA-INF/services/java.awt.im.spi.InputMethodDescriptor\\E"
+  }, {
+    "pattern":"\\QMETA-INF/services/java.lang.System$LoggerFinder\\E"
+  }, {
+    "pattern":"\\QMETA-INF/services/java.time.zone.ZoneRulesProvider\\E"
+  }, {
+    "pattern":"\\QMETA-INF/services/javax.xml.stream.XMLInputFactory\\E"
+  }, {
+    "pattern":"\\QMETA-INF/services/kotlinx.coroutines.internal.MainDispatcherFactory\\E"
+  }, {
+    "pattern":"\\QMETA-INF/windows/x64/org/lwjgl/glfw/glfw.dll.sha1\\E"
+  }, {
+    "pattern":"\\QMETA-INF/windows/x64/org/lwjgl/lwjgl.dll.sha1\\E"
+  }, {
+    "pattern":"\\QMETA-INF/windows/x64/org/lwjgl/opengl/lwjgl_opengl.dll.sha1\\E"
+  }, {
+    "pattern":"\\Qconfig/00_defaults.toml\\E"
+  }, {
+    "pattern":"\\Qconfig/01_filaments.toml\\E"
+  }, {
+    "pattern":"\\Qconfig/02_plates.toml\\E"
+  }, {
+    "pattern":"\\Qconfig/03_models.toml\\E"
+  }, {
+    "pattern":"\\QlibGLX.so.0\\E"
+  }, {
+    "pattern":"\\Qlibskiko-linux-x64.so.sha256\\E"
+  }, {
+    "pattern":"\\Qlinux/x64/org/lwjgl/glfw/libglfw.so\\E"
+  }, {
+    "pattern":"\\Qlinux/x64/org/lwjgl/liblwjgl.so\\E"
+  }, {
+    "pattern":"\\Qlinux/x64/org/lwjgl/opengl/liblwjgl_opengl.so\\E"
+  }, {
+    "pattern":"\\Qopengl32.dll\\E"
+  }, {
+    "pattern":"\\Qskiko-windows-x64.dll.sha256\\E"
+  }, {
+    "pattern":"\\Qplymeld-version.txt\\E"
+  }, {
+    "pattern":"\\Qwindows/x64/org/lwjgl/glfw/glfw.dll\\E"
+  }, {
+    "pattern":"\\Qwindows/x64/org/lwjgl/lwjgl.dll\\E"
+  }, {
+    "pattern":"\\Qwindows/x64/org/lwjgl/opengl/lwjgl_opengl.dll\\E"
+  }, {
+    "pattern":"java.desktop:\\Qcom/sun/swing/internal/plaf/basic/resources/basic_en.properties\\E"
+  }, {
+    "pattern":"java.desktop:\\Qcom/sun/swing/internal/plaf/basic/resources/basic_en_US.properties\\E"
+  }, {
+    "pattern":"java.desktop:\\Qcom/sun/swing/internal/plaf/metal/resources/metal_en.properties\\E"
+  }, {
+    "pattern":"java.desktop:\\Qcom/sun/swing/internal/plaf/metal/resources/metal_en_US.properties\\E"
+  }, {
+    "pattern":"java.desktop:\\Qsun/awt/resources/awt_en.properties\\E"
+  }, {
+    "pattern":"java.desktop:\\Qsun/awt/resources/awt_en_US.properties\\E"
+  }, {
+    "pattern":"java.xml:\\Qjdk/xml/internal/jdkcatalog/JDKCatalog.xml\\E"
+  }]},
+  "bundles":[{
+    "name":"com.sun.swing.internal.plaf.basic.resources.basic",
+    "locales":["en-US"],
+    "classNames":["com.sun.swing.internal.plaf.basic.resources.basic"]
+  }, {
+    "name":"com.sun.swing.internal.plaf.metal.resources.metal",
+    "locales":["en-US"],
+    "classNames":["com.sun.swing.internal.plaf.metal.resources.metal"]
+  }, {
+    "name":"sun.awt.resources.awt",
+    "locales":["en-US"],
+    "classNames":["sun.awt.resources.awt"]
+  }]
+}

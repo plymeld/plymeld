@@ -1,0 +1,64 @@
+# plymeld's bundled build plates: PLACEHOLDERS for common PEI and cool plates (smooth and textured not told
+# apart, as their defaults do not differ). Typical of each
+# kind of surface in general, from published plate/filament guides, not measured.
+#
+# The bed temperature is stored on the plate, one per filament kind:
+# bed.<kind>.temperature.print, and
+# bed.<kind>.temperature.first_layer when the first layer differs. A filament can set its own for a plate, which wins:
+#
+#   [hardware.filament.pla-white]
+#   like = "pla-generic"
+#   bed.pei.temperature.print = "65 C"
+#
+# A kind with no bed temperature on a plate cannot print on it (plymeld says which value to set).
+# suits.<kind> = false makes plymeld warn when a print puts that kind on the plate. Start a plate of your
+# own from one with `like`:
+#
+#   [hardware.plate.my-pei]
+#   like = "pei"
+#   bed.PETG.temperature.print = "80 C"
+
+# PEI sheet, smooth or textured: the bed temperatures do not differ between them. They differ in the
+# underside's look (textured: matte; smooth: glossy) and in release: PETG and PC can bond to smooth
+# PEI hard enough to tear it, so they are usually printed on it over a glue-stick layer. plymeld has no
+# setting that changes for either, so one plate covers both.
+[hardware.plate.pei]
+surface = "PEI"
+first_layer.squish = "0.1 mm"      # a placeholder for a typical first-layer spread; it depends more on the first layer's height and the bed's zero than on the surface
+bed.PLA.temperature.print = "60 C"
+bed.PETG.temperature.print = "75 C"
+bed.TPU.temperature.print = "45 C"
+bed.ABS.temperature.print = "100 C"
+bed.ASA.temperature.print = "100 C"
+bed.PC.temperature.print = "110 C"
+bed.PA.temperature.print = "80 C"
+bed.HIPS.temperature.print = "100 C"
+bed.PVA.temperature.print = "60 C"
+suits.PLA = "true"
+suits.PETG = "true"
+suits.TPU = "true"
+suits.ABS = "true"
+suits.ASA = "true"
+suits.PC = "true"
+suits.PA = "true"
+suits.HIPS = "true"
+suits.PVA = "true"
+
+# a low-temperature coated plate (e.g. the "cool plate" kind): PLA, TPU and PVA at about 35 C; not for
+# PETG (it bonds too hard or will not stick, by version) or the high-temperature kinds, which get no
+# bed temperature here
+[hardware.plate.cool]
+surface = "cool"
+first_layer.squish = "0.1 mm"      # as for PEI
+bed.PLA.temperature.print = "35 C"
+bed.TPU.temperature.print = "35 C"
+bed.PVA.temperature.print = "35 C"
+suits.PLA = "true"
+suits.TPU = "true"
+suits.PVA = "true"
+suits.PETG = "false"
+suits.ABS = "false"
+suits.ASA = "false"
+suits.PC = "false"
+suits.PA = "false"
+suits.HIPS = "false"

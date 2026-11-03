@@ -1,0 +1,12 @@
+#:schema ../../plymeld.schema.json
+# Test config: the models. Placeholder values, not measured.
+
+[model.object.benchy]
+from = "3DBenchy-dual"
+count = "2"
+
+[model.object.benchy.part.3DBenchy-dual-B]
+slot = "2"
+
+[model.object."benchy#2"]
+place = { x = "180 mm", y = "60 mm", turn = "90 deg" }

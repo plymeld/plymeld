@@ -1,0 +1,1338 @@
+[
+  {
+    "name": "android.os.Build",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "androidx.compose.ui.awt.ComposeWindow",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "methods": [
+      {
+        "name": "coalesceEvents",
+        "parameterTypes": [
+          "java.awt.AWTEvent",
+          "java.awt.AWTEvent"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "androidx.compose.ui.awt.ComposeWindowPanel",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "methods": [
+      {
+        "name": "coalesceEvents",
+        "parameterTypes": [
+          "java.awt.AWTEvent",
+          "java.awt.AWTEvent"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "androidx.compose.ui.awt.JLayeredPaneWithTransparencyHack",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "methods": [
+      {
+        "name": "coalesceEvents",
+        "parameterTypes": [
+          "java.awt.AWTEvent",
+          "java.awt.AWTEvent"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "androidx.compose.ui.platform.GlobalSnapshotManager$Registration",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "androidx.compose.ui.scene.ComposeSceneMediator$InvisibleComponent",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "methods": [
+      {
+        "name": "coalesceEvents",
+        "parameterTypes": [
+          "java.awt.AWTEvent",
+          "java.awt.AWTEvent"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "androidx.compose.ui.scene.skia.SurfaceSkiaLayerComponent$hierarchyRoot$1",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "methods": [
+      {
+        "name": "coalesceEvents",
+        "parameterTypes": [
+          "java.awt.AWTEvent",
+          "java.awt.AWTEvent"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "com.sun.xml.internal.stream.XMLInputFactoryImpl",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "java.awt.SequencedEvent",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "java.awt.event.KeyEvent",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "java.lang.String",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "java.lang.Thread",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "fields": [
+      {
+        "name": "threadLocalRandomProbe"
+      }
+    ]
+  },
+  {
+    "name": "java.lang.foreign.MemorySegment",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "methods": [
+      {
+        "name": "asByteBuffer",
+        "parameterTypes": []
+      },
+      {
+        "name": "ofBuffer",
+        "parameterTypes": [
+          "java.nio.Buffer"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "java.nio.Buffer",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "java.nio.ByteBuffer",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "java.nio.DirectByteBuffer",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "unsafeAllocated": true
+  },
+  {
+    "name": "java.nio.DirectCharBufferU",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "java.nio.DirectDoubleBufferU",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "java.nio.DirectFloatBufferU",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "unsafeAllocated": true
+  },
+  {
+    "name": "java.nio.DirectIntBufferU",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "unsafeAllocated": true
+  },
+  {
+    "name": "java.nio.DirectLongBufferU",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "java.nio.DirectShortBufferU",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "java.nio.MappedByteBuffer",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "java.util.concurrent.ForkJoinTask",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "fields": [
+      {
+        "name": "aux"
+      },
+      {
+        "name": "status"
+      }
+    ]
+  },
+  {
+    "name": "java.util.concurrent.atomic.AtomicBoolean",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "fields": [
+      {
+        "name": "value"
+      }
+    ]
+  },
+  {
+    "name": "java.util.concurrent.atomic.AtomicReference",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "fields": [
+      {
+        "name": "value"
+      }
+    ]
+  },
+  {
+    "name": "java.util.concurrent.atomic.Striped64",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "fields": [
+      {
+        "name": "base"
+      },
+      {
+        "name": "cellsBusy"
+      }
+    ]
+  },
+  {
+    "name": "java.util.concurrent.atomic.Striped64$Cell",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "fields": [
+      {
+        "name": "value"
+      }
+    ]
+  },
+  {
+    "name": "javax.swing.plaf.basic.BasicPanelUI",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "methods": [
+      {
+        "name": "createUI",
+        "parameterTypes": [
+          "javax.swing.JComponent"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "javax.swing.plaf.metal.MetalRootPaneUI",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "methods": [
+      {
+        "name": "createUI",
+        "parameterTypes": [
+          "javax.swing.JComponent"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "jdk.internal.misc.Unsafe",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "kotlin.SafePublicationLazyImpl",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "kotlin.reflect.jvm.internal.ReflectionFactoryImpl",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "kotlinx.coroutines.CancellableContinuationImpl",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "kotlinx.coroutines.CancelledContinuation",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "fields": [
+      {
+        "name": "_resumed$volatile"
+      }
+    ]
+  },
+  {
+    "name": "kotlinx.coroutines.CompletedExceptionally",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "kotlinx.coroutines.DispatchedCoroutine",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "kotlinx.coroutines.EventLoopImplBase",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "kotlinx.coroutines.JobSupport",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "kotlinx.coroutines.JobSupport$Finishing",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "kotlinx.coroutines.channels.BufferedChannel",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "kotlinx.coroutines.flow.StateFlowImpl",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "kotlinx.coroutines.internal.ConcurrentLinkedListNode",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "kotlinx.coroutines.internal.DispatchedContinuation",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "kotlinx.coroutines.internal.LimitedDispatcher",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "kotlinx.coroutines.internal.LockFreeLinkedListNode",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "kotlinx.coroutines.internal.LockFreeTaskQueue",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "kotlinx.coroutines.internal.LockFreeTaskQueueCore",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "kotlinx.coroutines.internal.Segment",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "kotlinx.coroutines.internal.ThreadSafeHeap",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "kotlinx.coroutines.scheduling.CoroutineScheduler",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "kotlinx.coroutines.scheduling.CoroutineScheduler$Worker",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "kotlinx.coroutines.scheduling.WorkQueue",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "kotlinx.coroutines.sync.MutexImpl",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "kotlinx.coroutines.sync.SemaphoreAndMutexImpl",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "org.jetbrains.skiko.HardwareLayer",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "methods": [
+      {
+        "name": "coalesceEvents",
+        "parameterTypes": [
+          "java.awt.AWTEvent",
+          "java.awt.AWTEvent"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "org.jetbrains.skiko.SkiaLayer",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "methods": [
+      {
+        "name": "coalesceEvents",
+        "parameterTypes": [
+          "java.awt.AWTEvent",
+          "java.awt.AWTEvent"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "org.jetbrains.skiko.SkiaLayer$1",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "methods": [
+      {
+        "name": "coalesceEvents",
+        "parameterTypes": [
+          "java.awt.AWTEvent",
+          "java.awt.AWTEvent"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "org.lwjgl.glfw.GLFW",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "org.lwjgl.system.CallbackI",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "methods": [
+      {
+        "name": "callback",
+        "parameterTypes": [
+          "long",
+          "long"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "org.lwjgl.system.MemoryBackendUnsafeLegacy17",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "org.lwjgl.system.MemoryBackendUnsafeLegacy22$P64CL32",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "org.lwjgl.system.jemalloc.JEmalloc$Allocator",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "org.lwjgl.system.mimalloc.mimalloc$Allocator",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "org.lwjgl.system.rpmalloc.RPmalloc$Allocator",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "sun.awt.Symbol",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "sun.awt.windows.WingDings",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "sun.java2d.marlin.DMarlinRenderingEngine",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "sun.misc.Unsafe",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true
+  },
+  {
+    "name": "sun.security.provider.SHA",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "sun.security.provider.SHA2$SHA256",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredClasses": true,
+    "allRecordComponents": true,
+    "allPermittedSubclasses": true,
+    "allNestMembers": true,
+    "allSigners": true,
+    "allPublicClasses": true,
+    "queryAllDeclaredMethods": true,
+    "queryAllPublicMethods": true,
+    "queryAllDeclaredConstructors": true,
+    "queryAllPublicConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "java.rmi.MarshalledObject",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.Object"
+        ]
+      },
+      {
+        "name": "get",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "java.util.List"
+  },
+  {
+    "name": "java.io.InputStream"
+  },
+  {
+    "name": "java.io.Reader"
+  },
+  {
+    "name": "java.nio.CharBuffer"
+  },
+  {
+    "name": "[B"
+  },
+  {
+    "name": "[C"
+  },
+  {
+    "name": "java.awt.Image"
+  },
+  {
+    "name": "java.awt.image.BufferedImage"
+  },
+  {
+    "name": "java.net.URL"
+  },
+  {
+    "name": "java.io.File"
+  },
+  {
+    "name": "java.io.Serializable"
+  },
+  {
+    "name": "java.awt.datatransfer.DataFlavor",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "java.awt.datatransfer.StringSelection"
+  },
+  {
+    "name": "sun.awt.datatransfer.DataTransferer",
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "sun.awt.windows.WDataTransferer",
+    "allDeclaredMethods": true,
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "sun.awt.X11.XDataTransferer",
+    "allDeclaredMethods": true,
+    "allDeclaredConstructors": true
+  }
+]

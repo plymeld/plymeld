@@ -1,0 +1,29 @@
+#:schema ../../plymeld.schema.json
+# Test config: the job. Placeholder values, not measured.
+
+[job.priorities]
+quality = "10"
+accuracy = "4"
+speed = "3"
+material = "1"
+strength = "5"
+reliability = "2"
+
+[job.requirements]
+time.max = "8 h"
+
+[plan.faces]
+flat_top.technique = "as_laid"
+side.technique = "as_laid"
+
+[plan]
+seam = "scarf_seam"
+
+[plan.pause.insert-ballast]
+at = "12.4 mm"
+
+[job]
+allowed_techniques = ["flat"]
+
+[job.object.benchy.priorities]
+speed = "5"

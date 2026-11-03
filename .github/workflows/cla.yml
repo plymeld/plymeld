@@ -1,0 +1,159 @@
+name: CLA
+
+# The contributor license agreement check (CONTRIBUTING.md, legal/). Every author of a pull request's commits has
+# accepted legal/individual-cla.md, or is on the allowlist (employees under a corporate CLA, bots, people who emailed
+# a signed copy). The result is the commit status `cla` on the pull request's head, which branch protection requires.
+#
+# The records live in a private repository the Company owns ($RECORDS), written with the CLA_RECORDS_TOKEN secret:
+#   individual/v<version>.json  [{"account": "<login>", "date": "YYYY-MM-DD", "pull_request": "<owner/repo>#<n>"}]
+#   allowlist.json              [{"account": "<login>", "why": "<the corporate CLA, a signed copy, a bot>"}]
+# Acceptance records the account name, the date, and the pull request, nothing more (the CLA's privacy statement).
+#
+# Nothing from the pull request is checked out or run: pull_request_target and issue_comment carry secrets, so the
+# job only reads the pull request through the API, and treats the comment's text as data (an environment variable).
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  statuses: write
+
+concurrency:
+  group: cla-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: false
+
+env:
+  RECORDS: plymeld/cla-signatures
+  # The current text's version: acceptances are written to individual/v$CLA_VERSION.json. A new version that is not
+  # a material change keeps the earlier files in ACCEPTED (re-acceptance only after a material change).
+  CLA_VERSION: "1"
+  ACCEPTED: "individual/v1.json"
+  ACCEPT_LINE: "I have read the plymeld Individual CLA, version 1, and I accept it."
+
+jobs:
+  cla:
+    if: github.event_name == 'pull_request_target' || github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check every commit author's acceptance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RECORDS_TOKEN: ${{ secrets.CLA_RECORDS_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number || github.event.issue.number }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENTER: ${{ github.event.comment.user.login }}
+        run: |
+          set -euo pipefail
+          if [ -z "$RECORDS_TOKEN" ]; then echo "::error::the CLA_RECORDS_TOKEN secret is not set"; exit 1; fi
+          lower() { tr '[:upper:]' '[:lower:]'; }
+
+          # A file of the records repository written to $2, its blob sha to $2.sha; a missing file is "[]".
+          # Any other failure stops the job: an unreadable record must never read as "nobody accepted".
+          fetch() {
+            local path=$1 out=$2
+            if GH_TOKEN=$RECORDS_TOKEN gh api "repos/$RECORDS/contents/$path" > "$out.resp" 2> "$out.err"; then
+              jq -r .sha "$out.resp" > "$out.sha"
+              jq -r .content "$out.resp" | base64 -d > "$out"
+            elif grep -q 'HTTP 404' "$out.err"; then
+              : > "$out.sha"
+              echo '[]' > "$out"
+            else
+              cat "$out.err" >&2
+              exit 1
+            fi
+            jq -e 'type == "array"' "$out" > /dev/null
+          }
+
+          # The commit authors: their logins, or "unlinked:<name>" for a commit whose e-mail is on no GitHub account.
+          gh api --paginate "repos/$REPO/pulls/$PR/commits" \
+            --jq '.[] | if .author.login then .author.login else "unlinked:" + .commit.author.name end' \
+            | sort -u > authors.txt
+          head_sha=$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)
+
+          # A comment with exactly the acceptance line, by one of the commit authors, is recorded.
+          if [ "${GITHUB_EVENT_NAME}" = issue_comment ]; then
+            body=$(printf '%s' "$COMMENT_BODY" | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+            if [ "$body" != "$ACCEPT_LINE" ]; then echo "Not an acceptance comment."; exit 0; fi
+            if ! grep -qixF -- "$COMMENTER" authors.txt; then
+              echo "$COMMENTER is not an author of this pull request's commits; not recorded."
+            else
+              target="individual/v$CLA_VERSION.json"
+              for attempt in 1 2 3; do
+                fetch "$target" current.json
+                if jq -e --arg a "$(printf '%s' "$COMMENTER" | lower)" 'any(.[]; (.account | ascii_downcase) == $a)' current.json > /dev/null; then
+                  echo "$COMMENTER already accepted."
+                  break
+                fi
+                jq --arg a "$COMMENTER" --arg d "$(date -u +%F)" --arg p "$REPO#$PR" \
+                  '. + [{account: $a, date: $d, pull_request: $p}]' current.json > next.json
+                args=(-X PUT "repos/$RECORDS/contents/$target"
+                  -f message="CLA v$CLA_VERSION accepted: $COMMENTER ($REPO#$PR)"
+                  -f content="$(base64 -w0 next.json)")
+                if [ -s current.json.sha ]; then args+=(-f sha="$(cat current.json.sha)"); fi
+                if GH_TOKEN=$RECORDS_TOKEN gh api "${args[@]}" > /dev/null 2> put.err; then
+                  echo "Recorded $COMMENTER."
+                  break
+                fi
+                # 409: someone else wrote the file meanwhile; read it again and retry.
+                if ! grep -q 'HTTP 409' put.err || [ "$attempt" = 3 ]; then cat put.err >&2; exit 1; fi
+              done
+            fi
+          fi
+
+          # Who has accepted: every accepted version's records, and the allowlist.
+          : > accepted.txt
+          for f in $ACCEPTED allowlist.json; do
+            fetch "$f" records.json
+            jq -r '.[].account' records.json | lower >> accepted.txt
+          done
+
+          missing=$(grep -v '^unlinked:' authors.txt | lower | grep -vxF -f accepted.txt || true)
+          unlinked=$(grep '^unlinked:' authors.txt | sed 's/^unlinked://' || true)
+
+          url="https://github.com/$REPO/blob/${{ github.event.repository.default_branch }}/legal"
+          marker='<!-- plymeld-cla -->'
+          if [ -z "$missing" ] && [ -z "$unlinked" ]; then
+            state=success
+            description="Every commit author has accepted the CLA"
+            text="$marker
+          Every author of this pull request's commits has accepted the [contributor license agreement]($url/individual-cla.md). Thank you."
+          else
+            state=failure
+            description="Waiting for the CLA"
+            text="$marker
+          Thank you for the pull request. Before it can be merged, each author of its commits accepts plymeld's [Individual Contributor License Agreement]($url/individual-cla.md) (version $CLA_VERSION), once; it then covers every contribution. To accept, reply on this pull request with exactly this line:
+
+              $ACCEPT_LINE
+
+          If you contribute for your employer under its [corporate agreement]($url/corporate-cla.md), the maintainers add your account instead."
+            if [ -n "$missing" ]; then
+              text="$text
+
+          Still to accept: $(printf '%s\n' "$missing" | sed 's/^/@/' | paste -sd ' ')"
+            fi
+            if [ -n "$unlinked" ]; then
+              text="$text
+
+          Commits by $(printf '%s\n' "$unlinked" | paste -sd ',' | sed 's/,/, /g') use an e-mail address that is not on a GitHub account, so the check cannot tell who wrote them. Commit with an address on your GitHub account (or add the address to it), then push again."
+            fi
+          fi
+          gh api "repos/$REPO/statuses/$head_sha" -f state="$state" -f context=cla -f description="$description" \
+            -f target_url="$url/individual-cla.md" > /dev/null
+
+          # One comment per pull request, kept current; none is posted while nothing is missing and none exists.
+          existing=$(gh api --paginate "repos/$REPO/issues/$PR/comments" \
+            --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\"))) | .id")
+          existing=${existing%%$'\n'*}
+          if [ -n "$existing" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$existing" -f body="$text" > /dev/null
+          elif [ "$state" = failure ]; then
+            gh api "repos/$REPO/issues/$PR/comments" -f body="$text" > /dev/null
+          fi
+          echo "cla: $state"

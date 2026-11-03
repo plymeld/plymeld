@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# plymeld's commit check, its slow part: off by default, as the slow suites run in CI
+# (.github/workflows/ci.yml). PLYMELD_SLOW_CHECK=1 queues the new commit for the slow suites (tools/slow-suites.txt), run
+# in the background one commit at a time (tools/slow-check.sh).
+[ "${PLYMELD_SLOW_CHECK:-}" = 1 ] || exit 0
+top="$(git rev-parse --show-toplevel)"
+"$top/tools/slow-check.sh" enqueue HEAD || echo "plymeld slow check: could not queue $(git rev-parse --short HEAD)" >&2
+exit 0

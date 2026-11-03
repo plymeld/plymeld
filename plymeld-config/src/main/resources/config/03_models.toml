@@ -1,0 +1,609 @@
+# plymeld's bundled machine models (docs/user/reference/bundled-data.md, "Machine models"): what each printer model
+# accepts and is, each fact with its evidence. A machine names one by its key in
+# hardware.machine.<key>.model. Your own printer: a [hardware.model.<key>] table in your config, `like` one of these
+# to start from it (docs/user/how-to/describe-a-printer.md).
+#
+# A command's value is its evidence, one "kind: detail" per line (a "purpose: ..." line says what it does);
+# kinds, strongest first: tested, measured, firmware_config, used_by_firmware, documented, manufacturer_profile, observed,
+# stand_in.
+
+[hardware.model.qidi-q2]
+name = "QIDI Q2"
+profile_name = "Q2"
+dialect = "qidi"
+notes = """Built from one machine's saved firmware config and the output of QIDI's slicer, 2026-09-28.
+Box macros (BOX_TEMP_SET, UNLOAD_FILAMENT, ...) are not in the saved config: evidence is QIDI's slicer's output only.
+Toolhead tip cone and underside outline: not published by QIDI; unknown until measured.
+Observed commands added from a g-code of QIDI's slicer (2026-09-29): a plate of it with Box filament swaps (T1/T3)."""
+motion.speed.max = "600 mm/s"
+motion.acceleration.max = "20000 mm/s2"
+motion.z.speed.max = "20 mm/s"
+motion.z.acceleration.max = "500 mm/s2"
+motion.corner.speed = "8 mm/s"
+evidence.motion.speed.max = "firmware_config: [printer] max_velocity at q2_printer.cfg:118"
+evidence.motion.acceleration.max = "firmware_config: [printer] max_accel at q2_printer.cfg:119"
+evidence.motion.z.speed.max = "firmware_config: [printer] max_z_velocity at q2_printer.cfg:120"
+evidence.motion.z.acceleration.max = "firmware_config: [printer] max_z_accel at q2_printer.cfg:121"
+evidence.motion.corner.speed = "firmware_config: [printer] square_corner_velocity at q2_printer.cfg:122"
+build.x = "270 mm"
+build.y = "270 mm"
+build.z = "256 mm"
+evidence.build = "manufacturer_spec: QIDI's published build volume, 270 x 270 x 256 mm"
+gcode.start = "PRINT_START BED={first_layer_bed_temperature} HOTEND={first_layer_nozzle_temperature}"
+gcode.end = "PRINT_END"
+evidence.gcode = """firmware_config: [gcode_macro PRINT_START] at q2_gcode_macro.cfg:213: heats the bed (BED), homes, cleans the nozzle, levels, heats the nozzle (HOTEND); CHAMBER unset = 0, the chamber fan on
+firmware_config: [gcode_macro PRINT_END] at q2_gcode_macro.cfg:396: heaters, fans and motors off"""
+
+[hardware.model.qidi-q2.fan.chamber_circulation_fan]
+role = "chamber_circulation"
+command = "M106 P3 S{s255}"
+evidence = "[fan_generic chamber_circulation_fan] at q2_printer.cfg:330; command: M106 macro, q2_gcode_macro.cfg:605 (P3 -> chamber_circulation_fan)"
+
+[hardware.model.qidi-q2.fan.chamber_fan]
+role = "automatic"
+evidence = "[controller_fan chamber_fan] at q2_printer.cfg:339; Klipper runs this fan itself"
+
+[hardware.model.qidi-q2.fan.hotend_fan]
+role = "automatic"
+evidence = "[heater_fan hotend_fan] at q2_printer.cfg:354; Klipper runs this fan itself"
+
+[hardware.model.qidi-q2.fan.cooling_fan]
+role = "part_cooling"
+command = "M106 P0 S{s255}"
+evidence = "[fan_generic cooling_fan] at q2_printer.cfg:368; command: M106 macro, q2_gcode_macro.cfg:605 (P0 -> cooling_fan)"
+
+[hardware.model.qidi-q2.fan.board_fan]
+role = "automatic"
+evidence = "[controller_fan board_fan] at q2_printer.cfg:380; Klipper runs this fan itself"
+
+[hardware.model.qidi-q2.fan.auxiliary_cooling_fan]
+role = "auxiliary_part_cooling"
+command = "M106 P2 S{s255}"
+evidence = "[fan_generic auxiliary_cooling_fan] at q2_printer.cfg:390; command: M106 macro, q2_gcode_macro.cfg:605 (P2 -> auxiliary_cooling_fan)"
+
+[hardware.model.qidi-q2.heater.extruder]
+section = "extruder"
+temperature.max = "375 C"
+evidence = "[extruder] at q2_printer.cfg:64; max_temp at q2_printer.cfg:75"
+
+[hardware.model.qidi-q2.heater.heater_bed]
+section = "heater_bed"
+temperature.max = "125 C"
+evidence = "[heater_bed] at q2_printer.cfg:273; max_temp at q2_printer.cfg:287"
+
+[hardware.model.qidi-q2.heater.chamber]
+section = "heater_generic"
+temperature.max = "67 C"
+evidence = "[heater_generic chamber] at q2_printer.cfg:289; max_temp at q2_printer.cfg:301"
+
+[hardware.model.qidi-q2.toolhead.0]
+head.radius = "75 mm"
+gantry.height = "47 mm"
+gantry.distance = "47 mm"
+lid.height = "152 mm"
+evidence = "manufacturer_profile: QIDI's own Q2 0.4 nozzle profile (in its slicer): extruder_clearance_max_radius 75, extruder_clearance_height_to_rod 47, extruder_clearance_dist_to_rod 47, extruder_clearance_height_to_lid 152; meanings as the profile format documents them"
+
+[hardware.model.qidi-q2.command]
+AUTOTUNE_SHAPERS = """firmware_config: [gcode_macro AUTOTUNE_SHAPERS] defined at q2_gcode_macro.cfg:279
+used_by_firmware: called by macro PRINT_START at q2_gcode_macro.cfg:216"""
+BASE_CANCEL_PRINT = "used_by_firmware: called by macro CANCEL_PRINT at q2_gcode_macro.cfg:458"
+BASE_PAUSE = "used_by_firmware: called by macro PAUSE at q2_gcode_macro.cfg:476"
+BASE_RESUME = """used_by_firmware: called by macro RESUME_PRINT at q2_gcode_macro.cfg:519
+used_by_firmware: called by macro RESUME_PRINT at q2_gcode_macro.cfg:549"""
+BED_MESH_CALIBRATE = """used_by_firmware: called by macro M4029 at q2_gcode_macro.cfg:709
+used_by_firmware: called by macro G29 at q2_gcode_macro.cfg:894
+used_by_firmware: called by macro G29 at q2_gcode_macro.cfg:905"""
+BED_MESH_CLEAR = """used_by_firmware: called by macro PRINT_END at q2_gcode_macro.cfg:417
+used_by_firmware: called by macro CANCEL_PRINT at q2_gcode_macro.cfg:453
+used_by_firmware: called by macro M4030 at q2_gcode_macro.cfg:743
+used_by_firmware: called by macro G29 at q2_gcode_macro.cfg:890"""
+BED_MESH_PROFILE = "used_by_firmware: called by macro G29 at q2_gcode_macro.cfg:901"
+BEEP = """firmware_config: [gcode_macro BEEP] defined at q2_gcode_macro.cfg:927
+used_by_firmware: called by macro _HOME_X at q2_gcode_macro.cfg:323
+used_by_firmware: called by macro _HOME_Y at q2_gcode_macro.cfg:339
+used_by_firmware: called by macro PRINT_END at q2_gcode_macro.cfg:420"""
+BEEP_OFF = "firmware_config: [gcode_macro BEEP_OFF] defined at q2_gcode_macro.cfg:946"
+BEEP_ON = "firmware_config: [gcode_macro BEEP_ON] defined at q2_gcode_macro.cfg:942"
+BOX_TEMP_SET = """observed: sent by the machine's own slicer: its g-code for this machine, sample 1 (1x)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 3 (1x)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 2 (1x)"""
+BUFFER_MONITORING = """observed: sent by the machine's own slicer: its g-code for this machine, sample 1 (1x)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 3 (1x)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 2 (7x)"""
+CANCEL_PRINT = "firmware_config: [gcode_macro CANCEL_PRINT] defined at q2_gcode_macro.cfg:423"
+CLEAR_FLUSH = "used_by_firmware: called by macro EXTRUSION_AND_FLUSH at q2_gcode_macro.cfg:209"
+CLEAR_LAST_FILE = """used_by_firmware: called by macro PRINT_END at q2_gcode_macro.cfg:419
+used_by_firmware: called by macro CANCEL_PRINT at q2_gcode_macro.cfg:459"""
+CLEAR_MOTION_DATA = "used_by_firmware: called by macro ENABLE_ALL_SENSOR at q2_gcode_macro.cfg:266"
+CLEAR_NOZZLE = """firmware_config: [gcode_macro CLEAR_NOZZLE] defined at q2_gcode_macro.cfg:57
+used_by_firmware: called by macro PRINT_START at q2_gcode_macro.cfg:234
+used_by_firmware: called by macro M4029 at q2_gcode_macro.cfg:702"""
+CLEAR_NOZZLE_PLR = "firmware_config: [gcode_macro CLEAR_NOZZLE_PLR] defined at q2_gcode_macro.cfg:31"
+CLEAR_OOZE = """used_by_firmware: called by macro EXTRUSION_AND_FLUSH at q2_gcode_macro.cfg:208
+observed: sent by the machine's own slicer: its g-code for this machine, sample 2 (3x)"""
+CLEAR_PAUSE = """used_by_firmware: called by macro PRINT_START at q2_gcode_macro.cfg:218
+used_by_firmware: called by macro PRINT_END at q2_gcode_macro.cfg:401
+used_by_firmware: called by macro CANCEL_PRINT at q2_gcode_macro.cfg:436"""
+CUT_FILAMENT = """purpose: not documented; seen in the machine's own slicer output
+observed: sent by the machine's own slicer: its g-code for this machine, sample 2 (3x)"""
+CUT_FILAMENT_1 = """firmware_config: [gcode_macro CUT_FILAMENT_1] defined at q2_gcode_macro.cfg:771
+used_by_firmware: called by macro PRINT_START at q2_gcode_macro.cfg:236
+used_by_firmware: called by macro M603 at q2_gcode_macro.cfg:810"""
+DETECT_INTERRUPTION = "firmware_config: [gcode_macro DETECT_INTERRUPTION] defined at q2_gcode_macro.cfg:293"
+DISABLE_ALL_SENSOR = """firmware_config: [gcode_macro DISABLE_ALL_SENSOR] defined at q2_gcode_macro.cfg:269
+used_by_firmware: called by macro PRINT_START at q2_gcode_macro.cfg:217
+used_by_firmware: called by macro PRINT_END at q2_gcode_macro.cfg:415
+used_by_firmware: called by macro CANCEL_PRINT at q2_gcode_macro.cfg:451"""
+DISABLE_BOX_HEATER = """used_by_firmware: called by macro PRINT_END at q2_gcode_macro.cfg:405
+used_by_firmware: called by macro CANCEL_PRINT at q2_gcode_macro.cfg:445
+observed: sent by the machine's own slicer: its g-code for this machine, sample 1 (2x)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 3 (2x)"""
+ENABLE_ALL_SENSOR = """firmware_config: [gcode_macro ENABLE_ALL_SENSOR] defined at q2_gcode_macro.cfg:262
+used_by_firmware: called by macro PRINT_START at q2_gcode_macro.cfg:259
+used_by_firmware: called by macro RESUME_PRINT at q2_gcode_macro.cfg:551
+observed: sent by the machine's own slicer: its g-code for this machine, sample 2 (3x)"""
+EXCLUDE_OBJECT_DEFINE = """purpose: declare an object that can be canceled
+firmware_config: [exclude_object] at q2_printer.cfg:465 (Klipper: this section enables EXCLUDE_OBJECT_DEFINE)
+firmware_config: [exclude_object] at q2_gcode_macro.cfg:875 (Klipper: this section enables EXCLUDE_OBJECT_DEFINE)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 1 (1x)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 3 (1x)"""
+EXCLUDE_OBJECT_END = """purpose: object ends
+firmware_config: [exclude_object] at q2_printer.cfg:465 (Klipper: this section enables EXCLUDE_OBJECT_END)
+firmware_config: [exclude_object] at q2_gcode_macro.cfg:875 (Klipper: this section enables EXCLUDE_OBJECT_END)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 1 (429x)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 3 (63x)"""
+EXCLUDE_OBJECT_START = """purpose: object begins
+firmware_config: [exclude_object] at q2_printer.cfg:465 (Klipper: this section enables EXCLUDE_OBJECT_START)
+firmware_config: [exclude_object] at q2_gcode_macro.cfg:875 (Klipper: this section enables EXCLUDE_OBJECT_START)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 1 (429x)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 3 (63x)"""
+EXTRUSION_AND_FLUSH = "firmware_config: [gcode_macro EXTRUSION_AND_FLUSH] defined at q2_gcode_macro.cfg:190"
+E_LOAD = "used_by_firmware: called by macro M604 at q2_gcode_macro.cfg:842"
+E_UNLOAD = "used_by_firmware: called by macro M603 at q2_gcode_macro.cfg:808"
+G0 = """purpose: travel move
+used_by_firmware: called by macro PRINT_START at q2_gcode_macro.cfg:252
+used_by_firmware: called by macro PRINT_START at q2_gcode_macro.cfg:253
+used_by_firmware: called by macro M4029 at q2_gcode_macro.cfg:710
+used_by_firmware: called by macro M4029 at q2_gcode_macro.cfg:711"""
+G1 = """purpose: linear move (with or without extrusion)
+used_by_firmware: called by macro CLEAR_NOZZLE_PLR at q2_gcode_macro.cfg:35
+used_by_firmware: called by macro CLEAR_NOZZLE_PLR at q2_gcode_macro.cfg:43
+used_by_firmware: called by macro CLEAR_NOZZLE_PLR at q2_gcode_macro.cfg:46
+used_by_firmware: called by macro CLEAR_NOZZLE_PLR at q2_gcode_macro.cfg:47"""
+G17 = """purpose: select XY plane for arcs
+observed: sent by the machine's own slicer: its g-code for this machine, sample 1 (530x)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 3 (83x)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 2 (189x)"""
+G2 = """purpose: clockwise arc
+firmware_config: [gcode_arcs] at q2_gcode_macro.cfg:862 (Klipper: this section enables G2)
+used_by_firmware: called by macro CLEAR_NOZZLE at q2_gcode_macro.cfg:122
+used_by_firmware: called by macro CLEAR_NOZZLE at q2_gcode_macro.cfg:123
+used_by_firmware: called by macro CLEAR_NOZZLE at q2_gcode_macro.cfg:124"""
+G21 = """purpose: millimetre units
+observed: sent by the machine's own slicer: its g-code for this machine, sample 1 (1x)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 3 (1x)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 2 (1x)"""
+G28 = """purpose: home
+used_by_firmware: called by macro _CG28 at q2_gcode_macro.cfg:14
+used_by_firmware: called by macro MOVE_TO_TRASH at q2_gcode_macro.cfg:172
+used_by_firmware: called by macro PRINT_START at q2_gcode_macro.cfg:230
+used_by_firmware: called by macro PRINT_START at q2_gcode_macro.cfg:240"""
+G29 = """firmware_config: [gcode_macro G29] defined at q2_gcode_macro.cfg:887
+used_by_firmware: called by macro PRINT_START at q2_gcode_macro.cfg:251"""
+G3 = """purpose: counter-clockwise arc
+firmware_config: [gcode_arcs] at q2_gcode_macro.cfg:862 (Klipper: this section enables G3)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 1 (5623x)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 3 (1610x)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 2 (8193x)"""
+G31 = """firmware_config: [gcode_macro G31] defined at q2_gcode_macro.cfg:877
+used_by_firmware: called by macro PRINT_END at q2_gcode_macro.cfg:418
+used_by_firmware: called by macro CANCEL_PRINT at q2_gcode_macro.cfg:454"""
+G32 = "firmware_config: [gcode_macro G32] defined at q2_gcode_macro.cfg:881"
+G4 = """purpose: dwell
+used_by_firmware: called by macro CLEAR_NOZZLE at q2_gcode_macro.cfg:72
+used_by_firmware: called by macro SHAKE_OOZE at q2_gcode_macro.cfg:157
+used_by_firmware: called by macro EXTRUSION_AND_FLUSH at q2_gcode_macro.cfg:207
+used_by_firmware: called by macro PRINT_START at q2_gcode_macro.cfg:238"""
+G90 = """purpose: absolute positioning
+used_by_firmware: called by macro CLEAR_NOZZLE_PLR at q2_gcode_macro.cfg:36
+used_by_firmware: called by macro SHAKE_OOZE at q2_gcode_macro.cfg:165
+used_by_firmware: called by macro _HOME_X at q2_gcode_macro.cfg:326
+used_by_firmware: called by macro _HOME_Y at q2_gcode_macro.cfg:342"""
+G91 = """purpose: relative positioning
+used_by_firmware: called by macro CLEAR_NOZZLE_PLR at q2_gcode_macro.cfg:34
+used_by_firmware: called by macro SHAKE_OOZE at q2_gcode_macro.cfg:158
+used_by_firmware: called by macro _HOME_X at q2_gcode_macro.cfg:324
+used_by_firmware: called by macro _HOME_Y at q2_gcode_macro.cfg:340"""
+G92 = """purpose: set position
+used_by_firmware: called by macro CLEAR_NOZZLE_PLR at q2_gcode_macro.cfg:42
+used_by_firmware: called by macro CLEAR_NOZZLE at q2_gcode_macro.cfg:64
+used_by_firmware: called by macro CLEAR_NOZZLE at q2_gcode_macro.cfg:66
+used_by_firmware: called by macro CLEAR_NOZZLE at q2_gcode_macro.cfg:68"""
+INIT_SYNC_BUFFER_STATE = """purpose: not documented; seen in the machine's own slicer output
+observed: sent by the machine's own slicer: its g-code for this machine, sample 2 (3x)"""
+LED_OFF = "firmware_config: [gcode_macro LED_OFF] defined at q2_gcode_macro.cfg:954"
+LED_ON = "firmware_config: [gcode_macro LED_ON] defined at q2_gcode_macro.cfg:950"
+M0 = """purpose: pause
+firmware_config: [gcode_macro M0] defined at q2_gcode_macro.cfg:680"""
+M104 = """purpose: set nozzle temperature
+used_by_firmware: called by macro CLEAR_NOZZLE at q2_gcode_macro.cfg:73
+used_by_firmware: called by macro PRINT_START at q2_gcode_macro.cfg:225
+used_by_firmware: called by macro PRINT_START at q2_gcode_macro.cfg:237
+used_by_firmware: called by macro PRINT_START at q2_gcode_macro.cfg:244"""
+M106 = """purpose: set fan speed
+firmware_config: [gcode_macro M106] defined at q2_gcode_macro.cfg:605
+used_by_firmware: called by macro CLEAR_NOZZLE_PLR at q2_gcode_macro.cfg:44
+used_by_firmware: called by macro CLEAR_NOZZLE at q2_gcode_macro.cfg:71
+used_by_firmware: called by macro CLEAR_NOZZLE at q2_gcode_macro.cfg:121"""
+M107 = """purpose: fan off
+firmware_config: [gcode_macro M107] defined at q2_gcode_macro.cfg:642"""
+M109 = """purpose: set nozzle temperature and wait
+firmware_config: [gcode_macro M109] defined at q2_gcode_macro.cfg:865
+used_by_firmware: called by macro CLEAR_NOZZLE_PLR at q2_gcode_macro.cfg:40
+used_by_firmware: called by macro CLEAR_NOZZLE at q2_gcode_macro.cfg:62
+used_by_firmware: called by macro EXTRUSION_AND_FLUSH at q2_gcode_macro.cfg:194"""
+M117 = """purpose: display message
+firmware_config: [display_status] at q2_printer.cfg:463 (Klipper: this section enables M117)"""
+M118 = """purpose: host message
+firmware_config: [respond] at q2_printer.cfg:17 (Klipper: this section enables M118)
+used_by_firmware: called by macro CLEAR_NOZZLE at q2_gcode_macro.cfg:146
+used_by_firmware: called by macro DETECT_INTERRUPTION at q2_gcode_macro.cfg:297
+used_by_firmware: called by macro DETECT_INTERRUPTION at q2_gcode_macro.cfg:298"""
+M140 = """purpose: set bed temperature
+used_by_firmware: called by macro PRINT_START at q2_gcode_macro.cfg:229
+used_by_firmware: called by macro PRINT_END at q2_gcode_macro.cfg:408
+used_by_firmware: called by macro CANCEL_PRINT at q2_gcode_macro.cfg:443
+used_by_firmware: called by macro M4029 at q2_gcode_macro.cfg:694"""
+M141 = """purpose: set chamber temperature
+firmware_config: [gcode_macro M141] defined at q2_gcode_macro.cfg:586
+used_by_firmware: called by macro PRINT_START at q2_gcode_macro.cfg:231
+used_by_firmware: called by macro PRINT_END at q2_gcode_macro.cfg:409
+used_by_firmware: called by macro CANCEL_PRINT at q2_gcode_macro.cfg:444"""
+M190 = """purpose: set bed temperature and wait
+used_by_firmware: called by macro PRINT_START at q2_gcode_macro.cfg:245"""
+M191 = """purpose: set chamber temperature and wait
+firmware_config: [gcode_macro M191] defined at q2_gcode_macro.cfg:594
+used_by_firmware: called by macro PRINT_START at q2_gcode_macro.cfg:246
+used_by_firmware: called by macro PRINT_START at q2_gcode_macro.cfg:254"""
+M204 = """purpose: set acceleration
+firmware_config: [gcode_macro M204] defined at q2_gcode_macro.cfg:912
+used_by_firmware: called by macro CLEAR_NOZZLE at q2_gcode_macro.cfg:76
+used_by_firmware: called by macro SHAKE_OOZE at q2_gcode_macro.cfg:155
+used_by_firmware: called by macro MOVE_TO_TRASH at q2_gcode_macro.cfg:174"""
+M220 = """purpose: speed factor
+used_by_firmware: called by macro PRINT_END at q2_gcode_macro.cfg:411
+used_by_firmware: called by macro CANCEL_PRINT at q2_gcode_macro.cfg:447
+observed: sent by the machine's own slicer: its g-code for this machine, sample 2 (3x)"""
+M221 = """purpose: flow factor
+used_by_firmware: called by macro PRINT_END at q2_gcode_macro.cfg:412
+used_by_firmware: called by macro CANCEL_PRINT at q2_gcode_macro.cfg:448"""
+M25 = """purpose: pause
+firmware_config: [gcode_macro M25] defined at q2_gcode_macro.cfg:684"""
+M290 = "firmware_config: [gcode_macro M290] defined at q2_gcode_macro.cfg:669"
+M303 = "firmware_config: [gcode_macro M303] defined at q2_gcode_macro.cfg:646"
+M400 = """purpose: wait for moves to finish
+used_by_firmware: called by macro CLEAR_NOZZLE at q2_gcode_macro.cfg:61
+used_by_firmware: called by macro CLEAR_NOZZLE at q2_gcode_macro.cfg:70
+used_by_firmware: called by macro CLEAR_NOZZLE at q2_gcode_macro.cfg:145
+used_by_firmware: called by macro SHAKE_OOZE at q2_gcode_macro.cfg:156"""
+M4029 = "firmware_config: [gcode_macro M4029] defined at q2_gcode_macro.cfg:689"
+M4030 = "firmware_config: [gcode_macro M4030] defined at q2_gcode_macro.cfg:741"
+M4031 = """firmware_config: [gcode_macro M4031] defined at q2_gcode_macro.cfg:751
+used_by_firmware: called by macro M4029 at q2_gcode_macro.cfg:697
+used_by_firmware: called by macro M4030 at q2_gcode_macro.cfg:745"""
+M603 = "firmware_config: [gcode_macro M603] defined at q2_gcode_macro.cfg:792"
+M604 = "firmware_config: [gcode_macro M604] defined at q2_gcode_macro.cfg:831"
+M73 = """purpose: progress / time remaining
+firmware_config: [display_status] at q2_printer.cfg:463 (Klipper: this section enables M73)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 1 (149x)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 3 (158x)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 2 (271x)"""
+M83 = """purpose: relative extrusion
+used_by_firmware: called by macro EXTRUSION_AND_FLUSH at q2_gcode_macro.cfg:195
+used_by_firmware: called by macro RESUME_PRINT at q2_gcode_macro.cfg:516
+used_by_firmware: called by macro RESUME_PRINT at q2_gcode_macro.cfg:528
+observed: sent by the machine's own slicer: its g-code for this machine, sample 1 (2x)"""
+M84 = """firmware_config: [gcode_macro M84] defined at q2_gcode_macro.cfg:283
+used_by_firmware: called by macro PRINT_END at q2_gcode_macro.cfg:413
+used_by_firmware: called by macro CANCEL_PRINT at q2_gcode_macro.cfg:449"""
+M900 = "firmware_config: [gcode_macro M900] defined at q2_gcode_macro.cfg:660"
+M901 = "firmware_config: [gcode_macro M901] defined at q2_gcode_macro.cfg:673"
+MOVE_SCREW1 = "firmware_config: [gcode_macro MOVE_SCREW1] defined at q2_gcode_macro.cfg:717"
+MOVE_SCREW2 = "firmware_config: [gcode_macro MOVE_SCREW2] defined at q2_gcode_macro.cfg:723"
+MOVE_SCREW3 = "firmware_config: [gcode_macro MOVE_SCREW3] defined at q2_gcode_macro.cfg:729"
+MOVE_SCREW4 = "firmware_config: [gcode_macro MOVE_SCREW4] defined at q2_gcode_macro.cfg:735"
+MOVE_TO_TRASH = """firmware_config: [gcode_macro MOVE_TO_TRASH] defined at q2_gcode_macro.cfg:167
+used_by_firmware: called by macro CLEAR_NOZZLE_PLR at q2_gcode_macro.cfg:38
+used_by_firmware: called by macro CLEAR_NOZZLE at q2_gcode_macro.cfg:60
+used_by_firmware: called by macro SHAKE_OOZE at q2_gcode_macro.cfg:154"""
+PAUSE = """purpose: pause
+firmware_config: [pause_resume] at q2_printer.cfg:461 (Klipper: this section enables PAUSE)
+firmware_config: [gcode_macro PAUSE] defined at q2_gcode_macro.cfg:462
+used_by_firmware: called by macro M0 at q2_gcode_macro.cfg:682
+used_by_firmware: called by macro M25 at q2_gcode_macro.cfg:687"""
+PID_CALIBRATE = """used_by_firmware: called by macro M303 at q2_gcode_macro.cfg:651
+used_by_firmware: called by macro M303 at q2_gcode_macro.cfg:654"""
+PRINTER_PARAM = "firmware_config: [gcode_macro PRINTER_PARAM] defined at q2_gcode_macro.cfg:3"
+PRINT_END = """firmware_config: [gcode_macro PRINT_END] defined at q2_gcode_macro.cfg:396
+observed: sent by the machine's own slicer: its g-code for this machine, sample 2 (1x)"""
+PRINT_START = """firmware_config: [gcode_macro PRINT_START] defined at q2_gcode_macro.cfg:213
+observed: sent by the machine's own slicer: its g-code for this machine, sample 1 (1x)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 3 (1x)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 2 (1x)"""
+RESHAPER_CALIBRATE = "used_by_firmware: called by macro SHAPER_CALIBRATE at q2_gcode_macro.cfg:394"
+RESPOND = "firmware_config: [respond] at q2_printer.cfg:17 (Klipper: this section enables RESPOND)"
+RESTORE_GCODE_STATE = """used_by_firmware: called by macro RESUME_PRINT at q2_gcode_macro.cfg:517
+used_by_firmware: called by macro RESUME_PRINT at q2_gcode_macro.cfg:518
+used_by_firmware: called by macro RESUME_PRINT at q2_gcode_macro.cfg:547
+used_by_firmware: called by macro RESUME_PRINT at q2_gcode_macro.cfg:548"""
+RESUME = """purpose: resume
+firmware_config: [pause_resume] at q2_printer.cfg:461 (Klipper: this section enables RESUME)
+firmware_config: [gcode_macro RESUME] defined at q2_gcode_macro.cfg:557"""
+RESUME_PRINT = """firmware_config: [gcode_macro RESUME_PRINT] defined at q2_gcode_macro.cfg:499
+used_by_firmware: called by macro RESUME at q2_gcode_macro.cfg:570
+used_by_firmware: called by macro RESUME at q2_gcode_macro.cfg:577"""
+REVERSE_HOMING = """used_by_firmware: called by macro M4031 at q2_gcode_macro.cfg:755
+used_by_firmware: called by macro M4031 at q2_gcode_macro.cfg:764"""
+SAVE_CONFIG = """used_by_firmware: called by macro M901 at q2_gcode_macro.cfg:678
+used_by_firmware: called by macro M4029 at q2_gcode_macro.cfg:714"""
+SAVE_CONFIG_QD = """used_by_firmware: called by macro G29 at q2_gcode_macro.cfg:897
+used_by_firmware: called by macro G29 at q2_gcode_macro.cfg:908"""
+SAVE_GCODE_STATE = """used_by_firmware: called by macro PAUSE at q2_gcode_macro.cfg:475
+used_by_firmware: called by macro PAUSE at q2_gcode_macro.cfg:485"""
+SAVE_LAST_FILE = "used_by_firmware: called by macro PRINT_START at q2_gcode_macro.cfg:260"
+SAVE_VARIABLE = """purpose: store a value on the printer
+firmware_config: [save_variables] at q2_printer.cfg:20 (Klipper: this section enables SAVE_VARIABLE)
+used_by_firmware: called by macro SAVE_ZOFFSET at q2_gcode_macro.cfg:22
+used_by_firmware: called by macro PRINT_START at q2_gcode_macro.cfg:215
+used_by_firmware: called by macro RESUME_PRINT at q2_gcode_macro.cfg:526"""
+SAVE_ZOFFSET = """firmware_config: [gcode_macro SAVE_ZOFFSET] defined at q2_gcode_macro.cfg:19
+used_by_firmware: called by macro PRINT_END at q2_gcode_macro.cfg:399
+used_by_firmware: called by macro CANCEL_PRINT at q2_gcode_macro.cfg:434"""
+SDCARD_RESET_FILE = """used_by_firmware: called by macro PRINT_END at q2_gcode_macro.cfg:421
+used_by_firmware: called by macro CANCEL_PRINT at q2_gcode_macro.cfg:457"""
+SET_FAN_SPEED = """used_by_firmware: called by macro M106 at q2_gcode_macro.cfg:611
+used_by_firmware: called by macro M106 at q2_gcode_macro.cfg:613
+used_by_firmware: called by macro M106 at q2_gcode_macro.cfg:619
+used_by_firmware: called by macro M106 at q2_gcode_macro.cfg:622"""
+SET_FILAMENT_SENSOR = """used_by_firmware: called by macro ENABLE_ALL_SENSOR at q2_gcode_macro.cfg:264
+used_by_firmware: called by macro DISABLE_ALL_SENSOR at q2_gcode_macro.cfg:271
+used_by_firmware: called by macro DISABLE_ALL_SENSOR at q2_gcode_macro.cfg:273"""
+SET_GCODE_OFFSET = """used_by_firmware: called by macro SET_ZOFFSET at q2_gcode_macro.cfg:28
+used_by_firmware: called by macro PRINT_START at q2_gcode_macro.cfg:232
+used_by_firmware: called by macro CANCEL_PRINT at q2_gcode_macro.cfg:452
+used_by_firmware: called by macro M290 at q2_gcode_macro.cfg:671"""
+SET_GCODE_VARIABLE = """used_by_firmware: called by macro PAUSE at q2_gcode_macro.cfg:469
+used_by_firmware: called by macro PAUSE at q2_gcode_macro.cfg:470
+used_by_firmware: called by macro PAUSE at q2_gcode_macro.cfg:471
+used_by_firmware: called by macro PAUSE at q2_gcode_macro.cfg:472"""
+SET_HEATER_TEMPERATURE = "used_by_firmware: called by macro M141 at q2_gcode_macro.cfg:590"
+SET_IDLE_TIMEOUT = """used_by_firmware: called by macro PRINT_END at q2_gcode_macro.cfg:400
+used_by_firmware: called by macro CANCEL_PRINT at q2_gcode_macro.cfg:435
+used_by_firmware: called by macro PAUSE at q2_gcode_macro.cfg:491
+used_by_firmware: called by macro RESUME_PRINT at q2_gcode_macro.cfg:511"""
+SET_PIN = """used_by_firmware: called by macro M106 at q2_gcode_macro.cfg:636
+used_by_firmware: called by macro M106 at q2_gcode_macro.cfg:638
+used_by_firmware: called by macro BEEP at q2_gcode_macro.cfg:935
+used_by_firmware: called by macro BEEP at q2_gcode_macro.cfg:937"""
+SET_PRESSURE_ADVANCE = """purpose: pressure advance (firmware's job; plymeld does not emit it)
+used_by_firmware: called by macro M900 at q2_gcode_macro.cfg:663
+used_by_firmware: called by macro M900 at q2_gcode_macro.cfg:666
+observed: sent by the machine's own slicer: its g-code for this machine, sample 1 (1x)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 3 (1x)"""
+SET_PRINT_MAIN_STATUS = """purpose: not documented; seen in the machine's own slicer output
+observed: sent by the machine's own slicer: its g-code for this machine, sample 2 (1x)"""
+SET_PRINT_STATS_INFO = """purpose: layer progress for the printer's display
+firmware_config: [virtual_sdcard] at q2_printer.cfg:469 (Klipper: this section enables SET_PRINT_STATS_INFO)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 1 (430x)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 3 (64x)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 2 (96x)"""
+SET_STEPPER_ENABLE = """used_by_firmware: called by macro M84 at q2_gcode_macro.cfg:287
+used_by_firmware: called by macro M84 at q2_gcode_macro.cfg:288
+used_by_firmware: called by macro M84 at q2_gcode_macro.cfg:289
+used_by_firmware: called by macro M84 at q2_gcode_macro.cfg:290"""
+SET_TMC_CURRENT = """used_by_firmware: called by macro _HOME_X at q2_gcode_macro.cfg:318
+used_by_firmware: called by macro _HOME_X at q2_gcode_macro.cfg:319
+used_by_firmware: called by macro _HOME_X at q2_gcode_macro.cfg:321
+used_by_firmware: called by macro _HOME_X at q2_gcode_macro.cfg:322"""
+SET_VELOCITY_LIMIT = """purpose: set speed / acceleration / corner limits
+used_by_firmware: called by macro M204 at q2_gcode_macro.cfg:924
+used_by_firmware: called by macro M204 at q2_gcode_macro.cfg:925"""
+SET_ZOFFSET = """firmware_config: [gcode_macro SET_ZOFFSET] defined at q2_gcode_macro.cfg:25
+used_by_firmware: called by macro PRINT_START at q2_gcode_macro.cfg:258"""
+SHAKE_OOZE = "firmware_config: [gcode_macro SHAKE_OOZE] defined at q2_gcode_macro.cfg:152"
+SHAPER_CALIBRATE = """firmware_config: [gcode_macro SHAPER_CALIBRATE] defined at q2_gcode_macro.cfg:391
+used_by_firmware: called by macro M901 at q2_gcode_macro.cfg:676"""
+T0 = """purpose: select tool 0
+observed: sent by the machine's own slicer: its g-code for this machine, sample 1 (1x)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 3 (1x)"""
+T1 = """purpose: not documented; seen in the machine's own slicer output
+observed: sent by the machine's own slicer: its g-code for this machine, sample 2 (2x)"""
+T3 = """purpose: not documented; seen in the machine's own slicer output
+observed: sent by the machine's own slicer: its g-code for this machine, sample 2 (2x)"""
+TEMPERATURE_WAIT = """used_by_firmware: called by macro CLEAR_NOZZLE at q2_gcode_macro.cfg:74
+used_by_firmware: called by macro CLEAR_NOZZLE at q2_gcode_macro.cfg:120
+used_by_firmware: called by macro M191 at q2_gcode_macro.cfg:601
+used_by_firmware: called by macro M4029 at q2_gcode_macro.cfg:704"""
+TIMELAPSE_TAKE_FRAME = """purpose: timelapse frame
+observed: sent by the machine's own slicer: its g-code for this machine, sample 1 (429x)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 3 (63x)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 2 (95x)"""
+TOOL_CHANGE_END = """purpose: not documented; seen in the machine's own slicer output
+observed: sent by the machine's own slicer: its g-code for this machine, sample 2 (3x)"""
+TOOL_CHANGE_START = """purpose: not documented; seen in the machine's own slicer output
+observed: sent by the machine's own slicer: its g-code for this machine, sample 2 (3x)"""
+TRY_RESUME_PRINT = "used_by_firmware: called by macro RESUME at q2_gcode_macro.cfg:567"
+UNLOAD_FILAMENT = """observed: sent by the machine's own slicer: its g-code for this machine, sample 1 (1x)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 3 (1x)
+observed: sent by the machine's own slicer: its g-code for this machine, sample 2 (1x)"""
+UNLOAD_T1 = """purpose: not documented; seen in the machine's own slicer output
+observed: sent by the machine's own slicer: its g-code for this machine, sample 2 (1x)"""
+UNLOAD_T3 = """purpose: not documented; seen in the machine's own slicer output
+observed: sent by the machine's own slicer: its g-code for this machine, sample 2 (2x)"""
+Z_TILT_ADJUST = """used_by_firmware: called by macro PRINT_START at q2_gcode_macro.cfg:241
+used_by_firmware: called by macro M4029 at q2_gcode_macro.cfg:706"""
+_CG28 = "firmware_config: [gcode_macro _CG28] defined at q2_gcode_macro.cfg:11"
+_HOME_X = "firmware_config: [gcode_macro _HOME_X] defined at q2_gcode_macro.cfg:312"
+_HOME_XY = "firmware_config: [gcode_macro _HOME_XY] defined at q2_gcode_macro.cfg:344"
+_HOME_Y = "firmware_config: [gcode_macro _HOME_Y] defined at q2_gcode_macro.cfg:328"
+
+[hardware.model.flashforge-c5]
+name = "Flashforge Creator 5"
+profile_name = "Flashforge Creator 5"
+dialect = "flashforge"
+notes = """Built from one g-code file of Flashforge's own slicer for this machine, 2026-09-28.
+No firmware config available: the stock firmware is Flashforge's own, so every command is 'observed' evidence only. Fans and heaters are not described yet.
+Toolhead tip cone and underside outline: not published by Flashforge; unknown until measured. The profile has no gantry.distance.
+No square corner velocity from the firmware: the profile's machine_max_jerk (9), a different quantity, stands in for it as a placeholder (motion.square_corner_velocity) until the firmware's value is known."""
+motion.speed.max = "600 mm/s"
+motion.acceleration.max = "30000 mm/s2"
+motion.z.speed.max = "20 mm/s"
+motion.z.acceleration.max = "300 mm/s2"
+motion.corner.speed = "9 mm/s"
+evidence.motion.speed.max = "manufacturer_profile: Flashforge's slicer profile machine_max_speed_x/_y 600 (first value)"
+evidence.motion.acceleration.max = "manufacturer_profile: Flashforge's slicer profile machine_max_acceleration_x/_y 30000 (first value)"
+evidence.motion.z.speed.max = "manufacturer_profile: Flashforge's slicer profile machine_max_speed_z 20 (first value)"
+evidence.motion.z.acceleration.max = "manufacturer_profile: Flashforge's slicer profile machine_max_acceleration_z 300 (first value)"
+evidence.motion.corner.speed = "stand_in: NOT the firmware's value: a placeholder until the firmware's own is known. Flashforge's slicer profile machine_max_jerk_x 9 (a different quantity) stands in for it; replace with [printer] square_corner_velocity from the C5's printer.cfg when known"
+build.x = "256 mm"
+build.y = "256 mm"
+build.z = "256 mm"
+evidence.build = "manufacturer_profile: Flashforge's slicer profile printable_area 256 x 256 mm, printable_height 256 mm"
+
+[hardware.model.flashforge-c5.toolhead.0]
+head.radius = "92 mm"
+gantry.height = "60 mm"
+lid.height = "360 mm"
+evidence = "manufacturer_profile: Flashforge's own Creator 5 profile (in its slicer): extruder_clearance_radius 92, extruder_clearance_height_to_rod 60, extruder_clearance_height_to_lid 360; one value set for all four heads; meanings as the profile format documents them"
+
+[hardware.model.flashforge-c5.toolhead.1]
+head.radius = "92 mm"
+gantry.height = "60 mm"
+lid.height = "360 mm"
+evidence = "manufacturer_profile: same profile values, applied to head 2 (the profile has one set for all heads)"
+
+[hardware.model.flashforge-c5.toolhead.2]
+head.radius = "92 mm"
+gantry.height = "60 mm"
+lid.height = "360 mm"
+evidence = "manufacturer_profile: same profile values, applied to head 3 (the profile has one set for all heads)"
+
+[hardware.model.flashforge-c5.toolhead.3]
+head.radius = "92 mm"
+gantry.height = "60 mm"
+lid.height = "360 mm"
+evidence = "manufacturer_profile: same profile values, applied to head 4 (the profile has one set for all heads)"
+
+[hardware.model.flashforge-c5.command]
+G1 = """purpose: linear move (with or without extrusion)
+observed: sent by the machine's own slicer: a g-code file it made for this machine (609305x)"""
+G2 = """purpose: clockwise arc
+observed: sent by the machine's own slicer: a g-code file it made for this machine (112x)"""
+G21 = """purpose: millimetre units
+observed: sent by the machine's own slicer: a g-code file it made for this machine (1x)"""
+G3 = """purpose: counter-clockwise arc
+observed: sent by the machine's own slicer: a g-code file it made for this machine (182x)"""
+G4 = """purpose: dwell
+observed: sent by the machine's own slicer: a g-code file it made for this machine (84x)"""
+G90 = """purpose: absolute positioning
+observed: sent by the machine's own slicer: a g-code file it made for this machine (2x)"""
+G92 = """purpose: set position
+observed: sent by the machine's own slicer: a g-code file it made for this machine (42x)"""
+M104 = """purpose: set nozzle temperature
+observed: sent by the machine's own slicer: a g-code file it made for this machine (85x)"""
+M106 = """purpose: set fan speed
+observed: sent by the machine's own slicer: a g-code file it made for this machine (12x)"""
+M109 = """purpose: set nozzle temperature and wait
+observed: sent by the machine's own slicer: a g-code file it made for this machine (44x)"""
+M140 = """purpose: set bed temperature
+observed: sent by the machine's own slicer: a g-code file it made for this machine (2x)"""
+M220 = """purpose: speed factor
+observed: sent by the machine's own slicer: a g-code file it made for this machine (42x)"""
+M25 = """purpose: pause
+observed: sent by the machine's own slicer: a g-code file it made for this machine (1x)"""
+M83 = """purpose: relative extrusion
+observed: sent by the machine's own slicer: a g-code file it made for this machine (2x)"""
+SET_PRESSURE_ADVANCE = """purpose: pressure advance (firmware's job; plymeld does not emit it)
+observed: sent by the machine's own slicer: a g-code file it made for this machine (43x)"""
+SET_VELOCITY_LIMIT = """purpose: set speed / acceleration / corner limits
+observed: sent by the machine's own slicer: a g-code file it made for this machine (37384x)"""
+T0 = """purpose: select tool 0
+observed: sent by the machine's own slicer: a g-code file it made for this machine (9x)"""
+T1 = """purpose: select tool 1
+observed: sent by the machine's own slicer: a g-code file it made for this machine (8x)"""
+T2 = """purpose: select tool 2
+observed: sent by the machine's own slicer: a g-code file it made for this machine (13x)"""
+T3 = """purpose: select tool 3
+observed: sent by the machine's own slicer: a g-code file it made for this machine (14x)"""
+
+[hardware.model.generic-klipper]
+name = "Klipper printer (generic)"
+dialect = "klipper"
+notes = """A starting point for any printer running Klipper, not a real model: only the commands Klipper's own G-Codes
+reference documents (klipper3d.org/G-Codes.html, read 2026-10-26), each with the printer.cfg section it needs.
+No build area, motion limits, head shape, fans, heaters or start and end g-code: those differ from printer to printer
+and are set on the machine (hardware.machine.<key>), or in a model of your own that is `like` this one."""
+
+[hardware.model.generic-klipper.command]
+G0 = """purpose: move
+documented: Klipper G-Codes, a standard command (G0 or G1)"""
+G1 = """purpose: linear move (with or without extrusion)
+documented: Klipper G-Codes, a standard command (G0 or G1)"""
+G2 = """purpose: clockwise arc
+documented: Klipper G-Codes, G2 / G3: needs a [gcode_arcs] section in printer.cfg"""
+G3 = """purpose: counter-clockwise arc
+documented: Klipper G-Codes, G2 / G3: needs a [gcode_arcs] section in printer.cfg"""
+G4 = """purpose: dwell
+documented: Klipper G-Codes, a standard command"""
+G28 = """purpose: home
+documented: Klipper G-Codes, a standard command"""
+G90 = """purpose: absolute positioning
+documented: Klipper G-Codes, a standard command"""
+G91 = """purpose: relative positioning
+documented: Klipper G-Codes, a standard command"""
+G92 = """purpose: set position
+documented: Klipper G-Codes, a standard command"""
+M18 = """purpose: motors off
+documented: Klipper G-Codes, a standard command (M18 or M84)"""
+M82 = """purpose: absolute extrusion
+documented: Klipper G-Codes, a standard command"""
+M83 = """purpose: relative extrusion
+documented: Klipper G-Codes, a standard command"""
+M84 = """purpose: motors off
+documented: Klipper G-Codes, a standard command (M18 or M84)"""
+M104 = """purpose: set nozzle temperature
+documented: Klipper G-Codes, a standard command"""
+M106 = """purpose: set fan speed
+documented: Klipper G-Codes, a standard command"""
+M107 = """purpose: fan off
+documented: Klipper G-Codes, a standard command"""
+M109 = """purpose: set nozzle temperature and wait
+documented: Klipper G-Codes, a standard command"""
+M140 = """purpose: set bed temperature
+documented: Klipper G-Codes, a standard command"""
+M190 = """purpose: set bed temperature and wait
+documented: Klipper G-Codes, a standard command"""
+M204 = """purpose: set acceleration
+documented: Klipper G-Codes, a standard command"""
+M220 = """purpose: speed factor
+documented: Klipper G-Codes, a standard command"""
+M221 = """purpose: extrusion factor
+documented: Klipper G-Codes, a standard command"""
+M400 = """purpose: wait for moves to finish
+documented: Klipper G-Codes, a standard command"""
+SET_VELOCITY_LIMIT = """purpose: set speed / acceleration / corner limits
+documented: Klipper G-Codes, listed under [toolhead]"""
+SET_PRESSURE_ADVANCE = """purpose: pressure advance (the firmware's by default; plymeld sends it only where a value is set)
+documented: Klipper G-Codes, listed under [extruder]"""
+SET_PRINT_STATS_INFO = """purpose: layer count and current layer, for the printer's display
+documented: Klipper G-Codes, listed under [print_stats], which is loaded automatically"""
+EXCLUDE_OBJECT_DEFINE = """purpose: declare an object that can be cancelled mid-print
+documented: Klipper G-Codes, [exclude_object]: needs that section in printer.cfg"""
+EXCLUDE_OBJECT_START = """purpose: the moves of one object begin
+documented: Klipper G-Codes, [exclude_object]: needs that section in printer.cfg"""
+EXCLUDE_OBJECT_END = """purpose: the moves of one object end
+documented: Klipper G-Codes, [exclude_object]: needs that section in printer.cfg"""
+PAUSE = """purpose: pause the print
+documented: Klipper G-Codes, [pause_resume]: needs that section in printer.cfg"""
+RESUME = """purpose: resume a paused print
+documented: Klipper G-Codes, [pause_resume]: needs that section in printer.cfg"""

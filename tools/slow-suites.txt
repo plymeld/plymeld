@@ -1,0 +1,20 @@
+# The slow test suites: `gradlew slowTest` runs them, `gradlew fastTest` leaves them out (CI runs both, in that order;
+# locally, tools/slow-check.sh when asked); `gradlew test` runs everything. One test class per line (a Gradle test filter: a class name, or a
+# pattern). The list: every class over 30 s in a full run of the commit check
+# (1643 s of test time in all; these 12 took about 1170 s of it). A class moves here only with its time, or when it is a
+# development report rather than a gate (it prints findings; its assertions are a floor).
+plymeld.commands.DocumentedCommandsTest   # 295 s: the README's and the docs' plan / slice commands, run as written
+plymeld.check.CalibrationPlateTest         # 157 s
+plymeld.check.OffsetVsSleevesTest          # 155 s: the two offset methods against each other on many shapes
+plymeld.commands.CalibrateSamplesTest     # 99 s
+plymeld.commands.ToolAssignmentTest       # 70 s
+plymeld.check.PartSettingsTest             # 54 s
+plymeld.commands.CurvedCheckTest          # 53 s
+plymeld.commands.LiftedBridgeTest         # 51 s
+plymeld.check.MultiFilamentTest            # 50 s
+plymeld.check.SupportFilamentTest          # 44 s
+plymeld.commands.SeamReadingsTest         # 41 s
+plymeld.commands.CurvedIslandBenchyTest   # 37 s: the 3DBenchy sliced with an island on its bow, checked
+plymeld.commands.IroningReadingsTest      # 33 s
+plymeld.check.CurvedRegionsModelsTest      # 10 s (the 3DBenchy survey; a development report, not a gate on the fast suites)
+plymeld.mesh.LargeMeshTest                # writes a 245 MB STL and a 1.2M-triangle 3MF to check the readers' memory budget

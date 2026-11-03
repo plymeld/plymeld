@@ -1,0 +1,34 @@
+#:schema ../../plymeld.schema.json
+# Test config: the machine. Placeholder values, not measured.
+
+[hardware.machine.example-corexy]
+model = "generic-klipper"
+build.x = "250 mm"
+build.y = "250 mm"
+build.z = "250 mm"
+build.origin = "front-left"
+
+motion.print.speed = "500 mm/s"
+motion.acceleration.max = "20000 mm/s2"
+motion.z.speed.max = "20 mm/s"
+motion.z.acceleration.max = "500 mm/s2"
+motion.corner.speed = "8 mm/s"
+motion.travel.speed = "= machine.motion.print.speed"
+motion.print.acceleration = "= machine.motion.acceleration.max / 2"
+motion.travel.acceleration = "= machine.motion.acceleration.max"
+
+firmware.flavor = "klipper"
+firmware.arcs = "true"
+firmware.exclude_object = "true"
+
+tool_change.kind = "none"
+tool_change.time = "0 s"
+
+gcode.start = """
+G28
+"""
+gcode.end = """
+M104 S0
+M140 S0
+"""
+gcode.pause = "PAUSE"

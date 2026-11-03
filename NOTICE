@@ -1,0 +1,26 @@
+plymeld
+Copyright (C) 2026 Russell Tech Strategy LLC
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License as published by the Free
+Software Foundation, version 3 only (SPDX-License-Identifier: AGPL-3.0-only).
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License along
+with this program, in the file LICENSE. If not, see
+<https://www.gnu.org/licenses/>.
+
+Additional permission under GNU AGPL version 3 section 7 (output): as a special
+exception, you may use, copy, modify, and distribute, without restriction, any
+material that plymeld copies from itself into the files it writes, such as
+bundled settings values, templates, and comments in a g-code file's header and
+source block. This exception does not apply to plymeld's source code or to
+programs built from it.
+
+Commercial license: to modify plymeld, or build it into a product, without
+publishing your source under the AGPL, a separate commercial license is
+available from Russell Tech Strategy LLC by agreement:
+legal@plymeld.org

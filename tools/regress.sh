@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+# Refactor safety net: record the CLI's g-code for a fixed set of cases, then check a later build produces byte-identical
+# output. Each case is a model in test-models/ sliced with the sample config (test-models/config/0*.toml) and a few
+# values of its own, from a plan file kept in tools/regress/ (`plymeld plan -o`), so slicing decides nothing again: what
+# is compared is the slicing, not a search that may stop at a different point on a busier machine. After a deliberate
+# change to the decisions, `tools/regress.sh plans` writes the plans again.
+#
+# usage:
+#   tools/regress.sh check                  this tree vs the baseline of its merge-base with origin/main (recorded first if missing)
+#   tools/regress.sh check --base <commit>  this tree vs <commit>'s baseline (recorded first if missing)
+#   tools/regress.sh baseline [<commit>]    record <commit>'s baseline once (default: the merge-base with origin/main)
+#   tools/regress.sh record <dir>           record this tree's g-code in <dir>
+#   tools/regress.sh check <dir>            this tree vs <dir> (as recorded by `record`)
+#   tools/regress.sh plans                  write every case's plan file (tools/regress/<case>.plan.toml) with this tree
+#
+# "This tree" is this checkout's installed launcher; the script runs installDist first (quick when up to date).
+# A baseline is built from <commit> in a temporary worktree (installDist, with Gradle's build cache), recorded once,
+# and kept per commit for every worktree to share; it slices with this tree's cases, config and plans.
+#
+# environment:
+#   PLYMELD_REGRESS_DIR   where baselines are kept, one directory per commit (default: ~/.cache/plymeld-regress)
+set -euo pipefail
+here="$(cd "$(dirname "$0")/.." && pwd)"
+usage() { sed -n '8,14p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+[ $# -ge 1 ] || usage
+mode="$1"; shift
+
+models="$here/test-models"
+config="$here/test-models/config/0*.toml"
+plans="$here/tools/regress"
+store="${PLYMELD_REGRESS_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/plymeld-regress}"
+
+# name | model | the case's own values (-cv path=value, space-separated)
+cases=(
+  "benchy      | 3DBenchy.stl                |"
+  "benchy_iron | 3DBenchy.stl                | plan.faces.flat_top.technique=ironing"
+  "testplate   | testplate.stl               |"
+  "holeblock   | holeblock.stl               |"
+  "hole_fuzzy  | holeblock.stl               | plan.faces.side.technique=fuzzy_skin"
+  "coupon_supp | overhang_bridge_coupon.stl  | plan.support.enabled=true"
+)
+
+# the fields of case row $1: sets name, model and the -cv arguments in cv
+fields() {
+  local values v
+  IFS='|' read -r name model values <<< "$1"
+  name="$(echo $name)"; model="$models/$(echo $model)"
+  cv=(); for v in $values; do cv+=(-cv "$v"); done
+}
+
+# write every case's plan file with launcher $1
+plan_all() {
+  local bin="$1" row
+  mkdir -p "$plans"
+  for row in "${cases[@]}"; do
+    fields "$row"
+    "$bin" plan -cf "$config" "${cv[@]}" -m "$model" -o "$plans/$name.plan.toml" > /dev/null
+    echo "plan: $plans/$name.plan.toml"
+  done
+}
+
+# slice every case with launcher $1 into dir $2 as <name><suffix $3>.gcode, each from its plan file
+slice_all() {
+  local bin="$1" dir="$2" suffix="$3" row
+  mkdir -p "$dir"
+  for row in "${cases[@]}"; do
+    fields "$row"
+    [ -f "$plans/$name.plan.toml" ] || { echo "regress: no plan for $name ($plans/$name.plan.toml): run tools/regress.sh plans" >&2; exit 2; }
+    "$bin" slice -cf "$config" -cf "$plans/$name.plan.toml" "${cv[@]}" -m "$model" -o "$dir/$name$suffix.gcode" > /dev/null
+  done
+}
+# compare <dir>/<name>.gcode with <newdir>/<name><suffix>.gcode for every case
+compare_all() {
+  local dir="$1" newdir="$2" suffix="$3" row fail=0 same=0
+  for row in "${cases[@]}"; do
+    fields "$row"
+    if [ ! -f "$dir/$name.gcode" ]; then echo "MISSING  $name (not in $dir)"; fail=1
+    elif cmp -s "$dir/$name.gcode" "$newdir/$name$suffix.gcode"; then echo "same     $name"; same=$((same + 1))
+    else echo "DIFFERS  $name"; fail=1; fi
+  done
+  echo "$same/${#cases[@]} same"
+  return $fail
+}
+install_here() { "$here/gradlew" -p "$here" -q :plymeld-cli:installDist; }
+here_bin="$here/plymeld-cli/build/install/plymeld/bin/plymeld"
+default_base() { git -C "$here" merge-base HEAD origin/main; }
+
+# record <commit>'s baseline in the store unless it is there; prints its directory
+baseline() {
+  local sha dir tmp wt
+  sha="$(git -C "$here" rev-parse --verify "$1^{commit}")"
+  dir="$store/$sha"
+  if [ ! -f "$dir/DONE" ]; then
+    echo "regress: recording the baseline of ${sha:0:9} in $dir" >&2
+    mkdir -p "$store"
+    wt="$(mktemp -d "${TMPDIR:-/tmp}/plymeld-baseline.XXXXXX")"
+    tmp="$store/.$sha.$$"
+    # the temporary worktree and the half-written baseline go, however this ends
+    # (the paths expanded now: the trap runs after this function's locals are gone)
+    trap "git -C '$here' worktree remove --force '$wt/src' >/dev/null 2>&1 || true; rm -rf '$wt' '$tmp'" EXIT
+    git -C "$here" worktree add --detach -q "$wt/src" "$sha" >&2
+    "$wt/src/gradlew" -p "$wt/src" -q :plymeld-cli:installDist >&2
+    slice_all "$wt/src/plymeld-cli/build/install/plymeld/bin/plymeld" "$tmp" ""
+    { echo "commit $sha"; date -u +"recorded %Y-%m-%dT%H:%M:%SZ"; } > "$tmp/DONE"
+    rm -rf "$dir"; mv "$tmp" "$dir"
+  fi
+  echo "$dir"
+}
+
+case "$mode" in
+  plans)
+    [ $# -eq 0 ] || usage
+    install_here
+    plan_all "$here_bin" ;;
+  record)
+    [ $# -eq 1 ] || usage
+    install_here
+    slice_all "$here_bin" "$1" ""
+    echo "recorded ${#cases[@]} cases in $1" ;;
+  baseline)
+    [ $# -le 1 ] || usage
+    baseline "${1:-$(default_base)}" > /dev/null
+    echo "baseline: $store/$(git -C "$here" rev-parse --verify "${1:-$(default_base)}^{commit}")" ;;
+  check)
+    if [ $# -eq 1 ] && [ "$1" != --base ]; then
+      install_here
+      slice_all "$here_bin" "$1" ".new"
+      compare_all "$1" "$1" ".new"
+    else
+      base="$(default_base)"
+      if [ $# -eq 2 ] && [ "$1" = --base ]; then base="$2"; elif [ $# -ne 0 ]; then usage; fi
+      dir="$(baseline "$base")"
+      install_here
+      out="$here/build/regress"
+      slice_all "$here_bin" "$out" ""
+      echo "this tree vs the baseline of $(git -C "$here" rev-parse --short "$base^{commit}") ($dir); new g-code in $out"
+      compare_all "$dir" "$out" ""
+    fi ;;
+  *) usage ;;
+esac

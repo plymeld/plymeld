@@ -1,0 +1,27 @@
+#:schema ../../plymeld.schema.json
+# Test config: the tools. Placeholder values, not measured.
+
+[hardware.tool.t1]
+machine = "example-corexy"
+index = "1"
+bore = "0.4 mm"
+line.width.min = "= tool.bore * 0.9"
+line.width.max = "= tool.bore * 1.5"
+layer.height.min = "= tool.bore / 5"
+layer.height.max = "= tool.bore * 0.75"
+heat.time = "60 s"
+offset.x = "0 mm"
+offset.y = "0 mm"
+offset.z = "0 mm"
+head.radius = "35 mm"
+gantry.height = "30 mm"
+
+[hardware.tool.t1-06]
+machine = "example-corexy"
+index = "1"
+bore = "0.6 mm"
+line.width.min = "= tool.bore * 0.9"
+line.width.max = "= tool.bore * 1.5"
+layer.height.min = "= tool.bore / 5"
+layer.height.max = "= tool.bore * 0.75"
+heat.time = "70 s"

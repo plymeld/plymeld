@@ -1,0 +1,19 @@
+#:schema ../../plymeld.schema.json
+# Test config: the build plates. Placeholder values, not measured.
+
+[hardware.plate.textured-pei]
+surface = "textured"
+bed.PLA.temperature.print = "60 C"
+bed.PETG.temperature.print = "80 C"
+bed.PETG.temperature.first_layer = "85 C"
+bed.TPU.temperature.print = "45 C"
+first_layer.squish = "0.1 mm"
+bottom_finish = "textured"
+
+[hardware.plate.smooth-pei]
+surface = "smooth"
+bed.PLA.temperature.print = "60 C"
+bed.PETG.temperature.print = "70 C"
+bed.TPU.temperature.print = "40 C"
+first_layer.squish = "0.15 mm"
+bottom_finish = "glossy"

@@ -1,0 +1,19 @@
+#:schema ../../plymeld.schema.json
+# Test config: locks. Placeholder values, not measured.
+
+[plan]
+pose = "as-given"
+
+[plan.technique.flat]
+layer.height = "= clamp(round(tool.bore / 2, 0.04 mm), tool.layer.height.min, tool.layer.height.max)"
+
+[plan.layer]
+walls.thickness = "= 3 * tool.bore"
+top.thickness = "0.8 mm"
+bottom.thickness = "0.6 mm"
+
+[plan.object.benchy.part.3DBenchy-dual-A.technique.flat]
+layer.height = "= tool.layer.height.max"
+
+[plan.support]
+enabled = "true"

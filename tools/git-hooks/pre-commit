@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# plymeld's commit check, a git pre-commit hook (installed by tools/install-git-hooks.sh; CONTRIBUTING.md, "The
+# commit check"): the tree being committed must COMPILE, every module's main and test code (`gradlew testClasses`). The
+# test suites run in CI (.github/workflows/ci.yml) on every push. PLYMELD_COMMIT_CHECK=tests runs the fast suites here
+# too (`gradlew fastTest`).
+#
+# What it checks is the COMMIT, not the working tree: the index's tree (for `git commit -- <paths>`, git's temporary
+# index of HEAD plus those paths) is checked out into a check worktree of its own (one per checkout, under
+# ~/.cache/plymeld-commit-check/), so unfinished edits left out of the commit neither fail nor pass it,
+# and a file left out of the commit is missing there too.
+#
+# Fails closed: a build that does not compile, or a check that cannot run, refuses the commit. `git commit --no-verify`
+# skips it.
+set -euo pipefail
+start=$SECONDS
+top="$(git rev-parse --show-toplevel)"
+tree="$(git write-tree)"
+changed="$(git diff --cached --name-only)"
+[ -n "$changed" ] || exit 0
+# git hands the hook its own index (GIT_INDEX_FILE) and may set GIT_DIR: the check worktree must use its own
+unset GIT_INDEX_FILE GIT_DIR GIT_WORK_TREE GIT_PREFIX
+
+commit="$(git -C "$top" commit-tree "$tree" -m "plymeld commit check")"
+wt="${PLYMELD_COMMIT_CHECK_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/plymeld-commit-check}/${top//\//_}"
+if [ -e "$wt/.git" ]; then
+  git -C "$wt" checkout -q --detach --force "$commit"
+  git -C "$wt" clean -q -f -d
+else
+  git -C "$top" worktree prune
+  mkdir -p "$(dirname "$wt")"
+  git -C "$top" worktree add -q --detach --force "$wt" "$commit"
+fi
+
+tasks=(testClasses)
+[ "${PLYMELD_COMMIT_CHECK:-}" = tests ] && tasks=(fastTest)
+log="$wt/build/commit-check.log"
+mkdir -p "$wt/build"
+echo "plymeld commit check: the commit's tree (${tree:0:9}) in $wt: gradlew ${tasks[*]}" >&2
+ok=0
+"$wt/gradlew" -p "$wt" "${tasks[@]}" --continue --console=plain > "$log" 2>&1 || ok=$?
+# the Kotlin compiler ran out of memory compiling several modules at once (seen in a fresh check worktree,
+# "GC overhead limit exceeded"): not the commit's fault; once more with one module at a time (what compiled is kept)
+if [ "$ok" != 0 ] && grep -q 'OutOfMemoryError' "$log"; then
+  echo "plymeld commit check: the compiler ran out of memory; once more, one module at a time" >&2
+  ok=0
+  "$wt/gradlew" -p "$wt" "${tasks[@]}" --continue --console=plain --no-parallel > "$log" 2>&1 || ok=$?
+fi
+if [ "$ok" = 0 ]; then
+  echo "plymeld commit check: passed ($((SECONDS - start)) s, gradlew ${tasks[*]}; the tests run in CI)" >&2
+  exit 0
+fi
+{
+  echo "plymeld commit check: REFUSED ($((SECONDS - start)) s): the commit's tree fails gradlew ${tasks[*]}. The failures:"
+  grep -E 'FAILED|^e: |error:' "$log" | head -n 40 || true
+  echo "... the last lines of the build:"
+  tail -n 15 "$log"
+  echo "(the whole log: $log; the commit's tree is checked out in $wt)"
+} >&2
+exit 1

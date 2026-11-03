@@ -1,0 +1,124 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push to the same branch cancels the run still going: only the newest commit's result matters.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Whether the change touches documentation only (Markdown anywhere, docs/, LICENSE, NOTICE). Then only the tests that
+  # read the docs run (the docs job); anything else, or a change it cannot tell (a new branch, a manual run), runs all.
+  changes:
+    name: What changed
+    runs-on: ubuntu-latest
+    outputs:
+      docs_only: ${{ steps.diff.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          docs_only=false
+          if [ -n "$BASE" ] && git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            changed=$(git diff --name-only "$BASE" "$HEAD")
+            if [ -n "$changed" ] && ! printf '%s\n' "$changed" | grep -qvE '\.md$|^docs/|^LICENSE$|^NOTICE$'; then docs_only=true; fi
+          fi
+          echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
+
+  docs:
+    name: Documentation tests
+    needs: changes
+    if: needs.changes.outputs.docs_only == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: Check the Gradle wrapper jar
+        run: echo "238e777fcddd7e34f9708186085def2abd6e08e658505b38718d79d74c21abd5  gradle/wrapper/gradle-wrapper.jar" | sha256sum -c -
+      # the test that reads the docs: every config path, link, and command they name exists
+      - name: The tests that read the documentation
+        run: ./gradlew :plymeld-commands:test --tests 'plymeld.commands.DocsConsistencyTest'
+      - name: Keep the test reports of a failed run
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: docs-test-reports
+          path: |
+            **/build/reports/tests/
+            **/build/test-results/
+          retention-days: 14
+
+  fast:
+    name: Build and fast tests
+    needs: changes
+    if: needs.changes.outputs.docs_only != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      # JDK 21; Gradle's caches (dependencies, wrapper) by setup-java's own cache, so no further action or license is
+      # involved.
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      # The wrapper jar is Gradle's published one for 9.8.0 (the distribution itself is pinned by its SHA-256 in
+      # gradle/wrapper/gradle-wrapper.properties).
+      - name: Check the Gradle wrapper jar
+        run: echo "238e777fcddd7e34f9708186085def2abd6e08e658505b38718d79d74c21abd5  gradle/wrapper/gradle-wrapper.jar" | sha256sum -c -
+      - name: Every test but the slow suites (tools/slow-suites.txt)
+        run: ./gradlew fastTest --continue
+      - name: Keep the test reports of a failed run
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fast-test-reports
+          path: |
+            **/build/reports/tests/
+            **/build/test-results/
+          retention-days: 14
+
+  slow:
+    name: Slow tests
+    needs: fast
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: Check the Gradle wrapper jar
+        run: echo "238e777fcddd7e34f9708186085def2abd6e08e658505b38718d79d74c21abd5  gradle/wrapper/gradle-wrapper.jar" | sha256sum -c -
+      - name: The slow suites alone (tools/slow-suites.txt)
+        run: ./gradlew slowTest --continue
+      - name: Keep the test reports of a failed run
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: slow-test-reports
+          path: |
+            **/build/reports/tests/
+            **/build/test-results/
+          retention-days: 14

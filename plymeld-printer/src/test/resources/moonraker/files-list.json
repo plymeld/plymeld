@@ -1,0 +1,6 @@
+{
+  "result": [
+    {"path": "example.gcode", "modified": 1760000000.5, "size": 1234567, "permissions": "rw"},
+    {"path": "coupons/plate_a.gcode", "modified": 1759990000.0, "size": 98765, "permissions": "rw"}
+  ]
+}

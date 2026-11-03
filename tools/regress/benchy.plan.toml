@@ -1,0 +1,65 @@
+# Written by `plymeld plan`: the decisions it made. For `plymeld slice` every value here is a LOCK: it prints
+# as planned and decides nothing again. For `plymeld plan` every value here is decided AGAIN, except one you
+# write as "!value": that one is kept (a kept band, island, support spot or infill angle keeps the pose too).
+
+[plan]
+# all objects together, by height (the only usable order)
+objects.printing = "together"
+
+[plan.object."3DBenchy.stl"]
+# pose 'as given (-Z down)' with 0.00-27.50 mm flat-follow; 27.50-34.40 mm flat; 34.40-37.40 mm flat-follow; 37.40-37.70 mm flat; 37.70-40.40 mm flat-follow; 40.40 mm to the top flat, flat layers 0.3 mm: 572.7 mm² unsupported (0.0 mm² of it gets support, decided per overhang), 447.7 mm² flat on the bed, center of mass over the contact; 229 layers, stair-step 0.019 mm, layer lines 0.202 mm, weakest bond 6.8 mm², time ~27 min (quick estimate), support under 0 spot(s), ~0 mm³ (0.0 of 572.7 mm² held up) (~0.00 g); predicted in full by the finalists' slice (time -16.6 %, better against the baseline's 2409 s)
+pose.label = "as given (-Z down)"
+pose.turn = "1 0 0 0 1 0 0 0 1"
+# 0.00-27.50 mm flat-follow; 27.50-34.40 mm flat; 34.40-37.40 mm flat-follow; 37.40-37.70 mm flat; 37.70-40.40 mm flat-follow; 40.40 mm to the top flat, flat layers 0.3 mm · flat tops as laid (weighted score, together with the pose): 229 layers, stair-step 0.019 mm, layer lines 0.202 mm, weakest bond 6.8 mm², time ~27 min (quick estimate), support under 0 spot(s), ~0 mm³ (0.0 of 572.7 mm² held up) (~0.00 g)
+technique.flat.layer.height = "0.3 mm"
+mechanism.adhesion.first_layer.height = "0.2 mm"
+band.1.technique = "flat"
+band.1.heights = "follow"
+band.1.from = "0 mm"
+band.1.to = "27.5 mm"
+band.2.technique = "flat"
+band.2.heights = "one"
+band.2.layer.height = "0.3 mm"
+band.2.from = "27.5 mm"
+band.2.to = "34.4 mm"
+band.3.technique = "flat"
+band.3.heights = "follow"
+band.3.from = "34.4 mm"
+band.3.to = "37.4 mm"
+band.4.technique = "flat"
+band.4.heights = "one"
+band.4.layer.height = "0.3 mm"
+band.4.from = "37.4 mm"
+band.4.to = "37.7 mm"
+band.5.technique = "flat"
+band.5.heights = "follow"
+band.5.from = "37.7 mm"
+band.5.to = "40.4 mm"
+band.6.technique = "flat"
+band.6.heights = "one"
+band.6.layer.height = "0.3 mm"
+band.6.from = "40.4 mm"
+# support decided per overhang (plan.support.enabled unset): none chosen
+support.enabled = "false"
+# infill direction: 45 deg to the object's long axis as posed (179.996 deg from +X), so a grid's two line
+# families cross it at the same angle and neither runs along it
+layer.infill.angle = "44.996 deg"
+# the flat tops' surface technique, weighed against as laid (no plan.faces.flat_top.technique lock): as laid won
+faces.flat_top.technique = "as_laid"
+# bond-first cooling, weighed (no plan.bond_cooling lock): the filament's cooling won; the filament's cooling: part fan 100 %, nozzle 205 C, minimum layer time 6 s
+bond_cooling = "off"
+# the seams, weighed (no plan.seam lock): scarf seams on the outer walls whose seam lands off a corner; the loops' seams at the held-up point seen least (its viewing directions weighed by the quadrant they look from, hidden by nearby geometry, on an underside), in line with the layer below; else the back
+seam = "scarf_seam"
+technique.scarf_seam.where = "smooth"
+technique.scarf_seam.plain_style = "least_visible_seam"
+# the in-island retraction, weighed (plan.mechanism.motion.no_retract_in_island unset): hidden travels kept unretracted
+mechanism.motion.no_retract_in_island = "true"
+
+# What the decisions were made from: `plymeld slice` warns when either has changed.
+[plan.source_fingerprint.model]
+"3DBenchy.stl" = "b9ede3a0fc0369d0"
+
+[plan.source_fingerprint.config]
+hardware = "03f11841bc7b0913"
+job = "0398fcde82d58b46"
+method = "a445ff5b54c93d46"

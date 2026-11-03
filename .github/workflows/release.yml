@@ -1,0 +1,155 @@
+name: Release
+
+# A version tag (v0.20261102.0, as gradle.properties' plymeld.version) builds the native command line and window for
+# Windows and Linux, packages them with Velopack (the Windows installer and portable zip, the AppImage, the update feeds),
+# and uploads them, with the Linux command line's own tar, to a draft GitHub release for the maintainer to read and
+# publish. Each platform builds and packages on its own runner, with the same tools/ scripts as a hand build.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+env:
+  # the update feed the installed window checks: plymeld.org/releases redirects to the latest release's files
+  PLYMELD_FEED: https://plymeld.org/releases
+
+jobs:
+  draft:
+    name: Draft release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: version
+        name: The tag names the version gradle.properties sets
+        run: |
+          ver=$(sed -n 's/^plymeld\.version=//p' gradle.properties)
+          [ "${GITHUB_REF_NAME#v}" = "$ver" ] || { echo "tag $GITHUB_REF_NAME, but gradle.properties sets plymeld.version=$ver"; exit 1; }
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+      - name: The draft release (its notes are written from CHANGELOG.md before it is published)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VER: ${{ steps.version.outputs.version }}
+        run: gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "plymeld $VER" --notes "Notes to come from CHANGELOG.md."
+
+  linux:
+    name: Linux packages
+    needs: draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      VER: ${{ needs.draft.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      # GraalVM for JDK 21 with native-image (Oracle GraalVM); sets GRAALVM_HOME and JAVA_HOME
+      - uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '21'
+          distribution: graalvm
+          github-token: ${{ github.token }}
+      - name: Check the Gradle wrapper jar
+        run: echo "238e777fcddd7e34f9708186085def2abd6e08e658505b38718d79d74c21abd5  gradle/wrapper/gradle-wrapper.jar" | sha256sum -c -
+      - name: The jars, the window's with Linux natives, and the icons
+        run: ./gradlew :plymeld-cli:installDist :plymeld-ui:nativeLib :plymeld-ui:icons
+      - name: The command line (and its tar, plymeld-linux-x64.tar.gz)
+        run: tools/build-native.sh
+      - name: The window
+        run: tools/build-native-ui.sh build
+      # one folder: the window with its libraries and lib/libjawt.so, the command line beside it, the update feed's URL
+      - name: The package folder
+        run: |
+          pack="$RUNNER_TEMP/linux"; mkdir -p "$pack"
+          cp -a plymeld-ui/build/native/. "$pack/"
+          rm -rf "$pack/lib/"*.jar
+          # the command line and any library native-image put beside it (the window's own copies kept)
+          for f in plymeld-cli/build/native/*; do case "$f" in *.txt) ;; *) cp -an "$f" "$pack/" ;; esac; done
+          echo "$PLYMELD_FEED" > "$pack/plymeld-update-feed.txt"
+      - name: Install vpk (Velopack's packager)
+        run: |
+          dotnet tool install -g vpk
+          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+      - name: The AppImage and the feed (Velopack)
+        run: |
+          out="$RUNNER_TEMP/releases"; mkdir -p "$out"
+          vpk pack --packId plymeld --packTitle plymeld --packVersion "$VER" --packDir "$RUNNER_TEMP/linux" --mainExe plymeld-ui \
+            --icon plymeld-ui/build/icons/plymeld-256.png --channel linux --outputDir "$out"
+          cp plymeld-cli/build/plymeld-linux-x64.tar.gz "$out/"
+      - name: Upload to the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" "$RUNNER_TEMP"/releases/* --clobber
+
+  windows:
+    name: Windows packages
+    needs: draft
+    runs-on: windows-latest
+    timeout-minutes: 180
+    env:
+      VER: ${{ needs.draft.outputs.version }}
+      # native-image's builder heap for the window (tools/build-native-ui.cmd); the runner has 16 GB
+      NATIVE_XMX: 12g
+    steps:
+      - uses: actions/checkout@v7
+      - uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '21'
+          distribution: graalvm
+          github-token: ${{ github.token }}
+      - name: Check the Gradle wrapper jar
+        shell: bash
+        run: echo "238e777fcddd7e34f9708186085def2abd6e08e658505b38718d79d74c21abd5  gradle/wrapper/gradle-wrapper.jar" | sha256sum -c -
+      # the C++ build tools' environment script, wherever this runner's Visual Studio is
+      - name: Find Visual Studio's vcvars64.bat
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          "VS_VCVARS=$vs\VC\Auxiliary\Build\vcvars64.bat" >> $env:GITHUB_ENV
+      - name: The jars, the window's with Windows natives, and the icons
+        shell: cmd
+        run: gradlew.bat :plymeld-cli:installDist :plymeld-ui:windowsLib :plymeld-ui:icons
+      - name: The command line
+        shell: cmd
+        env:
+          PLYMELD_LIB: ${{ github.workspace }}\plymeld-cli\build\install\plymeld\lib
+          PLYMELD_ICO: ${{ github.workspace }}\plymeld-ui\build\icons\plymeld.ico
+          OUT: ${{ runner.temp }}\cli
+        run: call tools\build-native.cmd || exit /b 1
+      - name: The window
+        shell: cmd
+        env:
+          PLYMELD_LIB: ${{ github.workspace }}\plymeld-ui\build\windows\lib
+          PLYMELD_ICO: ${{ github.workspace }}\plymeld-ui\build\icons\plymeld.ico
+          META: ${{ github.workspace }}\plymeld-ui\src\main\resources\META-INF\native-image\com.plymeld\plymeld-ui
+          OUT: ${{ runner.temp }}\ui
+        run: call tools\build-native-ui.cmd build || exit /b 1
+      # the window with its DLLs and bin\jawt.dll at the root; the command line with ITS OWN DLLs under cli\ (native-image's
+      # stub DLLs differ per image); not the icon's build files
+      - name: The package folder
+        shell: pwsh
+        run: |
+          $win = "$env:RUNNER_TEMP\win"
+          New-Item -ItemType Directory -Force "$win\cli", "$win\bin" | Out-Null
+          Copy-Item "$env:RUNNER_TEMP\ui\*.exe", "$env:RUNNER_TEMP\ui\*.dll" $win
+          Copy-Item "$env:RUNNER_TEMP\ui\bin\*" "$win\bin"
+          Copy-Item "$env:RUNNER_TEMP\cli\*.exe", "$env:RUNNER_TEMP\cli\*.dll" "$win\cli"
+      # on PATH for the steps after this one, so package-velopack.cmd finds it there (its fallback is a per-user .NET)
+      - name: Install vpk (Velopack's packager)
+        shell: pwsh
+        run: |
+          dotnet tool install -g vpk
+          "$env:USERPROFILE\.dotnet\tools" >> $env:GITHUB_PATH
+      - name: The installer, the portable zip and the feed (Velopack)
+        shell: cmd
+        env:
+          PLYMELD_WIN: ${{ runner.temp }}\win
+          PLYMELD_ICONS: ${{ github.workspace }}\plymeld-ui\build\icons
+          OUT: ${{ runner.temp }}\releases
+        run: call tools\package-velopack.cmd %VER% win || exit /b 1
+      - name: Upload to the draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" "$RUNNER_TEMP"/releases/* --clobber

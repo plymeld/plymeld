@@ -1,0 +1,261 @@
+# plymeld's bundled defaults, read before any config file (docs/user/reference/config-files.md).
+#
+# PLACEHOLDERS: plausible values so that a print can be made while the plan's groups are redone
+# technique by technique. Not measured, not tested on a print, and not taken from any
+# other slicer's profile or defaults. Where a value follows from the nozzle or the filament it is a
+# formula, so it carries through a change of either. Any of them can be overridden in a config
+# file or with -cv.
+
+[method.search]
+# flat layer heights tried per pose across the tool's range, coarse to fine: the ends and
+# the baseline (else the middle) in every pose, then, round by round, more where an interval next to the leading
+# candidate could still win. 9 is plymeld's choice, search effort only; the rounds also stop when
+# method.search.settle_rounds rounds in a row left the winner as it was (catalog default 2)
+layer.heights = "9"
+# the search log (method.search.log.enabled, .file) and the time limit (time.max) are catalog defaults, not set here:
+# every decision appends a line to search.log in plymeld's state folder (docs/user/reference/outputs.md)
+
+[method.slicing]
+tolerance = "= tool.bore / 32"                 # outline simplification: far below a line's width
+close_gaps = "= tool.bore / 8"                 # gaps narrower than a quarter of the bore are closed
+
+# ---- flat layers: the layer height where they keep one height
+# the layer height is DECIDED (the search tries method.search.layer.heights across the tool's range);
+# this value is the stand-in that other values (first layer, support gap) are worked out from
+[plan.technique.flat]
+layer.height = "= clamp(round(tool.bore / 2, 0.04 mm), tool.layer.height.min, tool.layer.height.max)"
+# the transition between layer heights: a layer at most this much thicker than the one below, and the
+# layers before a thinner band stepping down by this much each. PLACEHOLDER: not measured on any print
+height_ratio = "1.5"
+# the hidden core in thicker layers: sparse infill laid every this many layers, that many
+# layers thick where the layers' sparse regions overlap: as many layers as make a bead the tool's thickest layer. "1" = off.
+# First test print: two 30 x 30 x 6 mm blocks in 0.1 mm layers, one with 0.3 mm core beads every third
+# layer, one without: no difference seen on top. Not yet checked: the beads inside and the two weights.
+core.layers = "= floor(tool.layer.height.max / plan.technique.flat.layer.height + 0.01)"   # + 0.01: 0.3 / 0.1 is 2.9999... in floating point
+
+# ---- what every flat layer is made of, for every flat-layer technique (INHERITED groups, to be
+# re-derived)
+[plan.layer.walls]
+thickness = "= 3 * tool.bore"                  # the number of lines follows from the widths
+# variable-width walls by default; their thresholds
+# follow from the tool's narrowest line (hardware.tool.<key>.line.width.min), or its bore where it gives none (ConfigSetup)
+style = "variable_width"
+outer.line.width = "= tool.bore * 1.1"         # a line a little wider than the bore presses onto the one below
+inner.line.width = "= tool.bore * 1.1"
+inner_first = "false"
+
+[plan.layer.top]
+thickness = "0.8 mm"
+pattern = "monotonic"
+line.width = "= tool.bore * 1.1"
+
+[plan.layer.bottom]
+thickness = "0.6 mm"
+pattern = "monotonic"
+
+[plan.layer.infill]
+density = "15%"
+pattern = "grid"
+line.width = "= tool.bore * 1.1"
+angle = "45 deg"                               # stand-in: plymeld decides it per object, 45 deg to its long axis
+# plan.layer.infill.chord_tolerance (how far a curved interior line may stray from its curve between vertices) is left
+# unset: the gyroid is laid as traced and the arc fitter turns its runs into arcs. Bundled at an
+# eighth of the bore for one day: simplified first, the curves no longer fitted as arcs (a 9 h print's gyroid
+# 843,112 arcs -> 15,215, its g-code 600,000 lines longer, predicted 14 min slower). Set it for a printer without arcs.
+# How far an interior line's end reaches into the walls past bead contact, as a share of its width: a line end touches a
+# wall only with its rounded cap, so it reaches a quarter of its width further in to press into the wall. A PLACEHOLDER,
+# not measured: the bundled value since plymeld's config began ("reaches a quarter of its width into the
+# walls"), a constant in the code for a while until it became a setting again (every value plymeld
+# supplies is an overridable setting). Stands until a coupon measures it.
+wall_overlap = "25%"
+
+[plan.layer.solid]
+line.width = "= tool.bore * 1.1"
+
+[plan.layer.bridge]
+flow = "100%"
+
+# ---- motion: visible lines are capped, hidden lines print at the machine's fastest move, every move is capped by the filament's
+# melt rate (docs/user/how-to/visible-motion.md, docs/user/how-to/melt-rate.md). PLACEHOLDERS: the visible cap is to be decided from the quality weight; these two are
+# stand-ins for a machine that sets none (its hardware.machine.<key>.motion.visible_*, from its motion plate, win; yours here win over that)
+[plan.mechanism.motion]
+visible.speed = "100 mm/s"
+visible.acceleration = "= machine.motion.print.acceleration / 2"
+# first_layer.speed: here only the stand-in for a machine and filament that set none. A filament's own
+# (hardware.filament.<key>.motion.first_layer.speed) wins, else the machine's (hardware.machine.<key>.motion.first_layer.speed);
+# a value set here in a config file of your own (or -cv) locks it over both
+first_layer.speed = "40 mm/s"
+bridge.speed = "30 mm/s"
+# travels around the layer's other islands (strings from a purge tower to a part embedded themselves in another part
+# between them); no retraction for a travel inside its island crossing no wall. Here so `plymeld
+# config` shows them; the catalog carries the same defaults.
+avoid_crossing = "true"
+# the detour's margin outside an island's wall and its cap: PLACEHOLDERS,
+# not tested on a print
+detour.margin = "1 mm"
+detour.ratio.max = "2"
+detour.extra.max = "20 mm"
+# no_retract_in_island is NOT set here: unset, it is DECIDED per object by the plan on its planned layers (RetractionDecision; `plan -o` writes it):
+# the travels the planner keeps inside an island either way, weighed by the strings they risk (string_risk) against the
+# restarts and the time of retracting them (restart_starved, speed). Earlier, it was "true" (an island's
+# 1-2 mm moves had each retracted, lifted and restored). Set it to lock either way.
+# the travel lift is the filament's (hardware.filament.<key>.retract.z_hop): the bundled filaments set it
+
+# ---- the slow-down for the minimum layer time: from the hidden lines first, the visible lines only for what they cannot give
+# (a gap found reviewing a slice: outer walls slowed to a different speed every layer, banding, while the
+# inner walls beside them kept their speed)
+[plan.mechanism.cooling]
+slowdown.style = "hidden_first"
+# a layer still short of its minimum time at the minimum speed: the head waits out the rest
+dwell.enabled = "true"
+# lift: straight up where the layer ended; park: beside the layer (needs the head's size)
+dwell.style = "lift"
+# how far up
+dwell.lift = "5 mm"
+
+# ---- adhesion (INHERITED)
+[plan.mechanism.adhesion.first_layer]
+height = "= plan.technique.flat.layer.height"
+line.width = "= tool.bore * 1.25"              # wider on the first layer, for more contact with the bed
+
+[plan.mechanism.adhesion.brim]
+enabled = "false"
+where = "outer"                                # where a brim goes when enabled
+width = "= 12 * tool.bore"
+gap = "0 mm"
+
+# The prime line: plymeld's own, laid before the first layer within 1 cm of the first object. enabled and line
+# unset: none with a prime tower, else on a peel tab, a partial brim joining the line to the print (against the brim's edge
+# when there is a brim). PLACEHOLDERS: length and gap, not measured.
+[plan.mechanism.adhesion.prime]
+length = "30 mm"
+gap = "5 mm"
+
+# Tacking a lifted bridge's layers to its first, an experiment: off. PLACEHOLDERS (plymeld's choice),
+# not measured: a 1.5 mm tack, rising over 1 mm, tacked lines 1.5 mm apart across the bridge.
+[plan.technique.bridge]
+# a lifted bridge's fill all along it, no crossing lines: off, for the fill aligned with the span
+# instead (fill_angles = "span", unset: along and across it layer by layer, its top along it)
+fill_along = "false"
+# how far past the span's edge a crossing beside a waved bridge goes (plan.technique.bridge.wave.crossing = "beside").
+# PLACEHOLDER, not measured: clear of the span's edge bead by a few line widths.
+wave.crossing_clearance = "3 mm"
+# Arched lifted bridges (concave up or down: a first-layer line more than half a layer above or below straight between
+# its supports): every layer of the bridge at 4 mm/s, every move there at 8 mm/s, no tacks, 15 C under the filament's
+# print temperature. From one speed plate (4 / 8, 8 / 16 and 12 / 24 mm/s, each with and without tacks), so
+# measured on one filament and one printer only. The temperature is an offset from the filament's print temperature so it
+# carries to other filaments. Straight lifted bridges keep the usual bridge values.
+print.speed = "4 mm/s"
+travel.speed = "8 mm/s"
+# Over air only, the speed ramps up slowly from print.speed: these steps, then doubling (ramp_growth) until the bridge
+# speed is reached, then the usual. Not measured.
+ramp_speeds = "6, 8, 12, 24 mm/s"
+ramp_growth = "2"
+temperature = "= filament.temperature.print - 15 C"
+# its top layer (and the ironing on it) at the usual speeds and the print temperature
+top_layer = "normal"
+
+[plan.technique.bridge.tack]
+layers = "0"
+length = "1.5 mm"
+rise = "1 mm"
+spacing = "1.5 mm"
+
+# ---- support (INHERITED values; the switch is a lock)
+# `enabled` is NOT set here: unset, the search decides per overhang (support's proposals weighed against the droop
+# without them, locked spots always supported); true locks support everywhere it applies, false never. Support is
+# tree support, one style.
+[plan.support]
+spacing = "= 5 * tool.bore"
+line.width = "= tool.bore"
+angle = "0 deg"
+from_bed_only = "false"
+# the gap on top of support: one layer, but never less than this (0.2 mm held apart in a test print where 0.1 mm
+# fused); gap.top.value set = exactly that. The gap under support standing on the model: one layer unless
+# gap.bottom is set
+gap.top.min = "0.2 mm"
+
+[plan.support.interface]
+top_layers = "2"
+bottom_layers = "0"
+
+[plan.support.tree]
+branch_diameter = "= 12 * tool.bore"
+widening = "5 deg"
+tip_spacing = "= 5 * tool.bore"
+
+# ---- purge (INHERITED): only read when a print changes filament
+[plan.mechanism.purge]
+tower.enabled = "true"
+# where the purge after a tool change goes: tower, infill (the new filament's own sparse infill first, the tower
+# taking the rest), infill_and_object (its sparse, then its hidden solid infill, then the tower)
+into = "tower"
+tower.x = "= machine.build.x * 0.7"
+tower.y = "= machine.build.y * 0.7"
+
+# ---- seams (the lock in the job, each seam style's values under plan.technique). plan.seam is NOT set here:
+# unset, the seam is DECIDED per object by the job's weights (SeamDecision: the placement, back or corners, and
+# scarf seams on none, the smooth loops or all, scored by seam_scar against the scarf's extra pass in time). Earlier
+# it was locked to scarf seams on the smooth loops with corner seams elsewhere (what the decision picks under
+# equal weights for a part with corners). Set plan.seam to lock a style. The numbers are placeholders,
+# not tested on a print; when scarf seams are locked, scarf_seam.where and .plain_style say which loops and the plain style.
+
+[plan.technique.scarf_seam]
+where = "smooth"
+length = "10 mm"
+start = "0.25"
+plain_style = "corner_seam"
+
+[plan.technique.corner_seam]
+corner_angle = "30 deg"
+
+# ---- the surface techniques' values, read only where the job locks the surface technique (plan.faces.*): none is locked here
+[plan.technique.fuzzy_skin]
+where = "external"
+thickness = "= tool.bore * 0.75"
+point_distance = "= tool.bore * 2"
+first_layer = "false"
+
+# ---- wave overhangs (plan.faces.under.technique = "wave_overhang"): the sources' values for a 0.4 mm nozzle
+# (docs/user/explanation/print-techniques.md), scaled by the bore; placeholders until the tiles are printed. On by default
+# (a 12 mm wave shelf printed far better than its bridged control): an underside hanging off one side gets a
+# wave overhang, support or nothing, never a bridge; a span between two supports stays a bridge
+[plan.faces]
+under.technique = "wave_overhang"
+
+[plan.technique.wave_overhang]
+spacing = "= tool.bore * 0.875"
+overlap = "= tool.bore / 4"
+neck.min = "= tool.bore * 1.75"
+area.min = "0.01 mm2"
+line.area = "0.16 mm2"
+speed = "2 mm/s"
+
+[plan.technique.ironing]
+spacing = "= tool.bore / 4"
+flow = "10%"
+inset = "= tool.bore / 2"
+angle = "0 deg"
+speed = "30 mm/s"
+
+# Bond-first cooling (after thin parts of a test print snapped between layers): what an
+# object gets when the bond between its layers is chosen over its filament's cooling (plan.bond_cooling = on, or weighed so).
+# PLACEHOLDERS, not measured: half the filament's part fan, half its minimum layer time, and
+# 10 C over its print temperature (capped at the filament's temperature.max where set). The helix-layer coupon
+# is the first measurement.
+[plan.technique.bond_cooling]
+fan = "= filament.cooling.fan / 2"
+layer.time.min = "= filament.cooling.layer.time.min / 2"
+temperature = "= filament.temperature.print + 10 C"
+
+# ---- the job's priorities: a goal's weight is split over its measures in proportion to the measures' own weights
+# (job.priorities.measure.<measure>, default 1). Layer lines count four times each other quality measure
+#. The goals themselves default to equal weights (the catalog's) when none is set.
+[job.priorities]
+measure.layer_lines = "4"
+
+# ---- the search's standing for the model's own orientation: another pose must beat the as-given pose by
+# more than this score to turn the model. A stand-in: a tenth of a point, about a 10 %
+# difference on one fully weighted measure.
+[method.search.pose]
+keep_margin = "0.1"

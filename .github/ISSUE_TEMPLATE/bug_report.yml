@@ -1,0 +1,42 @@
+name: Bug report
+description: Something plymeld did wrong, such as a crash, a refusal you think is mistaken, or a print that came out wrong.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: For a security problem, do not open an issue; see [SECURITY.md](https://github.com/plymeld/plymeld/blob/main/SECURITY.md).
+  - type: input
+    id: version
+    attributes:
+      label: plymeld version
+      description: What `plymeld --version` prints.
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: What you ran
+      description: The command, or what you did in the window.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: files
+    attributes:
+      label: Model and config
+      description: The smallest model and config that show it, attached or linked, if you are free to share them.
+  - type: dropdown
+    id: system
+    attributes:
+      label: System
+      options:
+        - Windows
+        - Linux
+        - macOS
+        - Other

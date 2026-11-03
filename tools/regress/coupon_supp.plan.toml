@@ -1,0 +1,39 @@
+# Written by `plymeld plan`: the decisions it made. For `plymeld slice` every value here is a LOCK: it prints
+# as planned and decides nothing again. For `plymeld plan` every value here is decided AGAIN, except one you
+# write as "!value": that one is kept (a kept band, island, support spot or infill angle keeps the pose too).
+
+[plan]
+# all objects together, by height (the only usable order)
+objects.printing = "together"
+
+[plan.object."overhang_bridge_coupon.stl"]
+# pose '+Z down (upside down)' with flat layers of one height: one layer height throughout, everything below a height before anything above it, flat layers 0.14 mm: 900.0 mm² unsupported (gets support), 1055.4 mm² flat on the bed, center of mass over the contact; 71 layers, stair-step 0.010 mm, layer lines 0.140 mm, weakest bond 50.0 mm², time ~16 min (quick estimate), support ~3600 mm³ (~4.46 g); predicted in full by the finalists' slice (time +22.4 %, worse against the baseline's 1362 s)
+pose.label = "+Z down (upside down)"
+pose.turn = "1 0 0 0 -1 0 0 0 -1"
+# flat layers of one height: one layer height throughout, everything below a height before anything above it, flat layers 0.14 mm · flat tops as laid (weighted score, together with the pose): 71 layers, stair-step 0.010 mm, layer lines 0.140 mm, weakest bond 50.0 mm², time ~16 min (quick estimate), support ~3600 mm³ (~4.46 g)
+technique.flat.layer.height = "0.14 mm"
+mechanism.adhesion.first_layer.height = "0.2 mm"
+band.1.technique = "flat"
+band.1.heights = "one"
+band.1.layer.height = "0.14 mm"
+band.1.from = "0 mm"
+# infill direction: 45 deg to the object's long axis as posed (179.269 deg from +X), so a grid's two line
+# families cross it at the same angle and neither runs along it
+layer.infill.angle = "44.269 deg"
+# the flat tops' surface technique, weighed against as laid (no plan.faces.flat_top.technique lock): as laid won
+faces.flat_top.technique = "as_laid"
+# bond-first cooling, weighed (no plan.bond_cooling lock): bond-first won; bond-first cooling: part fan 50 %, nozzle 215 C, minimum layer time 3 s
+bond_cooling = "on"
+# the seams, weighed (no plan.seam lock): no scarf seams; the loops' seams at the held-up point seen least (its viewing directions weighed by the quadrant they look from, hidden by nearby geometry, on an underside), in line with the layer below; else the back
+seam = "least_visible_seam"
+# the in-island retraction, weighed (plan.mechanism.motion.no_retract_in_island unset): hidden travels kept unretracted
+mechanism.motion.no_retract_in_island = "true"
+
+# What the decisions were made from: `plymeld slice` warns when either has changed.
+[plan.source_fingerprint.model]
+"overhang_bridge_coupon.stl" = "a7d74780ae2f2dfb"
+
+[plan.source_fingerprint.config]
+hardware = "03f11841bc7b0913"
+job = "0398fcde82d58b46"
+method = "a445ff5b54c93d46"

@@ -1,0 +1,22 @@
+# Gradle / Kotlin / IDE
+.gradle/
+build/
+.kotlin/
+.idea/
+*.iml
+out/
+local.properties
+
+
+# Local slicer output and scratch
+/gcode-out/
+_scratch_*
+*.log
+# crash dumps put here to replay (CrashReplayTest): fragments of someone's model
+/test-models/crash/
+
+# OS
+.DS_Store
+Thumbs.db
+# throwaway 4-view previews
+*.preview.png

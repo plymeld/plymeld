@@ -1,0 +1,41 @@
+# Versions read from Maven Central maven-metadata.xml (newest plain x.y.z,
+# pre-releases excluded). Bump deliberately; record the reason in DECISIONS.md if it matters.
+[versions]
+kotlin = "2.4.20"
+clikt = "5.1.0"
+kotlinx-serialization = "1.11.0"
+kotest = "6.2.5"
+# TOML reader for config files (Apache-2.0)
+tomlj = "1.1.1"
+# The UI: Compose Multiplatform (JetBrains, Apache-2.0) and LWJGL (BSD-3) for the 3D view
+compose = "1.12.1"
+compose-material3 = "1.9.0"   # versioned apart from Compose since 1.9; its newest stable
+lwjgl = "3.4.3"
+# SSH to a printer (Apache MINA SSHD, the Apache Software Foundation, Apache-2.0):
+# sshd-core only (a shell command; the file is read with `cat`, so sshd-sftp is not needed). Newest stable
+# read from Maven Central (3.0.0-M6 is a milestone, excluded). It brings sshd-common, slf4j-api 1.7 and
+# jcl-over-slf4j; with no slf4j binding, slf4j prints one "no-operation logger" notice to stderr the first time MINA
+# logs (no binding added).
+sshd = "2.20.0"
+
+[libraries]
+clikt = { module = "com.github.ajalt.clikt:clikt", version.ref = "clikt" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
+kotest-runner-junit5 = { module = "io.kotest:kotest-runner-junit5", version.ref = "kotest" }
+kotest-assertions-core = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }
+kotest-property = { module = "io.kotest:kotest-property", version.ref = "kotest" }
+tomlj = { module = "org.tomlj:tomlj", version.ref = "tomlj" }
+sshd-core = { module = "org.apache.sshd:sshd-core", version.ref = "sshd" }
+compose-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "compose-material3" }
+lwjgl-core = { module = "org.lwjgl:lwjgl", version.ref = "lwjgl" }
+lwjgl-glfw = { module = "org.lwjgl:lwjgl-glfw", version.ref = "lwjgl" }
+lwjgl-opengl = { module = "org.lwjgl:lwjgl-opengl", version.ref = "lwjgl" }
+
+[bundles]
+kotest = ["kotest-runner-junit5", "kotest-assertions-core", "kotest-property"]
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "compose" }

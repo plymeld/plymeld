@@ -1,0 +1,6 @@
+#:schema ../../plymeld.schema.json
+# Test config: what is loaded. Placeholder values, not measured.
+
+[hardware.machine.example-corexy.loadout]
+plate = "textured-pei"
+tool.t1.filament = "pla-white"

@@ -1,0 +1,10 @@
+# Line endings the same on every checkout, whatever the host's core.autocrlf: LF, except Windows batch files (CRLF,
+# which cmd.exe needs for labels and goto).
+* text=auto eol=lf
+gradlew text eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.jar binary
+*.png binary
+*.stl binary
+*.3mf binary

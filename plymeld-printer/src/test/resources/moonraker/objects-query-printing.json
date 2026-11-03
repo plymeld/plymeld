@@ -1,0 +1,21 @@
+{
+  "result": {
+    "eventtime": 12345.678,
+    "status": {
+      "print_stats": {
+        "filename": "example.gcode",
+        "total_duration": 4300.5,
+        "print_duration": 4229.0,
+        "filament_used": 1234.5,
+        "state": "printing",
+        "message": "",
+        "info": {"total_layer": 484, "current_layer": 169}
+      },
+      "display_status": {"progress": 0.598, "message": null},
+      "extruder": {"temperature": 210.3, "target": 210.0, "power": 0.4, "can_extrude": true, "pressure_advance": 0.035, "smooth_time": 0.04},
+      "heater_bed": {"temperature": 59.8, "target": 60.0, "power": 0.3},
+      "gcode_move": {"speed_factor": 1.0, "speed": 1500.0, "extrude_factor": 1.05, "absolute_coordinates": true, "absolute_extrude": false,
+        "homing_origin": [0.0, 0.0, 0.0, 0.0], "position": [10.0, 20.0, 5.2, 100.0], "gcode_position": [10.0, 20.0, 5.0, 100.0]}
+    }
+  }
+}
