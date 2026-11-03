@@ -44,10 +44,12 @@ jobs:
       VER: ${{ needs.draft.outputs.version }}
     steps:
       - uses: actions/checkout@v7
-      # GraalVM for JDK 21 with native-image (Oracle GraalVM); sets GRAALVM_HOME and JAVA_HOME
+      # GraalVM for JDK 21 with native-image (Oracle GraalVM); sets GRAALVM_HOME and JAVA_HOME. Pinned to the release the
+      # window's native-image configuration was made with: 21.0.12 refuses its jni-config.json ("Record components cannot
+      # be accessed through JNI registrations"), so a newer GraalVM waits until that configuration is brought up to date.
       - uses: graalvm/setup-graalvm@v1
         with:
-          java-version: '21'
+          java-version: '21.0.7'
           distribution: graalvm
           github-token: ${{ github.token }}
       - name: Check the Gradle wrapper jar
@@ -93,9 +95,10 @@ jobs:
       NATIVE_XMX: 12g
     steps:
       - uses: actions/checkout@v7
+      # the same pinned GraalVM as the Linux job (see there)
       - uses: graalvm/setup-graalvm@v1
         with:
-          java-version: '21'
+          java-version: '21.0.7'
           distribution: graalvm
           github-token: ${{ github.token }}
       - name: Check the Gradle wrapper jar
