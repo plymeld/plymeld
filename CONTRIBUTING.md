@@ -86,7 +86,9 @@ Each case slices a model in `test-models/` with the test config in `test-models/
 nothing is decided again. After a deliberate change to the decisions, `tools/regress.sh plans` writes the plans again.
 Baselines are built in a temporary worktree and recorded once per commit in `~/.cache/plymeld-regress/`;
 `PLYMELD_REGRESS_DIR` overrides the folder. Every difference the script reports is either explained as intended or
-fixed.
+fixed. CI runs `tools/regress.sh check --base` against every pull request's base ("Same g-code as the base"); a
+deliberate change to the output fails it, and the pull request explains each case that differs (the g-code of both
+is kept with the failed run).
 
 ### A calibration plate in one command
 
