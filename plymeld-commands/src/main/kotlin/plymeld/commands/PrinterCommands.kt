@@ -126,17 +126,22 @@ class PrinterFilesCommand : PrinterConfigCommand("files") {
 }
 
 /**
- * `plymeld printer send FILE [--name NAME] [--print] [--replace]`: upload FILE, confirm it by the printer's own file list
- * where the API has one, and with `--print` start it. Refused when a file of that name is already on the printer (unless
- * `--replace`), and when the printer is printing, paused, or busy (where its state can be read). Sends only what it says.
+ * `plymeld printer send FILE [--name NAME] [--print [--level | --no-level]] [--replace]`: upload FILE, confirm it by the
+ * printer's own file list where the API has one, and with `--print` start it, levelling the bed first where asked (the
+ * option, else the machine's `connection.start.level`) and the API takes that request. Refused when a file of that name is
+ * already on the printer (unless `--replace`), and when the printer is printing, paused, or busy (where its state can be
+ * read). Sends only what it says.
  */
 class PrinterSendCommand : PrinterConfigCommand("send") {
     private val file by argument("FILE", help = "the g-code file to upload").path(mustExist = true, canBeDir = false)
     private val name by option("--name", metavar = "NAME", help = "the name to give it on the printer (default: the file's own name)")
     private val print by option("--print", help = "also start printing it once the upload is confirmed (the printer runs at once: the bed clear, the right filament loaded, and someone with it)").flag()
+    private val level by option("--level", help = "with --print: ask the printer to level the bed before it prints (flashforge-http: levelingBeforePrint); over the machine's connection.start.level; refused, before anything is sent, where the API has no such request (on a Klipper printer levelling is g-code)").flag()
+    private val noLevel by option("--no-level", help = "with --print: do not ask the printer to level first, whatever the machine's connection.start.level says").flag()
     private val replace by option("--replace", help = "overwrite a file of the same name already on the printer (refused otherwise)").flag()
     override fun help(context: com.github.ajalt.clikt.core.Context) =
-        "Upload FILE to the printer and confirm it by the printer's own file list (never by the reply code); with --print, start it, telling the printer which slot prints each tool the file uses where its API takes that (flashforge-http: materialMappings, from the machine's loadout). " +
+        "Upload FILE to the printer and confirm it by the printer's own file list (never by the reply code); with --print, start it, telling the printer which slot prints each tool the file uses where its API takes that (flashforge-http: materialMappings, from the machine's loadout), and to level the bed first with --level or the machine's connection.start.level (flashforge-http only). " +
+            "What the printer does by itself as a print starts (homing, heating, levelling) is its model's (hardware.model.<key>.notes: a Flashforge Creator 5 homes and levels by itself, levelling when the start asks for it); the rest is the file's start g-code. " +
             "Refused when the printer already has a file of that name (--replace to overwrite), is printing, paused, or busy, or (--print) when a tool the file uses has no filament loaded in the machine's loadout. " +
             "With --print, what the printer reports loaded is compared with the machine's loadout where its API reports one: a mismatch warns, one line per position, and the print goes on. " +
             "Sends the list request, the upload (flashforge-http: POST /uploadGcode; moonraker: POST /server/files/upload), the list again, and with --print one loadout request where the API has one, then the start (POST /printGcode; POST /printer/print/start)."
@@ -145,6 +150,18 @@ class PrinterSendCommand : PrinterConfigCommand("send") {
         val p = printer(c)
         need(p, Capability.UPLOAD)
         if (print) need(p, Capability.START)
+        if (level && noLevel) throw UsageError("--level and --no-level: one or the other")
+        if ((level || noLevel) && !print) throw UsageError("--level and --no-level ask the printer as it starts a print: give --print with them")
+        // the option, else the machine's own default; asked of a printer that cannot, refused before anything is sent
+        val key = machine(c)
+        val levelFirst = print && when {
+            level -> true
+            noLevel -> false
+            else -> c.entry(listOf("hardware", "machine", key, "connection", "start", "level"))?.let { c.boolean(it, plymeld.config.Site(machine = key)) } == true
+        }
+        if (levelFirst && !p.can(Capability.LEVEL_ON_START))
+            error("printer '${p.key}' cannot level the bed as a print starts: ${p.protocol.id} takes no such request; level in the g-code instead (the machine's gcode.start, or hardware.machine.$key.gcode.level)" +
+                (if (!level) " (asked by hardware.machine.$key.connection.start.level; --no-level to print without)" else ""))
         val remote = name ?: file.fileName.toString()
         val bytes = java.nio.file.Files.readAllBytes(file)
         var mapping: ToolMapping? = null
@@ -175,7 +192,7 @@ class PrinterSendCommand : PrinterConfigCommand("send") {
             false -> error("printer '${p.key}': the upload of $remote returned no error, yet its file list did not gain the name; not trusting it (check the printer)")
         }
         if (!print) return
-        val d = p.start(remote, mapping)
+        val d = p.start(remote, mapping, levelFirst)
         echo("sent to printer '${p.key}': ${d.sent}")
         d.readBack?.let { echo("status now: ${it.status.words}${it.rawStatus?.let { r -> if (r != it.status.words) " (the printer's word: \"$r\")" else "" } ?: ""}") }
     }

@@ -26,7 +26,8 @@ import java.time.Duration
  * - FILES: `POST /gcodeList` (names only on this firmware).
  * - UPLOAD: `POST /uploadGcode`, multipart field `gcodeFile`, the credentials and switches as headers; confirmed by
  *   listing before and after, never by the reply code.
- * - START: `POST /printGcode` with `levelingBeforePrint` false (no option for it yet) and no material mapping.
+ * - START: `POST /printGcode` with `levelingBeforePrint` (the firmware levels the bed first when true) and the material
+ *   mapping when one is given. LEVEL_ON_START: that switch.
  * - PAUSE / RESUME / CANCEL: `POST /control` with `jobCtl_cmd` pause / continue / cancel. `/control` acknowledges
  *   UNKNOWN commands with "Success" (the map, and observed), so the state is read back and reported.
  * - CAMERA: the MJPEG stream (`connection.camera.url`, else `/detail`'s `cameraStreamUrl`: inferred, that field was
@@ -47,7 +48,7 @@ class FlashforgeHttp(
 ) : Printer, LoadoutReader {
     override val protocol = Protocol.FLASHFORGE_HTTP
     override val capabilities = setOf(Capability.STATE, Capability.LOADOUT, Capability.FILES, Capability.UPLOAD, Capability.START,
-        Capability.PAUSE, Capability.RESUME, Capability.CANCEL, Capability.CAMERA)
+        Capability.LEVEL_ON_START, Capability.PAUSE, Capability.RESUME, Capability.CANCEL, Capability.CAMERA)
 
     private fun url(path: String) = "http://$host:$port$path"
     private fun credentials() = buildJsonObject { put("serialNumber", serialNumber); put("checkCode", checkCode) }
@@ -95,10 +96,10 @@ class FlashforgeHttp(
      * `materialName`, `toolMaterialColor` and `slotMaterialColor` as #RRGGBB): sent on `/printGcode` when a mapping is
      * given (the map says to omit it for a single-tool print; an observed client sends none at all). Read, not tried.
      */
-    override fun start(name: String, mapping: ToolMapping?): Done {
+    override fun start(name: String, mapping: ToolMapping?, level: Boolean): Done {
         val entries = mapping?.entries.orEmpty()
         codeOf(key, "/printGcode", post("/printGcode") {
-            put("fileName", name); put("levelingBeforePrint", false)
+            put("fileName", name); put("levelingBeforePrint", level)
             if (entries.isNotEmpty()) putJsonArray("materialMappings") {
                 for (e in entries) addJsonObject {
                     put("toolId", e.toolIndex - 1); put("slotId", e.slot); put("materialName", e.material)
@@ -106,7 +107,7 @@ class FlashforgeHttp(
                 }
             }
         })
-        val sent = "POST /printGcode fileName=$name levelingBeforePrint=false" +
+        val sent = "POST /printGcode fileName=$name levelingBeforePrint=$level" +
             (if (entries.isEmpty()) " (no material mapping: the firmware pairs tools and slots its own way)" else " materialMappings: ${mapping!!.text()}")
         return Done(sent, state())
     }

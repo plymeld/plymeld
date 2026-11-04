@@ -9,6 +9,15 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Added
+
+- `plymeld printer send --print --level` asks the printer to level the bed before it prints, where its API takes that
+  request (a Flashforge printer); `connection.start.level = true` on a machine makes it that machine's default, and
+  `--no-level` prints without. A printer that levels from g-code instead (a Klipper printer, over Moonraker) refuses it
+  before anything is sent.
+
+## [0.20261104.1] - 2026-11-04
+
 ### Changed
 
 - `plymeld init` sets up a Flashforge Creator 5 with Flashforge's own start sequence (the first tool selected and

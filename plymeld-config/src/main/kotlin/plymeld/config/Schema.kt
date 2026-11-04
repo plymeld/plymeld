@@ -143,6 +143,7 @@ object Schema {
         // (a test there holds the two lists equal); a credential is the NAME of an environment variable, never a value
         d("$m.connection.api", Type.Choice(listOf("flashforge-http", "moonraker")), "the protocol `plymeld printer` speaks to it: flashforge-http = Flashforge's LAN HTTP API (the Creator 5), moonraker = Moonraker's HTTP API on a Klipper machine")
         d("$m.connection.host", Type.Text, "its address on the network (a host name or an IP address)")
+        d("$m.connection.start.level", Type.Bool, "`plymeld printer send --print` asks the printer to level the bed before it prints (flashforge-http: levelingBeforePrint); --level / --no-level win over it; unset = false. A printer whose API has no such request (moonraker: levelling there is g-code, gcode.start or gcode.level) refuses it")
         q("$m.connection.port", Dimension.COUNT, "the API's port; unset = the API's own (8898 for flashforge-http, 7125 for moonraker)")
         q("$m.connection.timeout", Dimension.TIME, "how long to wait for the printer's answer; unset = 8 s")
         d("$m.connection.credential.<key>.env", Type.Text, "the NAME of the environment variable holding one credential the protocol needs (flashforge-http: serial_number and check_code; moonraker: api_key, and for its shell ssh_password or ssh_key_file (the path of a private key), all optional); the value itself never goes in a config file")

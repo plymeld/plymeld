@@ -89,6 +89,13 @@ class MoonrakerHttpTest : StringSpec({
         d.readBack!!.status shouldBe Status.PRINTING
     }
 
+    "start with levelling asked is refused, nothing sent: Moonraker's start takes no such request" {
+        val (p, t) = printer(answer = byPath("/printer/print/start?filename=x.gcode" to """{"result": "ok"}""", MoonrakerHttp.QUERY to printing))
+        p.can(Capability.LEVEL_ON_START) shouldBe false
+        shouldThrow<IllegalStateException> { p.start("x.gcode", level = true) }.message!! shouldContain "cannot level the bed as a print starts"
+        t.paths.isEmpty() shouldBe true
+    }
+
     "pause, resume and cancel: POST /printer/print/<action>, then the state read back; resume waits through the RESUME macro" {
         for ((call, action) in listOf<Pair<(MoonrakerHttp) -> Done, String>>({ p: MoonrakerHttp -> p.pause() } to "pause", { p: MoonrakerHttp -> p.resume() } to "resume", { p: MoonrakerHttp -> p.cancel() } to "cancel")) {
             val (p, t) = printer(answer = byPath("/printer/print/$action" to """{"result": "ok"}""", MoonrakerHttp.QUERY to printing))

@@ -327,6 +327,30 @@
                     "description": "its address on the network (a host name or an IP address)",
                     "type": "string"
                   },
+                  "start": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "level": {
+                        "description": "`plymeld printer send --print` asks the printer to level the bed before it prints (flashforge-http: levelingBeforePrint); --level / --no-level win over it; unset = false. A printer whose API has no such request (moonraker: levelling there is g-code, gcode.start or gcode.level) refuses it — true or false; or a formula (= ...)",
+                        "anyOf": [
+                          {
+                            "type": "boolean"
+                          },
+                          {
+                            "enum": [
+                              "true",
+                              "false"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "pattern": "^\\s*="
+                          }
+                        ]
+                      }
+                    }
+                  },
                   "port": {
                     "description": "the API's port; unset = the API's own (8898 for flashforge-http, 7125 for moonraker) — a count; or a formula (= ...)",
                     "type": [

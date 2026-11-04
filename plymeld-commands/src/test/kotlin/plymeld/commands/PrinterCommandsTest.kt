@@ -114,6 +114,37 @@ class PrinterCommandsTest : StringSpec({
         err2.single() shouldContain "could not reach b.test:7125"                          // past the loadout check, at the network
     }
 
+    "send --print --level: refused before anything is sent where the API cannot level on start, the machine's default too; controls: --no-level and no request reach the network" {
+        val one = d.resolve("level_one.gcode").also { Files.writeString(it, "G28\nT0\nG1 X1 E1\n") }
+        val loadout = d.resolve("level_loadout.toml").also { Files.writeString(it, """
+            [hardware.tool.b1]
+            machine = "shop-b"
+            index = "1"
+            bore = "0.4 mm"
+            [hardware.filament.white]
+            like = "pla-generic"
+            color = "#FFFFFF"
+            [hardware.machine.shop-b.loadout]
+            tool.b1.filament = "white"
+        """.trimIndent()) }
+        val always = d.resolve("level_always.toml").also { Files.writeString(it, "[hardware.machine.shop-b]\nconnection.start.level = true\n") }
+        fun send(vararg extra: String) = run("printer", "send", one.toString(), "-cf", cfg, "-cf", loadout.toString(), "--machine", "shop-b", *extra)
+        // the option on a Moonraker machine: one line, nothing sent (no "could not reach")
+        val (s1, _, e1) = send("--print", "--level")
+        s1 shouldBe 1
+        e1.single() shouldContain "plymeld: printer 'shop-b' cannot level the bed as a print starts: moonraker takes no such request; level in the g-code instead"
+        // the machine's own default asks the same, and says where it came from
+        val (s2, _, e2) = send("-cf", always.toString(), "--print")
+        s2 shouldBe 1
+        e2.single() shouldContain "asked by hardware.machine.shop-b.connection.start.level; --no-level to print without"
+        // controls: --no-level over the default, and no request at all, get past it to the network
+        send("-cf", always.toString(), "--print", "--no-level").third.single() shouldContain "could not reach b.test:7125"
+        send("--print").third.single() shouldContain "could not reach b.test:7125"
+        // usage: without --print, and both at once
+        send("--level").third.joinToString() shouldContain "give --print with them"
+        send("--print", "--level", "--no-level").third.joinToString() shouldContain "one or the other"
+    }
+
     "camera refuses in one line where the machine names no camera URL, before any connection; the output file is not written" {
         val out = d.resolve("frame.jpg")
         val (status, _, err) = run("printer", "camera", "-o", out.toString(), "-cf", cfg, "--machine", "shop-b")

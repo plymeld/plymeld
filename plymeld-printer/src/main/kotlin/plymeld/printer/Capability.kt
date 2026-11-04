@@ -11,6 +11,8 @@ enum class Capability(val words: String) {
     FILES("list its files"),
     UPLOAD("upload a file"),
     START("start a print"),
+    /** Asked as part of the start request (Flashforge's `levelingBeforePrint`); where levelling is g-code, the g-code does it. */
+    LEVEL_ON_START("level the bed as a print starts"),
     PAUSE("pause the print"),
     RESUME("resume the print"),
     CANCEL("cancel the print"),

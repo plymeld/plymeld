@@ -26,9 +26,10 @@ interface Printer {
     fun upload(name: String, bytes: ByteArray): Upload = refuse(Capability.UPLOAD)
     /**
      * Start printing the file [name] already on the printer; [mapping] says which slot prints each tool the file uses,
-     * where the API takes that (an API that does not ignores it and says so in [Done.sent]).
+     * where the API takes that (an API that does not ignores it and says so in [Done.sent]); [level]: ask the printer to
+     * level the bed first, refused ([Capability.LEVEL_ON_START]) where the API has no such request.
      */
-    fun start(name: String, mapping: ToolMapping? = null): Done = refuse(Capability.START)
+    fun start(name: String, mapping: ToolMapping? = null, level: Boolean = false): Done = refuse(Capability.START)
     fun pause(): Done = refuse(Capability.PAUSE)
     fun resume(): Done = refuse(Capability.RESUME)
     fun cancel(): Done = refuse(Capability.CANCEL)
