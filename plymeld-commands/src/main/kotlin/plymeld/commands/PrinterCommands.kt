@@ -3,6 +3,8 @@ package plymeld.commands
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.UsageError
 import com.github.ajalt.clikt.core.subcommands
+import com.github.ajalt.clikt.core.terminal
+import com.github.ajalt.mordant.terminal.prompt
 import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.flag
@@ -30,14 +32,15 @@ import plymeld.printer.text
 /**
  * `plymeld printer ...`: talking to the machine's printer through one interface,
  * over the connection its machine names in the config (`hardware.machine.<key>.connection.*`, the
- * credentials from the environment variables named there). Each subcommand says what it sends; one the machine's API
- * cannot do is refused in one line. The printer is named by its machine key everywhere, never its model.
+ * credentials from the environment variables or secrets files named there). Each subcommand says what it sends; one the
+ * machine's API cannot do is refused in one line. The printer is named by its machine key everywhere, never its model.
  */
 class PrinterCommand : CliktCommand(name = "printer") {
-    init { subcommands(PrinterStatusCommand(), PrinterWatchCommand(), PrinterCameraCommand(), PrinterFilesCommand(), PrinterSendCommand(), PrinterPauseCommand(), PrinterResumeCommand(), PrinterCancelCommand(), PrinterLoadoutCommand()) }
+    init { subcommands(PrinterStatusCommand(), PrinterWatchCommand(), PrinterCameraCommand(), PrinterFilesCommand(), PrinterSendCommand(), PrinterPauseCommand(), PrinterResumeCommand(), PrinterCancelCommand(), PrinterLoadoutCommand(), PrinterCredentialCommand()) }
     override fun help(context: com.github.ajalt.clikt.core.Context) =
-        "Talk to the machine's printer (--machine, over hardware.machine.<key>.connection in the config; credentials from the environment variables named there): " +
-            "status (its state), watch (its state as it changes), camera (one picture from its camera), files (what is on it), send (upload a file; --print starts it), pause, resume, cancel, loadout (what it has loaded, against the config). " +
+        "Talk to the machine's printer (--machine, over hardware.machine.<key>.connection in the config; credentials from the environment variables or secrets files named there): " +
+            "status (its state), watch (its state as it changes), camera (one picture from its camera), files (what is on it), send (upload a file; --print starts it), pause, resume, cancel, loadout (what it has loaded, against the config), " +
+            "credential (set one in its secrets file; sends nothing). " +
             "Each says what it sends; what the machine's API cannot do is refused in one line."
     override fun run() = Unit
 }
@@ -201,6 +204,41 @@ class PrinterResumeCommand : PrinterJobCommand("resume", Capability.RESUME, "the
 
 class PrinterCancelCommand : PrinterJobCommand("cancel", Capability.CANCEL, "the cancel (flashforge-http: POST /control jobCtl_cmd cancel; moonraker: POST /printer/print/cancel)") {
     override fun act(p: Printer) = p.cancel()
+}
+
+/**
+ * `plymeld printer credential NAME [--machine M]`: one of the machine's credentials set in the secrets file its config names
+ * (`connection.credential.<NAME>.file`), the value typed at a prompt that does not show it, or read as one line from
+ * standard input when that is not a terminal; never from the command line, where it would show in the process list.
+ * Sends nothing to the printer; `printer status` tries the new value.
+ */
+class PrinterCredentialCommand : PrinterConfigCommand("credential") {
+    private val name by argument("NAME", help = "the credential: flashforge-http serial_number or check_code; moonraker api_key, ssh_password or ssh_key_file")
+    override fun help(context: com.github.ajalt.clikt.core.Context) =
+        "Set one of the printer's credentials in the secrets file the machine's connection names (hardware.machine.<key>.connection.credential.NAME.file), " +
+            "the file's other lines kept. The value is typed at a prompt that does not show it, or read as one line from standard input when that is not a terminal; it is never printed. " +
+            "Refused when the config names no secrets file for it (one named only by an environment variable is set there, not by plymeld). Sends nothing to the printer."
+
+    override fun run() {
+        val c = config()
+        val key = machine(c)
+        val protocol = Printers.protocol(c, key)
+        val names = protocol.required + protocol.optional
+        if (name !in names) throw UsageError("${protocol.id} has no credential '$name': it takes ${names.joinToString()}")
+        val path = "hardware.machine.$key.connection.credential.$name"
+        fun text(source: String) = (c.entry("$path.$source".split('.'))?.value as? String)?.trim()?.takeIf { it.isNotEmpty() }
+        val variable = text("env")
+        val file = text("file") ?: error("printer '$key': no secrets file is named for '$name'" +
+            (variable?.let { " (it comes from environment variable $it: set it there)" } ?: "") + "; set $path.file to one (plymeld edit), then run this again")
+        val interactive = terminal.terminalInfo.inputInteractive
+        val value = (if (interactive) terminal.prompt("$name for printer '$key'", hideInput = true) else readlnOrNull())?.trim()
+        if (value.isNullOrEmpty()) error("no value given for '$name': nothing written")
+        val target = plymeld.printer.FileCredential.expandHome(file)
+        val replaced = plymeld.printer.FileCredential(target, name).write(value)
+        echo("printer '$key': '$name' ${if (replaced) "replaced" else "added"} in $target")
+        if (variable != null && !System.getenv(variable).isNullOrEmpty())
+            echo("note: environment variable $variable has a value, and it wins over the file while it does")
+    }
 }
 
 /**

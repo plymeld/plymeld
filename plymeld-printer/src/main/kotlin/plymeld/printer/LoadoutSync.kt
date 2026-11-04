@@ -83,8 +83,8 @@ object LoadoutSync {
 
         /**
          * The matched loadout as a config file for `-cf` (after the user's own files, so it wins): one line per tool or slot
-         * with exactly one filament to name; the rest as comments saying why there is no line. A config file cannot unload
-         * a tool, so an empty one on the printer is a comment too.
+         * with exactly one filament to name, and an empty value ("") for one the printer reports empty, which unloads it over
+         * the user's files; the rest as comments saying why there is no line.
          */
         fun overlay(): String = buildString {
             appendLine("# What the printer reports loaded, as config lines (plymeld printer loadout, read-only).")
@@ -97,7 +97,8 @@ object LoadoutSync {
                 when {
                     chosen != null && path != null -> appendLine("$path = \"$chosen\"")
                     chosen != null -> appendLine("# $where: the printer has ${reportedText(r.reported)} (matches $chosen), but machine '$machine' has no tool with index ${r.position}")
-                    r.reported?.loaded == false -> appendLine("# $where: empty on the printer${r.config?.let { c -> "; the config loads ${c.key} there (a config file cannot unload it)" } ?: ""}")
+                    r.reported?.loaded == false && path != null -> appendLine("$path = \"\"  # $where: empty on the printer${r.config?.let { c -> " (the config loads ${c.key} there)" } ?: ""}")
+                    r.reported?.loaded == false -> appendLine("# $where: empty on the printer, and machine '$machine' has no tool with index ${r.position}")
                     r.verdict == Verdict.NOT_REPORTED -> appendLine("# $where: the printer reports no slots; the config's loadout stands${r.config?.let { c -> " (${c.key})" } ?: ""}")
                     r.reported == null -> appendLine("# $where: the printer reports no such ${if (r.feeds == ReportedSlot.Feeds.TOOL) "tool" else "slot"}")
                     r.matches.size > 1 -> appendLine("# $where: the printer has ${reportedText(r.reported)}; several filaments match (${r.matches.joinToString()}): not chosen")

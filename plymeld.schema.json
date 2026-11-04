@@ -429,7 +429,7 @@
                       "additionalProperties": false,
                       "properties": {
                         "filament": {
-                          "description": "the filament in one of its tools (a model's part numbers are the tools' indexes) (the key of a filament)",
+                          "description": "the filament in one of its tools (a model's part numbers are the tools' indexes); \"\" = the tool is empty, which lets a later config file unload a tool an earlier one loads (the key of a filament, or \"\" for none loaded)",
                           "type": "string"
                         }
                       }
@@ -443,7 +443,7 @@
                       "additionalProperties": false,
                       "properties": {
                         "filament": {
-                          "description": "for one nozzle fed by several spools: the filament in a slot (a model's part numbers are the slots) (the key of a filament)",
+                          "description": "for one nozzle fed by several spools: the filament in a slot (a model's part numbers are the slots); \"\" = the slot is empty, which lets a later config file unload a slot an earlier one loads (the key of a filament, or \"\" for none loaded)",
                           "type": "string"
                         },
                         "tool": {

@@ -8,8 +8,8 @@ import java.time.Duration
 /**
  * How a printer is reached, read from its machine's `hardware.machine.<key>.connection.*`: the protocol, the address,
  * the port (the API's own when unset), how long to wait, the credentials (each resolved from the environment variable
- * NAMED in the config; the value is never in a config file) and the camera's URL. Two machines of one model are two of
- * these.
+ * or the secrets file NAMED in the config; the value is never in a config file) and the camera's URL. Two machines of
+ * one model are two of these.
  */
 class Connection(
     val machine: String,

@@ -43,6 +43,36 @@ class FileCredential(private val path: Path, private val name: String) : Credent
         return found?.takeIf { it.isNotEmpty() }
     }
 
+    /**
+     * Sets this credential to [value]: its line replaced where the file has one, else added at the end, every other line
+     * kept as it was. A file that does not exist yet is created (its folder too), readable by its owner only where the
+     * system allows. Refused, nothing written, for a value the file's lines cannot hold (empty, a line break, or both kinds
+     * of quote) and for a file with a line of another shape. Returns true when a line was replaced, false when one was added.
+     */
+    fun write(value: String): Boolean {
+        require(value.isNotEmpty()) { "credential '$name': the value is empty" }
+        require('\n' !in value && '\r' !in value) { "credential '$name': the value holds a line break, which a secrets file's line cannot" }
+        require(!('"' in value && '\'' in value)) { "credential '$name': the value holds both \" and ', which a secrets file's line cannot" }
+        val line = if ('"' in value) "$name = '$value'" else "$name = \"$value\""
+        val exists = Files.isRegularFile(path)
+        val lines = if (exists) Files.readAllLines(path) else emptyList()
+        var replaced = false
+        val out = lines.mapIndexed { i, raw ->
+            val t = raw.trim()
+            if (t.isEmpty() || t.startsWith("#")) return@mapIndexed raw
+            val m = LINE.matchEntire(t) ?: error("credential '$name': line ${i + 1} of the secrets file $path is not `name = \"value\"`; nothing written")
+            if (m.groupValues[1] == name) { replaced = true; line } else raw
+        } + (if (replaced) emptyList() else listOf(line))
+        if (!exists) {
+            path.toAbsolutePath().parent?.let { Files.createDirectories(it) }
+            // created owner-only before the value goes in, where the file system has POSIX permissions
+            try { Files.createFile(path, java.nio.file.attribute.PosixFilePermissions.asFileAttribute(java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"))) }
+            catch (_: UnsupportedOperationException) { Files.createFile(path) }
+        }
+        Files.writeString(path, out.joinToString("\n", postfix = "\n"))
+        return replaced
+    }
+
     companion object {
         private val LINE = Regex("""([A-Za-z0-9_.-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')\s*(?:#.*)?""")
 

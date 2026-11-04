@@ -55,8 +55,8 @@ object Finder {
         fun url(path: String): String = base + path
     }
 
-    /** The command model, read once (it walks the Clikt tree). */
-    val commands: List<CommandModel.Command> by lazy { CommandModel.read().root.all() }
+    /** The command model, read once (it walks the Clikt tree), without the commands not in the UI yet ([UiRegistry.notYet]). */
+    val commands: List<CommandModel.Command> by lazy { CommandModel.read().root.all().filter { it.line !in UiRegistry.notYet } }
     /** The other slicer's names for plymeld's paths (the import map), so a user finds `initial_layer_speed`. */
     private val otherNames: Map<String, List<String>> by lazy { plymeld.config.OrcaImport.namesOf() }
     private fun others(path: String): String = otherNames[path]?.let { " · also: ${it.joinToString(", ")}" } ?: ""
@@ -277,7 +277,7 @@ fun stepSettings(name: String, c: plymeld.config.Config?, objects: List<String>,
 }
 
 /**
- * The generic form of a command (every command has a UI entry, a form built from the command model at least): its
+ * The generic form of a command (every command in the UI has one at least, built from the command model): its
  * options as fields (a flag a toggle, fixed choices as chips, a value a field, the required ones marked), its arguments
  * as fields, the job's own config files, machine, and models filled in where the command takes them, and Run, which is
  * `Commands.invoke` with the console showing the lines. The command line it would run is shown under the form.

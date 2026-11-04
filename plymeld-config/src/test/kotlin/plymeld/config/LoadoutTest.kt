@@ -51,6 +51,19 @@ class LoadoutTest : StringSpec({
         one.machine shouldBe "a"; printed(one).third shouldBe "pla-generic"
     }
 
+    "an empty filament (\"\") unloads a tool a file before loaded; control: \"\" is refused where a reference has no empty meaning" {
+        val empty = config("hardware.tool.ta2.like" to "ta", "hardware.tool.ta2.machine" to "a", "hardware.tool.ta2.index" to 2L,
+            "hardware.machine.a.loadout.tool.ta2.filament" to "petg-generic", "hardware.machine.a.loadout.tool.ta2.filament" to "", machine = "a")
+        ConfigSetup.slots(empty, "a", ArrayList()).map { it.tool to it.filament } shouldBe listOf("ta" to "pla-generic")
+        printed(empty).third shouldBe "pla-generic"
+        // control: the same tool loaded, it is a slot
+        val loaded = config("hardware.tool.ta2.like" to "ta", "hardware.tool.ta2.machine" to "a", "hardware.tool.ta2.index" to 2L,
+            "hardware.machine.a.loadout.tool.ta2.filament" to "petg-generic", machine = "a")
+        ConfigSetup.slots(loaded, "a", ArrayList()).map { it.tool to it.filament } shouldBe listOf("ta" to "pla-generic", "ta2" to "petg-generic")
+        // control: a tool's `like` has no empty meaning
+        shouldThrow<ConfigError> { config("hardware.tool.tb.like" to "", machine = "a") }.message!! shouldContain "hardware.tool.tb.like (test): there is no tool ''"
+    }
+
     "two files of one numbered group setting the same path are refused, naming both; control: different groups, the later wins" {
         val d = Files.createTempDirectory("plymeld-groups")
         Files.writeString(d.resolve("01_a.toml"), "[hardware.filament.x]\nlike = \"pla-generic\"\ncolor = \"#FF0000\"\n")

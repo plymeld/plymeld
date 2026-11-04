@@ -36,8 +36,9 @@ class LoadoutSyncTest : StringSpec({
         "hardware.filament.black.like" to "pla-generic", "hardware.filament.black.color" to "#1b1b1b",
         "hardware.filament.gray.like" to "pla-generic", "hardware.filament.gray.color" to "#8C8C89",
         "hardware.filament.petg-white.like" to "petg-generic", "hardware.filament.petg-white.color" to "#FFFFFF")
-    fun config(vararg extra: Pair<String, Any>, drop: (String) -> Boolean = { false }) =
-        Config(ConfigStack(ConfigFiles.bundled() + (base.filterNot { drop(it.first) } + extra).map { (k, v) -> ConfigFiles.Entry(ConfigFiles.value("$k=0").path, v, "test") }), emptyList())
+    fun entries(vararg extra: Pair<String, Any>, drop: (String) -> Boolean = { false }) =
+        ConfigFiles.bundled() + (base.filterNot { drop(it.first) } + extra).map { (k, v) -> ConfigFiles.Entry(ConfigFiles.value("$k=0").path, v, "test") }
+    fun config(vararg extra: Pair<String, Any>, drop: (String) -> Boolean = { false }) = Config(ConfigStack(entries(*extra, drop = drop)), emptyList())
     fun detail(edit: (String) -> String = { it }) = FlashforgeHttp.parseDetail(edit(recorded))
     fun row(r: LoadoutSync.Report, p: Int) = r.rows.single { it.position == p }
 
@@ -108,17 +109,26 @@ class LoadoutSyncTest : StringSpec({
         row(own, 3).chosen shouldBe "white2"
     }
 
-    "the overlay reads back as config: the printer's loadout on the machine, read by the config's own loader; the empty and the unmatched are comments" {
-        val c = config("hardware.machine.m.loadout.tool.t1.filament" to "gray", "hardware.machine.m.loadout.tool.t3.filament" to "petg-white")
-        val r = LoadoutSync.compare(c, detail())
+    "the overlay reads back as config: the printer's loadout on the machine, read by the config's own loader; an empty tool is \"\", the unmatched are comments" {
+        val own = arrayOf("hardware.machine.m.loadout.tool.t1.filament" to "gray", "hardware.machine.m.loadout.tool.t3.filament" to "petg-white")
+        val r = LoadoutSync.compare(config(*own), detail())
         val d = Files.createTempDirectory("plymeld-overlay")
         Files.writeString(d.resolve("overlay.toml"), r.overlay())
-        val back = ConfigStack(ConfigFiles.readFiles(listOf("overlay.toml"), d))
+        val overlay = ConfigFiles.readFiles(listOf("overlay.toml"), d)
+        val back = ConfigStack(overlay)
         fun at(t: String) = back.entry("hardware.machine.m.loadout.tool.$t.filament".split('.'))?.value
         at("t3") shouldBe "white"
         at("t4") shouldBe "black"
-        at("t1") shouldBe null                                                             // empty on the printer: a comment
-        r.overlay() shouldContain "# tool 1: empty on the printer; the config loads gray there (a config file cannot unload it)"
+        at("t1") shouldBe ""                                                               // empty on the printer: unloaded
+        at("t2") shouldBe ""
+        r.overlay() shouldContain "tool.t1.filament = \"\"  # tool 1: empty on the printer (the config loads gray there)"
+        // passed after the user's own files, it brings the config in line with the printer: every position agrees or is empty on both
+        val synced = LoadoutSync.compare(Config(ConfigStack(entries(*own) + overlay), emptyList()), detail())
+        synced.rows.map { it.verdict }.distinct().toSet() shouldBe setOf(Verdict.BOTH_EMPTY, Verdict.AGREES)
+        synced.warnings().shouldBeEmpty()
+        row(synced, 1).config shouldBe null
+        // control: the user's files alone still load gray in tool 1, which the printer reports empty
+        row(LoadoutSync.compare(config(*own), detail()), 1).verdict shouldBe Verdict.EMPTY_ON_PRINTER
         // control: without a black filament, tool 4 gets no line, only a comment saying what to define
         val noBlack = LoadoutSync.compare(config { it.startsWith("hardware.filament.black.") }, detail()).overlay()
         noBlack shouldNotContain "tool.t4.filament"

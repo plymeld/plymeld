@@ -10,8 +10,8 @@ package plymeld.ui
  * - [notYet]: not in the UI yet, each with the step of the UI plan that brings it. The
  *   test fails when a command is in neither, so a command added to the CLI is a decision here, never a drift.
  *
- * Every command has the form at least, so [notYet] is empty; a designed place is listed where one
- * exists.
+ * Every command has the form at least, but one that reads a secret value in place of a command-line argument
+ * (`printer credential`), which the form has no field for yet; a designed place is listed where one exists.
  */
 object UiRegistry {
     class Surface(val command: String, val where: String, val controls: Set<String> = emptySet())
@@ -62,5 +62,7 @@ object UiRegistry {
         Surface("plymeld investigate predict", FORM),
     )
 
-    val notYet: Map<String, String> = emptyMap()
+    val notYet: Map<String, String> = mapOf(
+        "plymeld printer credential" to "a hidden field in its form that hands the value to the command as its standard input, never on its line; " +
+            "until then the command line, and the setup's form (plymeld init) writes the credentials it asks for")
 }

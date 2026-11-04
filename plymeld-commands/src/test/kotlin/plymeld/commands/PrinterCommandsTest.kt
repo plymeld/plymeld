@@ -133,9 +133,43 @@ class PrinterCommandsTest : StringSpec({
         err2.joinToString("\n") shouldContain "--machine"
     }
 
-    "every printer subcommand's help says what it sends, and the printer command is in the model with its nine subcommands" {
+    "credential sets one credential in the secrets file the config names, from standard input, the file's other lines kept and the value never printed; refusals leave the file as it was" {
+        val secrets = d.resolve("secrets").resolve("shop-c.toml")
+        Files.createDirectories(secrets.parent)
+        val before = "# shop-c's credentials\nserial_number = \"SN-C\"\ncheck_code = \"abc\"\n"
+        Files.writeString(secrets, before)
+        val cf = d.resolve("credential.toml").also { Files.writeString(it, machine("shop-c", "flashforge-c5", "connection.api = \"flashforge-http\"\nconnection.host = \"c.test\"\n" +
+            "connection.credential.serial_number.file = \"$secrets\"\nconnection.credential.check_code.file = \"$secrets\"")) }.toString()
+        fun withInput(text: String, vararg args: String): Triple<Int, List<String>, List<String>> {
+            val stdin = System.`in`
+            System.setIn(java.io.ByteArrayInputStream(text.toByteArray()))
+            try { return run(*args) } finally { System.setIn(stdin) }
+        }
+        // refused, the file untouched: a name the protocol does not take; no value on standard input
+        withInput("x\n", "printer", "credential", "api_key", "-cf", cf, "--machine", "shop-c").third.joinToString() shouldContain
+            "flashforge-http has no credential 'api_key': it takes serial_number, check_code"
+        withInput("", "printer", "credential", "check_code", "-cf", cf, "--machine", "shop-c").third.single() shouldContain "no value given for 'check_code': nothing written"
+        Files.readString(secrets) shouldBe before
+        // a machine whose credential comes from an environment variable only: refused, naming the variable and the path to set
+        withInput("x\n", "printer", "credential", "check_code", "-cf", cfg, "--machine", "shop-a").third.single() shouldContain
+            "printer 'shop-a': no secrets file is named for 'check_code' (it comes from environment variable PLYMELD_TEST_UNSET_CODE: set it there); set hardware.machine.shop-a.connection.credential.check_code.file to one"
+        // the real one: the check_code line replaced, the comment and serial_number kept, the value not in what was printed
+        val (status, out, err) = withInput("real-code-42\n", "printer", "credential", "check_code", "-cf", cf, "--machine", "shop-c")
+        err.shouldBeEmpty(); status shouldBe 0
+        out.single() shouldBe "printer 'shop-c': 'check_code' replaced in $secrets"
+        Files.readString(secrets) shouldBe "# shop-c's credentials\nserial_number = \"SN-C\"\ncheck_code = \"real-code-42\"\n"
+        out.joinToString() shouldNotContain "real-code-42"
+        // the connection now reads the new value
+        plymeld.printer.Printers.connection(plymeld.config.Config(plymeld.config.ConfigStack.load(listOf(cf), emptyList(), d), emptyList(), "shop-c"), "shop-c")
+            .credentials shouldBe mapOf("serial_number" to "SN-C", "check_code" to "real-code-42")
+        // plymeld edit on the secrets file points here instead of refusing the key as an unknown config path
+        run("edit", secrets.toString(), "check_code=zzz").third.joinToString() shouldContain "is a secrets file, not config: set a printer's credential with plymeld printer credential NAME --machine KEY"
+        Files.readString(secrets) shouldContain "real-code-42"
+    }
+
+    "every printer subcommand's help says what it sends, and the printer command is in the model with its ten subcommands" {
         val printer = CommandModel.read().root.subcommands.single { it.name == "printer" }
-        printer.subcommands.map { it.name } shouldBe listOf("status", "watch", "camera", "files", "send", "pause", "resume", "cancel", "loadout")
+        printer.subcommands.map { it.name } shouldBe listOf("status", "watch", "camera", "files", "send", "pause", "resume", "cancel", "loadout", "credential")
         for (c in printer.subcommands) c.help shouldContain "Sends "
         printer.subcommands.single { it.name == "send" }.options.flatMap { it.names } shouldContain "--print"
     }

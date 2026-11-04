@@ -598,7 +598,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         val tk = tools.firstOrNull { index(it) == toolN }
             ?: throw UsageError("machine '$machine' has no tool $toolN (${if (tools.isEmpty()) "it has no tools: hardware.tool.<key>.machine" else "its tools: " + tools.joinToString { "${index(it)} = $it" }})")
         val known = probe.keysOf("filament")
-        val name = filament ?: (probe.loadout("tool", tk, "filament")?.value as String?)
+        val name = filament ?: (probe.loadout("tool", tk, "filament")?.value as String?)?.takeIf { it.isNotEmpty() }
             ?: throw UsageError("which filament? give --filament (one of: ${known.joinToString()}, or a new one with --like)")
         val isNew = name !in known
         if (isNew && like == null) throw UsageError("no filament '$name' in the config or plymeld's bundled set: start it from one with --like (one of: ${known.joinToString()})")
