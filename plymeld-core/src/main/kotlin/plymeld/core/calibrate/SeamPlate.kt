@@ -61,10 +61,10 @@ object SeamGeometry {
     const val height = 10_000L
     /** The slab's layers (the first included): the ticks are cut in the layers above the first. */
     const val slabLayers = 4
-    /** A tick in the slab's front and back edges between two pieces: this wide along the edge, cut this far in; every [tickLongEvery]th [tickLongIn] deep. */
-    const val tickW = 1_000L; const val tickIn = 1_500L; const val tickLongIn = 3_000L; const val tickLongEvery = 5
-    /** The chamfer at the slab's front-left corner (the origin mark): the ruler post's. */
-    const val chamfer = PlateGeometry.chamfer
+    /** A tick in the slab's front and back edges between two pieces: the plates' tally notch ([PlateMarks]), every [tickLongEvery]th [tickLongIn] deep. */
+    const val tickW = PlateMarks.TALLY_W; const val tickIn = PlateMarks.TALLY_IN; const val tickLongIn = PlateMarks.TALLY_LONG_IN; const val tickLongEvery = PlateMarks.TALLY_LONG_EVERY
+    /** The chamfer at the slab's front-left corner: the plates' origin mark ([PlateMarks.CHAMFER]). */
+    const val chamfer = PlateMarks.CHAMFER
     /** A round piece's wall: this many vertices (5 degrees each: 0.6 mm, finer than the scarf's ramp step). */
     const val roundVertices = 72
 }
@@ -168,7 +168,7 @@ class SeamSpec(
     fun cell(k: Int): LongArray { val x0 = g.margin + k * (g.piece + g.gap); val y0 = g.margin + reachUm; return longArrayOf(x0, y0, x0 + g.piece, y0 + g.piece) }
     /** The x (µm, before placing) of the tick between pieces [k] and [k]+1. */
     fun tickX(k: Int): Long = g.margin + (k + 1) * (g.piece + g.gap) - g.gap / 2
-    fun tickIn(k: Int): Long = if ((k + 1) % g.tickLongEvery == 0) g.tickLongIn else g.tickIn
+    fun tickIn(k: Int): Long = PlateMarks.depth(k)
     /** Layer [layer]'s top (µm): the slab's first layer its own thickness, each layer above [layerUm] more. */
     fun zTop(layer: Int): Long = firstLayerUm + layer * layerUm
     fun heightOf(layer: Int): Long = if (layer == 0) firstLayerUm else layerUm
