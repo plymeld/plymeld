@@ -9,6 +9,17 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Fixed
+
+- `plymeld init` drew its choice lists blank in a terminal that reports no width (a pseudo-terminal whose size was
+  never set); it now draws them 80 columns wide there.
+- `plymeld init` said Esc stops it; Esc does nothing in its lists and prompts. It now says Ctrl+C, which stops it at
+  any question with nothing written.
+- `plymeld init --folder DIR` ended by saying no `-cf` is needed; that is so only for plymeld's own config folder. For
+  another folder it now says to pass the files with `-cf 'DIR/*.toml'`.
+
+## [0.20261104.2] - 2026-11-04
+
 ### Added
 
 - `plymeld printer send --print --level` asks the printer to level the bed before it prints, where its API takes that
