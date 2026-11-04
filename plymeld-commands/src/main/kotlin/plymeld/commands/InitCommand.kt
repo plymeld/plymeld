@@ -17,7 +17,7 @@ class InitCommand : CliktCommand(name = "init") {
     override fun help(context: com.github.ajalt.clikt.core.Context) =
         "Set up plymeld: your printers (each a model plymeld ships), their tools and build plates, your filaments, and what is loaded " +
             "where, written to plymeld's config folder; it ends by slicing a test cube with them. Arrow keys choose, Enter confirms, " +
-            "Esc stops without writing anything. A command run in a terminal with no -cf and an empty config folder starts it too."
+            "Ctrl+C stops without writing anything. A command run in a terminal with no -cf and an empty config folder starts it too."
 
     private val folder by option("--folder", metavar = "DIR",
         help = "write the setup here instead of plymeld's config folder (a folder holding no .toml file)").path()
@@ -29,10 +29,36 @@ class InitCommand : CliktCommand(name = "init") {
 
 /**
  * The questions of [FirstUse], asked in a terminal: arrow-key lists for every choice, a line for every value, each with its
- * default and why. Esc at any question stops it and nothing is written. Ends with the files written and a test cube sliced.
+ * default and why. Ctrl+C at any question stops it and nothing is written (a list stops cleanly; a line prompt ends the
+ * program, before anything was written). Esc does not: the terminal library's lists and prompts take no Esc. Ends with the
+ * files written and a test cube sliced.
  */
-class InitFlow(private val t: Terminal, private val say: (String) -> Unit) {
+class InitFlow(terminal: Terminal, private val say: (String) -> Unit) {
     private class Stopped : RuntimeException()
+
+    /**
+     * The terminal asked on: [terminal] itself, or, where it reports no width (a pseudo-terminal whose size was never set),
+     * the same terminal at [FALLBACK_WIDTH] columns, as a list drawn at width 0 shows every entry blank.
+     */
+    private val t: Terminal = sized(terminal)
+
+    companion object {
+        /** 80 x 24: the classic terminal size (Claude's choice), for a terminal that reports none. */
+        const val FALLBACK_WIDTH = 80
+        const val FALLBACK_HEIGHT = 24
+
+        /** [terminal], or the same terminal at [FALLBACK_WIDTH] columns where it reports no width. */
+        internal fun sized(terminal: Terminal): Terminal = if (terminal.size.width > 0) terminal else Terminal(width = FALLBACK_WIDTH,
+            height = terminal.size.height.takeIf { it > 0 } ?: FALLBACK_HEIGHT, terminalInterface = terminal.terminalInterface)
+
+        /**
+         * How the files in [dir] are read: by themselves when [dir] is plymeld's own config folder ([own]), else only when
+         * named with -cf.
+         */
+        internal fun readAdvice(dir: Path, own: Path = plymeld.config.UserDirs.current().config): String =
+            if (dir.toAbsolutePath().normalize() == own.toAbsolutePath().normalize()) "no -cf needed"
+            else "passing the files with -cf '${dir.resolve("*.toml")}' (plymeld reads them by itself only from its own config folder)"
+    }
 
     /** Whether a terminal can ask: input and output both interactive. */
     val canAsk: Boolean get() = t.terminalInfo.inputInteractive && t.terminalInfo.outputInteractive
@@ -44,7 +70,7 @@ class InitFlow(private val t: Terminal, private val say: (String) -> Unit) {
         val c = FirstUse.choices()
         val taken = c.taken.toMutableSet()
         return try {
-            say("plymeld init: your printers, then your filaments, then what is loaded where. Esc stops; nothing is written until the end.")
+            say("plymeld init: your printers, then your filaments, then what is loaded where. Ctrl+C stops; nothing is written until the end.")
             val printers = ArrayList<FirstUse.Printer>()
             while (true) {
                 val done = "done: no more printers"
@@ -127,8 +153,10 @@ class InitFlow(private val t: Terminal, private val say: (String) -> Unit) {
                         "; plymeld printer status --machine $p asks again")
                 }
             }
-            if (ok) say((if (unreached.isEmpty()) "Set up: plan, slice, and print with plymeld plan / slice / printer send, no -cf needed."
-                else "Set up: plan and slice with plymeld plan / slice, no -cf needed; printing waits on reaching ${unreached.joinToString()}.") +
+            // plymeld reads its own config folder by itself; files written anywhere else are read only when named
+            val cf = readAdvice(dir)
+            if (ok) say((if (unreached.isEmpty()) "Set up: plan, slice, and print with plymeld plan / slice / printer send, $cf."
+                else "Set up: plan and slice with plymeld plan / slice, $cf; printing waits on reaching ${unreached.joinToString()}.") +
                 (if (loaded.size > 1) " The first printer prints unless --machine names another (job.machine, 40_job.toml)." else ""))
             ok
         } catch (e: Stopped) {
@@ -142,7 +170,7 @@ class InitFlow(private val t: Terminal, private val say: (String) -> Unit) {
 
     private fun yes(question: String, default: Boolean = true): Boolean = YesNoPrompt(question, t, default = default).ask() ?: throw Stopped()
 
-    /** A line of text; null = left empty where [optional]. Esc (or the end of input) stops. */
+    /** A line of text; null = left empty where [optional]. The end of input stops. */
     private fun text(question: String, default: String?, optional: Boolean = false, hide: Boolean = false): String? {
         while (true) {
             val v = t.prompt(question, default = default, hideInput = hide) ?: throw Stopped()
