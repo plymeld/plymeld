@@ -149,12 +149,12 @@ object ConfigSetup {
             pauses, notes + c.warnings, warnings + windowWarnings, firstLayer)
     }
 
-    /** The filament slots of [machine]'s loadout (`hardware.machine.<machine>.loadout`), by number. */
+    /** The filament slots of [machine]'s loadout (`hardware.machine.<machine>.loadout`), by number; an empty one ("") is no slot. */
     fun slots(c: Config, machine: String, problems: MutableList<String>): List<Slot> {
         val out = ArrayList<Slot>()
         val onMachine = c.keysOf("tool").filter { (c.entry(listOf("hardware", "tool", it, "machine"))?.value as? String) == machine }
         val lo = listOf("hardware", "machine", machine, "loadout")
-        fun under(kind: String) = c.values.values.filter { it.path.size == 7 && it.path.subList(0, 5) == lo + kind && it.path[6] == "filament" }
+        fun under(kind: String) = c.values.values.filter { it.path.size == 7 && it.path.subList(0, 5) == lo + kind && it.path[6] == "filament" && it.value != "" }
         for (f in under("tool")) {
             val tk = f.path[5]
             if (tk !in onMachine) problems += "${f.key} (${f.source}): tool '$tk' is not on machine '$machine' (hardware.tool.$tk.machine)"

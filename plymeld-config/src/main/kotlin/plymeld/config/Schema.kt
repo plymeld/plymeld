@@ -17,8 +17,8 @@ object Schema {
         object Bool : Type("true or false")
         object Text : Type("text")
         class Choice(val options: List<String>) : Type("one of ${options.joinToString()}")
-        /** A reference to an entry of [kind] by its key. */
-        class Ref(val kind: String) : Type("the key of a $kind")
+        /** A reference to an entry of [kind] by its key; [none]: what an empty value ("") means where one is allowed (null: not allowed). */
+        class Ref(val kind: String, val none: String? = null) : Type("the key of a $kind" + (none?.let { ", or \"\" for $it" } ?: ""))
         class Choices(val options: List<String>) : Type("a list of ${options.joinToString()}")
         /** A list of [size] plain numbers. */
         class Numbers(val size: Int) : Type("a list of $size numbers")
@@ -156,8 +156,8 @@ object Schema {
         d("$m.connection.ssh.accept_new", Type.Bool, "trust the printer's SSH host key on first use and record it in ~/.ssh/known_hosts (a risk: a machine in between can pose as the printer that first time; see SECURITY.md); unset or false = an unknown or changed host key is refused")
         // what is on it now
         d("$m.loadout.plate", Type.Ref("plate"), "the build plate on its bed now (a calibration plate takes it unless --plate names another)")
-        d("$m.loadout.tool.<key>.filament", Type.Ref("filament"), "the filament in one of its tools (a model's part numbers are the tools' indexes)")
-        d("$m.loadout.slot.<key>.filament", Type.Ref("filament"), "for one nozzle fed by several spools: the filament in a slot (a model's part numbers are the slots)")
+        d("$m.loadout.tool.<key>.filament", Type.Ref("filament", none = "none loaded"), "the filament in one of its tools (a model's part numbers are the tools' indexes); \"\" = the tool is empty, which lets a later config file unload a tool an earlier one loads")
+        d("$m.loadout.slot.<key>.filament", Type.Ref("filament", none = "none loaded"), "for one nozzle fed by several spools: the filament in a slot (a model's part numbers are the slots); \"\" = the slot is empty, which lets a later config file unload a slot an earlier one loads")
         d("$m.loadout.slot.<key>.tool", Type.Ref("tool"), "the tool a slot feeds (default: the machine's only tool)")
         // ---- hardware: printer models (what a model accepts and is, with evidence); the shipped ones in the
         // bundled 03_models.toml, a user's own beside them

@@ -23,6 +23,9 @@ class UiParityTest : StringSpec({
         val placed = (offered + UiRegistry.notYet.keys).toSet()
         lines.filter { it !in placed }.shouldBeEmpty()
         offered.filter { it in UiRegistry.notYet }.shouldBeEmpty()
+        // the finder offers no form for a command not in the UI yet (control: it offers a command that is)
+        Finder.commands.map { it.line }.filter { it in UiRegistry.notYet }.shouldBeEmpty()
+        Finder.commands.map { it.line } shouldContain "plymeld printer status"
     }
     "the registry names no command the model does not have" {
         (UiRegistry.surfaces.map { it.command } + UiRegistry.notYet.keys).filter { it !in lines }.shouldBeEmpty()

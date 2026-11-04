@@ -8,6 +8,22 @@ Versions are `0.YYYYMMDD.N`: the release's date as one number, and N counting th
 
 ## [Unreleased]
 
+### Added
+
+- `plymeld printer credential NAME`: sets a printer's credential (a check code, an API key) in the secrets file its
+  machine's connection names, typed at a hidden prompt or read from standard input, never from the command line.
+- A loadout's `tool.<key>.filament = ""` (or `slot.<n>.filament = ""`) marks that tool or slot empty, so a later config
+  file can unload what an earlier one loads.
+
+### Fixed
+
+- `plymeld printer --help` said credentials come from environment variables only; they come from an environment
+  variable or a secrets file, as `plymeld init` writes them.
+- `plymeld printer loadout -o` now writes an empty tool or slot as `filament = ""`, so the file it writes brings the
+  config in line with the printer; before, an empty one was only a comment.
+- `plymeld edit` on a secrets file says to use `plymeld printer credential`, instead of refusing the key as an unknown
+  config path.
+
 ## [0.20261026.0] - first public release
 
 The first release. [README.md](README.md) says what plymeld does and [FEATURES.md](FEATURES.md) lists it feature by

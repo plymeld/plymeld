@@ -54,10 +54,13 @@ there yet. A docs link opens in the system's browser.
   the config **names**: the environment variable of `connection.credential.<name>.env`, or the
   `<name> = "value"` line of the local secrets file `connection.credential.<name>.file` (the
   environment wins when both have a value; `loadout --api` also takes them as the options
-  `--serial-number` / `--check-code`, which show in the process list). The values are never stored by
-  plymeld, never written to a file, and left out of every message, including refusals and logs. The
-  config file holds names and paths only, so it can be shared. **Never commit a secrets file**; keep
-  it readable by you alone (its permissions are yours to set, plymeld does not check them).
+  `--serial-number` / `--check-code`, which show in the process list). plymeld writes a value only into
+  a secrets file: `plymeld init` writes the ones it asks for, and `plymeld printer credential` sets one,
+  typed at a prompt that does not show it or read from standard input, never taken from the command
+  line. A secrets file plymeld creates is readable by you alone where the file system has such
+  permissions; one that already exists keeps the permissions it has (plymeld does not check them). The
+  values are left out of every message, including refusals and logs. The config file holds names and
+  paths only, so it can be shared. **Never commit a secrets file**; keep it readable by you alone.
 - **Not encrypted:** both APIs are plain HTTP, so the credentials cross the local network in the clear,
   as they do from the printer makers' own slicers. Use them on a network you trust.
 - **What it writes:** the report to the terminal; `loadout -o`, a config file of `loadout` lines;

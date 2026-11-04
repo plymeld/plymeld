@@ -30,6 +30,8 @@ class EditCommand : CliktCommand(name = "edit") {
 
     override fun run() {
         if (!file.fileName.toString().endsWith(".toml")) throw UsageError("$file: edit writes TOML files only (a .json config is read, not written)")
+        if (file.toAbsolutePath().parent?.fileName?.toString() == "secrets")
+            throw UsageError("$file is a secrets file, not config: set a printer's credential with plymeld printer credential NAME --machine KEY")
         if (assignments.isEmpty() && unset.isEmpty() && unsetUnder.isEmpty()) throw UsageError("nothing to do: give PATH=VALUE, --unset PATH, or --unset-under PATH")
         var text = java.nio.file.Files.readString(file)
         val original = text

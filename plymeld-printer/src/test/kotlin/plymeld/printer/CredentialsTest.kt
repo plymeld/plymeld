@@ -45,6 +45,29 @@ class CredentialsTest : StringSpec({
         Credentials.resolve(listOf(EnvironmentCredential("X", mapOf("X" to "")::get), FileCredential(secrets, "nothing"))) shouldBe null
     }
 
+    "write replaces a credential's line or adds one, every other line kept; a new file is created owner-only; what a line cannot hold is refused, nothing written" {
+        val f = d.resolve("write.toml").also { Files.writeString(it, "# mine\nserial_number = \"SN-1\"   # from the screen\n\ncheck_code = 'old'\n") }
+        FileCredential(f, "check_code").write("new\"one") shouldBe true                    // a double quote: written in single quotes
+        FileCredential(f, "check_code").value() shouldBe "new\"one"
+        FileCredential(f, "api_key").write("K") shouldBe false
+        Files.readString(f) shouldBe "# mine\nserial_number = \"SN-1\"   # from the screen\n\ncheck_code = 'new\"one'\napi_key = \"K\"\n"
+        // refused, the file as it was: empty, a line break, both quotes, and a file with a malformed line
+        val kept = Files.readString(f)
+        shouldThrow<IllegalArgumentException> { FileCredential(f, "check_code").write("") }.message shouldBe "credential 'check_code': the value is empty"
+        shouldThrow<IllegalArgumentException> { FileCredential(f, "check_code").write("a\nb") }
+        shouldThrow<IllegalArgumentException> { FileCredential(f, "check_code").write("a\"b'c") }
+        Files.readString(f) shouldBe kept
+        val bad = d.resolve("bad-write.toml").also { Files.writeString(it, "check_code = BARE\n") }
+        shouldThrow<IllegalStateException> { FileCredential(bad, "check_code").write("x") }.message!! shouldContain "nothing written"
+        Files.readString(bad) shouldBe "check_code = BARE\n"
+        // a file not there yet: created, with its folder, readable by its owner only (where the file system has POSIX permissions)
+        val fresh = d.resolve("new-folder").resolve("printer.toml")
+        FileCredential(fresh, "check_code").write("C") shouldBe false
+        Files.readString(fresh) shouldBe "check_code = \"C\"\n"
+        if (fresh.fileSystem.supportedFileAttributeViews().contains("posix"))
+            java.nio.file.attribute.PosixFilePermissions.toString(Files.getPosixFilePermissions(fresh)) shouldBe "rw-------"
+    }
+
     "~ and ~/ expand to the home directory; other paths are left alone" {
         FileCredential.expandHome("~/.plymeld/secrets.toml", "/home/someone") shouldBe Path.of("/home/someone/.plymeld/secrets.toml")
         FileCredential.expandHome("~", "/home/someone") shouldBe Path.of("/home/someone")

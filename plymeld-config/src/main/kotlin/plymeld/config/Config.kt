@@ -204,6 +204,7 @@ class Config(stack: ConfigStack, models: List<ModelObject>, machineArg: String? 
             is Schema.Type.Point -> runCatching { Units.point(v, t.dim, what) }.fold({ p -> p.second?.let { warnings += it } }, { problems += it.message ?: what })
             is Schema.Type.Ref -> when {
                 v !is String -> problems += "$what: expected the key of a ${t.kind}, got '$v'"
+                v.isEmpty() && t.none != null -> Unit
                 keys[v] == null -> problems += "$what: there is no ${t.kind} '$v'"
                 keys[v] != t.kind -> problems += "$what: '$v' is a ${keys[v]}, not a ${t.kind}"
             }

@@ -17,9 +17,9 @@ object UsedEntries {
     private fun entryOf(e: ConfigFiles.Entry): Pair<String, String>? =
         if (e.path.size >= 4 && e.path[0] == "hardware") kindOf["hardware.${e.path[1]}"]?.let { it to e.path[2] } else null
 
-    /** The entry [e]'s value names, when [e] is a reference. */
+    /** The entry [e]'s value names, when [e] is a reference that names one (an empty loadout value names none). */
     private fun named(e: ConfigFiles.Entry): Pair<String, String>? =
-        (Schema.find(e.path)?.type as? Schema.Type.Ref)?.let { r -> (e.value as? String)?.let { r.kind to it } }
+        (Schema.find(e.path)?.type as? Schema.Type.Ref)?.let { r -> (e.value as? String)?.takeIf { it.isNotEmpty() }?.let { r.kind to it } }
 
     /**
      * The config a print on [machine] runs with, of [entries], in order: the hardware it uses ([of]; all of it with no
