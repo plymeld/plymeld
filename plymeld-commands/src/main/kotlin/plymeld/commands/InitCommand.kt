@@ -73,7 +73,7 @@ class InitFlow(private val t: Terminal, private val say: (String) -> Unit) {
                 for (i in 1..m.toolheads) {
                     val tk = key("A name for tool $i of $key", "$key-t$i", taken)
                     val same = i > 1 && yes("The same nozzle as tool 1?")
-                    val tv = if (same) ts.first().values else LinkedHashMap<String, String>().also { v -> for (a in FirstUse.toolAsks()) answer(a)?.let { v[a.path] = it } }
+                    val tv = if (same) ts.first().values else LinkedHashMap<String, String>().also { v -> for (a in FirstUse.toolAsks(m)) answer(a)?.let { v[a.path] = it } }
                     ts += FirstUse.Tool(tk, i, tv, null)
                 }
                 val plate = select("Which build plate is on $key?", c.plates)

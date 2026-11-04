@@ -30,10 +30,13 @@ import java.nio.file.Path
  */
 class ConfiguredValueReachesTest : StringSpec({
 
-    /** A four-tool Creator 5 description (its g-code dialect and bundled clearance radius, 92 mm); tools [tools] as given. */
-    fun hardware(loadout: String, tools: String) = """
+    /**
+     * A four-tool Creator 5 description (its g-code dialect and bundled clearance radius, 92 mm); tools [tools] as given;
+     * [model] another for a test that needs a model whose heads are not measured (the C5's are).
+     */
+    fun hardware(loadout: String, tools: String, model: String = "flashforge-c5") = """
         [hardware.machine.m]
-        model = "flashforge-c5"
+        model = "$model"
         build.x = "250 mm"
         build.y = "250 mm"
         build.z = "250 mm"
@@ -125,8 +128,8 @@ class ConfiguredValueReachesTest : StringSpec({
     }
 
     "a lifted bridge whose bridge part prints with a tool that has no head shape is refused by the technique screen (once it screened only the object's first part's tool)" {
-        // control first: every part on tool 3 (no head values) is refused, as it should be
-        val d = dir("hw.toml" to hardware("tool.t1.filament = \"fa\"\ntool.t3.filament = \"fa\"", tool("t1", 1, head(4.0)) + tool("t3", 3, "")), "locks.toml" to locks)
+        // control first: every part on tool 3 (no head values, its model's heads not measured) is refused, as it should be
+        val d = dir("hw.toml" to hardware("tool.t1.filament = \"fa\"\ntool.t3.filament = \"fa\"", tool("t1", 1, head(4.0)) + tool("t3", 3, ""), model = "generic-klipper"), "locks.toml" to locks)
         val model = ramp(d)
         Files.writeString(d.resolve("all3.toml"), rampLock(3, 3)); Files.writeString(d.resolve("mixed.toml"), rampLock(1, 3))
         withClue("control: every part on tool 3") {

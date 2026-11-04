@@ -95,7 +95,10 @@ class PrinterPictureSliceTest : StringSpec({
         pictures(text) shouldHaveSize 1
         lines.indexOf("; THUMBNAIL_BLOCK_START") shouldBeGreaterThan lines.indexOf("; HEADER_BLOCK_END")
         lines.indexOf("; THUMBNAIL_BLOCK_END") shouldBeLessThan lines.indexOfFirst { it.isNotEmpty() && !it.startsWith(";") }
-        slice("flashforge-c5", null) shouldNotContain "thumbnail"
+        // control: no picture block (the source block may still name the model's evidence for its picture size)
+        val none = slice("flashforge-c5", null)
+        none shouldNotContain "; thumbnail begin"
+        pictures(none) shouldHaveSize 0
     }
 
     "picture sizes are read as WIDTHxHEIGHT, comma-separated; control: a malformed one is refused by name" {

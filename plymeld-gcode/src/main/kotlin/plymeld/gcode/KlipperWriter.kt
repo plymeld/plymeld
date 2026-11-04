@@ -895,7 +895,7 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
     /**
      * Template variables: plymeld's own names (for templates in plymeld config: nozzle_temperature,
      * first_layer_nozzle_temperature, bed_temperature, first_layer_bed_temperature, layers, max_z, max_layer_z,
-     * initial_tool, max_filament_flow (mm³/s), filament_diameter (mm), z_hop (mm)), the names other slicers'
+     * initial_tool, max_filament_flow (mm³/s), filament_diameter (mm), z_hop (mm), max_print_height (mm, the build height)), the names other slicers'
      * templates use (investigation), and every imported setting. [initialTool]: the tool the program
      * prints with before any tool change of its own (0-based, as T<n>).
      */

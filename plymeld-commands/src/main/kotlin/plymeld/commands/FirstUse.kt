@@ -17,7 +17,15 @@ object FirstUse {
                 val arcs: Boolean, val excludeObject: Boolean, val accepts: Set<String>,
                 /** What the model gives a machine to start from (hardware.model.<key>.build.*, gcode.*), with its evidence. */
                 val build: Map<String, String> = emptyMap(), val buildWhy: String? = null,
-                val start: String? = null, val end: String? = null, val gcodeWhy: String? = null)
+                val start: String? = null, val end: String? = null, val gcodeWhy: String? = null,
+                val pause: String? = null, val pictures: String? = null,
+                /** The maker's top print speed (hardware.model.<key>.motion.print.speed) and its evidence. */
+                val printSpeed: String? = null, val printSpeedWhy: String? = null,
+                /** The hottest the maker lets the first toolhead's nozzle be set (toolhead.0.temperature.max) and the toolhead's evidence. */
+                val nozzleMax: String? = null, val nozzleMaxWhy: String? = null) {
+        /** The evidence line of g-code value [path] (gcode.start, gcode.pause, ...): the line naming it, else the first. */
+        fun gcodeWhy(path: String): String? = gcodeWhy?.lines()?.let { ls -> ls.firstOrNull { path in it } ?: ls.firstOrNull() }
+    }
 
     /** A bundled filament the setup offers to start from (its key, its kind: PLA, PETG, ...). */
     class Base(val key: String, val kind: String)
@@ -51,9 +59,12 @@ object FirstUse {
             fun text(vararg rest: String) = c.entry(listOf("hardware", "model", d.id) + rest)?.value as? String
             Model(d.id, d.name, maxOf(1, d.toolheads.size), d.dialect, d.motion.mapValues { it.value.value },
                 d.supports("G2") && d.supports("G3"), d.supports("EXCLUDE_OBJECT_DEFINE"),
-                listOf("M140", "G28", "M190", "M109", "M104").filter(d::supports).toSet(),
+                listOf("M140", "G28", "M190", "G90", "T0", "M109", "M104", "M106", "G1").filter(d::supports).toSet(),
                 listOf("x", "y", "z").mapNotNull { a -> text("build", a)?.let { a to it } }.toMap(), text("evidence", "build"),
-                text("gcode", "start"), text("gcode", "end"), text("evidence", "gcode"))
+                text("gcode", "start"), text("gcode", "end"), text("evidence", "gcode"),
+                text("gcode", "pause"), text("gcode", "pictures"),
+                text("motion", "print", "speed"), text("evidence", "motion", "print", "speed"),
+                text("toolhead", "0", "temperature", "max"), text("toolhead", "0", "evidence")?.lines()?.firstOrNull { "temperature" in it })
         }
         val filaments = c.keysOf("filament").map { k -> Base(k, (c.entry(listOf("hardware", "filament", k, "kind"))?.value as? String) ?: "") }
         val plates = c.keysOf("plate")
@@ -78,26 +89,36 @@ object FirstUse {
             Ask("build.z", "the build height (z)", m.build["z"], if (m.build.isEmpty()) buildWhy else "the model's, as above"),
             Ask("build.origin", "where x 0, y 0 is", "front-left", "most printers: the bed's front-left corner", listOf("front-left", "center")),
             Ask("motion.acceleration.max", "its highest acceleration", limit("max_accel", "mm/s2"), "the model's firmware limit (${m.name})", optional = true),
-            Ask("motion.print.speed", "the fastest it prints", limit("max_velocity", "mm/s"), "the model's firmware limit (${m.name}); a slower print is a lower number", optional = true),
+            Ask("motion.print.speed", "the fastest it prints", m.printSpeed ?: limit("max_velocity", "mm/s"),
+                (if (m.printSpeed != null) "the maker's top print speed (${m.printSpeedWhy ?: m.name})" else "the model's firmware limit (${m.name})") +
+                    "; a slower print is a lower number", optional = true),
             Ask("motion.print.acceleration", "the acceleration it prints at", "= machine.motion.acceleration.max / 2", "half its highest: plymeld's stand-in until a motion plate measures it"),
-            Ask("motion.travel.speed", "the speed it travels at (moves that do not print)", "= machine.motion.print.speed", "as fast as it prints"),
+            // travel prints nothing, so it goes at the axes' top speed where the model gives one, not at the print speed
+            Ask("motion.travel.speed", "the speed it travels at (moves that do not print)", limit("max_velocity", "mm/s") ?: "= machine.motion.print.speed",
+                if (m.limits["max_velocity"] != null) "the model's top speed (${m.name}): a travel prints nothing" else "as fast as it prints"),
             Ask("motion.travel.acceleration", "the acceleration it travels at", "= machine.motion.acceleration.max", "its highest"),
             Ask("firmware.arcs", "whether its firmware takes arcs (G2 / G3)", m.arcs.toString(),
                 if (m.arcs) "the model's command list has G2 and G3" else "the model's command list has no G2 / G3", listOf("true", "false")),
             Ask("firmware.exclude_object", "whether its firmware can cancel one object mid-print", m.excludeObject.toString(),
                 if (m.excludeObject) "the model's command list has EXCLUDE_OBJECT_DEFINE" else "the model's command list has no EXCLUDE_OBJECT_DEFINE", listOf("true", "false")),
             Ask("gcode.start", "the g-code before every print (one line; \\n between commands)", m.start?.replace("\n", "\\n") ?: start(m),
-                if (m.start != null) "the model's firmware sequence (${m.gcodeWhy?.lines()?.first() ?: m.name})"
+                if (m.start != null) "the model's own sequence (${m.gcodeWhy("gcode.start") ?: m.name})"
                 else "plymeld's generic start, from the commands the model is known to accept: ${startSteps(m)}; your printer may have its own sequence"),
             Ask("gcode.end", "the g-code after every print (one line; \\n between commands)", m.end?.replace("\n", "\\n") ?: end(m),
-                if (m.end != null) "the model's firmware sequence" else "plymeld's generic end: heaters off"))
+                if (m.end != null) "the model's own sequence (${m.gcodeWhy("gcode.end") ?: m.name})" else "plymeld's generic end: ${endSteps(m)}"),
+            Ask("gcode.pause", "the g-code that pauses a print for you (a pause at a height, a planned insert)", m.pause,
+                if (m.pause != null) "the model's (${m.gcodeWhy("gcode.pause") ?: m.name})" else "the model names none; empty: plymeld cannot pause a print on it", optional = true),
+            Ask("gcode.pictures", "the preview pictures its screen shows, as WIDTHxHEIGHT sizes (commas between)", m.pictures,
+                if (m.pictures != null) "the model's screen (${m.gcodeWhy("gcode.pictures") ?: m.name})" else "the model names none; empty: no picture", optional = true))
     }
 
-    /** What to ask for one tool (paths under hardware.tool.<key>). */
-    fun toolAsks(): List<Ask> = listOf(
+    /** What to ask for one tool of model [m] (paths under hardware.tool.<key>). */
+    fun toolAsks(m: Model): List<Ask> = listOf(
         Ask("bore", "the nozzle's bore (its opening)", "0.4 mm", "the most common nozzle; check the one fitted"),
         Ask("layer.height.min", "the thinnest layer it lays", "= tool.bore / 5", "a fifth of the bore: plymeld's stand-in"),
-        Ask("layer.height.max", "the thickest layer it lays", "= tool.bore * 0.75", "three quarters of the bore: plymeld's stand-in"))
+        Ask("layer.height.max", "the thickest layer it lays", "= tool.bore * 0.75", "three quarters of the bore: plymeld's stand-in"),
+        Ask("temperature.max", "the hottest its nozzle may be set", m.nozzleMax,
+            if (m.nozzleMax != null) "the maker's limit (${m.nozzleMaxWhy ?: m.name})" else "the model names none; empty: no limit, so no warning above one", optional = true))
 
     /** How `plymeld printer` reaches a printer of model [m] (paths under hardware.machine.<key>.connection; secrets by name). */
     fun connectionAsks(m: Model): List<Ask> = listOf(Ask("host", "its address on your network (a host name or an IP address)", null,
@@ -214,23 +235,50 @@ object FirstUse {
             "setup writes an empty folder only; change values with plymeld edit"
     }
 
+    /** Whether [m] selects tools by T<n> (it accepts T0): the start then selects the print's first tool and heats that one. */
+    private fun selectsTools(m: Model) = "T0" in m.accepts
+
     /**
-     * plymeld's generic start for [m]: the bed heated, the head homed, the bed and the nozzle waited for, each step only with
-     * a command the model is known to accept (a printer that homes by itself lists no G28); template variables for the
-     * temperatures. Lines joined by a written \\n, as the setup asks for one line.
+     * plymeld's generic start for [m]: the bed heated, the head homed, the bed waited for, absolute positioning, the print's
+     * first tool selected, and its nozzle waited for, each step only with a command the model is known to accept (a printer
+     * that homes by itself lists no G28); template variables for the temperatures and the tool. Lines joined by a written
+     * \\n, as the setup asks for one line.
      */
-    fun start(m: Model): String = listOfNotNull(
-        "M140 S{first_layer_bed_temperature}".takeIf { "M140" in m.accepts }, "G28".takeIf { "G28" in m.accepts },
-        "M190 S{first_layer_bed_temperature}".takeIf { "M190" in m.accepts },
-        "M109 S{first_layer_nozzle_temperature}".takeIf { "M109" in m.accepts }).joinToString("\\n")
+    fun start(m: Model): String {
+        val tool = if (selectsTools(m)) " T{initial_tool}" else ""
+        return listOfNotNull(
+            "M140 S{first_layer_bed_temperature}".takeIf { "M140" in m.accepts }, "G28".takeIf { "G28" in m.accepts },
+            "M190 S{first_layer_bed_temperature}".takeIf { "M190" in m.accepts }, "G90".takeIf { "G90" in m.accepts },
+            "T{initial_tool}".takeIf { selectsTools(m) },
+            "M109 S{first_layer_nozzle_temperature}$tool".takeIf { "M109" in m.accepts }).joinToString("\\n")
+    }
 
     /** What [start] does for [m], in words. */
     private fun startSteps(m: Model): String = listOfNotNull("heat the bed".takeIf { "M140" in m.accepts }, "home".takeIf { "G28" in m.accepts },
-        "wait for the bed".takeIf { "M190" in m.accepts }, "wait for the nozzle".takeIf { "M109" in m.accepts }).joinToString(", ").ifEmpty { "nothing it accepts" } +
+        "wait for the bed".takeIf { "M190" in m.accepts }, "absolute positioning".takeIf { "G90" in m.accepts },
+        "select the print's first tool".takeIf { selectsTools(m) },
+        "wait for the nozzle".takeIf { "M109" in m.accepts }).joinToString(", ").ifEmpty { "nothing it accepts" } +
         (if ("G28" !in m.accepts) " (the model lists no G28: it homes by itself, or the start needs its own homing)" else "")
 
-    /** plymeld's generic end for [m]: the heaters off, with the commands the model accepts. */
-    fun end(m: Model): String = listOfNotNull("M104 S0".takeIf { "M104" in m.accepts }, "M140 S0".takeIf { "M140" in m.accepts }).joinToString("\\n")
+    /**
+     * The lift clear of the print at its end: 10 mm above its last layer (plymeld's choice), at most to the top of the build
+     * area. In the end g-code the setup writes, where it can be changed like the rest.
+     */
+    const val END_LIFT = "{if max_layer_z < max_print_height - 10}G1 Z{max_layer_z + 10}{else}G1 Z{max_print_height}{endif}"
+
+    /**
+     * plymeld's generic end for [m]: the head lifted clear of the print ([END_LIFT]), the fans and the heaters off (every
+     * tool's, by its T, on a machine that selects tools), with the commands the model accepts.
+     */
+    fun end(m: Model): String {
+        val nozzles = if (selectsTools(m) && m.toolheads > 1) (0 until m.toolheads).map { "M104 S0 T$it" } else listOf("M104 S0")
+        return (listOfNotNull(END_LIFT.takeIf { "G1" in m.accepts }, "M106 S0".takeIf { "M106" in m.accepts }) +
+            nozzles.takeIf { "M104" in m.accepts }.orEmpty() + listOfNotNull("M140 S0".takeIf { "M140" in m.accepts })).joinToString("\\n")
+    }
+
+    /** What [end] does for [m], in words. */
+    private fun endSteps(m: Model): String = listOfNotNull("lift 10 mm clear of the print (within the build height)".takeIf { "G1" in m.accepts },
+        "fans off".takeIf { "M106" in m.accepts }, "heaters off".takeIf { "M104" in m.accepts || "M140" in m.accepts }).joinToString(", ").ifEmpty { "nothing it accepts" }
 
     private const val HEADER = ""
 
