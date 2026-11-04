@@ -154,7 +154,7 @@ time limit can end elsewhere on a busier machine, so a plan written with `plan -
 
 - **[Built]** Determinism is asserted for incremental re-slicing, which must match a from-scratch slice byte
   for byte, and `tools/regress.sh` compares a fixed set of slices byte for byte with a baseline (the version that
-  wrote each left out).
+  wrote each, and where each value sits in its config file, left out).
 
 ### 3.3 Incremental re-slicing
 

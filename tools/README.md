@@ -5,7 +5,7 @@ Kotlin, in the modules.
 
 | script | what it does |
 |---|---|
-| `regress.sh check \| baseline \| record` | byte-for-byte regression of the CLI's g-code, the version that wrote it left out (CONTRIBUTING.md); CI runs `check --base` on every pull request |
+| `regress.sh check \| baseline \| record` | byte-for-byte regression of the CLI's g-code, the version that wrote it and the source block's line numbers left out (CONTRIBUTING.md); CI runs `check --base` on every pull request |
 | `plate.sh <kind> ... -o PLATE.gcode [--render]` | a calibration plate in one command |
 | `install-git-hooks.sh` | once per clone: points git's `core.hooksPath` at `git-hooks/`, for every worktree |
 | `git-hooks/pre-commit` | the commit check: the commit's tree, in a check worktree of its own, must compile (`gradlew testClasses`; `PLYMELD_COMMIT_CHECK=tests`: `gradlew fastTest`); the tests run in CI |
