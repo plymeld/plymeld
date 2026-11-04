@@ -57,7 +57,8 @@ jobs:
       - name: Check the Gradle wrapper jar
         run: echo "238e777fcddd7e34f9708186085def2abd6e08e658505b38718d79d74c21abd5  gradle/wrapper/gradle-wrapper.jar" | sha256sum -c -
       - name: The jars, the window's with Linux natives, and the icons
-        run: ./gradlew -Pplymeld.version="$VER" :plymeld-cli:installDist :plymeld-ui:nativeLib :plymeld-ui:icons
+        # the compiler's heap as in CI (ci.yml): a release's version misses the build cache for everything downstream
+        run: ./gradlew -Pplymeld.version="$VER" -Pkotlin.daemon.jvmargs=-Xmx2g :plymeld-cli:installDist :plymeld-ui:nativeLib :plymeld-ui:icons
       - name: The command line (and its tar, plymeld-linux-x64.tar.gz)
         run: tools/build-native.sh
       - name: The window
@@ -114,7 +115,7 @@ jobs:
           "VS_VCVARS=$vs\VC\Auxiliary\Build\vcvars64.bat" >> $env:GITHUB_ENV
       - name: The jars, the window's with Windows natives, and the icons
         shell: cmd
-        run: gradlew.bat -Pplymeld.version=%VER% :plymeld-cli:installDist :plymeld-ui:windowsLib :plymeld-ui:icons
+        run: gradlew.bat -Pplymeld.version=%VER% -Pkotlin.daemon.jvmargs=-Xmx2g :plymeld-cli:installDist :plymeld-ui:windowsLib :plymeld-ui:icons
       - name: The command line
         shell: cmd
         env:
