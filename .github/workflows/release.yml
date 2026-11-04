@@ -1,6 +1,7 @@
 name: Release
 
-# A version tag (v0.20261102.0, as gradle.properties' plymeld.version) builds the native command line and window for
+# A version tag (v0.20261102.0: v and the version, 0.YYYYMMDD.N) builds the native command line and window, that
+# version passed to Gradle (-Pplymeld.version; a build without it is 0.0.0-dev), for
 # Windows and Linux, packages them with Velopack (the Windows installer and portable zip, the AppImage, the update feeds),
 # and uploads them, with the Linux command line's own tar, to a draft GitHub release for the maintainer to read and
 # publish. Each platform builds and packages on its own runner, with the same tools/ scripts as a hand build.
@@ -24,10 +25,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - id: version
-        name: The tag names the version gradle.properties sets
+        name: The version, from the tag
         run: |
-          ver=$(sed -n 's/^plymeld\.version=//p' gradle.properties)
-          [ "${GITHUB_REF_NAME#v}" = "$ver" ] || { echo "tag $GITHUB_REF_NAME, but gradle.properties sets plymeld.version=$ver"; exit 1; }
+          ver="${GITHUB_REF_NAME#v}"
+          [[ "$ver" =~ ^0\.[0-9]{8}\.[0-9]+$ ]] || { echo "tag $GITHUB_REF_NAME is not v0.YYYYMMDD.N"; exit 1; }
+          date -u -d "${ver:2:8}" +%Y%m%d > /dev/null 2>&1 || { echo "tag $GITHUB_REF_NAME: ${ver:2:8} is not a date"; exit 1; }
           echo "version=$ver" >> "$GITHUB_OUTPUT"
       - name: The draft release (its notes are written from CHANGELOG.md before it is published)
         env:
@@ -55,7 +57,7 @@ jobs:
       - name: Check the Gradle wrapper jar
         run: echo "238e777fcddd7e34f9708186085def2abd6e08e658505b38718d79d74c21abd5  gradle/wrapper/gradle-wrapper.jar" | sha256sum -c -
       - name: The jars, the window's with Linux natives, and the icons
-        run: ./gradlew :plymeld-cli:installDist :plymeld-ui:nativeLib :plymeld-ui:icons
+        run: ./gradlew -Pplymeld.version="$VER" :plymeld-cli:installDist :plymeld-ui:nativeLib :plymeld-ui:icons
       - name: The command line (and its tar, plymeld-linux-x64.tar.gz)
         run: tools/build-native.sh
       - name: The window
@@ -112,7 +114,7 @@ jobs:
           "VS_VCVARS=$vs\VC\Auxiliary\Build\vcvars64.bat" >> $env:GITHUB_ENV
       - name: The jars, the window's with Windows natives, and the icons
         shell: cmd
-        run: gradlew.bat :plymeld-cli:installDist :plymeld-ui:windowsLib :plymeld-ui:icons
+        run: gradlew.bat -Pplymeld.version=%VER% :plymeld-cli:installDist :plymeld-ui:windowsLib :plymeld-ui:icons
       - name: The command line
         shell: cmd
         env:
