@@ -113,6 +113,16 @@ class FlashforgeHttpTest : StringSpec({
         busy.message!! shouldNotContain "CODE-TEST"
     }
 
+    "start with levelling asked: levelingBeforePrint true in the request and in what it says it sent; control: the default sends false" {
+        val (p, t) = printer(answer = byPath("/printGcode" to ok, "/detail" to detail))
+        p.can(Capability.LEVEL_ON_START) shouldBe true
+        val d = p.start("new.gcode", level = true)
+        t.bodyText(0) shouldBe """{"serialNumber":"SN-TEST","checkCode":"CODE-TEST","fileName":"new.gcode","levelingBeforePrint":true}"""
+        d.sent shouldContain "levelingBeforePrint=true"
+        val (_, t2) = printer(answer = byPath("/printGcode" to ok, "/detail" to detail)).also { it.first.start("new.gcode") }
+        t2.bodyText(0) shouldContain "\"levelingBeforePrint\":false"
+    }
+
     "pause, resume and cancel: POST /control jobCtl_cmd with the action, then the state read back" {
         for ((call, action) in listOf<Pair<(FlashforgeHttp) -> Done, String>>({ p: FlashforgeHttp -> p.pause() } to "pause", { p: FlashforgeHttp -> p.resume() } to "continue", { p: FlashforgeHttp -> p.cancel() } to "cancel")) {
             val (p, t) = printer(answer = byPath("/control" to ok, "/detail" to detail))

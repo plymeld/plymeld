@@ -84,8 +84,13 @@ class MoonrakerHttp(
         return Upload(name, bytes.size, name in files().map { it.name })
     }
 
-    /** Moonraker's start takes no tool mapping: on a Klipper machine which slot a `T<n>` loads is the printer's own macros' business (the QIDI Box: its `value_t<n>` variables). */
-    override fun start(name: String, mapping: ToolMapping?): Done {
+    /**
+     * Moonraker's start takes no tool mapping: on a Klipper machine which slot a `T<n>` loads is the printer's own macros'
+     * business (the QIDI Box: its `value_t<n>` variables). Nor a levelling request: levelling there is g-code ([level]
+     * refused).
+     */
+    override fun start(name: String, mapping: ToolMapping?, level: Boolean): Done {
+        if (level) refuse(Capability.LEVEL_ON_START)
         call("POST", "/printer/print/start?filename=" + URLEncoder.encode(name, Charsets.UTF_8))
         val note = if (mapping == null || mapping.entries.isEmpty()) "" else " (the tool mapping is not sent: Moonraker's start takes none; the printer's own macros decide which slot each T<n> loads)"
         return Done("POST /printer/print/start filename=$name$note", state())

@@ -70,7 +70,8 @@ there yet. A docs link opens in the system's browser.
   answer that is not what plymeld expects is refused with a message, never acted on. A reply code is
   never taken as proof: an upload is confirmed by the printer's own file list, and a job control by
   the state read back (the Creator 5 acknowledges commands it does not know).
-- **What changes the printer:** `send` (a file written to it; with `--print` a print started), `pause`,
+- **What changes the printer:** `send` (a file written to it; with `--print` a print started, the bed levelled first
+  when asked), `pause`,
   `resume`, `cancel`. `status`, `files`, and `loadout` change nothing. `send --print` refuses while the
   printer is printing, paused, or busy, where the state can be read.
 - **A shell on the printer (SSH), only where the config names one** (`hardware.machine.<key>.connection.ssh.user`):
