@@ -14,6 +14,11 @@ concurrency:
 permissions:
   contents: read
 
+# The Kotlin compiler's heap on the runners (-Pkotlin.daemon.jvmargs on each Gradle run that compiles): by default it
+# takes the Gradle daemon's, which ran out compiling the test code and the window at once when the build cache missed
+# (a version change misses it for everything that depends on plymeld-commands). 2 GB is Claude's choice, a fraction of
+# the runner's memory; local builds keep the default.
+
 jobs:
   # Whether the change touches documentation only (Markdown anywhere, docs/, LICENSE, NOTICE). Then only the tests that
   # read the docs run (the docs job); anything else, or a change it cannot tell (a new branch, a manual run), runs all.
@@ -86,7 +91,7 @@ jobs:
       - name: Check the Gradle wrapper jar
         run: echo "238e777fcddd7e34f9708186085def2abd6e08e658505b38718d79d74c21abd5  gradle/wrapper/gradle-wrapper.jar" | sha256sum -c -
       - name: Every test but the slow suites (tools/slow-suites.txt)
-        run: ./gradlew fastTest --continue
+        run: ./gradlew -Pkotlin.daemon.jvmargs=-Xmx2g fastTest --continue
       - name: Keep the test reports of a failed run
         if: failure()
         uses: actions/upload-artifact@v7
@@ -147,7 +152,7 @@ jobs:
       - name: Check the Gradle wrapper jar
         run: echo "238e777fcddd7e34f9708186085def2abd6e08e658505b38718d79d74c21abd5  gradle/wrapper/gradle-wrapper.jar" | sha256sum -c -
       - name: The slow suites alone (tools/slow-suites.txt)
-        run: ./gradlew slowTest --continue
+        run: ./gradlew -Pkotlin.daemon.jvmargs=-Xmx2g slowTest --continue
       - name: Keep the test reports of a failed run
         if: failure()
         uses: actions/upload-artifact@v7
