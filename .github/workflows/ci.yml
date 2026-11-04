@@ -97,7 +97,8 @@ jobs:
             **/build/test-results/
           retention-days: 14
 
-  # tools/regress.sh against the pull request's base: the fixed cases' g-code, byte for byte. A deliberate change to the
+  # tools/regress.sh against the pull request's base: the fixed cases' g-code, byte for byte apart from the version that
+  # wrote it (a release's version change passes). A deliberate change to the
   # output fails it on purpose; the pull request then explains each case that differs (CONTRIBUTING.md). The base is
   # built in a temporary worktree each run (no cache of baselines between runs).
   regress:

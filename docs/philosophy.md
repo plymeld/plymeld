@@ -153,7 +153,8 @@ random polygons); the same model, settings, and plan file give byte-identical g-
 time limit can end elsewhere on a busier machine, so a plan written with `plan -o` is what repeats exactly).
 
 - **[Built]** Determinism is asserted for incremental re-slicing, which must match a from-scratch slice byte
-  for byte, and `tools/regress.sh` compares a fixed set of slices byte for byte with a baseline.
+  for byte, and `tools/regress.sh` compares a fixed set of slices byte for byte with a baseline (the version that
+  wrote each left out).
 
 ### 3.3 Incremental re-slicing
 
