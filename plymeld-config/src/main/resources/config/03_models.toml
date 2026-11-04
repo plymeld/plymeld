@@ -453,7 +453,8 @@ profile_name = "Flashforge Creator 5"
 dialect = "flashforge"
 notes = """Built from one g-code file of Flashforge's own slicer for this machine, 2026-09-28.
 No firmware config available: the stock firmware is Flashforge's own, so every command is 'observed' evidence only. Fans and heaters are not described yet.
-Toolhead tip cone and underside outline: not published by Flashforge; unknown until measured. The profile has no gantry.distance.
+The firmware homes and levels by itself when a print starts: Flashforge's own start sequence has no G28, no wait for the bed and no levelling, and its upload names levelling as an option of the print (levelingBeforePrint).
+Toolhead underside, nozzle height and tip cone: not published by Flashforge; measured by hand on each of one machine's four heads (toolhead.*.evidence). The profile has no gantry.distance.
 No square corner velocity from the firmware: the profile's machine_max_jerk (9), a different quantity, stands in for it as a placeholder (motion.square_corner_velocity) until the firmware's value is known."""
 motion.speed.max = "600 mm/s"
 motion.acceleration.max = "30000 mm/s2"
@@ -469,30 +470,95 @@ build.x = "256 mm"
 build.y = "256 mm"
 build.z = "256 mm"
 evidence.build = "manufacturer_profile: Flashforge's slicer profile printable_area 256 x 256 mm, printable_height 256 mm"
+motion.print.speed = "300 mm/s"
+evidence.motion.print.speed = "documented: Flashforge's Creator 5 specifications: print speed max. 300 mm/s, travel speed max. 600 mm/s (motion.speed.max)"
+gcode.start = """M140 S{first_layer_bed_temperature}
+M106 P101 S0 ; side fans (left and right) off
+M106 P2 S0 ; center fresh-air fan off
+M106 S0 ; model fan off
+M106 P3 S0 ; filter unit fan off
+G90
+M83
+G1 Z5 F2400
+T{initial_tool}
+M109 S{first_layer_nozzle_temperature} T{initial_tool}"""
+gcode.end = """{if max_layer_z < max_print_height - 10}G1 Z{max_layer_z + 10}{else}G1 Z{max_print_height}{endif}
+G1 X150 Y150 E-1.2 F12000
+M106 P101 S0
+M106 P2 S0
+M106 S0
+M106 P3 S0
+M104 S0 T0
+M104 S0 T1
+M104 S0 T2
+M104 S0 T3
+M140 S0"""
+gcode.pause = "M25"
+gcode.pictures = "140x110"
+evidence.gcode = """manufacturer_profile: gcode.start: Flashforge's slicer profile for this model, machine_start_gcode, the fans named as its comments name them; without its prime line (plymeld lays its own)
+manufacturer_profile: gcode.end: the profile's machine_end_gcode (the move to X150 Y150 with a 1.2 mm retract); before it plymeld's lift clear of the print, 10 mm, within the build height (plymeld's choice), and after it the start's four fans and every tool's heater off
+manufacturer_profile: gcode.pause: the profile's machine_pause_gcode, M25
+manufacturer_profile: gcode.pictures: the profile's thumbnails, 140x110/PNG"""
 
 [hardware.model.flashforge-c5.toolhead.0]
 head.radius = "92 mm"
 gantry.height = "60 mm"
 lid.height = "360 mm"
-evidence = "manufacturer_profile: Flashforge's own Creator 5 profile (in its slicer): extruder_clearance_radius 92, extruder_clearance_height_to_rod 60, extruder_clearance_height_to_lid 360; one value set for all four heads; meanings as the profile format documents them"
+head.size.x = "90 mm"
+head.size.y = "75 mm"
+head.nozzle.x = "70 mm"
+head.nozzle.y = "40 mm"
+head.nozzle.height = "4 mm"
+head.nozzle.angle = "45 deg"
+temperature.max = "320 C"
+evidence = """manufacturer_profile: Flashforge's own Creator 5 profile (in its slicer): extruder_clearance_radius 92, extruder_clearance_height_to_rod 60, extruder_clearance_height_to_lid 360; one value set for all four heads; meanings as the profile format documents them
+measured: head.size, head.nozzle.x / .y, head.nozzle.height and head.nozzle.angle, by hand on each of one machine's four heads, all alike (90 x 75 mm, the nozzle 70 mm from its left edge and 40 mm from its front, its tip 4 mm below the rest, a 45 deg cone)
+documented: temperature.max: Flashforge's Creator 5 specifications, maximum nozzle temperature 320 C"""
 
 [hardware.model.flashforge-c5.toolhead.1]
 head.radius = "92 mm"
 gantry.height = "60 mm"
 lid.height = "360 mm"
-evidence = "manufacturer_profile: same profile values, applied to head 2 (the profile has one set for all heads)"
+head.size.x = "90 mm"
+head.size.y = "75 mm"
+head.nozzle.x = "70 mm"
+head.nozzle.y = "40 mm"
+head.nozzle.height = "4 mm"
+head.nozzle.angle = "45 deg"
+temperature.max = "320 C"
+evidence = """manufacturer_profile: same profile values, applied to head 2 (the profile has one set for all heads)
+measured: by hand, as head 1's (each of the four heads measured, all alike)
+documented: temperature.max: as head 1's"""
 
 [hardware.model.flashforge-c5.toolhead.2]
 head.radius = "92 mm"
 gantry.height = "60 mm"
 lid.height = "360 mm"
-evidence = "manufacturer_profile: same profile values, applied to head 3 (the profile has one set for all heads)"
+head.size.x = "90 mm"
+head.size.y = "75 mm"
+head.nozzle.x = "70 mm"
+head.nozzle.y = "40 mm"
+head.nozzle.height = "4 mm"
+head.nozzle.angle = "45 deg"
+temperature.max = "320 C"
+evidence = """manufacturer_profile: same profile values, applied to head 3 (the profile has one set for all heads)
+measured: by hand, as head 1's (each of the four heads measured, all alike)
+documented: temperature.max: as head 1's"""
 
 [hardware.model.flashforge-c5.toolhead.3]
 head.radius = "92 mm"
 gantry.height = "60 mm"
 lid.height = "360 mm"
-evidence = "manufacturer_profile: same profile values, applied to head 4 (the profile has one set for all heads)"
+head.size.x = "90 mm"
+head.size.y = "75 mm"
+head.nozzle.x = "70 mm"
+head.nozzle.y = "40 mm"
+head.nozzle.height = "4 mm"
+head.nozzle.angle = "45 deg"
+temperature.max = "320 C"
+evidence = """manufacturer_profile: same profile values, applied to head 4 (the profile has one set for all heads)
+measured: by hand, as head 1's (each of the four heads measured, all alike)
+documented: temperature.max: as head 1's"""
 
 [hardware.model.flashforge-c5.command]
 G1 = """purpose: linear move (with or without extrusion)

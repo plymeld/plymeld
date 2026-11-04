@@ -339,7 +339,9 @@ class ConfigSetupTest : StringSpec({
         vis("n", *measured, "plan.mechanism.motion.visible.speed" to "90 mm/s") shouldBe (90.0 to 3750.0)
     }
     "a declared value nothing reads yet earns a warning; control: a used one does not" {
-        setup("hardware.machine.m.motion.acceleration.max" to "20000 mm/s2").notes.any { "not used yet" in it } shouldBe true
+        setup("hardware.machine.m.tool_change.kind" to "swap_tool").notes.any { "not used yet" in it } shouldBe true
+        // what formulas read is used: the first-use setup's accelerations are formulas of it
+        setup("hardware.machine.m.motion.acceleration.max" to "20000 mm/s2").notes.any { "not used yet" in it } shouldBe false
         setup("hardware.machine.m.motion.travel.speed" to "500 mm/s").notes.any { "not used yet" in it } shouldBe false
     }
 })

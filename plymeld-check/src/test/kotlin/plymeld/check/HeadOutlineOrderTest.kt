@@ -38,7 +38,9 @@ private fun box(x0: Float, y0: Float, z0: Float, x1: Float, y1: Float, z1: Float
  * description's clearance circle (92 mm, Flash Studio's profile) wants 97.
  */
 class HeadOutlineOrderTest : StringSpec({
-    val plain = Models.bundled.forModel("flashforge-c5")
+    val bundled = Models.bundled.forModel("flashforge-c5")
+    // the bundled C5 with its heads' measured underside taken out: one at a time then keeps to the clearance circle
+    val plain = bundled.copy(toolheads = bundled.toolheads.map { t -> t.copy(geometry = t.geometry - plymeld.machine.Toolhead.Tier.UNDERSIDE.keys.toSet()) })
     val reach = Arrange.Reach(50.0, 20.0, 30.0, 30.0)
     val c5 = plain.withHead(0, mapOf("head_minus_x" to reach.minusX, "head_plus_x" to reach.plusX, "head_minus_y" to reach.minusY, "head_plus_y" to reach.plusY), "test head", "test")
     val bed = PoseFacts(0.0, 0.0, 250.0, 250.0, 250.0, Overhang.fromAngle(30.0, 0.2, 0.4), "test", layerHeightMm = 0.2)
@@ -63,6 +65,9 @@ class HeadOutlineOrderTest : StringSpec({
     "without the outline: the description's clearance circle, 92 + 5 mm apart" {
         val d = ObjectOrderDecision.decide(plain, setOf(0), cubes, techniques, jf, w, ObjectOrder.ONE_AT_A_TIME)
         Arrange.minGap(d.value.placed) shouldBeGreaterThanOrEqual 97.0 - 1e-3
+        // control: the bundled C5 has its heads' underside (measured), so `plain` really is the one without it
+        bundled.toolhead(0)!!.has(plymeld.machine.Toolhead.Tier.UNDERSIDE) shouldBe true
+        plain.toolhead(0)!!.has(plymeld.machine.Toolhead.Tier.UNDERSIDE) shouldBe false
     }
     "locked: an earlier object 30 mm to the right of a later one passes (over 20 + 5)" {
         val pair = listOf("low" to listOf(box(150f, 100f, 0f, 170f, 120f, 5f)), "high" to listOf(box(100f, 100f, 0f, 120f, 120f, 10f)))

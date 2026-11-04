@@ -90,7 +90,7 @@
                     "additionalProperties": false,
                     "properties": {
                       "max": {
-                        "description": "highest acceleration (not yet used: time predictions take the print and travel speeds and accelerations from the config, the rest from the machine description) — a accel (mm/s2); or a formula (= ...)",
+                        "description": "highest acceleration: what formulas read (the first-use setup writes the print and travel accelerations as formulas of it); nothing else reads it directly: time predictions take the print and travel accelerations from the config, the rest from the machine description — a accel (mm/s2); or a formula (= ...)",
                         "type": [
                           "string",
                           "number"
@@ -287,7 +287,7 @@
                 "additionalProperties": false,
                 "properties": {
                   "start": {
-                    "description": "g-code before the print (plymeld's template variables: nozzle_temperature, first_layer_nozzle_temperature, bed_temperature, first_layer_bed_temperature, layers, max_z, max_layer_z, initial_tool (the tool the print starts with, as T<n>), max_filament_flow (mm3/s), filament_diameter (mm), z_hop (mm, the travel lift: the first filament's retract.z_hop))",
+                    "description": "g-code before the print (plymeld's template variables: nozzle_temperature, first_layer_nozzle_temperature, bed_temperature, first_layer_bed_temperature, layers, max_z, max_layer_z, initial_tool (the tool the print starts with, as T<n>), max_filament_flow (mm3/s), filament_diameter (mm), z_hop (mm, the travel lift: the first filament's retract.z_hop), max_print_height (mm, the machine's build.z))",
                     "type": "string"
                   },
                   "end": {
@@ -572,6 +572,19 @@
                         ]
                       }
                     }
+                  },
+                  "print": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "speed": {
+                        "description": "the maker's top print speed, which may be below motion.speed.max (the axes' top speed, travel's): the first-use setup's default for hardware.machine.<key>.motion.print.speed; unset = motion.speed.max — a speed (mm/s); or a formula (= ...)",
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      }
+                    }
                   }
                 }
               },
@@ -638,6 +651,16 @@
                             "type": "string"
                           }
                         }
+                      },
+                      "print": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "speed": {
+                            "description": "the evidence of motion.print.speed, \"kind: detail\"",
+                            "type": "string"
+                          }
+                        }
                       }
                     }
                   },
@@ -646,7 +669,7 @@
                     "type": "string"
                   },
                   "gcode": {
-                    "description": "the evidence of gcode.start / .end, \"kind: detail\"",
+                    "description": "the evidence of gcode.start / .end / .pause / .pictures, \"kind: detail\" (one line each)",
                     "type": "string"
                   }
                 }
@@ -688,6 +711,14 @@
                   },
                   "end": {
                     "description": "the g-code after a print as the model's firmware defines it: the first-use setup's default; unset = plymeld's generic end",
+                    "type": "string"
+                  },
+                  "pause": {
+                    "description": "the g-code that pauses a print on this model: the first-use setup's default for hardware.machine.<key>.gcode.pause; unset = none offered",
+                    "type": "string"
+                  },
+                  "pictures": {
+                    "description": "the preview pictures this model's screen reads, as in hardware.machine.<key>.gcode.pictures: the first-use setup's default; unset = none offered",
                     "type": "string"
                   }
                 }
@@ -817,6 +848,19 @@
                         },
                         "radius": {
                           "description": "a toolhead as a circle around its nozzle tip, its radius (one object at a time keeps objects this far apart when no head outline is known) — a length (mm); or a formula (= ...)",
+                          "type": [
+                            "string",
+                            "number"
+                          ]
+                        }
+                      }
+                    },
+                    "temperature": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "max": {
+                          "description": "the hottest the maker lets a toolhead's nozzle be set: the first-use setup's default for its tool's temperature.max — a temperature (C); or a formula (= ...)",
                           "type": [
                             "string",
                             "number"

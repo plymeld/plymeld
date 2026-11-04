@@ -47,7 +47,7 @@ private class PrinterDraft(m: FirstUse.Model, key: String, plate: String) {
         for (a in FirstUse.printerAsks(m)) values[a.path] = a.default ?: ""
         for (a in FirstUse.connectionAsks(m)) conn[a.path] = a.default ?: ""
         repeat(m.toolheads) { i ->
-            tools += mutableStateMapOf<String, String>().apply { for (a in FirstUse.toolAsks()) put(a.path, a.default ?: "") }
+            tools += mutableStateMapOf<String, String>().apply { for (a in FirstUse.toolAsks(m)) put(a.path, a.default ?: "") }
             same += i > 0
         }
     }
@@ -100,7 +100,7 @@ fun SetupForm(j: JobState) {
                     Text(if (p.same[ti]) "☑" else "☐", color = Ink.accent, fontSize = 14.sp, modifier = Modifier.padding(end = 8.dp))
                     Text("the same nozzle as tool 1", color = Ink.text, fontSize = 12.sp)
                 }
-                if (ti == 0 || !p.same[ti]) for (a in FirstUse.toolAsks()) Ask(a, tv[a.path] ?: "") { tv[a.path] = it }
+                if (ti == 0 || !p.same[ti]) for (a in FirstUse.toolAsks(p.model)) Ask(a, tv[a.path] ?: "") { tv[a.path] = it }
             }
             Text("Build plate", color = Ink.text, fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(top = 4.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { for (pl in c.plates) Chip(pl, p.plate == pl) { p.plate = pl } }
@@ -143,7 +143,7 @@ fun SetupForm(j: JobState) {
             for ((k, n) in keys.groupingBy { it }.eachCount()) if (n > 1) add("$k: used twice (each key names one thing)")
             for (p in printers) {
                 for (a in FirstUse.printerAsks(p.model)) if (!a.optional && p.values[a.path].isNullOrBlank()) add("${p.key}: ${a.question}")
-                p.tools.forEachIndexed { ti, tv -> if (ti == 0 || !p.same[ti]) for (a in FirstUse.toolAsks()) if (tv[a.path].isNullOrBlank()) add("${p.key}-t${ti + 1}: ${a.question}") }
+                p.tools.forEachIndexed { ti, tv -> if (ti == 0 || !p.same[ti]) for (a in FirstUse.toolAsks(p.model)) if (!a.optional && tv[a.path].isNullOrBlank()) add("${p.key}-t${ti + 1}: ${a.question}") }
                 if (p.loaded[0] == null || !c.suits(p.plate, kindOf(p.loaded[0]!!))) add("${p.key}-t1: a filament loaded")
             }
             if (filaments.isEmpty()) add("a filament")

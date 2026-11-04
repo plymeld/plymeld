@@ -28,7 +28,7 @@ class FirstUseTest : StringSpec({
         values.putAll(typed)
         host?.let { values["connection.host"] = it; values["connection.api"] = FirstUse.api(m)!! }
         port?.let { values["connection.port"] = "$it" }
-        val tool = FirstUse.toolAsks().associate { it.path to it.default!! }
+        val tool = FirstUse.toolAsks(m).mapNotNull { a -> a.default?.let { a.path to it } }.toMap()
         val tools = (1..m.toolheads).map { FirstUse.Tool("$key-t$it", it, tool, if (it == 1) "pla" else null) }
         return FirstUse.Printer(key, id, values, tools, c.plates.first(), secrets)
     }
@@ -67,6 +67,63 @@ class FirstUseTest : StringSpec({
         val bareSaid = ArrayList<String>()
         FirstUse.check(bare, listOf("q2"), { bareSaid += it }) shouldBe false
         bareSaid.joinToString("\n") shouldContain "build.x"
+    }
+
+    "the Creator 5's defaults come from its model: Flashforge's start and end, print and travel speeds, pause, pictures, nozzle limit; controls: models without them" {
+        fun ask(id: String, path: String) = FirstUse.printerAsks(model(id)).first { it.path == path }
+        val start = ask("flashforge-c5", "gcode.start").default!!
+        start shouldContain "M106 P101 S0"                                         // the maker's fans off
+        start shouldContain "G90\\nM83\\nG1 Z5 F2400\\nT{initial_tool}\\nM109 S{first_layer_nozzle_temperature} T{initial_tool}"
+        start shouldNotContain "G1 X256 Y0"                                       // the profile's prime line: plymeld lays its own
+        val end = ask("flashforge-c5", "gcode.end").default!!
+        end.substringBefore("\\n") shouldBe FirstUse.END_LIFT                     // the same lift as the generic end's
+        end shouldContain "G1 X150 Y150 E-1.2 F12000"
+        end shouldContain "M104 S0 T3"                                            // every tool's heater, the fourth's too
+        ask("flashforge-c5", "gcode.pause").default shouldBe "M25"
+        ask("flashforge-c5", "gcode.pictures").default shouldBe "140x110"
+        // the maker's print speed below the axes' top speed, which travel takes
+        ask("flashforge-c5", "motion.print.speed").default shouldBe "300 mm/s"
+        ask("flashforge-c5", "motion.travel.speed").default shouldBe "600 mm/s"
+        FirstUse.toolAsks(model("flashforge-c5")).first { it.path == "temperature.max" }.default shouldBe "320 C"
+        // controls: the Q2's model names no print speed of its own (its firmware limit, travel the same) and no nozzle limit;
+        // the generic model names no pause, pictures or travel speed
+        ask("qidi-q2", "motion.print.speed").default shouldBe "600 mm/s"
+        ask("qidi-q2", "motion.travel.speed").default shouldBe "600 mm/s"
+        FirstUse.toolAsks(model("qidi-q2")).first { it.path == "temperature.max" }.default shouldBe null
+        ask("generic-klipper", "gcode.pause").default shouldBe null
+        ask("generic-klipper", "gcode.pictures").default shouldBe null
+        ask("generic-klipper", "motion.travel.speed").default shouldBe "= machine.motion.print.speed"
+    }
+
+    "the generic start selects the print's first tool where the model selects tools by T; the generic end lifts clear and switches every tool's heater off" {
+        fun m(toolheads: Int, vararg accepts: String) = FirstUse.Model("x", "X", toolheads, "klipper", emptyMap(), false, false, accepts.toSet())
+        val tools = m(2, "M140", "G90", "T0", "M109", "M104", "M106", "G1")
+        FirstUse.start(tools) shouldBe "M140 S{first_layer_bed_temperature}\\nG90\\nT{initial_tool}\\nM109 S{first_layer_nozzle_temperature} T{initial_tool}"
+        FirstUse.end(tools) shouldBe "${FirstUse.END_LIFT}\\nM106 S0\\nM104 S0 T0\\nM104 S0 T1\\nM140 S0"
+        // control: a model with no T0 heats the one nozzle it has, by no tool
+        val one = m(1, "M140", "M109", "M104")
+        FirstUse.start(one) shouldBe "M140 S{first_layer_bed_temperature}\\nM109 S{first_layer_nozzle_temperature}"
+        FirstUse.end(one) shouldBe "M104 S0\\nM140 S0"
+    }
+
+    "the Creator 5 set up with its defaults writes g-code that selects its first tool, heats that one, lifts at the end and carries its picture" {
+        var root = java.nio.file.Path.of("").toAbsolutePath()
+        while (!Files.isDirectory(root.resolve("test-models"))) root = root.parent ?: error("test-models/ not found")
+        val dir = Files.createTempDirectory("plymeld-firstuse-c5-")
+        FirstUse.write(FirstUse.files(FirstUse.Answers(listOf(printer("flashforge-c5", "c5")), listOf(FirstUse.Filament("pla", "pla-generic", null))), dir), dir)
+        val out = dir.resolve("hole.gcode")
+        val configs = Files.list(dir).use { s -> s.filter { it.toString().endsWith(".toml") }.map { it.toString() }.sorted().toList() }
+        val said = ArrayList<String>()
+        withClue({ said.joinToString("\n") }) {
+            Commands.invoke(listOf("slice") + configs.flatMap { listOf("-cf", it) } + listOf("--machine", "c5", "-m", root.resolve("test-models/holeblock.stl").toString(), "-o", out.toString()),
+                { said += it }, { said += it }) shouldBe 0
+        }
+        val g = Files.readAllLines(out)
+        g.indexOf("T0") shouldBe g.indexOfFirst { it.startsWith("M109 S") && it.endsWith(" T0") } - 1   // the tool selected, then its nozzle waited for
+        g.any { it.startsWith("; thumbnail begin 140x110") } shouldBe true
+        // the 4 mm block's last layer at 4 mm: the lift goes 10 mm above it (control: no unrendered template is left)
+        ("G1 Z14" in g) shouldBe true
+        g.none { "{" in it && !it.startsWith(";") } shouldBe true
     }
 
     "a printer given an address is reached with the files as written; control: nothing listening there, it is not" {

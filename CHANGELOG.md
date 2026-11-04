@@ -9,6 +9,23 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Changed
+
+- `plymeld init` sets up a Flashforge Creator 5 with Flashforge's own start sequence (the first tool selected and
+  heated, the fans off) and an end that lifts clear of the print and switches every tool's heater off; a print speed of
+  300 mm/s and a travel speed of 600 mm/s (the maker's figures); `M25` to pause; the 140x110 preview its screen shows;
+  a nozzle limit of 320 C; and the shape of its heads.
+- For any printer without its own start and end, `plymeld init`'s start now selects the print's first tool and
+  heats that one (on a printer that selects tools by `T`), and its end lifts the head 10 mm clear of the print,
+  within the build height, and turns the fans off.
+- `plymeld init` offers travel at the printer's top speed rather than its print speed, and asks for its pause
+  command, its preview pictures and each nozzle's top temperature where the printer's model names them.
+
+### Fixed
+
+- `plymeld slice` no longer calls a machine's `motion.acceleration.max` unused: the print and travel accelerations
+  `plymeld init` writes are formulas of it.
+
 ## [0.20261104.0] - 2026-11-04
 
 The first public release. [README.md](README.md) says what plymeld does and [FEATURES.md](FEATURES.md) lists it feature by
