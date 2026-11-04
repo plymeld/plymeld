@@ -518,7 +518,7 @@ object PlateGeometry {
     // the ruler post: 8 x 8 mm, its front-left corner chamfered (the origin mark); the front face past the chamfer (6 mm)
     // keeps material either side of the long notch. Packed first, at the plate's front-left corner.
     const val postX = 0L; const val postY = 0L; const val post = 8_000L
-    const val chamfer = 2_000L
+    const val chamfer = PlateMarks.CHAMFER
     // a notch on the post's front face in each band: 1 mm deep, from 1 mm above the band's start, 1 mm tall;
     // every fourth band's notch long (a ruler: count from the bottom)
     const val notchDepth = 1_000L; const val notchFrom = 1_000L; const val notchTall = 1_000L
