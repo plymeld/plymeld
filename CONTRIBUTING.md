@@ -74,7 +74,8 @@ below).
 ### Regression: byte-for-byte output
 
 `tools/regress.sh` slices a fixed set of cases with your tree and compares the g-code byte for byte with a
-baseline:
+baseline, apart from the version that wrote it (its two version lines compare with the version left out, so a version
+change alone is no difference):
 
 ```
 tools/regress.sh check                    # this tree vs the baseline of its merge-base with origin/main
