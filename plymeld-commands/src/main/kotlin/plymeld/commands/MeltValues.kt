@@ -31,7 +31,7 @@ class MeltValuesCommand : ConfigCommand("values") {
     private val journalOpt by option("--journal", metavar = "JOURNAL", help = "record the change in this journal file; default: the config journal in plymeld's state folder ($JOURNAL)").path(canBeDir = false)
 
     override fun help(context: com.github.ajalt.clikt.core.Context) =
-        "Write a read melt plate's results into the config file that defines the filament: its maximum flow on this machine as a formula through every " +
+        "Write a read melt plate's results into the config file that defines the filament (among the files -cf names, e.g. -cf 'DIR/*.toml'; else plymeld's config folder's): its maximum flow on this machine as a formula through every " +
             "reading (straight between neighboring temperatures, flat past the ends), the readings in the comment above it. Prints the change, checks it, " +
             "writes it, and records it for `plymeld journal --undo`."
 
