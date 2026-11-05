@@ -63,6 +63,19 @@ object TomlEdit {
     }
 
     /**
+     * [path] set to [value] with [comment] (lines, without their "# ") directly above it: a line already holding the path
+     * goes first, with the comment directly above it ([unset]), so the new comment replaces the old.
+     */
+    fun setWithComment(text: String, path: String, value: String, comment: List<String>): String {
+        val c = set(unset(text, path).first, path, value)
+        val lines = c.text.split("\n").toMutableList()
+        val at = c.line - 1
+        val indent = lines[at].takeWhile { it == ' ' || it == '\t' }
+        lines.addAll(at, comment.map { "$indent# $it" })
+        return lines.joinToString("\n")
+    }
+
+    /**
      * The lines holding [path], or every key under it when [under] (`plan.object.boat.band` takes `band.1.technique`
      * and the rest), removed; a comment line directly above a removed line goes with it (it described that line). The
      * new text and the keys removed, in file order.

@@ -681,7 +681,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         val meltSlot = ConfigSetup.slots(config, config.machine!!, ArrayList()).single()
         val maxFlowKey = ConfigSetup.meltEntry(config, plymeld.config.Site(machine = config.machine, tool = meltSlot.tool, filament = meltSlot.filament))?.key
             ?: "hardware.filament.${spool.material}.melt.flow.max"
-        val maxFlowEnterKey = plymeld.config.ConfigFiles.pathText(listOf("hardware", "filament", spool.material, "machine", config.machine!!, "melt", "flow", "maxw"))
+        val maxFlowEnterKey = plymeld.config.ConfigFiles.pathText(listOf("hardware", "filament", spool.material, "machine", config.machine!!, "melt", "flow", "max"))
         val maxFlowPlaceholder = maxFlow != null && maxFlow.from.startsWith(plymeld.config.ConfigFiles.BUNDLED_SOURCE)
         val maxFlowNow = maxFlow?.let { "${n((it.value as Number).toDouble())} mm3/s, from ${it.from}${if (maxFlowPlaceholder) ": plymeld's bundled placeholder" else ""}" }
         // the frame's parts on this plate, its values, and which limit holds its speed (the machine's, not the
@@ -1826,7 +1826,10 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
 class MeltPlateCommand : PlateCommand("melt", "melt") {
     override fun help(context: com.github.ajalt.clikt.core.Context) = "The melt plate, run first: the filament's maximum flow at each temperature, as a table printed in plastic: a column per " +
         "temperature (--temps, --step), a row per flow (--flow-step), each row the same line at its own speed, its flow printed beside it and each " +
-        "column's temperature in front of it. Read each column for the first row with gaps. An accurate melt rate drives so much of the rest."
+        "column's temperature in front of it. Read each column for the first row with gaps; `melt values` writes the readings into the filament's config. " +
+        "An accurate melt rate drives so much of the rest."
+    init { subcommands(MeltValuesCommand()) }
+    override val invokeWithoutSubcommand = true
     override val temps: String? by option("--temps", metavar = "LOW-HIGH", help = "the temperature range, whole degrees C, e.g. 190-230: a column each, from LOW up by --step; default: the filament's (temperature.min to temperature.max, the spool's label)")
     override val step: String? by option("--step", metavar = "C", help = "whole degrees between columns; default: 10")
     override val meltFan: String? by option("--melt-fan", metavar = "on|off", help = "the part fan in every column at the filament's own (cooling.fan; 'on', the default) or off ('off')")

@@ -14,6 +14,10 @@ section the release's version and date.
 - `plymeld calibrate flow`: the flow ratio on a plate of its own, after the melt plate. A column per temperature, a
   square patch per flow ratio (`--flow-ratios`), each patch's ratio and each column's temperature printed on the plate;
   only the patches' top layer is laid at the column's temperature, after a wait.
+- `plymeld calibrate melt values TEMP=FLOW...`: a read melt plate's results written into the config file that defines
+  the filament, as its maximum flow on the machine: a formula through every reading, straight between neighboring
+  temperatures and flat past the ends, with the readings in the comment above it. The change is printed and checked
+  first, `--dry-run` writes nothing, and `plymeld journal --undo` takes it back.
 
 ### Changed
 
@@ -25,6 +29,8 @@ section the release's version and date.
 
 ### Fixed
 
+- The filament plate's recommendation named the key to enter a measured melt rate under as `melt.flow.maxw`; it is
+  `melt.flow.max`.
 - `plymeld init` drew its choice lists blank in a terminal that reports no width (a pseudo-terminal whose size was
   never set); it now draws them 80 columns wide there.
 - `plymeld init` said Esc stops it; Esc does nothing in its lists and prompts. It now says Ctrl+C, which stops it at
