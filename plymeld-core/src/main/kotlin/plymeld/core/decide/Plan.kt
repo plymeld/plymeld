@@ -359,7 +359,7 @@ class Plan(/** Every decision, in the order made: each object's pose and techniq
                 // the stair-step measure's depth power (method.quality.stair_step.depth_power; PoseDecision.stairStep), with its provenance
                 val stepPower = Resolver.resolveOrNull(setup, "method.quality.stair_step.depth_power", plymeld.model.Context(k))
                 val pfk = PoseFacts(pf.bedMinX, pf.bedMinY, pf.bedMaxX, pf.bedMaxY, pf.maxZ, ohk.first, ohk.second, wk, switchK,
-                    numOrNull("plan.technique.flat.layer.height", k), numOrNull("hardware.filament.melt.flow.max", k), numOrNull("hardware.filament.cooling.layer.time.min", k), limitS,
+                    numOrNull("plan.technique.flat.layer.height", k), numOrNull("hardware.filament.melt.flow.max", k)?.let { it * (1 - (numOrNull("plan.mechanism.motion.melt.buffer", k) ?: 0.0)) }, numOrNull("hardware.filament.cooling.layer.time.min", k), limitS,
                     numOrNull("plan.mechanism.adhesion.first_layer.height", k), numOrNull("hardware.tool.layer.height.min", k), numOrNull("hardware.tool.layer.height.max", k), numOrNull("plan.technique.flat.step.max", k),
                     zeroScale, zs?.from ?: "", quickUnits(setup, k, parts.size),
                     fuzzySkin = (Resolver.resolveOrNull(setup, "plan.technique.fuzzy_skin.where", plymeld.model.Context(k))?.value as String?).let { it != null && it != "none" },

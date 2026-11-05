@@ -336,7 +336,12 @@ class SliceSettings private constructor(r: (String) -> Any, opt: (String) -> Any
     val ironingInsetUm by setting { um("plan.technique.ironing.inset") }
     val ironingAngleDeg by setting { num("plan.technique.ironing.angle") }
     // material, material x tool
-    val maxVolumetric by setting { num("hardware.filament.melt.flow.max") }
+    /** The filament's maximum flow as measured (or its placeholder): `melt.flow.max`, before the buffer. */
+    val maxVolumetricMeasured by setting { num("hardware.filament.melt.flow.max") }
+    /** The share of the maximum flow kept unused: `plan.mechanism.motion.melt.buffer`. */
+    val meltBuffer by setting { num("plan.mechanism.motion.melt.buffer") }
+    /** The flow every move is capped to: the maximum flow less the buffer. */
+    val maxVolumetric by setting { maxVolumetricMeasured * (1 - meltBuffer) }
     val slowDownForCooling by setting { bool("hardware.filament.cooling.slowdown.enabled") }
     val slowDownLayerTimeS by setting { num("hardware.filament.cooling.layer.time.min") }
     /** How the slow-down for the minimum layer time is shared (KlipperWriter): "hidden_first" or "even". */

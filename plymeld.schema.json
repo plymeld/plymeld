@@ -4609,6 +4609,19 @@
                     }
                   }
                 },
+                "melt": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "buffer": {
+                      "description": "the share of the filament's maximum flow (melt.flow.max) kept unused: every move's flow is capped at the maximum flow less this share (10 % = capped at 90 % of it); the calibration tests that probe the limit itself (the melt plate's rows) are not; 0 % = no buffer; bundled 10 % — a multiplier (0.15 or 15%); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    }
+                  }
+                },
                 "detour": {
                   "type": "object",
                   "additionalProperties": false,
@@ -6581,6 +6594,19 @@
                     }
                   }
                 },
+                "melt": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "buffer": {
+                      "description": "the share of the filament's maximum flow (melt.flow.max) kept unused: every move's flow is capped at the maximum flow less this share (10 % = capped at 90 % of it); the calibration tests that probe the limit itself (the melt plate's rows) are not; 0 % = no buffer; bundled 10 % — a multiplier (0.15 or 15%); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    }
+                  }
+                },
                 "detour": {
                   "type": "object",
                   "additionalProperties": false,
@@ -8300,6 +8326,19 @@
                   "properties": {
                     "speed": {
                       "description": "bridge speed; a wall line slows toward it as more of it hangs over air — a speed (mm/s); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    }
+                  }
+                },
+                "melt": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "buffer": {
+                      "description": "the share of the filament's maximum flow (melt.flow.max) kept unused: every move's flow is capped at the maximum flow less this share (10 % = capped at 90 % of it); the calibration tests that probe the limit itself (the melt plate's rows) are not; 0 % = no buffer; bundled 10 % — a multiplier (0.15 or 15%); or a formula (= ...)",
                       "type": [
                         "string",
                         "number"

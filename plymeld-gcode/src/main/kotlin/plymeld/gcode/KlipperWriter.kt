@@ -901,7 +901,9 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
      */
     private fun templateVars(layerCount: Int, maxZ: Double, initialTool: Int): (String) -> Template.Value? {
         val computed = mapOf(
-            "max_filament_flow" to tnum(s.maxVolumetric),
+            // the filament's maximum flow as the config has it: a template passes it on as the filament's (plymeld's own caps
+            // keep the melt buffer below it)
+            "max_filament_flow" to tnum(s.maxVolumetricMeasured),
             "filament_diameter" to tnum(s.filamentDiameterMm),
             "z_hop" to tnum(s.zHopUm / 1000.0),
             "nozzle_temperature" to Template.num(s.nozzleTempC.toLong()),

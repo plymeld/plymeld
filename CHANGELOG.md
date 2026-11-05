@@ -21,6 +21,9 @@ section the release's version and date.
 
 ### Changed
 
+- Every move's flow keeps a buffer below the filament's maximum flow: `plan.mechanism.motion.melt.buffer`, 10 % by
+  default (moves capped at 90 % of `melt.flow.max`), 0 % for none. Moves the melt rate limits print 10 % slower; the
+  melt plate's rows, which probe the limit itself, are not held to it.
 - `plymeld calibrate melt` prints a table: a column per temperature (10 °C apart by default), a row per flow from half
   the filament's expected maximum flow to twice it (`--flow-step`), each row's flow and each column's temperature
   printed on the plate. Its base prints at the filament's own temperatures; the columns are waited for one by one.

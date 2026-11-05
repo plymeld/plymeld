@@ -60,3 +60,24 @@ machines.
 **Consequences.** The flow plate prints in minutes instead of riding a tower; its patches below the top share one
 temperature, so a difference between columns is the read surface's. The filament plate loses `--flow-ratios` and its flow
 patches; the flow plate takes the option.
+
+## 3. Every move's flow keeps a buffer below the filament's maximum flow, 10 % by default (2026-11-05)
+
+**Context.** A measured maximum flow is the highest flow that printed without gaps on a melt plate: a move run at it
+has nothing to spare. With a measured value in place, a plate's supporting parts ran at about 92 % of it on a fast
+machine, and ordinary slicing caps hidden lines at the maximum itself.
+
+**Decision.** Every move's flow is capped at the filament's maximum flow less a buffer,
+`plan.mechanism.motion.melt.buffer`, bundled at 10 % (capped at 90 % of it); a config may change it, 0 % for none. It
+applies wherever the maximum flow caps a speed: slicing, the pose decision's time estimate, every calibration plate's
+supporting parts and first layer, the first-layer plate's per-block limit, the motion plate's fastest speed. The tests
+that probe the limit itself are left out: the melt plate's rows run from half the maximum flow to twice it, as the
+config has it. The start template's `max_filament_flow` stays the filament's maximum flow, the filament's property.
+
+**Rejected.** The buffer on the calibration plates' supporting parts only: two meanings of the usable melt rate,
+depending on where it is used. No buffer (the rule before): no margin at a measured limit. A buffer per filament: a
+filament with a reason for its own can be given one later; one setting first.
+
+**Consequences.** Any job a melt rate limits prints those moves 10 % slower than before, the rest unchanged. The
+regression jobs differ in speeds only. The motion plate's six speeds come out lower where the melt rate holds its
+fastest.

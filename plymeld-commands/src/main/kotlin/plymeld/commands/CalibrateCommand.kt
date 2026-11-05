@@ -171,7 +171,8 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         // reaches its flow at the lowest speed)
         val readUm = Math.round((toolMm("hardware.tool.layer.height.max") ?: throw UsageError("the melt plate's rows are as thick as the tool lays (tool layer.height.max), which the config does not give")) * 1000)
         val h = s0.layerHeightUm; val w = s0.outerWallWidthUm
-        val expected = s0.maxVolumetric
+        // the rows probe the limit itself: around the maximum flow as the config has it, not less the melt buffer
+        val expected = s0.maxVolumetricMeasured
         val bead = plymeld.core.calibrate.MeltSpec.bead(w, readUm)
         // the rows: half to twice the expected flow; those the machine's print speed cannot reach at this bead left out
         val allFlows = plymeld.core.calibrate.MeltSpec.flows(expected, flowStepV)
@@ -689,8 +690,8 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         val frameParts = listOfNotNull(if (spec.ruler) "the post" else null, "the bases above their first layer", melt?.let { "the melt bodies" },
             fit?.let { "the pedestal" }, bridges?.let { "the piers" })
         val frameWhy = "the machine's print speed (hardware.machine.<key>.motion.print.speed, ${n(s.hiddenSpeed)} mm/s) and acceleration (motion.print.acceleration)" +
-            (if (!frameHeld) "; the filament's maximum flow (${n(s.maxVolumetric)} mm3/s) allows ${n(meltCap)} mm/s on its lines, so the machine's speed binds"
-            else "; the speed held to the filament's maximum flow ($maxFlowKey, ${maxFlowNow ?: n(s.maxVolumetric) + " mm3/s"}) for its ${n(w / 1000.0)} mm lines: that is the binding limit" +
+            (if (!frameHeld) "; the filament's maximum flow less the melt buffer (${n(s.maxVolumetric)} mm3/s) allows ${n(meltCap)} mm/s on its lines, so the machine's speed binds"
+            else "; the speed held to the filament's maximum flow ($maxFlowKey, ${maxFlowNow ?: n(s.maxVolumetricMeasured) + " mm3/s"}) less the melt buffer (${n(s.meltBuffer * 100)} %, plan.mechanism.motion.melt.buffer) for its ${n(w / 1000.0)} mm lines: that is the binding limit" +
                 (if (maxFlowPlaceholder) ", and it is the bundled placeholder until ${if (melt != null) "this plate" else "the melt plate"} measures it" else ""))
         echo("frame (${frameParts.joinToString()}) at ${n(frameSpeed)} mm/s, ${n(frameAccel)} mm/s2: $frameWhy; first layer ${n(fhm)} mm thick ($firstFrom; the layers above ${n(hm)} mm, every layer of the plate shifted up by the difference) at ${n(firstSpeed)} mm/s (" +
             (if (firstSpeed < s.firstLayerSpeed - 1e-9) "the configured first-layer speed ${n(s.firstLayerSpeed)} held to the filament's maximum flow for its ${n(firstWidest / 1000.0)} mm lines" else "the configured first-layer speed") +
@@ -912,12 +913,13 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         // the printed plate showed a gap at every second line end along each tile's left and right walls)
         val tiles = plymeld.core.calibrate.FirstLayerTiles(speedList.toDoubleArray(), heightList.toLongArray(), s.firstLayerWidthUm, s.defaultAccel, s.zHopUm, s.infillWallOverlap)
         // each block's melt limit: the filament's maximum flow (melt.flow.max) with its print temperature
-        // (temperature.print) set to the block's, the config resolved again as `-cv` would set it; a constant gives the same
-        // limit in every block, a formula of the temperature its value there
+        // (temperature.print) set to the block's, the config resolved again as `-cv` would set it, less the melt buffer
+        // (plan.mechanism.motion.melt.buffer); a constant gives the same limit in every block, a formula of the temperature
+        // its value there
         val capPairs = tempList.map { tc ->
             val cs = try { ConfigSetup.setup(plateConfig(toolN, tc).first).setup } catch (e: ConfigError) { throw UsageError("the config has ${e.problems.size} problem(s) at $tc C:\n" + e.problems.joinToString("\n") { "  $it" }) }
             val v = Resolver.resolveOrNull(cs, "hardware.filament.melt.flow.max", plymeld.model.Context(0)) ?: throw UsageError("'${spool.material}' has no maximum flow (melt.flow.max): the tiles over it cannot be left out")
-            (v.value as Number).toDouble() to "${v.from}, with temperature.print = $tc C (the block's)"
+            (v.value as Number).toDouble() * (1 - s.meltBuffer) to "${v.from}, with temperature.print = $tc C (the block's), less the melt buffer ${n(s.meltBuffer * 100)} %"
         }
         val prime = PathValues(s.firstLayerSpeed, s.defaultAccel, s.flowRatio, s.retractMm)
         // the frame: not read, so as the filament plate's frame: the machine's print speed
@@ -1377,7 +1379,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
                 if (sp.size != plymeld.core.calibrate.MotionGeometry.speeds) throw UsageError("--motion-speeds is ${plymeld.core.calibrate.MotionGeometry.speeds} speeds, one per face along X and one along Y (got ${sp.size})")
                 if (sp.zipWithNext().any { (a, b) -> b <= a }) throw UsageError("--motion-speeds must rise, slow to fast (got '$motionSpeeds')")
                 if (sp.max() > s.hiddenSpeed + 1e-9) throw UsageError("--motion-speeds: ${n(sp.max())} mm/s is past the machine's print speed (hardware.machine.<key>.motion.print.speed, ${n(s.hiddenSpeed)} mm/s)")
-                if (sp.max() > outerCap + 1e-9) throw UsageError("--motion-speeds: ${n(sp.max())} mm/s is past what the filament's maximum flow ($maxFlowKey, ${n(s.maxVolumetric)} mm3/s) allows on a ${n(w / 1000.0)} mm outer wall (${n(outerCap)} mm/s): the wall would starve, which reads like ringing")
+                if (sp.max() > outerCap + 1e-9) throw UsageError("--motion-speeds: ${n(sp.max())} mm/s is past what the filament's maximum flow ($maxFlowKey) less the melt buffer (${n(s.maxVolumetric)} mm3/s) allows on a ${n(w / 1000.0)} mm outer wall (${n(outerCap)} mm/s): the wall would starve, which reads like ringing")
             } ?: (1..6).map { k -> if (k == 6) topSpeed else maxOf(5.0, Math.floor(topSpeed * k / 6 / 5) * 5) }
         if (speeds.zipWithNext().any { (a, b) -> b <= a }) throw UsageError("the fastest speed is ${n(topSpeed)} mm/s (${if (flowBinds) "the filament's maximum flow" else "the machine's print speed"}): too slow to spread six speeds 5 mm/s apart; give --motion-speeds")
         // the accelerations: given (rising), or MOTION_BANDS of them, the machine's print acceleration and each band below half the
@@ -1412,7 +1414,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         fun gcodeOf(p: plymeld.core.calibrate.MotionPlate) = p.gcode(s, setup.foreignTemplateVars, PlymeldVersion.value, pa)
         val machineDesc = Resolver.resolve(setup, "hardware.machine.model").value.toString()
         val topSpeedWhy = if (motionSpeeds != null) "given (--motion-speeds)" else if (flowBinds)
-            "the machine's print speed (hardware.machine.<key>.motion.print.speed, ${n(s.hiddenSpeed)} mm/s) held to the filament's maximum flow ($maxFlowKey, ${n(s.maxVolumetric)} mm3/s${if (maxFlowPlaceholder) ", plymeld's bundled placeholder" else ""}) on the ${n(w / 1000.0)} mm outer wall: the flow binds"
+            "the machine's print speed (hardware.machine.<key>.motion.print.speed, ${n(s.hiddenSpeed)} mm/s) held to the filament's maximum flow ($maxFlowKey${if (maxFlowPlaceholder) ", plymeld's bundled placeholder" else ""}) less the melt buffer (${n(s.maxVolumetric)} mm3/s) on the ${n(w / 1000.0)} mm outer wall: the flow binds"
             else "the machine's print speed (hardware.machine.<key>.motion.print.speed): it binds (the filament's maximum flow allows ${n(outerCap)} mm/s on the outer wall)"
         val topAccelWhy = if (motionAccels != null) "given (--motion-accels)" else "the machine's print acceleration (hardware.machine.<key>.motion.print.acceleration)"
         val text = withMotionConditions(gcodeOf(plate), spec, spool.material, slotN, s, pa[spool.tool], machineDesc, topSpeedWhy, topAccelWhy)

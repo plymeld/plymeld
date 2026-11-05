@@ -86,6 +86,10 @@ visible.acceleration = "= machine.motion.print.acceleration / 2"
 # a value set here in a config file of your own (or -cv) locks it over both
 first_layer.speed = "40 mm/s"
 bridge.speed = "30 mm/s"
+# the buffer kept below the filament's maximum flow (melt.flow.max): every move's flow is capped at 90 % of it. A
+# measured maximum is the highest flow that printed without gaps on its melt plate, so a move at it has nothing to spare;
+# set 0% for no buffer
+melt.buffer = "10%"
 # travels around the layer's other islands (strings from a purge tower to a part embedded themselves in another part
 # between them); no retraction for a travel inside its island crossing no wall. Here so `plymeld
 # config` shows them; the catalog carries the same defaults.
