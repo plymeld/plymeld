@@ -23,7 +23,7 @@ import plymeld.config.Site
  */
 class MeltValuesCommand : ConfigCommand("values") {
     private val readings by argument("TEMP=FLOW", help = "a column's reading: its temperature (C) = the highest row's flow (mm3/s) printed without gaps, e.g. 210=26; " +
-        ">=FLOW when the column was clean up to the plate's last row (at least that), e.g. 230=>=30").multiple(required = true)
+        "FLOW+ when the column was clean up to the plate's last row (at least that), e.g. 230=30+ (or >=FLOW, quoted for the shell)").multiple(required = true)
     private val toolOpt by option("--tool", metavar = "N", help = "the machine's tool (its index, from 1) the plate printed with").default("1")
     private val filament by option("--filament", metavar = "NAME", help = "the filament the plate printed; default: the one the machine's loadout puts on --tool")
     private val plateGcode by option("--plate-gcode", metavar = "PLATE", help = "the melt plate's g-code, as `plymeld calibrate melt` wrote it: named, with the plymeld that made it, in the comment").path(mustExist = true)
@@ -78,7 +78,7 @@ class MeltValuesCommand : ConfigCommand("values") {
         java.nio.file.Files.writeString(file, after)
         val journal = journalOpt ?: plymeld.config.UserDirs.current().state.resolve(JOURNAL)
         journal.parent?.let { java.nio.file.Files.createDirectories(it) }
-        val line = (listOf("plymeld calibrate melt values") + rs.map { "${it.tempC}=${if (it.atLeast) ">=" else ""}${n(it.flow)}" } + listOf("--tool", "$toolN")).joinToString(" ")
+        val line = (listOf("plymeld calibrate melt values") + rs.map { "${it.tempC}=${n(it.flow)}${if (it.atLeast) "+" else ""}" } + listOf("--tool", "$toolN")).joinToString(" ")
         Journal.read(journal).append(Journal.Entry(Journal.now(), line, file.toAbsolutePath().toString(), before, after))
         echo("written; recorded in $journal (undo: plymeld journal '$journal' --undo)")
     }
@@ -101,13 +101,20 @@ class MeltValuesCommand : ConfigCommand("values") {
 
         fun n(v: Double): String = java.math.BigDecimal(v).setScale(3, java.math.RoundingMode.HALF_UP).stripTrailingZeros().toPlainString()
 
-        /** "210=26" or "230=>=30"; refused otherwise, and for a below-the-first-row reading (it gives no value). */
+        /**
+         * "210=26", or "230=30+" (at least 30: clean to the plate's last row; also written "230=>=30", which a shell needs
+         * quoted); refused otherwise, and for a reading below the first row ("200=8-" or "200=<8"): it gives no value.
+         */
         fun parse(a: String): Reading {
-            val m = Regex("""^\s*(\d+)\s*(?:C)?\s*=\s*(>=|<)?\s*([0-9.]+)\s*(?:mm3/s)?\s*$""").find(a) ?: throw UsageError("'$a': a reading is TEMP=FLOW, e.g. 210=26 (C, mm3/s), or TEMP=>=FLOW when the column was clean to the last row")
-            if (m.groupValues[2] == "<") throw UsageError("'$a': a column with gaps in its first row gives no value (only that its maximum flow is lower): " +
+            val m = Regex("""^\s*(\d+)\s*(?:C)?\s*=\s*(>=|<)?\s*([0-9.]+)\s*(?:mm3/s)?\s*([+-])?\s*$""").find(a)
+                ?: throw UsageError("'$a': a reading is TEMP=FLOW, e.g. 210=26 (C, mm3/s), or TEMP=FLOW+ when the column was clean to the last row, e.g. 230=30+")
+            val atLeast = m.groupValues[2] == ">=" || m.groupValues[4] == "+"
+            val below = m.groupValues[2] == "<" || m.groupValues[4] == "-"
+            if (atLeast && below) throw UsageError("'$a': at least or below, not both")
+            if (below) throw UsageError("'$a': a column with gaps in its first row gives no value (only that its maximum flow is lower): " +
                 "print a melt plate that starts lower (a smaller --flow-step, or a lower expected maximum flow), and read that")
             val flow = m.groupValues[3].toDoubleOrNull()?.takeIf { it > 0 } ?: throw UsageError("'$a': the flow is mm3/s above 0")
-            return Reading(m.groupValues[1].toInt(), flow, m.groupValues[2] == ">=")
+            return Reading(m.groupValues[1].toInt(), flow, atLeast)
         }
 
         /**

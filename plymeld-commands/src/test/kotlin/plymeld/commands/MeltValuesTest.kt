@@ -66,13 +66,16 @@ class MeltValuesTest : StringSpec({
     "refused: a reading below the first row, one temperature twice, a filament the config files do not define; --dry-run writes nothing" {
         val dir = copy(); val f = dir.resolve("01_FILAMENTS.toml"); val original = Files.readString(f)
         shouldThrow<UsageError> { run(dir, "200=<8") }.message!! shouldContain "gives no value"
+        shouldThrow<UsageError> { run(dir, "200=8-") }.message!! shouldContain "gives no value"
         shouldThrow<UsageError> { run(dir, "200=24", "200=25") }.message!! shouldContain "given twice"
         shouldThrow<UsageError> { run(dir, "--filament", "pla-generic", "200=24") }.message!! shouldContain "not defined in your config files"
         run(dir, "--dry-run", "200=24")
         Files.readString(f) shouldBe original
-        // ">=" is at least that value: written as the value
-        run(dir, "200=24", "210=>=30")
+        // "30+" (or ">=30") is at least that value: written as the value
+        run(dir, "200=24", "210=30+")
         flowAt(dir, 215) shouldBe (30.0 plusOrMinus 1e-9)
         Files.readString(f) shouldContain "210 C at least 30 mm3/s"
+        run(dir, "200=24", "210=>=31")
+        flowAt(dir, 215) shouldBe (31.0 plusOrMinus 1e-9)
     }
 })
