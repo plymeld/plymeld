@@ -268,8 +268,10 @@ class FlowPlate(private val spec: FlowSpec, private val without: Set<String> = e
             val (px, py) = parkUm()
             steps += Park(px, py, 0.0)
             if (!("wait" in without && c == 1)) steps += SetTemp(spec.tool, spec.tempsC[c], wait = true)
+            // the prime line at the patches' speed, not the frame's: it prints at the column's temperature, where the
+            // filament's maximum flow (the frame's limit, at the print temperature) may not hold
             if (!("prime" in without && c == 1))
-                put("Skirt", primePath(c), false, tz, Exact(spec.primeLabel(c), doubleArrayOf(spec.frame.speed), spec.frame.accel, spec.frame.flowRatio, spec.frame.retractMm), lw, h)
+                put("Skirt", primePath(c), false, tz, Exact(spec.primeLabel(c), doubleArrayOf(spec.speed), spec.accel, spec.frame.flowRatio, spec.frame.retractMm), lw, h)
             for (r in 0 until spec.rows) patch(c, r, topLayer, tz, top = true)
         }
         steps += LiftTo(tz + spec.liftUm)

@@ -1857,8 +1857,8 @@ class MotionPlateCommand : PlateCommand("motion", "motion") {
 /** `plymeld calibrate filament`. */
 class FilamentPlateCommand : PlateCommand("filament", "filament") {
     override fun help(context: com.github.ajalt.clikt.core.Context) = "The filament plate, once its melt rate is measured: the filament's other families of tests (--tests: overhangs, bridges, stringing, line widths, fit) with the temperature varied by band of height, each family on a base of its own, packed to fit the bed, with each family's predicted time and filament."
-    override val temps: String? by option("--temps", metavar = "LOW-HIGH", help = "melt, filament, and first-layer plates: the temperature range, whole degrees C, e.g. 195-225 (first-layer plate: also a single temperature, e.g. 215); default: the filament's (temperature.min to temperature.max, the spool's label)")
-    override val step: String? by option("--step", metavar = "C", help = "melt and filament plates: whole degrees between bands; first-layer plate: between blocks; default: 5")
+    override val temps: String? by option("--temps", metavar = "LOW-HIGH", help = "the temperature range, whole degrees C, e.g. 195-225: a band each, hottest at the bottom; default: the filament's (temperature.min to temperature.max, the spool's label)")
+    override val step: String? by option("--step", metavar = "C", help = "whole degrees between bands; default: 5")
     override val fans: String? by option("--fans", metavar = "LOW,HIGH", help = "filament plate: the two part-fan levels (%) the bands alternate between; default: half the filament's fan, and 1.5x it (at most 100)")
     override val tests: String? by option("--tests", metavar = "T,T,...", help = "filament plate: the families of tests on it, any of ${Part.FILAMENT_TESTS.joinToString(",") { it.key }} (default: all of them); " +
         "this is the way to leave a family out. The melt test and the motion test are plates of their own (`calibrate melt`, `calibrate motion`). " +
@@ -1878,8 +1878,8 @@ class FirstLayerPlateCommand : PlateCommand("first-layer", "first-layer") {
     override fun help(context: com.github.ajalt.clikt.core.Context) = "The first-layer plate: first-layer tiles only, one layer, a block of them per temperature (coolest first, heating and priming between blocks), each tile at its own nozzle height (--first-heights) and speed (--first-speeds); a tile whose flow would pass the filament's maximum flow at its block's temperature is left out, and each block's tiles are joined into one piece, a frame laid over their walls (a second layer, not read) holding it together. `first-layer window` turns the graded plate into the filament's first-layer window."
     init { subcommands(FirstLayerWindowCommand()) }
     override val invokeWithoutSubcommand = true
-    override val temps: String? by option("--temps", metavar = "LOW-HIGH", help = "melt, filament, and first-layer plates: the temperature range, whole degrees C, e.g. 195-225 (first-layer plate: also a single temperature, e.g. 215); default: the filament's (temperature.min to temperature.max, the spool's label)")
-    override val step: String? by option("--step", metavar = "C", help = "melt and filament plates: whole degrees between bands; first-layer plate: between blocks; default: 5")
+    override val temps: String? by option("--temps", metavar = "LOW-HIGH", help = "the temperature range, whole degrees C, e.g. 195-225, or a single temperature, e.g. 215: a block each, coolest first; default: the filament's (temperature.min to temperature.max, the spool's label)")
+    override val step: String? by option("--step", metavar = "C", help = "whole degrees between blocks; default: 5")
     override val firstSpeeds: String? by option("--first-speeds", metavar = "S,S,...", help = "first-layer plate: the tiles' speeds (mm/s), a row of tiles each, slow to fast; default: 40,60,80,100")
     override val firstHeights: String? by option("--first-heights", metavar = "MM,MM,...", help = "first-layer plate: the tiles' nozzle heights (mm), a column of tiles each, low to high; default: five, from half the nozzle's bore up in steps of a tenth of it (hardware.tool.<key>.bore: 0.2 to 0.36 mm on a 0.4 mm nozzle)")
 }

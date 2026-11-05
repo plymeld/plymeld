@@ -162,6 +162,11 @@ class MeltPlate(private val spec: MeltSpec, private val without: Set<String> = e
     private val h = spec.layerUm
     private val lw = spec.widthUm
 
+    /**
+     * A prime line's speed: at the lowest row's flow, held to the frame's speed. It prints at its column's temperature,
+     * where the filament's maximum flow at its print temperature (the frame's limit) may not hold.
+     */
+    val primeSpeed: Double get() = minOf(spec.frameSpeed, spec.flows[0] / (MeltSpec.bead(lw, h) * spec.frame.flowRatio))
     /** A row's line spacing: the bead model's at its width and thickness. */
     val rowSp: Long get() = PlateFill.spacing(lw, spec.readUm)
 
@@ -298,7 +303,7 @@ class MeltPlate(private val spec: MeltSpec, private val without: Set<String> = e
             steps += Park(px, py, 0.0)
             if (!("wait" in without && c == 1)) steps += SetTemp(spec.tool, spec.tempsC[c], wait = true)
             if (!("prime" in without && c == 1))
-                put("Skirt", primePath(c), false, floorZ, Exact(spec.primeLabel(c), doubleArrayOf(spec.frameSpeed), pv.accel, pv.flowRatio, pv.retractMm), lw, h)
+                put("Skirt", primePath(c), false, floorZ, Exact(spec.primeLabel(c), doubleArrayOf(primeSpeed), pv.accel, pv.flowRatio, pv.retractMm), lw, h)
             val rows = if ("roworder" in without && c == 0) (spec.rows - 1 downTo 0).toList() else (0 until spec.rows).toList()
             for (r in rows) {
                 val odd = c == 0 && r == 2
