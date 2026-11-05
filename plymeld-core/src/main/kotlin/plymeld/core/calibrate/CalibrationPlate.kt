@@ -117,6 +117,16 @@ class MeltTerraces(val topSpeed: Double, val machineSpeed: Double, val centerFlo
             val mid = bead(wUm, (hs.first() + hs.last()) / 2)
             return Math.min(machineSpeed, centerFlow / (mid * flowRatio))
         }
+        /** FAST's thickest strip runs at this many times the filament's expected maximum flow (plymeld's choice): see [fastSpeedTop]. */
+        const val TOP_OF_EXPECTED = 2.0
+        /**
+         * The melt plate's FAST speed (mm/s): the machine's print speed [machineSpeed], or less, so that FAST's thickest strip (a
+         * [wUm] line [maxUm] thick) runs at [TOP_OF_EXPECTED] times [expected] (mm³/s, the filament's expected maximum flow) at
+         * [flowRatio]. FAST's strips then span about 0.74 to 2 times it, MID's (half FAST's speed) about 0.37 to 1, so the
+         * plate brackets a maximum flow up to twice the expected one in one print. Plymeld's choice.
+         */
+        fun fastSpeedTop(machineSpeed: Double, expected: Double, wUm: Long, maxUm: Long, flowRatio: Double): Double =
+            Math.min(machineSpeed, TOP_OF_EXPECTED * expected / (bead(wUm, maxUm) * flowRatio))
         /**
          * Lines in a strip: as many as hold the FAST strip's flow for [PlateGeometry.meltHoldS] at [topSpeed] (each line
          * [PlateGeometry.meltLineLen] long; a time, so the same at every thickness), and at least [MIN_LINES]; the same count on
