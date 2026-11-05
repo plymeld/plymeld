@@ -35,7 +35,10 @@ import plymeld.program.Step
  * column's temperature ("210") printed in front of it. Rows stand [MeltGeometry.rowGap] apart, so each reads as its own
  * strip with the floor between them.
  *
- * Print order: column by column, coolest first (a nozzle heats faster than it cools). Before each column after the first
+ * Temperatures: the base and the floor at the filament's own (its first-layer temperature, then its print temperature),
+ * so the plate holds to the bed as any print does; the columns' temperatures only on the read layer.
+ *
+ * Print order: column by column, coolest first (a nozzle heats faster than it cools). Before each column, the first too,
  * the head lifts clear, parks in front of the plate and waits for the column's temperature (M109); then the column's prime
  * line in front of it (not read: the nozzle oozes while it waits), then its rows from the front, lowest flow first.
  *
@@ -44,12 +47,6 @@ import plymeld.program.Step
 object MeltGeometry {
     /** The base's layers (the first included): two, so the plate comes off the bed in one stiff piece. */
     const val baseLayers = 2
-    /**
-     * The base's first layer's line width, in nozzle diameters. Plymeld's choice: that layer prints at the first-layer
-     * speed, well under the filament's flow, so wider lines cover the plate in fewer passes in less time, and a wide
-     * first-layer line holds to the bed at least as well. Not measured.
-     */
-    const val baseWidthNozzles = 1.5
     /** The base past everything on it at the right and the back. Plymeld's choice. */
     const val margin = 3_000L
     /** A label to what it names. Plymeld's choice. */
@@ -76,12 +73,18 @@ class MeltSpec(
     val tempsC: IntArray,
     /** The rows' flows (mm³/s), front to back: low to high. */
     val flows: DoubleArray,
+    /**
+     * The base's and floor's temperatures (C): the filament's own first-layer and print temperatures, so the plate holds to
+     * the bed as any print does; only the read layer is at the columns' temperatures.
+     */
+    val baseFirstC: Int,
+    val basePrintC: Int,
     /** The part fan (%) in the floor and read layers (the base's are off). */
     val fanPct: Double,
     /** The plate's layer height (µm; the base above its first layer, the floor) and its first layer's. */
     val layerUm: Long,
     val firstLayerUm: Long,
-    /** The plate's ordinary line width (µm: every row's too) and the base's first layer's ([MeltGeometry.baseWidthNozzles]). */
+    /** The plate's ordinary line width (µm: every row's too) and the base's first layer's (the first-layer line width). */
     val widthUm: Long,
     val firstWidthUm: Long,
     /** Every row's thickness (µm): the tool's thickest layer. */
@@ -285,12 +288,15 @@ class MeltPlate(private val spec: MeltSpec, private val without: Set<String> = e
         }
         spec.levelGcode?.let { steps += plymeld.program.Custom("bed levelling (hardware.machine.<key>.gcode.level)", it) }
         val order = if ("order" in without) (spec.columns - 1 downTo 0).toList() else (0 until spec.columns).toList()
-        // the first column's temperature (the start template heats to it: this wait is a guard); the fan off for the base
-        steps += SetTemp(spec.tool, spec.tempsC[order[0]], wait = true)
+        // the filament's first-layer temperature (the start template heats to it: this wait is a guard); the fan off for the base
+        steps += SetTemp(spec.tool, spec.baseFirstC, wait = true)
         steps += SetFan(0.0)
         val fz = spec.firstLayerUm
         steps += LayerStart(0, fz, fz)
         lay("Bottom surface", spec.baseLabel, listOf(baseOutline()), fz, spec.firstWidthUm, fz, spec.adhesion, spec.adhesion.speed, 45.0)
+        // the rest of the base and the floor at the filament's print temperature, reached as they print (no wait: the head
+        // would stand on the plate)
+        if (spec.basePrintC != spec.baseFirstC) steps += SetTemp(spec.tool, spec.basePrintC, wait = false)
         for (layer in 1 until g.baseLayers) {
             steps += LayerStart(layer, layerTop(layer), h)
             lay("Internal solid infill", spec.baseLabel, listOf(baseOutline()), layerTop(layer), lw, h, spec.frame, spec.frameSpeed, if (layer % 2 == 0) 45.0 else 135.0)
@@ -306,18 +312,16 @@ class MeltPlate(private val spec: MeltSpec, private val without: Set<String> = e
             lay("Internal solid infill", spec.floorLabel(c), listOf(PlateMarks.box(b[0], b[1], b[2], b[3])), floorZ, lw, h, spec.frame, spec.frameSpeed, 90.0)
         }
         for ((label, ps) in labels()) if (ps.isNotEmpty()) lay("Outer wall", label, ps, floorZ, lw, h, spec.frame, spec.frameSpeed, 0.0)
-        // the read layer: column by column in print order, each after its wait (parked, clear of everything laid), its prime
-        // line, then its rows from the front
+        // the read layer: column by column in print order, each after its wait (parked, clear of everything laid; the first
+        // column's too, from the floor's temperature), its prime line, then its rows from the front
         val rz = readZ
         steps += LayerStart(g.baseLayers + 1, rz, spec.readUm)
         val pv = spec.frame
-        for ((i, c) in order.withIndex()) {
-            if (i > 0) {
-                steps += LiftTo(rz + spec.liftUm)
-                val (px, py) = parkUm()
-                steps += Park(px, py, 0.0)
-                if (!("wait" in without && c == 1)) steps += SetTemp(spec.tool, spec.tempsC[c], wait = true)
-            }
+        for (c in order) {
+            steps += LiftTo(rz + spec.liftUm)
+            val (px, py) = parkUm()
+            steps += Park(px, py, 0.0)
+            if (!("wait" in without && c == 1)) steps += SetTemp(spec.tool, spec.tempsC[c], wait = true)
             if (!("prime" in without && c == 1))
                 put("Skirt", primePath(c), false, floorZ, Exact(spec.primeLabel(c), doubleArrayOf(spec.frameSpeed), pv.accel, pv.flowRatio, pv.retractMm), lw, h)
             val rows = if ("roworder" in without && c == 0) (spec.rows - 1 downTo 0).toList() else (0 until spec.rows).toList()
