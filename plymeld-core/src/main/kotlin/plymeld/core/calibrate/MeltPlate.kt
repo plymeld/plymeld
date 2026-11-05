@@ -1,12 +1,5 @@
 package plymeld.core.calibrate
 
-import plymeld.core.Feature
-import plymeld.core.Ordering
-import plymeld.core.Planner
-import plymeld.core.ToolPath
-import plymeld.geom.Hatch
-import plymeld.geom.Linker
-import plymeld.geom.Offset
 import plymeld.geom.Polygon
 import plymeld.program.Exact
 import plymeld.program.Extrude
@@ -169,10 +162,8 @@ class MeltPlate(private val spec: MeltSpec, private val without: Set<String> = e
     private val h = spec.layerUm
     private val lw = spec.widthUm
 
-    /** Center-to-center distance of two touching [w] µm lines [hUm] high (the bead model's). */
-    private fun spacingOf(w: Long, hUm: Long): Long = Math.round(w - hUm * (1 - Math.PI / 4))
     /** A row's line spacing: the bead model's at its width and thickness. */
-    val rowSp: Long get() = spacingOf(lw, spec.readUm)
+    val rowSp: Long get() = PlateFill.spacing(lw, spec.readUm)
 
     // ---- the rows
 
@@ -257,22 +248,6 @@ class MeltPlate(private val spec: MeltSpec, private val without: Set<String> = e
     /** The rows' height: the floor's top plus their thickness. */
     val readZ: Long get() = floorTop + spec.readUm
 
-    // ---- filling an outline: rings, then one monotonic sweep of lines
-
-    private fun fill(outlines: List<Polygon>, w: Long, hUm: Long, angle: Double): Pair<List<LongArray>, List<LongArray>> {
-        val sp = spacingOf(w, hUm)
-        val rings = ArrayList<LongArray>()
-        var cur = Offset.offset(outlines, -w / 2)
-        var n = 0
-        while (cur.isNotEmpty() && n < PlateGeometry.frameWalls) { for (r in cur) if (r.size >= 3) rings += r.xy; cur = Offset.offset(cur, -sp); n++ }
-        if (rings.isEmpty() || cur.isEmpty()) return rings to emptyList()
-        val (segs, idx) = Hatch.indexed(cur, angle, sp)
-        if (segs.isEmpty()) return rings to emptyList()
-        val chains = Linker.link(segs, idx, cur, Planner.ANCHOR_SPACINGS * sp, breakAtSplits = true, breakAtForks = true)
-        val end = rings.last()
-        return rings to Ordering.sweep(chains.map { ToolPath(Feature.TOP, it, false, w, hUm) }, end[0], end[1]).map { it.xy }
-    }
-
     fun program(): PrintProgram {
         val steps = ArrayList<Step>()
         val ox = spec.originXUm; val oy = spec.originYUm
@@ -281,7 +256,7 @@ class MeltPlate(private val spec: MeltSpec, private val without: Set<String> = e
             steps += Extrude(feature, moved, closed, z, w, hh, tool = spec.tool, exact = ex)
         }
         fun lay(feature: String, label: String, outlines: List<Polygon>, z: Long, w: Long, hh: Long, pv: PathValues, speed: Double, angle: Double) {
-            val (rings, lines) = fill(outlines, w, hh, angle)
+            val (rings, lines) = PlateFill.fill(outlines, w, hh, angle)
             val ex = Exact(label, doubleArrayOf(speed), pv.accel, pv.flowRatio, pv.retractMm)
             for (r in rings) put("Outer wall", r, true, z, ex, w, hh)
             for (l in lines) put(feature, l, false, z, ex, w, hh)

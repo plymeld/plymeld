@@ -9,6 +9,20 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Added
+
+- `plymeld calibrate flow`: the flow ratio on a plate of its own, after the melt plate. A column per temperature, a
+  square patch per flow ratio (`--flow-ratios`), each patch's ratio and each column's temperature printed on the plate;
+  only the patches' top layer is laid at the column's temperature, after a wait.
+
+### Changed
+
+- `plymeld calibrate melt` prints a table: a column per temperature (10 °C apart by default), a row per flow from half
+  the filament's expected maximum flow to twice it (`--flow-step`), each row's flow and each column's temperature
+  printed on the plate. Its base prints at the filament's own temperatures; the columns are waited for one by one.
+- The filament plate no longer has flow-ratio patches (`--tests flow`, `--flow-ratios`): the flow plate measures the flow
+  ratio before the plates that depend on it.
+
 ### Fixed
 
 - `plymeld init` drew its choice lists blank in a terminal that reports no width (a pseudo-terminal whose size was
