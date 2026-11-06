@@ -60,8 +60,8 @@ replace them with yours.
 (limits, retraction, travels, tools, start, and end) and against the model (lines outside it, and outlines
 left without walls), and predicts time and filament.
 
-**Calibrates.** `plymeld calibrate` makes melt, motion, filament, first-layer, ironing, and seam plates, each
-with an instructions page; the readings go back in as your filament's values.
+**Calibrates.** `plymeld calibrate` makes melt, flow, first-layer, motion, filament, ironing, and seam plates, in
+the order their results depend on each other; the readings go back in as your filament's and machine's values.
 
 **Talks to printers:** `plymeld printer status | watch | camera | files | send | pause | resume | cancel`
 through one interface, with adapters so far for Flashforge's LAN API and Moonraker (Klipper). `plymeld printer

@@ -74,7 +74,7 @@ object MotionInstructions {
         l("|---|---|")
         l("| machine | ${info.machine} (`${notes.machineKey}`) |")
         l("| filament, tool | ${info.filament}, tool ${info.tool + 1} |")
-        l("| nozzle temperature | ${spec.tempC} C throughout, waited for before the first line |")
+        l("| nozzle temperature | the tower at ${spec.tempC} C, waited for (the head parked in front of the slab) before its first line; the slab's first layer at ${spec.firstTempC} C, the filament's first-layer temperature |")
         l("| layer height | ${n(spec.layerUm / 1000.0, 2)} mm; the slab's first layer ${n(spec.firstLayerUm / 1000.0, 2)} mm; ${spec.layers} layers (the slab ${g.slabLayers}, the tower ${spec.towerLayers}), the top at z ${n(spec.topZ / 1000.0, 2)} mm |")
         l("| line width | outer wall ${n(spec.widthUm / 1000.0, 2)} mm, inner wall ${n(spec.innerWidthUm / 1000.0, 2)} mm, the slab's first layer ${n(spec.firstWidthUm / 1000.0, 2)} mm |")
         l("| flow ratio | ${n(spec.flowRatio, 3)} |")
@@ -92,9 +92,10 @@ object MotionInstructions {
         l()
         l("![The cross from above with every face's number, direction, and speed; the bands from the front with their accelerations]($pngName)")
         l()
-        l("- **Which way round**: **notches in the slab's edge number the arms** (each notch ${n(g.markWidth / 1000.0, 1)} x ${n(g.markDepth / 1000.0, 1)} mm, cut through the slab in front of an arm's end): **1 the front arm, 2 the right, 3 the back, 4 the left** (counter-clockwise seen from above, like the faces). Set the plate down with the single notch toward you. " +
+        l("- **Which way round**: **notches in the slab's edge number the arms** (each notch ${n(g.markWidth / 1000.0, 1)} mm wide and ${n(g.markDepth / 1000.0, 1)} mm deep, cut through the slab in front of an arm's end): **1 the front arm, 2 the right, 3 the back, 4 the left** (counter-clockwise seen from above, like the faces). Set the plate down with the single notch toward you. " +
             "The arm with n notches ends in face 3n - 2 (${(1..g.arms).joinToString(", ") { "${g.endFace(it)}" }}). The slab's corner at the front arm's front-left is chamfered too.")
-        l("- **The faces** are numbered counter-clockwise seen from above, **face 1 the front arm's front face** (the edge behind the single notch, beside the chamfer). The odd faces run **along X** (left to right as you look at the front), the even faces **along Y** (front to back). Each face starts at a sharp corner: the jolt there is what sets off ringing, so the ripples (if any) start at the face's beginning, in the direction it printed, and fade along it. The picture's arrows show which end that is.")
+        l("- **The faces** are numbered counter-clockwise seen from above, **face 1 the front arm's front face** (the edge behind the single notch, beside the chamfer). The odd faces run **along X** (left to right as you look at the front), the even faces **along Y** (front to back). Each face starts at a sharp corner: the jolt there is what sets off ringing, so the ripples (if any) start at the face's beginning, in the direction it printed, and fade along it. The picture's arrows show which end that is. " +
+            "**Each face's speed** (mm/s) stands raised on the slab in front of it, reading from outside that face.")
         l("- **The bands**: band 1 at the bottom, just above the slab. A **groove** (the walls set in ${n(spec.grooveUm / 1000.0, 2)} mm for ${g.grooveLayers} layers) marks the start of every band above the first: count the grooves from the slab and add one. Each band is ${n(spec.bandLayers * spec.layerUm / 1000.0, 1)} mm tall.")
         l("- **No diagonal faces.** A wall running at 45 degrees wobbles in X and Y at once, each by its own resonance, so it rings no worse than the worse of the two directions read here, as long as the machine's two belts (on a CoreXY machine, each motor drives a diagonal) are alike. A machine whose diagonal walls ring worse than both has unequal belts: a fault to fix, not a speed to set.")
         l("- **The seam** (where each layer's loop starts and ends) is on face 12, ${n(g.seamAt * g.arm / 1000.0, 0)} mm from its start, near the chamfered corner: a vertical line there is the seam, not ringing.")
@@ -191,6 +192,12 @@ object MotionInstructions {
         val slab = Path2D.Double().also { p -> for (i in 0 until o.size) { if (i == 0) p.moveTo(px(ox + o.x(i)), py(oy + o.y(i))) else p.lineTo(px(ox + o.x(i)), py(oy + o.y(i))) }; p.closePath() }
         gr.color = Color(228, 228, 232); gr.fill(slab)
         gr.color = Color(120, 120, 125); gr.stroke = BasicStroke(2f); gr.draw(slab)
+        // the speed labels raised on the slab, as printed
+        gr.color = Color(95, 95, 100)
+        for (k in 1..g.faces) gr.fill(Path2D.Double(Path2D.WIND_EVEN_ODD).also { q ->
+            // one path per label, even-odd, so a glyph's holes stay open
+            for (p in plate.speedMark(k)) { for (i in 0 until p.size) { if (i == 0) q.moveTo(px(ox + p.x(i)), py(oy + p.y(i))) else q.lineTo(px(ox + p.x(i)), py(oy + p.y(i))) }; q.closePath() }
+        })
         // the arm marks: each arm's number beside its notches, outside the slab
         gr.color = Color(60, 60, 65); gr.font = Font("SansSerif", Font.BOLD, 16)
         run {
@@ -238,7 +245,8 @@ object MotionInstructions {
         gr.color = blue; gr.fillRect(50, 905, 30, 6); gr.color = Color.BLACK; gr.drawString("faces along X: read for the head's wobble in Y", 90, 913)
         gr.color = orange; gr.fillRect(50, 935, 30, 6); gr.color = Color.BLACK; gr.drawString("faces along Y: read for the head's wobble in X", 90, 943)
         gr.drawString("arrows: the print direction, from the corner where ripples start", 50, 973)
-        gr.drawString("notches in the slab's edge number the arms: 1 front, 2 right, 3 back, 4 left (counter-clockwise from above)", 50, 1003)
+        gr.drawString("notches in the slab's edge number the arms: 1 front, 2 right, 3 back, 4 left (counter-clockwise from above);", 50, 1003)
+        gr.drawString("gray: each face's speed, raised on the slab in front of it", 50, 1023)
         // ---- the front view: the bands
         val fx0 = 980.0; val fx1 = 1500.0; val fy1 = 900.0; val fy0 = 110.0
         val zs = (spec.topZ).toDouble()
