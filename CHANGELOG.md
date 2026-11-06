@@ -42,7 +42,8 @@ section the release's version and date.
   grid form is refused: enter its readings again.
 - `--help` names every option's value (`-o FILE`, `--layer MM`, ...), and `plymeld --help` lists `printer credential`
   and `investigate predict`, which it left out.
-- `--help` marks a required option `(required)`, and every option with a default says it in its help (`--tool`'s 1,
+- `--help` marks a required option `(required)`, a subcommand that may be left out `[<command>]` (a plate runs without
+  its `values`), and every option with a default says it in its help (`--tool`'s 1,
   `layers --layer`'s 0.2, ...).
 - The window shows each command as `--help` does: a form's fields are labeled with the option as `--help` writes it
   (`-cf, --config-file=FILE|GLOB`, `--machine=<key>`) and described in its words, an argument as the usage line writes it
