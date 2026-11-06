@@ -151,8 +151,13 @@ jobs:
           cache: gradle
       - name: Check the Gradle wrapper jar
         run: echo "238e777fcddd7e34f9708186085def2abd6e08e658505b38718d79d74c21abd5  gradle/wrapper/gradle-wrapper.jar" | sha256sum -c -
+      # the window's tests open an OpenGL context and drive the window: a virtual display (Xvfb) with Mesa's software OpenGL
+      - name: A display for the window's tests
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri
       - name: The slow suites alone (tools/slow-suites.txt)
-        run: ./gradlew -Pkotlin.daemon.jvmargs=-Xmx2g slowTest --continue
+        run: xvfb-run -a -s "-screen 0 1920x1080x24" ./gradlew -Pkotlin.daemon.jvmargs=-Xmx2g slowTest --continue
       - name: Keep the test reports of a failed run
         if: failure()
         uses: actions/upload-artifact@v7

@@ -42,10 +42,28 @@ section the release's version and date.
   grid form is refused: enter its readings again.
 - `--help` names every option's value (`-o FILE`, `--layer MM`, ...), and `plymeld --help` lists `printer credential`
   and `investigate predict`, which it left out.
+- `--help` marks a required option `(required)`, and every option with a default says it in its help (`--tool`'s 1,
+  `layers --layer`'s 0.2, ...).
+- The window shows each command as `--help` does: a form's fields are labeled with the option as `--help` writes it
+  (`-cf, --config-file=FILE|GLOB`, `--machine=<key>`) and described in its words, an argument as the usage line writes it
+  (`[<prefix>]`, `<temp=flow>...`); a group's form lists its commands, each opening its own form, and offers Run only
+  where the command runs on its own. The command reference (`docs/cli/reference/`) writes them the same way.
+- The window's console shows every command it runs as a terminal would, `$ plymeld ...`, the job's own steps included.
 
 ### Fixed
 
 - `plymeld render-plate` crashed ("negative width") on a first-layer plate of many blocks, such as the default nine.
+- On Windows, a config glob (`-cf "C:\printers\*.toml"`) was refused ("Illegal char <*>") by every command, and the
+  window could not open a job given one; a glob now reads on Windows as it does elsewhere, and the window opens the
+  files it names.
+- In the window, `--help` and `--version` printed nothing (a form's Run, or a line typed in the console).
+- The window's Slice & check wrote another file than `plymeld slice` on the same job: the same toolpaths, but its source
+  block left out the seams and the in-island retraction decided (the plan was decided twice, the second time over the
+  first one's answers) and listed the filament's color among the values the print used (the window reads it to tint the
+  view). The window and the command line now write the same file, byte for byte.
+- In the window, the bar's search box cut its hint off mid-word, and the finder cut each hit's description at a fixed
+  length mid-word; both now end in an ellipsis where they do not fit. A command's form said the job's files were filled
+  in when no job was open.
 
 ## [0.20261106.2] - 2026-11-06
 

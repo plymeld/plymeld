@@ -19,6 +19,15 @@ object PlymeldVersion {
 class Plymeld : CliktCommand(name = "plymeld") {
     init {
         versionOption(PlymeldVersion.value, help = "show the version and exit")
+        // --help tags a required option [required]; every command under the root inherits it. The command model renders each
+        // option's term and description with the same settings (CommandModel.Terms), so the window and the reference show
+        // what --help shows
+        configureContext { helpFormatter = { com.github.ajalt.clikt.output.MordantHelpFormatter(it, showRequiredTag = HELP_SHOWS_REQUIRED) } }
+    }
+
+    companion object {
+        /** Whether --help tags required options: the formatter's setting, shared with [CommandModel]'s rendering. */
+        const val HELP_SHOWS_REQUIRED = true
     }
 
     override fun help(context: com.github.ajalt.clikt.core.Context) =
@@ -62,7 +71,8 @@ object Commands {
     /**
      * Runs a command line in-process with everything it prints handed to [out] (its error lines and usage errors to
      * [err]) and returns the exit status: the UI's way of running the same command the CLI would, its
-     * console showing the lines. Refusals are reported as [run] does; a usage error prints as the CLI's would.
+     * console showing the lines. Refusals are reported as [run] does; a usage error prints as the CLI's would, and so do
+     * `--help` and `--version` (to [out], as the CLI prints them to its standard output).
      */
     fun invoke(args: List<String>, out: (String) -> Unit, err: (String) -> Unit = out): Int {
         val t = tree()
@@ -70,7 +80,7 @@ object Commands {
         try {
             t.parse(args)
         } catch (e: CliktError) {
-            if (e.printError) t.getFormattedHelp(e)?.let(err)
+            t.getFormattedHelp(e)?.let(if (e.printError) err else out)
             return e.statusCode
         } catch (e: RuntimeException) {
             if (!refusal(e)) throw e

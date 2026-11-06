@@ -16,7 +16,7 @@ import plymeld.core.decide.Plan
 /** `plymeld investigate plan MODEL --settings SRC` — INVESTIGATION ONLY: the decisions with another slicer's settings. */
 class InvestigatePlanCommand : CliktCommand(name = "plan") {
     private val models by argument(help = "STL or 3MF, one or more").path(mustExist = true, canBeDir = false).multiple(required = true)
-    private val copies by option("--copies", help = "each model this many times").int().default(1)
+    private val copies by option("--copies", help = "each model this many times (default: 1)").int().default(1)
     private val settings by option("--settings", help = InvestigateCommand.SETTINGS_HELP).required()
     private val pose by option("--pose", help = "derive (default) or as-given").default("derive")
     private val technique by option("--technique", help = "derive (default: chosen with the pose), one (flat layers of one height), or follow (flat layers following the surfaces)").default("derive")

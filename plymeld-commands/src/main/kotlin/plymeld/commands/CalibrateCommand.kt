@@ -44,7 +44,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
     private val filament by option("--filament", metavar = "NAME",
         help = "the filament to calibrate: any the config or plymeld's bundled set defines (e.g. pla-generic), loaded or not; a new one with --like; default: the one the machine's loadout puts on --tool")
     private val like by option("--like", metavar = "NAME", help = "for a --filament the config does not define: start it from this one's values (placeholders until measured)")
-    private val toolOpt by option("--tool", metavar = "N", help = "the machine's tool (its index, from 1) to print with").default("1")
+    private val toolOpt by option("--tool", metavar = "N", help = "the machine's tool (its index, from 1) to print with (default: 1)").default("1")
     private val plateOpt by option("--plate", metavar = "KEY", help = "the build plate (hardware.plate.<key>): its bed temperature for the filament; plymeld's own are pei and cool; default: the one loaded on the machine (hardware.machine.<key>.loadout.plate), else the only one the config defines itself")
     /** --temps: a plate of the kinds that take it declares the option; null for the rest. */
     protected open val temps: String? get() = null

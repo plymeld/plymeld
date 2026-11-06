@@ -198,7 +198,7 @@ private fun TechniqueActions(j: JobState, obj: String, tp: plymeld.core.decide.T
  * ([stepSettings]), and the decisions that can be locked from here alone (step 4's "Change something").
  */
 @Composable
-fun Drawer(j: JobState, modifier: Modifier, onClose: () -> Unit, page: String? = null, focus: Int? = null, onDecisions: () -> Unit = {}, onRan: () -> Unit = {}) {
+fun Drawer(j: JobState, modifier: Modifier, onClose: () -> Unit, page: String? = null, focus: Int? = null, onDecisions: () -> Unit = {}, onRan: () -> Unit = {}, onCommand: (String) -> Unit = {}) {
     val m = j.marks
     val one = focus?.let { m?.decisions?.getOrNull(it) }
     // a step's link: its group of settings (WindowUi.GROUP), or the decisions that can be changed (WindowUi.CHANGE)
@@ -219,7 +219,7 @@ fun Drawer(j: JobState, modifier: Modifier, onClose: () -> Unit, page: String? =
             }
             return@Column
         }
-        if (page != null && page.startsWith("command:")) { Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(top = 8.dp)) { CommandForm(j, page.removePrefix("command:"), onRan = onRan) }; return@Column }
+        if (page != null && page.startsWith("command:")) { Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(top = 8.dp)) { CommandForm(j, page.removePrefix("command:"), onRan = onRan, onCommand = onCommand) }; return@Column }
         if (page == WindowUi.SETTINGS) { Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(top = 8.dp)) { WindowSettings(j) }; return@Column }
         if (page == WindowUi.SETUP) { Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(top = 8.dp)) { SetupForm(j) }; return@Column }
         if (page != null && !changing) { Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(top = 8.dp)) { SettingPage(j, page) }; return@Column }

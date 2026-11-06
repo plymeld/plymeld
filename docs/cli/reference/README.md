@@ -13,7 +13,7 @@ Usage: `plymeld [OPTIONS] <command>`
 Options:
 
 - `--version`: show the version and exit
-- `-h`, `--help`: show the command's help and exit
+- `-h, --help`: Show this message and exit
 
 ## Commands
 

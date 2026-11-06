@@ -19,6 +19,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -76,9 +78,9 @@ object Finder {
         // the schema's paths, for what is not set (a path with <key> is shown as declared)
         val set = config?.values?.keys ?: emptySet()
         for (d in Schema.decls) if (d.path !in set && matches(d.path, d.meaning, others(d.path))) out += Hit(Kind.SETTING, d.path, "${d.type.label} · ${d.meaning}${others(d.path)}", d.path)
-        for (c in commands) if (matches(c.line, c.help)) out += Hit(Kind.COMMAND, c.line, c.help.take(140), c.line)
+        for (c in commands) if (matches(c.line, c.help)) out += Hit(Kind.COMMAND, c.line, c.help, c.line)
         for ((obj, part) in partNames) if (matches(part, obj)) out += Hit(Kind.PART, part, "a part of $obj", "$obj/$part")
-        decisions.forEach { d -> if (matches(d.step, d.why)) out += Hit(Kind.DECISION, d.step, d.why.take(140), d.step) }
+        decisions.forEach { d -> if (matches(d.step, d.why)) out += Hit(Kind.DECISION, d.step, d.why, d.step) }
         // the last check's problems: a hit opens the tray's Check pane
         for (pb in problems) if (matches(pb, "problem check")) out += Hit(Kind.PROBLEM, pb.trim().take(90), "a problem the check found", pb)
         // the user docs' pages by title and path: a hit opens the page online
@@ -115,7 +117,7 @@ fun FinderBox(j: JobState, query: String, onQuery: (String) -> Unit, onClose: ()
                     Text(h.title, color = Ink.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, fontFamily = if (h.kind == Finder.Kind.DECISION || h.kind == Finder.Kind.PART) FontFamily.Default else FontFamily.Monospace, maxLines = 1)
                     h.entry?.let { ProvenanceChip(it, j) }      // where the value came from, one word
                 }
-                Text(h.detail, color = Ink.muted, fontSize = 11.5.sp, maxLines = 2, lineHeight = 15.sp)
+                Text(h.detail, color = Ink.muted, fontSize = 11.5.sp, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, lineHeight = 15.sp)
             }
         }
     }
@@ -126,7 +128,8 @@ fun FinderBox(j: JobState, query: String, onQuery: (String) -> Unit, onClose: ()
  * (a first-layer window's choice, a lock over it, the filament's, or the machine's own speed), in the words
  * `plymeld config` prints under the same entries. Empty for every other path.
  */
-fun appliesInstead(c: plymeld.config.Config, path: String): List<String> {
+fun appliesInstead(c: plymeld.config.Config, path: String): List<String> = c.reading { appliesInsteadRead(c, path) }.first   // the drawer's reads are not the print's
+private fun appliesInsteadRead(c: plymeld.config.Config, path: String): List<String> {
     val speedKey = path == "plan.mechanism.motion.first_layer.speed"; val heightKey = path == "plan.mechanism.adhesion.first_layer.height"
     if (!speedKey && !heightKey) return emptyList()
     val machine = c.machine ?: return emptyList()
@@ -283,7 +286,7 @@ fun stepSettings(name: String, c: plymeld.config.Config?, objects: List<String>,
  * `Commands.invoke` with the console showing the lines. The command line it would run is shown under the form.
  */
 @Composable
-fun CommandForm(j: JobState, line: String, onRan: () -> Unit) {
+fun CommandForm(j: JobState, line: String, onRan: () -> Unit, onCommand: (String) -> Unit = {}) {
     val c = Finder.commands.firstOrNull { it.line == line } ?: run { Text("no command '$line'", color = Ink.warn, fontSize = 12.sp); return }
     val takesConfig = c.options.any { "-cf" in it.names }; val takesModels = c.options.any { "-m" in it.names }
     // the job's config files, machine, and models filled in as the fields' values, not hidden and forced, so another
@@ -308,28 +311,43 @@ fun CommandForm(j: JobState, line: String, onRan: () -> Unit) {
         Text("COMMAND", color = Ink.faint, fontSize = 11.sp, letterSpacing = 0.6.sp)
         Text(c.line, color = Ink.text, fontSize = 13.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
         Text(c.help, color = Ink.muted, fontSize = 12.sp, lineHeight = 16.sp)
-        if (takesConfig || takesModels) Text("the job's " + listOfNotNull("config files".takeIf { takesConfig }, "models".takeIf { takesModels }).joinToString(" and ") + " are filled in below; change them to run on others",
-            color = Ink.faint, fontSize = 11.sp)
-        for (a in c.arguments) Field("<${a.name}>" + (if (a.required) " (required)" else ""), a.help + (if (a.repeatable) " · several: separate with ;" else ""), args[a.name] ?: "") { args[a.name] = it }
+        // its subcommands, as --help lists them under Commands: each its name and help, a click its own form
+        if (c.subcommands.isNotEmpty()) {
+            Text("COMMANDS", color = Ink.faint, fontSize = 11.sp, letterSpacing = 0.6.sp, modifier = Modifier.padding(top = 4.dp))
+            for (s in c.subcommands.filter { it.line !in UiRegistry.notYet }) Column(Modifier.fillMaxWidth().clickable { onCommand(s.line) }.padding(vertical = 2.dp)) {
+                Text(s.name, color = Ink.accent, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                Text(s.help, color = Ink.muted, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
+        }
+        // a group that needs one of its commands has nothing of its own to run (the command line gives a usage error), unless
+        // an option of its own runs it (`plymeld --version`)
+        if (c.subcommands.isNotEmpty() && !c.runsAlone && c.options.isEmpty()) return@Column
+        val filled = listOfNotNull("config files".takeIf { takesConfig && j.openConfigFiles.isNotEmpty() }, "models".takeIf { takesModels && j.modelFilesOpen.isNotEmpty() })
+        if (filled.isNotEmpty()) Text("the job's " + filled.joinToString(" and ") + " are filled in below; change them to run on others",
+            color = Ink.faint, fontSize = 11.sp, lineHeight = 14.sp)
+        // each argument and option as --help writes it: an argument as the usage line does (an optional one in brackets), an
+        // option's names and value and its description (its help, then its tags: [required]); the form's own words only where
+        // the form differs from a command line (several values in one field)
+        for (a in c.arguments) Field(a.usage, a.help + (if (a.repeatable) " · several: separate with ;" else ""), args[a.name] ?: "") { args[a.name] = it }
         for (o in c.options) {
             val name = o.names.last()
             when {
                 o.flag -> Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { flags[name] = flags[name] != true }) {
                     Text(if (flags[name] == true) "☑" else "☐", color = Ink.accent, fontSize = 14.sp, modifier = Modifier.padding(end = 8.dp))
-                    Column { Text(name, color = Ink.text, fontSize = 12.sp, fontFamily = FontFamily.Monospace); Text(o.help, color = Ink.muted, fontSize = 11.sp, lineHeight = 14.sp) }
+                    Column { Text(o.term, color = Ink.text, fontSize = 12.sp, fontFamily = FontFamily.Monospace); Text(o.description, color = Ink.muted, fontSize = 11.sp, lineHeight = 14.sp) }
                 }
                 o.choices.isNotEmpty() -> Column {
-                    Text(name + (if (o.required) " (required)" else ""), color = Ink.text, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
-                    Text(o.help, color = Ink.muted, fontSize = 11.sp, lineHeight = 14.sp)
+                    Text(o.term, color = Ink.text, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                    Text(o.description, color = Ink.muted, fontSize = 11.sp, lineHeight = 14.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 3.dp)) { for (ch in o.choices) Chip(ch, values[name] == ch) { values[name] = if (values[name] == ch) "" else ch } }
                 }
-                else -> Field(name + (o.metavar?.let { "=$it" } ?: "") + (if (o.required) " (required)" else "") + (o.tags["default"]?.let { " · default $it" } ?: ""), o.help + (if (o.repeated) " · several: separate with ;" else ""), values[name] ?: "") { values[name] = it }
+                else -> Field(o.term, o.description + (if (o.repeated) " · several: separate with ;" else ""), values[name] ?: "") { values[name] = it }
             }
         }
         val w = words()
         Text("$ plymeld " + w.joinToString(" ") { if (' ' in it) "'$it'" else it }, color = Ink.accent, fontSize = 11.sp, fontFamily = FontFamily.Monospace, lineHeight = 15.sp, modifier = Modifier.padding(top = 4.dp))
         Text(if (busy) "running…" else "Run", color = if (busy) Ink.faint else Ink.onAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.background(if (busy) Ink.surface3 else Ink.accent, RoundedCornerShape(8.dp)).clickable(enabled = !busy) { busy = true; j.run(w) { busy = false; onRan() } }.padding(14.dp, 7.dp))
+            modifier = Modifier.background(if (busy) Ink.surface3 else Ink.accent, RoundedCornerShape(8.dp)).clickable(enabled = !busy, role = androidx.compose.ui.semantics.Role.Button) { busy = true; j.run(w) { busy = false; onRan() } }.padding(14.dp, 7.dp))
     }
 }
 
@@ -355,7 +373,9 @@ internal fun Field(label: String, help: String, value: String, onValue: (String)
         Text(label, color = Ink.text, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
         Text(help, color = Ink.muted, fontSize = 11.sp, lineHeight = 14.sp)
         Box(Modifier.fillMaxWidth().padding(top = 3.dp).background(Ink.bg, RoundedCornerShape(6.dp)).border(1.dp, Ink.line, RoundedCornerShape(6.dp)).padding(8.dp, 5.dp)) {
-            BasicTextField(value, onValue, singleLine = true, textStyle = TextStyle(color = Ink.text, fontSize = 12.sp, fontFamily = FontFamily.Monospace), cursorBrush = SolidColor(Ink.accent))
+            BasicTextField(value, onValue, singleLine = true, textStyle = TextStyle(color = Ink.text, fontSize = 12.sp, fontFamily = FontFamily.Monospace), cursorBrush = SolidColor(Ink.accent),
+                // named for what it is, as a screen reader (and the window's own tests) find it
+                modifier = Modifier.fillMaxWidth().semantics { contentDescription = label })
         }
     }
 }

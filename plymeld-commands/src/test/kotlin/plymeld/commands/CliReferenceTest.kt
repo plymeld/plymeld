@@ -42,8 +42,8 @@ class CliReferenceTest : StringSpec({
         pages.getValue("calibrate.md") shouldContain "### `plymeld calibrate melt values`"
         pages.getValue("printer.md") shouldContain "`--print`"
         // a plate runs alone or with its write-back subcommand; a group needs one
-        pages.getValue("calibrate.md") shouldContain "Usage: `plymeld calibrate melt [OPTIONS] [<command>]`"
-        pages.getValue("printer.md") shouldContain "Usage: `plymeld printer [OPTIONS] <command>`"
+        pages.getValue("calibrate.md") shouldContain "Usage: `plymeld calibrate melt [<options>] [<command>] [<args>]...`"
+        pages.getValue("printer.md") shouldContain "Usage: `plymeld printer [<options>] <command> [<args>]...`"
         pages.getValue(CliReference.INDEX) shouldContain "[`plymeld printer send`](printer.md#plymeld-printer-send)"
         CommandModel.read().root.subcommands.map { CliReference.file(it) } shouldContainExactly pages.keys.drop(1)
     }
@@ -62,7 +62,7 @@ class CliReferenceTest : StringSpec({
         class Root : CliktCommand(name = "plymeld") { override fun run() = Unit }
         val p = CliReference.pages(CommandModel.read(Root().subcommands(Extra())))
         p.keys.toList() shouldContainExactly listOf(CliReference.INDEX, "extra.md")
-        p.getValue("extra.md") shouldContain "- `--level N`: how much"
+        p.getValue("extra.md") shouldContain "- `--level=<n>`: how much"
         p.getValue(CliReference.INDEX) shouldContain "- [`plymeld extra`](extra.md): An extra command."
     }
     "help text is escaped for Markdown, its code spans kept" {

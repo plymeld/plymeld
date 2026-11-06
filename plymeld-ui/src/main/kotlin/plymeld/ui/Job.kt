@@ -7,6 +7,7 @@ import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import plymeld.commands.Commands
 import plymeld.commands.Product
+import plymeld.config.ConfigFiles
 import plymeld.config.ConfigSetup
 import plymeld.config.ConfigStack
 import plymeld.config.UserDirs
@@ -91,7 +92,7 @@ class JobState(val viewer: ViewerState) {
             try {
                 Snapshot.withMutableSnapshot { askingPrinter = true; printerLive = emptyList(); loadoutRows = emptyList(); cameraFrame = null }
                 fun run(vararg words: String): Pair<Int, List<String>> {
-                    val a = configArgs(*words); say("$ " + a.joinToString(" "))
+                    val a = configArgs(*words); sayLine(a)
                     val from = console.size; val status = Commands.invoke(a, ::say)
                     return status to console.drop(from)
                 }
@@ -126,7 +127,7 @@ class JobState(val viewer: ViewerState) {
         Thread({
             var changed = false
             try {
-                say("$ plymeld " + words.joinToString(" ") { if (' ' in it) "'$it'" else it })
+                sayLine(words)
                 val before = jobFileTexts()
                 val status = Commands.invoke(words, ::say); if (status != 0) say("(exit $status)")
                 changed = jobFileTexts() != before
@@ -367,6 +368,8 @@ class JobState(val viewer: ViewerState) {
 
     /** A line into the console; a multi-line message (a check's refusal with its problems) is one line each. */
     private fun say(line: String) = Snapshot.withMutableSnapshot { console = console + line.split('\n') }
+    /** The command line the window is about to run, into the console as a terminal would show it: `$ plymeld WORDS`, a word with a space quoted; then [tail]. */
+    private fun sayLine(words: List<String>, tail: String = "") = say("$ plymeld " + words.joinToString(" ") { if (' ' in it) "'$it'" else it } + tail)
 
     /** The check's problems from the last slice (`check: N problem(s) ...` and its indented lines), empty when it passed. */
     var checkProblems by mutableStateOf(emptyList<String>()); private set
@@ -407,7 +410,12 @@ class JobState(val viewer: ViewerState) {
      * on a thread of its own; the steps fill in as it goes. [done] is called at the end (screenshots wait on it).
      */
     fun open(configFiles: List<String>, modelFiles: List<String>, machine: String?, done: () -> Unit = {}) {
-        this.configFiles = configFiles; this.modelFiles = modelFiles; this.machine = machine
+        // a glob among the config files (-cf 'DIR/*.toml') is the files it names, in its order, as the command line reads it:
+        // the job holds files, so its plan file, its own config file, and its edits find theirs (a glob is no path on
+        // Windows); one that names none is kept as given, and refused with the reason when the job is read
+        this.configFiles = configFiles.flatMap { f -> if (f.none { it in "*?[{" }) listOf(f) else runCatching { ConfigFiles.expand(listOf(f)).map { it.toString() } }.getOrDefault(listOf(f)) }
+        this.modelFiles = modelFiles; this.machine = machine
+        val configFiles = this.configFiles
         openError = null
         Thread({
             try {
@@ -432,7 +440,7 @@ class JobState(val viewer: ViewerState) {
                     return@Thread
                 }
                 // a plan file among the config files is a lock, as `slice` reads it (the window re-plans only when asked to)
-                say("$ " + args("plan").joinToString(" ") + "   (plan files as locks, as slice reads them)")
+                sayLine(args("plan"), "   (plan files as locks, as slice reads them)")
                 val t0 = System.nanoTime()
                 Snapshot.withMutableSnapshot {
                     title = modelFiles.joinToString(", ") { Path.of(it).fileName.toString() }
@@ -465,12 +473,11 @@ class JobState(val viewer: ViewerState) {
                 Snapshot.withMutableSnapshot { recent = RecentJobs.read() }
                 Snapshot.withMutableSnapshot { stack = st; config = pr.config; partNames = pr.plate.flatMap { (o, i) -> i.partNames.map { o.key to it } } }
                 readJournal()
-                fillModel(pr)
-                fillPrinter(pr)
-                fillMatters(pr)
+                // what the window reads to show the job is not what the print reads: kept out of the source block's count (Config.reading)
+                pr.config.reading { fillModel(pr); fillPrinter(pr); fillMatters(pr) }
                 // each part's slot as the config resolves it (an override in model.object.<key>.part.<part>.slot wins over the
                 // model's own number: the parts were drawn in the default color when a config re-assigned them)
-                val slots = resolvedSlots(pr)
+                val slots = pr.config.reading { resolvedSlots(pr) }.first
                 fun colors() = slots.map { slot -> loadout.firstOrNull { it.slot == slot }?.rgb ?: Renderer.DEFAULT_MESH_RGB }
                 showParts(pr.plate.flatMap { it.second.parts }, colors(), pr.plate.flatMap { (o, i) -> List(i.parts.size) { o.key } })
                 Snapshot.withMutableSnapshot { plan = StepView(Status.BUSY, listOf("deciding…")) }
@@ -483,7 +490,7 @@ class JobState(val viewer: ViewerState) {
                 lastPlanMs = ms
                 Snapshot.withMutableSnapshot {
                     planText = text
-                    marks = planMarks(pr, p)
+                    marks = pr.config.reading { planMarks(pr, p) }.first
                     plan = StepView(Status.DONE, planSentences(pr, p), "decided in ${"%.1f".format(Locale.ROOT, ms / 1000.0)} s")
                     slice = StepView(Status.NOW, listOf("Slice the plan and read the file back."))
                 }
@@ -521,7 +528,7 @@ class JobState(val viewer: ViewerState) {
         Thread({
             try {
                 val a = listOf("printer", "send", g.toString()) + configFiles.flatMap { listOf("-cf", it) } + (machine?.let { listOf("--machine", it) } ?: emptyList())
-                say("$ " + a.joinToString(" "))
+                sayLine(a)
                 Snapshot.withMutableSnapshot { send = StepView(Status.BUSY, listOf("sending to the $printerName…")) }
                 val before = console.size
                 val status = Commands.invoke(a, ::say)
@@ -563,7 +570,7 @@ class JobState(val viewer: ViewerState) {
             try {
                 val before = Files.readString(file)
                 val a = listOf("edit") + (journalPath?.let { listOf("--journal", it.toString()) } ?: emptyList()) + listOf(file.toString()) + args
-                say("$ " + a.joinToString(" ") { if (' ' in it) "'$it'" else it })
+                sayLine(a)
                 val from = console.size
                 val status = Commands.invoke(a, ::say)
                 Snapshot.withMutableSnapshot { refusal = if (status == 0) null else at to refusalSince(from, status) }
@@ -611,7 +618,7 @@ class JobState(val viewer: ViewerState) {
         Thread({
             try {
                 val a = listOf("journal", jp.toString(), flag)
-                say("$ " + a.joinToString(" "))
+                sayLine(a)
                 val from = console.size
                 val status = Commands.invoke(a, ::say)
                 Snapshot.withMutableSnapshot { refusal = if (status == 0) null else REFUSED_IN_JOURNAL to "${flag.removePrefix("--")} refused: " + refusalSince(from, status) }
@@ -634,7 +641,7 @@ class JobState(val viewer: ViewerState) {
                 val out = planFileFor(modelFiles)
                 Files.createDirectories(out.parent)
                 val a = args("plan", "-o", out.toString())
-                say("$ " + a.joinToString(" "))
+                sayLine(a)
                 Snapshot.withMutableSnapshot { plan = StepView(Status.BUSY, listOf("writing the plan file…")) }
                 val status = Commands.invoke(a, ::say)
                 if (status != 0 || !Files.exists(out)) { say("plymeld: no plan file written"); done(null); return@Thread }
@@ -789,7 +796,7 @@ class JobState(val viewer: ViewerState) {
             val before = console.size
             try {
                 val a = args("slice", "-o", out.toString())
-                say("$ " + a.joinToString(" "))
+                sayLine(a)
                 cancelAsked.set(false)
                 Snapshot.withMutableSnapshot { slice = StepView(Status.BUSY, listOf("slicing…")); checkProblems = emptyList(); previewing = null }
                 // the file goes into the stage as it is written (StreamingLoad): the first layers show while the rest are laid

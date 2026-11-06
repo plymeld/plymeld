@@ -29,11 +29,11 @@ import javax.imageio.ImageIO
  */
 class LayersCommand : CliktCommand(name = "layers") {
     private val model by argument(help = "STL file").path(mustExist = true, canBeDir = false)
-    private val layerHeight by option("--layer", metavar = "MM", help = "layer height, mm").double().default(0.2)
+    private val layerHeight by option("--layer", metavar = "MM", help = "layer height, mm (default: 0.2)").double().default(0.2)
     private val firstLayer by option("--first", metavar = "MM", help = "first layer height, mm (default: same as --layer)").double()
     private val svgDir by option("--svg", metavar = "DIR", help = "write one SVG per layer into this directory").path()
     private val png by option("--png", metavar = "FILE", help = "write a contact-sheet PNG of up to --sheet layers").path()
-    private val sheet by option("--sheet", metavar = "N", help = "layers on the contact sheet").int().default(16)
+    private val sheet by option("--sheet", metavar = "N", help = "layers on the contact sheet (default: 16)").int().default(16)
     private val quiet by option("--quiet", help = "no per-layer summary").flag()
 
     override fun help(context: com.github.ajalt.clikt.core.Context) =

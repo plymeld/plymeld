@@ -91,10 +91,8 @@ object CliReference {
                 appendLine()
                 appendLine("Arguments:")
                 appendLine()
-                for (a in c.arguments) {
-                    val how = listOfNotNull(if (a.required) "required" else "optional", if (a.repeatable) "one or more" else null)
-                    appendLine("- `${a.name}${if (a.repeatable) "..." else ""}` (${how.joinToString(", ")}): ${md(a.help)}")
-                }
+                // as --help lists them: the argument's term (an optional one in brackets, as the usage line has it), its help
+                for (a in c.arguments) appendLine("- `${a.term}`: ${md(a.help)}")
             }
             options(c)
             appendLine()
@@ -105,24 +103,16 @@ object CliReference {
         appendLine()
         appendLine("Options:")
         appendLine()
-        for (o in c.options) {
-            val names = o.names.joinToString(", ") { n -> "`$n${o.metavar?.let { " $it" } ?: ""}`" }
-            val notes = listOfNotNull(
-                "required".takeIf { o.required },
-                "repeatable".takeIf { o.repeated },
-                o.tags["default"]?.let { "default: `$it`" },
-                o.choices.takeIf { it.isNotEmpty() }?.let { ch -> "one of: " + ch.joinToString(", ") { "`$it`" } },
-            ) + o.tags.filterKeys { it != "default" && it != "required" }.map { (k, v) -> if (v.isEmpty()) k else "$k: `$v`" }
-            appendLine("- $names${if (notes.isEmpty()) "" else " (${notes.joinToString("; ")})"}: ${md(o.help)}")
-        }
-        appendLine("- `-h`, `--help`: show the command's help and exit")
+        // as --help lists them: the option's term (its names and value), then its description (its help and tags: [required])
+        for (o in c.options) appendLine("- `${o.term}`: ${md(o.description)}")
+        appendLine("- `-h, --help`: Show this message and exit")
     }
 
-    /** The command's usage line: its options, then its arguments, or a subcommand when it has some (optional when it also runs alone). */
+    /** The command's usage line as --help writes it: its options, then its arguments, or a subcommand when it has some (optional when it also runs alone). */
     private fun usage(c: CommandModel.Command): String {
-        val args = c.arguments.map { a -> (if (a.required) a.name else "[${a.name}]") + if (a.repeatable) "..." else "" }
-        val sub = if (c.subcommands.isEmpty()) emptyList() else listOf(if (c.runsAlone) "[<command>]" else "<command>")
-        return (listOf(c.line, "[OPTIONS]") + args + sub).joinToString(" ")
+        val args = c.arguments.map { it.usage }
+        val sub = if (c.subcommands.isEmpty()) emptyList() else listOf(if (c.runsAlone) "[<command>]" else "<command>", "[<args>]...")
+        return (listOf(c.line, "[<options>]") + args + sub).joinToString(" ")
     }
 
     /** The first sentence of [help]: up to the first ". " outside parentheses (not an "e.g." or "i.e."), or all of it. */

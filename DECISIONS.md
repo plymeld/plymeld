@@ -121,3 +121,26 @@ heights agree across speeds, as they did when printed.
 **Consequences.** A window in the grid form is refused; its readings are entered again with `first-layer values`. The
 window no longer records a range of good heights that narrows as speed rises. `first-layer window` (the blank grid) is
 gone.
+
+## 6. A command reads the same in the window, the reference, and --help; the window's tests drive it as a user does (2026-11-06)
+
+**Context.** The window's command forms, the command reference, and `--help` each wrote an option their own way
+(`--config-file=FILE|GLOB`, `` `-cf FILE|GLOB` ``, `-cf, --config-file=FILE|GLOB`), named arguments differently
+(`<PREFIX>`, `PREFIX`, `<prefix>`), and only two of the three said which options were required or what their defaults
+were. The window's own checks read its code, not what it shows: `--help` typed in its console printed nothing, and no test
+saw it.
+
+**Decision.** `--help` is the one rendering. The command model carries each option's term and description and each
+argument's term as Clikt's help formatter writes them, and the window's forms and the reference show those, nothing of
+their own beyond what a form needs (several values in one field). `--help` tags required options, and an option with a
+default says it in its help (a test holds every option to it). The window is tested by driving it through its own
+controls, with Compose's UI test framework (JetBrains, Apache-2.0, test-only): every command opened from the finder and
+its form read against `--help`; forms filled and Run, and the job's steps sliced, against the CLI given the same words.
+The same tests run on Windows' JDK (`tools/windows-ui-tests.ps1`).
+
+**Rejected.** Each surface rendering from the model's raw names: three renderings drift, as they had. Clikt's default
+tags appended for defaults: many helps already say their default, so it would be said twice. Testing the window by
+reading its code: it missed what a user sees.
+
+**Consequences.** A new option shows the same everywhere with no work of its own; its help must state its default.
+The window's tests take minutes (they slice), run with the UI module's tests.
