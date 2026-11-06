@@ -473,7 +473,16 @@ class ProductTest : StringSpec({
         // the plan says so, and the plan file locks it
         val pr = product(d, listOf("hw.toml", "window.toml"))
         pr.firstLayerLines().single().second shouldContain "0.28 mm at 140 mm/s, the first-layer window hardware.filament.pla-generic.first_layer.window.pei"
-        pr.planFile(pr.decide()) shouldContain "mechanism.adhesion.first_layer.height = \"0.28 mm\""
+        val planText = pr.planFile(pr.decide())
+        planText shouldContain "mechanism.adhesion.first_layer.height = \"0.28 mm\""
+        // once in the object's table (twice is a TOML error), and the plan file reads back: the slice from it lays the window's first layer
+        planText.lines().count { it.startsWith("mechanism.adhesion.first_layer.height = ") } shouldBe 1
+        Files.writeString(d.resolve("plan.toml"), planText)
+        val (zf1, _, ff) = readBack(slice(d, listOf("hw.toml", "window.toml", "plan.toml"), "from-plan.gcode"))
+        zf1 shouldBe setOf(0.28); ff shouldBe setOf(140.0)
+        // control: without a window the technique's line still writes the first layer's height, once
+        val plain = product(d, listOf("hw.toml", "flow.toml"))
+        plain.planFile(plain.decide()).lines().count { it.startsWith("mechanism.adhesion.first_layer.height = ") } shouldBe 1
     }
 
     "the pre-print check reads a window's first layer as printed; control: a first-layer line off its layer's height is caught" {
