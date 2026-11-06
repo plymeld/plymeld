@@ -75,6 +75,28 @@ class PlateRenderTest : StringSpec({
         log.joinToString("\n") shouldContain "first-layer plate, 5 extrusion moves, 1 blocks"
         log.joinToString("\n") shouldContain "block 1: 205 C, waited (M109), 1 dot(s)"
     }
+    "a first-layer plate of nine framed blocks is drawn whole: the picture grows to hold every block's lines and the close-up" {
+        // nine blocks, each a tile and a frame line over it: the per-block summary (six lines a block) runs past the
+        // standard 1150 px, which once left the close-up a negative size
+        val text = buildString {
+            appendLine("M83")
+            for (k in 1..9) {
+                val x = 10.0 + 30 * ((k - 1) % 3); val y = 10.0 + 30 * ((k - 1) / 3)
+                appendLine("M109 S${190 + 5 * k}")
+                appendLine("; CELL: block $k tile 1.1"); appendLine("G1 X$x Y$y Z0.2 F2400"); appendLine("G1 X${x + 10} Y$y E0.5"); appendLine("; CELL END")
+                appendLine("; CELL: block $k frame 1"); appendLine("G1 X$x Y${y + 0.5} Z0.4"); appendLine("G1 X${x + 10} Y${y + 0.5} E0.5"); appendLine("; CELL END")
+            }
+            appendLine("M104 S0")
+        }
+        val out = dir.resolve("nine.png")
+        val log = ArrayList<String>()
+        PlateRender.render(write("nine.gcode", text), out, log = { log += it })
+        val img = ImageIO.read(out.toFile())
+        img.width shouldBe 1900
+        img.height shouldBeGreaterThan 1150
+        log.joinToString("\n") shouldContain "9 blocks"
+        log.joinToString("\n") shouldContain "block 9: 235 C, waited (M109), 0 dot(s)"
+    }
     "a g-code without plate cells is refused (control)" {
         val bare = write("bare.gcode", "M83\nG1 X0 Y0 F3000\nG1 X10 Y0 E1\n")
         shouldThrow<IllegalArgumentException> { PlateRender.render(bare, dir.resolve("bare.png"), log = {}) }.message shouldContain "no extrusion"
