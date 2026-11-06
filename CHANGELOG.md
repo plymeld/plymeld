@@ -9,6 +9,8 @@ section the release's version and date.
 
 ## [Unreleased]
 
+## [0.20261106.3] - 2026-11-06
+
 ### Added
 
 - Command-line docs: a guide to how the commands fit together (`docs/cli/README.md`: setup, the config, slicing,
