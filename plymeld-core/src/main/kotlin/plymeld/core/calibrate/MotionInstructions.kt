@@ -192,6 +192,12 @@ object MotionInstructions {
         val slab = Path2D.Double().also { p -> for (i in 0 until o.size) { if (i == 0) p.moveTo(px(ox + o.x(i)), py(oy + o.y(i))) else p.lineTo(px(ox + o.x(i)), py(oy + o.y(i))) }; p.closePath() }
         gr.color = Color(228, 228, 232); gr.fill(slab)
         gr.color = Color(120, 120, 125); gr.stroke = BasicStroke(2f); gr.draw(slab)
+        // the speed labels raised on the slab, as printed
+        gr.color = Color(95, 95, 100)
+        for (k in 1..g.faces) gr.fill(Path2D.Double(Path2D.WIND_EVEN_ODD).also { q ->
+            // one path per label, even-odd, so a glyph's holes stay open
+            for (p in plate.speedMark(k)) { for (i in 0 until p.size) { if (i == 0) q.moveTo(px(ox + p.x(i)), py(oy + p.y(i))) else q.lineTo(px(ox + p.x(i)), py(oy + p.y(i))) }; q.closePath() }
+        })
         // the arm marks: each arm's number beside its notches, outside the slab
         gr.color = Color(60, 60, 65); gr.font = Font("SansSerif", Font.BOLD, 16)
         run {
@@ -239,7 +245,8 @@ object MotionInstructions {
         gr.color = blue; gr.fillRect(50, 905, 30, 6); gr.color = Color.BLACK; gr.drawString("faces along X: read for the head's wobble in Y", 90, 913)
         gr.color = orange; gr.fillRect(50, 935, 30, 6); gr.color = Color.BLACK; gr.drawString("faces along Y: read for the head's wobble in X", 90, 943)
         gr.drawString("arrows: the print direction, from the corner where ripples start", 50, 973)
-        gr.drawString("notches in the slab's edge number the arms: 1 front, 2 right, 3 back, 4 left (counter-clockwise from above)", 50, 1003)
+        gr.drawString("notches in the slab's edge number the arms: 1 front, 2 right, 3 back, 4 left (counter-clockwise from above);", 50, 1003)
+        gr.drawString("gray: each face's speed, raised on the slab in front of it", 50, 1023)
         // ---- the front view: the bands
         val fx0 = 980.0; val fx1 = 1500.0; val fy1 = 900.0; val fy0 = 110.0
         val zs = (spec.topZ).toDouble()
