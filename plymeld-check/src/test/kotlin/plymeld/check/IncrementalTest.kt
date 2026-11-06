@@ -56,4 +56,17 @@ class IncrementalTest : StringSpec({
         inc.slice(testSetup(), StringWriter())
         inc.slice(testSetup(), StringWriter()) shouldBe listOf("retraction", "gcode")
     }
+
+    "a locked retraction is decided without planning the layers: a plan file's slice plans them once" {
+        val inc = IncrementalSlicer(listOf(soup), "test")
+        val d = plymeld.core.decide.ObjectDecisions.retraction(setup(), inc)!!
+        d.overridden shouldBe true
+        d.value shouldBe true
+        // nothing was planned for it: the slice cuts the model itself
+        inc.slice(setup(), StringWriter()) shouldBe listOf("slice", "walls", "regions", "paths", "gcode")
+        // control: unlocked, the decision plans the layers, so the slice that follows finds them made
+        val weighed = IncrementalSlicer(listOf(soup), "test")
+        plymeld.core.decide.ObjectDecisions.retraction(testSetup(), weighed)!!.overridden shouldBe false
+        weighed.slice(testSetup(), StringWriter()) shouldBe listOf("retraction", "gcode")
+    }
 })

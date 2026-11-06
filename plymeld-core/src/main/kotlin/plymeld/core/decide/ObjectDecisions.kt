@@ -100,9 +100,11 @@ object ObjectDecisions {
     /**
      * The in-island retraction of the object [slicer] plans, decided on its planned layers with [setup]
      * (the seams decided and applied): the slice that follows finds it in the plan as a lock and its layers in the cache.
-     * Null where the object is not planned here (several filaments or part settings; a setting it needs unset).
+     * Where plan.mechanism.motion.no_retract_in_island already locks it, the lock, with no layers planned. Null where the object is not planned here (several filaments or part settings; a setting it needs unset).
      */
     fun retraction(setup: Setup, slicer: IncrementalSlicer): Decision<Boolean>? {
+        // locked (a plan file locks it): nothing to measure, so the layers are not planned for it; the slice plans them once
+        if (!slicer.isMultiFilament(setup)) slicer.lockedRetraction(setup)?.let { return it }
         try { slicer.planned(setup) } catch (e: IllegalArgumentException) { return null } catch (e: IllegalStateException) { return null }
         return slicer.retractionDecision
     }
