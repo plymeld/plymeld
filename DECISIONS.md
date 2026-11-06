@@ -81,3 +81,20 @@ filament with a reason for its own can be given one later; one setting first.
 **Consequences.** Any job a melt rate limits prints those moves 10 % slower than before, the rest unchanged. The
 regression jobs differ in speeds only. The motion plate's six speeds come out lower where the melt rate holds its
 fastest.
+
+## 4. The calibration plates run melt, flow, first layer, motion, then the rest (2026-11-06)
+
+**Context.** Each plate prints within values the plates before it measured, so the order is a chain of dependencies.
+The motion plate came before the first-layer plate. But the first-layer plate uses only the melt rate, the flow ratio,
+and the machine's own speeds; the motion plate's 30 mm tower is shaken at up to the machine's full acceleration on a
+slab that has to stay down.
+
+**Decision.** The plates run melt, flow, first layer, motion, filament, ironing, seams: `calibrate`'s subcommands, its
+help, and its recommendation list them in that order.
+
+**Rejected.** Motion before the first layer (the order before): the tower's results would lean on a first layer not yet
+measured, while the first-layer plate needs nothing from the motion plate.
+
+**Consequences.** The flow plate prints its patches at a visible surface's speed, which the motion plate measures later:
+a flow ratio read before the motion plate is read at the configured speed, not the measured one. Small for a flow
+ratio; `calibrate flow` states the speed its patches print at.

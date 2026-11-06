@@ -11,13 +11,16 @@ section the release's version and date.
 
 ### Changed
 
+- The calibration plates run melt, flow, first layer, motion, then the rest: the first-layer plate now comes before the
+  motion plate, whose tower needs a first layer that holds. `plymeld calibrate --help` and its recommendations list
+  them in that order.
 - `plymeld calibrate motion`: every face's speed stands raised on the slab in front of it, read from outside that face,
   so the plate is read without its page; the slab reaches 10.6 mm past the cross on every side (4 mm before) to hold them. The arm
   notches take the size every plate's tally notches have. The slab's first layer prints at the filament's first-layer
   temperature (`temperature.first_layer`, worked out from `--print-temp` when given), and the head waits, parked, for
   the print temperature before the tower.
 
-## [0.20261106.1] - 2026-11-06
+## [0.20261106.2] - 2026-11-06
 
 ### Fixed
 

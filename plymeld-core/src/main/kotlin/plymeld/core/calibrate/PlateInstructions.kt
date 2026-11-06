@@ -65,8 +65,8 @@ object PlateInstructions {
      */
     const val MELT_WHY = "an accurate melt rate drives so much of the rest, and the other tests are not reliable until it is measured (they print within " +
         "the filament's maximum flow, and a wrong one shows up in them as gaps, weak overhangs, or sagging bridges that are not theirs)"
-    /** The plates in the dependency order: temperature (coarse), then the melt rate, then the rest. */
-    const val MELT_FIRST = "Run the melt plate first (`calibrate melt`), then the motion plate (`calibrate motion`) and the filament plate (`calibrate filament`): " + MELT_WHY + "."
+    /** The plates in the dependency order (`calibrate`'s KINDS): the melt rate, the flow ratio, the first layer, the motion, the rest. */
+    const val MELT_FIRST = "Run the melt plate first (`calibrate melt`), then the flow plate (`calibrate flow`), the first-layer plate (`calibrate first-layer`), the motion plate (`calibrate motion`), and the filament plate (`calibrate filament`): " + MELT_WHY + "."
 
     /** Which plate [spec] is: "melt" (the melt test alone) or "filament" (the motion plate is [MotionPlate]'s). */
     fun kindOf(spec: CalibrationSpec): String = if (spec.melt != null) "melt" else "filament"

@@ -180,11 +180,11 @@ over air, how fast a visible wall may print. Calibration plates measure them. A 
 specified**: none of plymeld's usual decisions apply to it, and its g-code is read back to confirm each cell's
 speed, flow, temperature, and fan.
 
-- **[Built]** `plymeld calibrate`: melt, motion, filament, first-layer, ironing, and seam plates, each with an
-  instructions page, in the order their results depend on each other.
-- **[Partial]** Reading results back: the first-layer window, the ironing values, the seam shares, and the
-  machine's visible speed and acceleration are written back from graded sheets; the melt rate is entered by
-  hand; the filament plate's results are not read back yet.
+- **[Built]** `plymeld calibrate`: melt, flow, first-layer, motion, filament, ironing, and seam plates, in the
+  order their results depend on each other; every plate but the melt and flow plates with an instructions page.
+- **[Partial]** Reading results back: the melt rate and the flow ratio are written from the readings given as
+  arguments; the first-layer window, the ironing values, the seam shares, and the machine's visible speed and
+  acceleration from graded sheets; the filament plate's results are not read back yet.
 
 ## 4. Goals
 

@@ -28,14 +28,15 @@ import plymeld.model.pressureAdvanceByTool
 import java.util.Locale
 
 /**
- * `plymeld calibrate melt|motion|filament|first-layer|ironing|seams -cf ... [--filament NAME [--like NAME]] [--machine KEY] [--tool N]
- * [--temps LOW-HIGH] [--step S] -o plate.gcode`: a calibration plate for one filament, which
- * need not be loaded or even in the config, printed exactly as specified. One plate per step of the dependency order
- * (temperature, then melt rate, then the rest), and the kind is the subcommand, never picked automatically: the melt plate (the terraced melt test alone, run first), the motion plate (one
- * cross-shaped tower, a speed per face and an acceleration per band, the tower at one temperature;), the filament plate
- * (the other tests, the temperature by band), the first-layer plate (the temperature varied within its one layer), the ironing
- * and the seam plates. The g-code is read back and checked against the plate's specification, with
- * deliberately altered copies as controls that must fail; a plate that fails is not written.
+ * `plymeld calibrate melt|flow|first-layer|motion|filament|ironing|seams -cf ... [--filament NAME [--like NAME]] [--machine KEY]
+ * [--tool N] [--temps LOW-HIGH] [--step S] -o plate.gcode`: a calibration plate for one filament, which need not be loaded or
+ * even in the config, printed exactly as specified. One plate per step of the dependency order ([KINDS]: the melt rate, the
+ * flow ratio, the first layer, the motion, then the rest), and the kind is the subcommand, never picked automatically: the
+ * melt plate (a column per temperature, a row per flow, run first), the flow plate (a column per temperature, a patch per
+ * ratio), the first-layer plate (the temperature varied within its one layer), the motion plate (one cross-shaped tower, a
+ * speed per face and an acceleration per band, the tower at one temperature), the filament plate (the other tests, the
+ * temperature by band), the ironing and the seam plates. Every plate but the melt and flow plates is read back and checked
+ * against its specification, with deliberately altered copies as controls that must fail; a plate that fails is not written.
  */
 abstract class PlateCommand(name: String, protected val kind: String) : ConfigCommand(name) {
     private val outputOpt by option("-o", "--output", help = "g-code file to write (required for a plate)").path()
@@ -1812,14 +1813,14 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
     companion object {
         /**
          * The plates by kind, in the order they are run: each relies on the results of those before it (melt rate, then
-         * flow ratio, then the machine's motion, the first layer, the filament's other tests, the surfaces), each with what
+         * flow ratio, then the first layer, the machine's motion, the filament's other tests, the surfaces), each with what
          * it is for.
          */
         val KINDS = listOf(
             "melt" to "the melt rate: a column per temperature, a row per flow, each row's flow printed beside it. Run it first: an accurate melt rate drives so much of the rest, and the other plates are not reliable until it is measured",
             "flow" to "the flow ratio: a column per temperature, a patch per ratio, each patch solid at its own ratio and its top laid at its column's temperature; after the melt plate",
-            "motion" to "the machine: the speed and acceleration a visible wall holds without ringing, per direction: one cross-shaped tower, twelve faces at six speeds (one along X and one along Y each), a band per acceleration, the top band's fastest faces at the machine's limits; graded per cell, the readings become the machine's visible speed and acceleration; after the melt plate",
-            "first-layer" to "the first layer: nozzle height x first-layer speed, a block of tiles per temperature, all in one layer (a frame over their walls holds each block together)",
+            "first-layer" to "the first layer: nozzle height x first-layer speed, a block of tiles per temperature, all in one layer (a frame over their walls holds each block together); after the flow plate",
+            "motion" to "the machine: the speed and acceleration a visible wall holds without ringing, per direction: one cross-shaped tower, twelve faces at six speeds (one along X and one along Y each), a band per acceleration, the top band's fastest faces at the machine's limits; graded per cell, the readings become the machine's visible speed and acceleration; after the first-layer plate (the tower, shaken at the machine's limits, needs a first layer that holds)",
             "filament" to "the filament's other tests by temperature band, once its melt rate and flow ratio are measured: overhangs, bridges, stringing, line widths, fit (--tests picks a subset)",
             "ironing" to "the ironing values: one flat slab whose top is divided into zones, each ironed with its own combination of flow, line spacing, speed, angle, and inset, a control zone per speed left as laid; graded zone by zone, the readings become the ironing values",
             "seams" to "the seam measure's shares: eight hollow pieces on one slab, each with its outer wall's seam laid one way (a point seam or plymeld's scarf, on a round wall, mid-face, in a corner, on a face leaning 30 and 45 degrees); graded piece by piece for how far away the seam shows, the ratios become method.quality.seam.scarf_share, .corner_share and method.quality.visibility.under",
@@ -1922,12 +1923,12 @@ class SeamsPlateCommand : PlateCommand("seams", "seams") {
  * kind offers only the options it takes.
  */
 class CalibrateCommand : com.github.ajalt.clikt.core.CliktCommand(name = "calibrate") {
-    init { subcommands(MeltPlateCommand(), FlowPlateCommand(), MotionPlateCommand(), FirstLayerPlateCommand(), FilamentPlateCommand(), IroningPlateCommand(), SeamsPlateCommand()) }
+    init { subcommands(MeltPlateCommand(), FlowPlateCommand(), FirstLayerPlateCommand(), MotionPlateCommand(), FilamentPlateCommand(), IroningPlateCommand(), SeamsPlateCommand()) }
     override fun help(context: com.github.ajalt.clikt.core.Context) =
         "Make a calibration plate for one filament (--filament, --tool), printed exactly as specified: " +
             "one subcommand per plate, in the order to run them (each plate's results lean on the ones before it): " +
             PlateCommand.KINDS.joinToString("; ") { (k, what) -> "'$k' ($what)" } + ". " +
             "Every plate but the melt and flow plates also checks its g-code against its specification and writes an instructions page. " +
-            "Readings and write-backs sit under their plate: `melt values`, `flow values`, `motion readings`, `motion values`, `first-layer window`, `ironing readings`, `ironing values`, `seams readings`, `seams values`."
+            "Readings and write-backs sit under their plate: `melt values`, `flow values`, `first-layer window`, `motion readings`, `motion values`, `ironing readings`, `ironing values`, `seams readings`, `seams values`."
     override fun run() = Unit
 }
