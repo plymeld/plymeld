@@ -21,9 +21,9 @@ import plymeld.model.SliceSettings
 /**
  * The first-layer plate: one layer of first-layer tiles laid out as a table, a column per nozzle temperature (coolest
  * first, a wait and a prime line before each) and a row per speed and height (a group of rows per speed), every tile a
- * strip of the same length; each column's temperature, each row's height, and each group's speed printed on it; tiles over
- * the melt limit left out; each tile starting at the middle of its back edge; one piece (every tile touching its
- * neighbors, the labels on rails into it) under a three-layer frame over the tiles' walls. It prints exactly as specified,
+ * strip of the same length; a base along the front and left, its corner cut off, each column's temperature, each row's
+ * height, and each speed raised on it; tiles over the melt limit left out; each tile starting at the middle of its back
+ * edge; one piece (every tile touching its neighbors and the base) under a three-layer frame over the tiles' walls. It prints exactly as specified,
  * and its read-back check can fail: each control below is caught.
  */
 class FirstLayerPlateTest : StringSpec({
@@ -48,10 +48,14 @@ class FirstLayerPlateTest : StringSpec({
         val out = HashMap<String, Double>()
         for (k in 0 until spec.blocks) {
             for ((r, c) in spec.rows) { out[spec.tileLabel(k, r, c)] = spec.tiles.heightsUm[c] / 1000.0; for (n in 1..3) out[spec.frameLabel(k, r, c, n)] = spec.frameUm(c, n) / 1000.0 }
-            out[spec.primeLabel(k)] = spec.primeUm / 1000.0; out[spec.markLabel(k)] = spec.primeUm / 1000.0
+            out[spec.primeLabel(k)] = spec.primeUm / 1000.0
+            for (n in 1..2) out[spec.markLabel(k, n)] = spec.labelUm(n) / 1000.0
         }
-        for ((r, c) in spec.rows) out[spec.heightLabelOf(r, c)] = spec.primeUm / 1000.0
-        for (r in spec.tiles.speeds.indices) out[spec.speedLabelOf(r)] = spec.primeUm / 1000.0
+        for (n in 1..2) {
+            for ((r, c) in spec.rows) out[spec.heightLabelOf(r, c, n)] = spec.labelUm(n) / 1000.0
+            for (r in spec.tiles.speeds.indices) out[spec.speedLabelOf(r, n)] = spec.labelUm(n) / 1000.0
+            out[spec.baseLabel(n)] = spec.baseUm(n) / 1000.0
+        }
         return out
     }
     fun expect(own: Map<String, Double>) = plymeld.core.check.GcodeCheck.Expect(0.0, 0.0, 500.0, 500.0, 300.0, maxPrintSpeed = 1000.0, maxTravelSpeed = 1000.0, maxAccel = 100000.0,
@@ -119,10 +123,17 @@ class FirstLayerPlateTest : StringSpec({
             val order = lines.filter { it.startsWith("; CELL: block ${k + 1} tile ") }.map { firstZF(text, it.removePrefix("; CELL: ")).first }
             order.zipWithNext().all { (a, b) -> b >= a - 1e-9 } shouldBe true
         }
-        // the prime lines and labels at the prime height: the lowest tile's 0.16, lower than the first layer's 0.2
+        // the prime lines and the base's first layer at the prime height: the lowest tile's 0.16, lower than the first layer's
+        // 0.2; the base's second layer a layer (0.2) above, the labels' two layers two and three above
         firstZF(text, "block 2 prime").first shouldBe (0.16 plusOrMinus 1e-9)
-        firstZF(text, "block 3 mark").first shouldBe (0.16 plusOrMinus 1e-9)
-        firstZF(text, "block 1 height 2.3").first shouldBe (0.16 plusOrMinus 1e-9)
+        firstZF(text, "block 1 base 1").first shouldBe (0.16 plusOrMinus 1e-9)
+        firstZF(text, "block 1 base 2").first shouldBe (0.36 plusOrMinus 1e-9)
+        firstZF(text, "block 3 mark 1").first shouldBe (0.56 plusOrMinus 1e-9)
+        firstZF(text, "block 1 height 2.3 2").first shouldBe (0.76 plusOrMinus 1e-9)
+        // the base's first layer before any tile; its second layer and the labels after every tile, before the frame
+        (text.indexOf("; CELL: block 1 base 1\n") < text.indexOf("; CELL: block 1 tile ")) shouldBe true
+        (text.indexOf("; CELL: block 1 base 2\n") > text.lastIndexOf("; CELL: block 3 tile ")) shouldBe true
+        (text.lastIndexOf("; CELL: block 1 speed ") < text.indexOf("; CELL: block 1 frame ")) shouldBe true
     }
 
     "independently: every tile 40 mm long along X; the columns side by side and the rows front to back, all touching; the labels where they go" {
@@ -134,18 +145,23 @@ class FirstLayerPlateTest : StringSpec({
         // back line of the row in front of it
         val order = (1..3).flatMap { r -> (1..4).map { c -> "$r.$c" } }
         for ((a, b) in order.zipWithNext()) (ext(text, "block 1 tile $b")[1] - ext(text, "block 1 tile $a")[3]) shouldBe (0.5 plusOrMinus 0.002)
-        // the temperature: between its column's prime line's run and the front row, right of the column's left edge
+        // the temperature: on the base in front of the front row (a gap, 1.5 mm, clear of it), right of the column's left edge
         for (k in 1..3) {
-            val mark = ext(text, "block $k mark"); val run = segs(text, "block $k prime").first()[1]; val t11 = ext(text, "block $k tile 1.1")
-            (mark[1] > run && mark[3] < t11[1] && mark[0] > t11[0]) shouldBe true
+            val mark = ext(text, "block $k mark 1"); val t11 = ext(text, "block $k tile 1.1")
+            (mark[3] < t11[1] - 1.5 && mark[0] > t11[0]) shouldBe true
         }
-        // each row's height label left of the first column, level with its row; each speed's label further left, beside its rows
-        for (r in 1..3) for (c in 1..4) { val hl = ext(text, "block 1 height $r.$c"); val tr = ext(text, "block 1 tile $r.$c")
-            (hl[0] < tr[0] && hl[1] > tr[1] - 1 && hl[3] < tr[3] + 1) shouldBe true }
-        for (r in 1..3) { val sl = ext(text, "block 1 speed $r"); val first = ext(text, "block 1 height $r.1"); val last = ext(text, "block 1 height $r.4")
-            (sl[0] < first[0] && sl[1] > first[1] - 1 && sl[3] < last[3] + 1) shouldBe true }
+        // each row's height label left of the first column, clear of it and level with its row; each speed's further left,
+        // clear of the heights, level with its group
+        for (r in 1..3) for (c in 1..4) { val hl = ext(text, "block 1 height $r.$c 1"); val tr = ext(text, "block 1 tile $r.$c")
+            (hl[2] < tr[0] - 1.5 && hl[1] > tr[1] - 1 && hl[3] < tr[3] + 1) shouldBe true }
+        for (r in 1..3) { val sl = ext(text, "block 1 speed $r 1"); val first = ext(text, "block 1 height $r.1 1"); val last = ext(text, "block 1 height $r.4 1")
+            (sl[2] < first[0] - 1.5 && sl[1] > first[1] - 1 && sl[3] < last[3] + 1) shouldBe true }
+        // the base: from the plate's front-left corner (cut off) to the tiles; its corner point nearest the corner 2 mm along
+        // each edge plus half a line, by x + y
+        val base = segs(text, "block 1 base 1"); val bx = base.minOf { minOf(it[0], it[2]) } - 0.25; val by = base.minOf { minOf(it[1], it[3]) } - 0.25
+        (base.flatMap { listOf(it[0] - bx + it[1] - by, it[2] - bx + it[3] - by) }.min()) shouldBe (2.0 + 0.25 * Math.sqrt(2.0) plusOrMinus 0.02)
         // the temperatures differ, so the labels' lines do: column 1's (205) and column 3's (215), each from its own corner
-        fun shape(k: Int) = ext(text, "block $k mark").let { e -> segs(text, "block $k mark").map { s -> listOf(s[0] - e[0], s[1] - e[1], s[2] - e[0], s[3] - e[1]).map { Math.round(it * 100) } } }
+        fun shape(k: Int) = ext(text, "block $k mark 1").let { e -> segs(text, "block $k mark 1").map { s -> listOf(s[0] - e[0], s[1] - e[1], s[2] - e[0], s[3] - e[1]).map { Math.round(it * 100) } } }
         (shape(1) == shape(3)) shouldBe false
     }
 
@@ -198,11 +214,13 @@ class FirstLayerPlateTest : StringSpec({
     "controls: a prime line missing, a label showing another temperature, a speed or height label missing, a stray line are caught" {
         caught(sp, "prime", "no 'block 3 prime' cell")
         // the last column's label shows 205 (the first's), the same width as its own 215: caught by its digits
-        caught(sp, "mark", "'block 3 mark': not the label '215' where it goes")
-        caught(sp, "speedlabel", "no 'block 1 speed 1' cell")
-        caught(sp, "heightlabel", "no 'block 1 height 1.1' cell")
+        caught(sp, "mark", "'block 3 mark 1': not the label '215' where it goes")
+        caught(sp, "speedlabel", "no 'block 1 speed 1 1' cell")
+        caught(sp, "heightlabel", "no 'block 1 height 1.1 1' cell")
+        caught(sp, "chamfer", "not the 2.0 mm chamfer")
+        caught(sp, "base", "no 'block 1 base 2' cell")
         val lines = text.lines().toMutableList()
-        val end = (lines.indexOfFirst { it == "; CELL: block 1 mark" } until lines.size).first { lines[it] == "; CELL END" }
+        val end = (lines.indexOfFirst { it == "; CELL: block 1 prime" } until lines.size).first { lines[it] == "; CELL END" }
         lines.addAll(end + 1, listOf("G1 X50 Y50 F6000", "G1 X55 Y50 E0.2 F1200"))
         FirstLayerCheck.check(sp, lines.joinToString("\n")).any { it.contains("in '(none)'") } shouldBe true
     }
@@ -226,10 +244,10 @@ class FirstLayerPlateTest : StringSpec({
             t.contains("; CELL: block ${k + 1} tile ${r + 1}.${c + 1}\n") shouldBe (flow <= cap)
             if (flow <= cap) firstZF(t, "block ${k + 1} tile ${r + 1}.${c + 1}").second shouldBe (v plusOrMinus 1e-9)
         }
-        // e.g. the first column (8 mm3/s): 100 mm/s at 0.2 mm is 9.1 mm3/s, left out; at 0.16 mm 7.5, printed; and its row label with it
+        // e.g. the first column (8 mm3/s): 100 mm/s at 0.2 mm is 9.1 mm3/s, left out; at 0.16 mm 7.5, printed; the row keeps its label
         t shouldNotContain "; CELL: block 1 tile 3.2\n"
         t shouldContain "; CELL: block 1 tile 3.1\n"
-        t shouldNotContain "; CELL: block 1 height 3.2\n"
+        t shouldContain "; CELL: block 1 height 3.2 1\n"
         val md = FirstLayerInstructions.markdown(capped, FirstLayerPlate(capped), PlateInstructions.Info("pla test", "a printer", 0, "test", "plate.gcode", 9.0, "0.035 s", 60, 40.0, 40.0, 0.8), "plate.png")
         md shouldContain "| 100 |   | over the melt limit (8 mm3/s at 205 C) | over the melt limit (8 mm3/s at 205 C) | over the melt limit (8 mm3/s at 205 C) |  |"
         md shouldContain "100 mm/s at 0.2 mm (9.1 mm3/s)"
@@ -252,12 +270,14 @@ class FirstLayerPlateTest : StringSpec({
     }
 
     "one piece: rows apart, or tiles printed highest first, are caught" {
-        caught(sp, "rowgap", "separate pieces, not one")
+        FirstLayerCheck.check(sp, ctl(sp, "rowgap", "baseapart")).any { it.contains("separate pieces, not one") } shouldBe true
         caught(sp, "rowgap", "in its place touching its neighbors")
         caught(sp, "order", "its tiles go lowest first")
-        // the prime line's last point half a line in front of the first tile's front wall's outer edge
-        val p = segs(text, "block 1 prime").last(); val t11 = ext(text, "block 1 tile 1.1")
-        (t11[1] - 0.25 - p[3]) shouldBe (0.25 plusOrMinus 0.002)
+        // the prime line along x, ending at its column's left edge, overlapping the base's front edge (0.15 mm)
+        val p = segs(text, "block 1 prime"); val t11 = ext(text, "block 1 tile 1.1"); val base = segs(text, "block 1 base 1")
+        p.all { Math.abs(it[1] - it[3]) < 1e-6 } shouldBe true
+        (p.last()[2] - 0.25) shouldBe (t11[0] - 0.25 plusOrMinus 0.002)
+        (p.first()[1] + 0.25 - (base.minOf { minOf(it[1], it[3]) } - 0.25)) shouldBe (0.15 plusOrMinus 0.002)
     }
 
     "the frame: three layers of rings over every tile's wall only, from a layer above it, after every tile; its controls are caught" {
@@ -300,6 +320,7 @@ class FirstLayerPlateTest : StringSpec({
         md shouldContain "No tile is left out"
         md shouldContain "middle of its back edge"
         md shouldContain "- **The plate is one piece**"
+        md shouldContain "- **The base** runs along the plate's front and left, 2 layers, its front-left corner cut off"
         md shouldContain "| frame (not read) | after every tile, 3 layers of rings over every tile's wall, from a layer above its tile, at the last column's temperature: 0.45 mm lines (the plate's ordinary line width), 0.2 mm high (the layer height), 100 mm/s (the machine's print speed, 100 mm/s), 5000 mm/s2; part fan off |"
         md shouldContain "`plymeld calibrate first-layer window plate.gcode --bore <mm>`"
         // the four tile outcomes, and the three about temperature

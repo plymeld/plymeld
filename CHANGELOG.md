@@ -27,9 +27,10 @@ section the release's version and date.
   the print temperature before the tower.
 - `plymeld calibrate first-layer` prints a table in one piece, like the melt plate: a column per temperature and a row per
   first-layer speed and nozzle height, every tile a 40 mm strip with its lines along it. Each column's temperature, each
-  row's height, and each speed are printed on the plate, where marker dots were. Every tile touches its neighbors, and a
-  frame of three layers over their walls is the edge to peel the plate by; the thin connectors between columns, which
-  were hard to remove, are gone. The defaults are tighter: the filament's print temperature up to its maximum at 10 C
+  row's height, and each speed are raised two layers on a two-layer base along the plate's front and left (its
+  front-left corner cut off, as on the other plates), where marker dots were. Every tile touches its neighbors and the
+  base, and a frame of three layers over their walls is the edge to peel the plate by; the thin connectors between
+  columns, which were hard to remove, are gone. The defaults are tighter: the filament's print temperature up to its maximum at 10 C
   steps (210, 220, and 230 C for the bundled generic PLA), three speeds around the first layer's (half, as set, and half
   again), and four heights around its height (one step below, two above, a step a tenth of the nozzle). The plate's
   conditions describe the new layout, so `first-layer window` reads only plates made from now on.

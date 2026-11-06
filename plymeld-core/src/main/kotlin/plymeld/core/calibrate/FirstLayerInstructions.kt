@@ -52,7 +52,7 @@ object FirstLayerInstructions {
         l("3. **Clean the bed** (no fingerprints: they show as tiles that did not stick)${if (info.plate.isNotEmpty()) ", and use the build plate the file was made for (`${info.plate}`)" else ""}; the bed heats to ${info.bedTempC} C and stays there.")
         l("4. **Load `${info.filament}` on tool ${info.tool + 1}.** Dry filament matters: moisture shows as rough, bubbly tiles at every height.")
         l("5. **During the print**: some tiles are meant to come out badly (too low or too high): do not stop for them. Between columns the head moves off to the front of the plate and waits while the nozzle heats to the next column's temperature; that is expected. " +
-            "Each column starts with its prime line; after the last column, the frame goes on over every tile's wall.")
+            "Each column starts with its prime line; after the last column come the base's upper layers, the raised labels, and the frame over every tile's wall.")
         l("6. **After the print**, let the bed cool, then peel the plate as one piece by the frame's raised edge.")
         l()
         l("## What the plate prints with")
@@ -72,20 +72,21 @@ object FirstLayerInstructions {
         l("| frame (not read) | after every tile, ${g.frameLayers} layers of rings over every tile's wall, from a layer above its tile, at the last column's temperature: ${n(spec.frameWidthUm / 1000.0, 2)} mm lines (the plate's ordinary line width), " +
             "${n(spec.frameLayerUm / 1000.0, 2)} mm high (the layer height), ${n(spec.frameSpeed, 0)} mm/s (the machine's print speed, ${n(spec.frame.speed, 0)} mm/s${if (spec.frameSpeed < spec.frame.speed - 1e-9) ", held to the melt limit" else ""}), ${n(spec.frame.accel, 0)} mm/s2; part fan off |")
         l("| melt limit | by column, below: the filament's maximum flow at the column's temperature; a tile that would need more is left out, never slowed |")
-        l("| prime lines, labels | ${n(spec.primeUm / 1000.0, 2)} mm high (the first layer's, or the lowest tile's if lower), ${n(spec.prime.speed, 0)} mm/s, ${n(spec.firstWidthUm / 1000.0, 2)} mm lines; not read |")
+        l("| prime lines, base, labels | the prime lines and the base's first layer ${n(spec.primeUm / 1000.0, 2)} mm high (the first layer's, or the lowest tile's if lower) in ${n(spec.firstWidthUm / 1000.0, 2)} mm lines; the base's upper layers and the labels ${n(spec.frameLayerUm / 1000.0, 2)} mm each, ${n(spec.frameWidthUm / 1000.0, 2)} mm lines; ${n(spec.prime.speed, 0)} mm/s; not read |")
         l("| retraction | ${n(info.retractMm, 2)} mm |")
         l()
         l("## The plate")
         l()
         l("![The plate from above: a column per temperature, a row per speed and height, the labels as printed]($pngName)")
         l()
-        l("- **The columns** are the nozzle temperatures, **left to right in the order they print: the coolest first**. **Each column's temperature is printed in front of it**, on its prime line.")
+        l("- **The columns** are the nozzle temperatures, **left to right in the order they print: the coolest first**. **Each column's temperature is printed in front of it**, raised on the base.")
         l("- **The rows** are the tests, the same in every column: **a group of rows for each speed, the slowest at the front, and in each group a row for each nozzle height, the lowest at the front**. " +
-            "**Each row's height** (mm) is printed at the left of the plate, and **each group's speed** (mm/s) beside its rows, turned to read from the front. So a row read across the plate is one speed and height at every temperature.")
+            "**Each row's height** (mm) is printed at the left of the plate, and **each group's speed** (mm/s) left of its rows. So a row read across the plate is one speed and height at every temperature.")
         l("- **Every tile** is a strip ${n(g.tileLength / 1000.0, 0)} mm long, one layer, at its own height and speed: a wall round lines laid side by side along it at the spacing a line of its height should fill exactly, ${n(ti.widthUm / 1000.0, 2)} mm wide, so how its top closes up tells whether that height was right. " +
             "Each tile starts, and its wall closes, at the **middle of its back edge** (any start or stop blob is there); its lines follow from the back.")
-        l("- **The plate is one piece**: every tile touches its neighbors, and each label stands on a line joined to the plate. **The frame**, ${g.frameLayers} layers over every tile's wall only, makes it stiff and gives it a raised edge to peel by. **Each tile's inside, the part you read, is left uncovered**: read the tiles inside the frame; the frame is not read.")
-        l("- **The prime line** runs along the front of each column, under its temperature, then back up its left edge to touch its first tile: laid after the wait for that column's temperature, so the first tile does not start with what oozed during the wait. It is not read.")
+        l("- **The base** runs along the plate's front and left, ${g.baseLayers} layers, its front-left corner cut off: the corner every plate is read from. **The labels** stand ${g.labelLayers} layers on it.")
+        l("- **The plate is one piece**: every tile touches its neighbors and the base. **The frame**, ${g.frameLayers} layers over every tile's wall only, makes it stiff and gives it a raised edge to peel by, with the base. **Each tile's inside, the part you read, is left uncovered**: read the tiles inside the frame; the frame is not read.")
+        l("- **The prime line** runs along the base's front under each column: laid after the wait for that column's temperature, so the column's first tile does not start with what oozed during the wait. It is not read.")
         l("- **Tiles over the melt limit are left out**: a tile whose flow (its speed x its line's cross-section x the flow ratio) would pass the filament's maximum flow at its column's temperature is not printed; its place stays empty, so nothing on the plate claims to test what it cannot.")
         l()
         l("| column (from the left) | nozzle | melt limit | tiles left out |")
@@ -155,16 +156,16 @@ object FirstLayerInstructions {
         gr.drawString("First-layer plate from above: a column per nozzle temperature, coolest first; a row per speed and height", 40, 40)
         gr.font = Font("SansSerif", Font.PLAIN, 16)
         gr.drawString("Rows: a group per speed (the slowest at the front), a row per nozzle height in each (the lowest at the front); black dot = where a tile starts; dashed: left out, over the melt limit.", 40, 68)
-        gr.drawString("Gray: prime lines; dark: the frame over the tiles' walls (none of these is read: read each tile inside its frame). The labels are printed on the plate as drawn.", 40, 90)
+        gr.drawString("Gray: prime lines and the base; dark: the frame over the tiles' walls (none of these is read: read each tile inside its frame). The labels are raised on the base as drawn.", 40, 90)
         // a color per column, cool to warm
         fun colColor(k: Int): Color { val f = if (spec.blocks == 1) 0.5 else k.toDouble() / (spec.blocks - 1)
             return Color((60 + 170 * f).toInt(), (110 + 30 * (1 - Math.abs(2 * f - 1))).toInt(), (200 - 160 * f).toInt()) }
         // the first layer, then the frame over it; the labels' glyphs as filled shapes (even-odd, so their holes stay open)
-        for (p in paths.sortedBy { if (it.exact?.label?.contains(" frame ") == true) 1 else 0 }) {
+        for (p in paths.sortedBy { p -> p.exact?.label.orEmpty().let { if (it.contains(" frame ")) 2 else if (it.contains(" mark ") || it.contains(" speed ") || it.contains(" height ")) 1 else 0 } }) {
             val label = p.exact?.label ?: ""
             val k = Regex("block (\\d+) ").find(label)?.groupValues?.get(1)?.toInt()?.minus(1) ?: 0
-            val isLabel = label.endsWith("mark") || label.contains(" speed ") || label.contains(" height ")
-            gr.color = when { label.endsWith("prime") -> Color(150, 150, 155); label.contains(" frame ") -> Color(35, 35, 40); isLabel -> colColor(k).darker().darker(); else -> colColor(k) }
+            val isLabel = label.contains(" mark ") || label.contains(" speed ") || label.contains(" height ")
+            gr.color = when { label.endsWith("prime") -> Color(150, 150, 155); label.contains(" base ") -> Color(200, 200, 205); label.contains(" frame ") -> Color(35, 35, 40); isLabel -> Color(60, 60, 70); else -> colColor(k) }
             gr.stroke = BasicStroke(maxOf(1.5f, (p.widthUm * s).toFloat()), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
             val m = p.xy.size / 2
             for (i in 0 until if (p.closed) m else m - 1) { val j = (i + 1) % m; gr.draw(Line2D.Double(px(p.xy[2 * i]), py(p.xy[2 * i + 1]), px(p.xy[2 * j]), py(p.xy[2 * j + 1]))) }

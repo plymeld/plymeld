@@ -33,7 +33,7 @@ class PlateRenderTest : StringSpec({
         G1 X20 Y10.5 E0.03
         G1 X10 Y10.5 E0.5
         ; CELL END
-        ; CELL: block 1 mark
+        ; CELL: block 1 mark 1
         G1 X10 Y8
         G1 X10.5 Y8 E0.02
         ; CELL END
