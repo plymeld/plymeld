@@ -30,8 +30,8 @@ import plymeld.model.SliceSettings
 class FirstLayerPlateTest : StringSpec({
     val setup = testSetup()
     val s = SliceSettings.of(setup)
-    // speeds 40, 70, 100 mm/s by group, heights 0.16 .. 0.28 mm by row (the default around a 0.2 mm first layer on a 0.4 mm
-    // bore), 0.5 mm lines, a 0.2 mm lift
+    // speeds 40, 70, 100 mm/s by group, heights 0.16 .. 0.28 mm by row (a tile below the configured 0.2 mm first layer too, on a
+    // 0.4 mm bore), 0.5 mm lines, a 0.2 mm lift
     val heights = listOf(0.16, 0.2, 0.24, 0.28)
     val speeds = listOf(40.0, 70.0, 100.0)
     fun tiles(hs: List<Double> = heights) = FirstLayerTiles(speeds.toDoubleArray(), hs.map { Math.round(it * 1000) }.toLongArray(), 500, 5000.0, 200, 0.25)
@@ -362,7 +362,7 @@ class FirstLayerPlateTest : StringSpec({
         md shouldContain "- **The plate is one piece**"
         md shouldContain "- **The base** runs along the plate's front and left, 2 layers, its front-left corner cut off"
         md shouldContain "| frame and border (not read) | after all the tiles, 3 layers of rings over every tile's wall, from a layer above its tile, and of a ring round the base, flush with its upper layer's edge, from a layer above its top; at the last column's temperature: 0.45 mm lines (the plate's ordinary line width), 0.2 mm high (the layer height), 100 mm/s (the machine's print speed, 100 mm/s), 5000 mm/s2; part fan off |"
-        md shouldContain "`plymeld calibrate first-layer window plate.gcode --bore <mm>`"
+        md shouldContain "`plymeld calibrate first-layer values TEMP=HEIGHT,SPEED ... --plate-gcode plate.gcode`"
         // the four tile outcomes, and the three about temperature
         md shouldContain "- **The window of good heights narrows as speed rises**: the fastest speed that still has a window is the first-layer speed."
         md shouldContain "- **The window is the same at every speed**"

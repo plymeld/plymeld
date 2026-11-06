@@ -30,7 +30,7 @@ class CommandModelTest : StringSpec({
     "every command of the tree is in the model, with the subcommands under their parents" {
         all.map { it.line } shouldContain "plymeld"
         all.map { it.line } shouldContain "plymeld printer loadout"
-        all.map { it.line } shouldContain "plymeld calibrate first-layer window"
+        all.map { it.line } shouldContain "plymeld calibrate first-layer values"
         all.map { it.line } shouldContain "plymeld investigate predict"
         all.map { it.line } shouldContain "plymeld commands"
         cmd("plymeld").subcommands.map { it.name } shouldContainExactly Commands.tree().registeredSubcommandNames()

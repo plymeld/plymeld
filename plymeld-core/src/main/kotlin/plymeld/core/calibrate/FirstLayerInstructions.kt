@@ -112,7 +112,7 @@ object FirstLayerInstructions {
         l("1. A **good** tile is closed, flat, and square-cornered, its lines joined into one smooth sheet, nothing lifted at its edges or corners.")
         l("2. **Too low**: ridges between the lines, plastic ploughed up or pushed to the edges, or thin, see-through spots where the nozzle scraped the bed.")
         l("3. **Too high**: gaps between the lines, lines that stay round beads rather than flattening, or a tile that lifts at its edges or comes away from its neighbors.")
-        l("4. **For each column (temperature) and each speed, tick the heights whose tiles are good.** The good heights at a speed are that speed's window at that temperature.")
+        l("4. **For each column (temperature), tick the tiles that are good, then note two values:** the lowest height whose tiles are good (every lower one bad), and the fastest speed whose tile at that height is good.")
         l()
         for (k in 0 until spec.blocks) {
             l("Column ${k + 1}: ${spec.tempsC[k]} C")
@@ -133,7 +133,7 @@ object FirstLayerInstructions {
         l("- **Temperature makes no difference in this range**: choose the first-layer temperature for other reasons (e.g. the print temperature).")
         l("- **The first tiles after a temperature change show blobs or strings at their start**: the wait and prime, not the first layer; read those tiles' other edges.")
         l()
-        l("To record the results, `plymeld calibrate first-layer window ${info.gcodeName} --bore <mm>` writes the window to grade, a table per temperature like the ones above; grade each tile there and add it to your config.")
+        l("To record the results: the two values of each column (step 4), `plymeld calibrate first-layer values TEMP=HEIGHT,SPEED ... --plate-gcode ${info.gcodeName}` (e.g. `210=0.28,120`; `210=none` for a column with no good tile) writes them into the filament's first-layer window for this build plate, recorded so `plymeld journal --undo` can take it back.")
         return sb.toString()
     }
 

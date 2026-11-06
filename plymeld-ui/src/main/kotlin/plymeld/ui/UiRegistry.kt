@@ -39,7 +39,7 @@ object UiRegistry {
         Surface("plymeld calibrate flow", FORM),
         Surface("plymeld calibrate flow values", FORM),
         Surface("plymeld calibrate first-layer", FORM),
-        Surface("plymeld calibrate first-layer window", FORM),
+        Surface("plymeld calibrate first-layer values", FORM),
         Surface("plymeld calibrate motion", FORM),
         Surface("plymeld calibrate motion readings", FORM),
         Surface("plymeld calibrate motion values", FORM),

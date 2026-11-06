@@ -4,7 +4,7 @@
 
 [Command reference](README.md)
 
-Make a calibration plate for one filament (--filament, --tool), printed exactly as specified: one subcommand per plate, in the order to run them (each plate's results lean on the ones before it): 'melt' (the melt rate: a column per temperature, a row per flow, each row's flow printed beside it. Run it first: an accurate melt rate drives so much of the rest, and the other plates are not reliable until it is measured); 'flow' (the flow ratio: a column per temperature, a patch per ratio, each patch solid at its own ratio and its top laid at its column's temperature; after the melt plate); 'first-layer' (the first layer: nozzle height x first-layer speed by temperature, one layer of tiles in one piece, a column per temperature and a row per speed and height (a frame over their walls and a border round the base to peel it by); after the flow plate); 'motion' (the machine: the speed and acceleration a visible wall holds without ringing, per direction: one cross-shaped tower, twelve faces at six speeds (one along X and one along Y each), a band per acceleration, the top band's fastest faces at the machine's limits; graded per cell, the readings become the machine's visible speed and acceleration; after the first-layer plate (the tower, shaken at the machine's limits, needs a first layer that holds)); 'filament' (the filament's other tests by temperature band, once its melt rate and flow ratio are measured: overhangs, bridges, stringing, line widths, fit (--tests picks a subset)); 'ironing' (the ironing values: one flat slab whose top is divided into zones, each ironed with its own combination of flow, line spacing, speed, angle, and inset, a control zone per speed left as laid; graded zone by zone, the readings become the ironing values); 'seams' (the seam measure's shares: eight hollow pieces on one slab, each with its outer wall's seam laid one way (a point seam or plymeld's scarf, on a round wall, mid-face, in a corner, on a face leaning 30 and 45 degrees); graded piece by piece for how far away the seam shows, the ratios become method.quality.seam.scarf\_share, .corner\_share and method.quality.visibility.under). Every plate but the melt and flow plates also checks its g-code against its specification and writes an instructions page. Readings and write-backs sit under their plate: `melt values`, `flow values`, `first-layer window`, `motion readings`, `motion values`, `ironing readings`, `ironing values`, `seams readings`, `seams values`.
+Make a calibration plate for one filament (--filament, --tool), printed exactly as specified: one subcommand per plate, in the order to run them (each plate's results lean on the ones before it): 'melt' (the melt rate: a column per temperature, a row per flow, each row's flow printed beside it. Run it first: an accurate melt rate drives so much of the rest, and the other plates are not reliable until it is measured); 'flow' (the flow ratio: a column per temperature, a patch per ratio, each patch solid at its own ratio and its top laid at its column's temperature; after the melt plate); 'first-layer' (the first layer: nozzle height x first-layer speed by temperature, one layer of tiles in one piece, a column per temperature and a row per speed and height (a frame over their walls and a border round the base to peel it by); after the flow plate); 'motion' (the machine: the speed and acceleration a visible wall holds without ringing, per direction: one cross-shaped tower, twelve faces at six speeds (one along X and one along Y each), a band per acceleration, the top band's fastest faces at the machine's limits; graded per cell, the readings become the machine's visible speed and acceleration; after the first-layer plate (the tower, shaken at the machine's limits, needs a first layer that holds)); 'filament' (the filament's other tests by temperature band, once its melt rate and flow ratio are measured: overhangs, bridges, stringing, line widths, fit (--tests picks a subset)); 'ironing' (the ironing values: one flat slab whose top is divided into zones, each ironed with its own combination of flow, line spacing, speed, angle, and inset, a control zone per speed left as laid; graded zone by zone, the readings become the ironing values); 'seams' (the seam measure's shares: eight hollow pieces on one slab, each with its outer wall's seam laid one way (a point seam or plymeld's scarf, on a round wall, mid-face, in a corner, on a face leaning 30 and 45 degrees); graded piece by piece for how far away the seam shows, the ratios become method.quality.seam.scarf\_share, .corner\_share and method.quality.visibility.under). Every plate but the melt and flow plates also checks its g-code against its specification and writes an instructions page. Readings and write-backs sit under their plate: `melt values`, `flow values`, `first-layer values`, `motion readings`, `motion values`, `ironing readings`, `ironing values`, `seams readings`, `seams values`.
 
 Usage: `plymeld calibrate [OPTIONS] <command>`
 
@@ -64,7 +64,7 @@ Options:
 - `-cf FILE|GLOB`, `--config-file FILE|GLOB` (repeatable): a config file (.toml or .json) or a glob of them; repeatable, read in order (a glob's matches in natural order); later files win; none given: every .toml file in plymeld's config folder (secrets.toml aside)
 - `-cv PATH=VALUE`, `--config-value PATH=VALUE` (repeatable): one config value, e.g. job.priorities.speed=5 or plan.technique.flat.layer.height=0.2mm; repeatable; wins over every file
 - `--machine KEY`: the machine that prints (hardware.machine.&lt;key&gt;; its loadout gives the plate, tools, and filaments); default: job.machine, else the only machine the config defines
-- `--tool N` (default: `1`): the machine's tool (its index, from 1) the plate printed with
+- `--tool N`: the machine's tool (its index, from 1) the plate printed with; default: 1 (the first-layer plate: the tool its g-code names)
 - `--filament NAME`: the filament the plate printed; default: the one the machine's loadout puts on --tool
 - `--plate-gcode PLATE`: the melt plate's g-code, as plymeld wrote it: named, with the plymeld that made it, in the comment
 - `--dry-run`: print the change and check it; write nothing
@@ -112,7 +112,7 @@ Options:
 - `-cf FILE|GLOB`, `--config-file FILE|GLOB` (repeatable): a config file (.toml or .json) or a glob of them; repeatable, read in order (a glob's matches in natural order); later files win; none given: every .toml file in plymeld's config folder (secrets.toml aside)
 - `-cv PATH=VALUE`, `--config-value PATH=VALUE` (repeatable): one config value, e.g. job.priorities.speed=5 or plan.technique.flat.layer.height=0.2mm; repeatable; wins over every file
 - `--machine KEY`: the machine that prints (hardware.machine.&lt;key&gt;; its loadout gives the plate, tools, and filaments); default: job.machine, else the only machine the config defines
-- `--tool N` (default: `1`): the machine's tool (its index, from 1) the plate printed with
+- `--tool N`: the machine's tool (its index, from 1) the plate printed with; default: 1 (the first-layer plate: the tool its g-code names)
 - `--filament NAME`: the filament the plate printed; default: the one the machine's loadout puts on --tool
 - `--plate-gcode PLATE`: the flow plate's g-code, as plymeld wrote it: named, with the plymeld that made it, in the comment
 - `--dry-run`: print the change and check it; write nothing
@@ -121,13 +121,13 @@ Options:
 
 ## `plymeld calibrate first-layer`
 
-The first-layer plate: one layer of first-layer tiles laid out as a table, one piece: a column per temperature (--temps, --step; coolest first, heating and priming between columns), and in each column a group of rows per speed (--first-speeds), a row per nozzle height in each (--first-heights), every tile a strip of the same size; each column's temperature, each speed, and each row's height raised on a base along the plate's front and left. A tile whose flow would pass the filament's maximum flow at its column's temperature is left out; every tile touches its neighbors, and a frame of three layers over their walls, with as tall a border round the base (neither read), is the raised edge to peel the plate by. `first-layer window` turns the graded plate into the filament's first-layer window.
+The first-layer plate: one layer of first-layer tiles laid out as a table, one piece: a column per temperature (--temps, --step; coolest first, heating and priming between columns), and in each column a group of rows per speed (--first-speeds), a row per nozzle height in each (--first-heights), every tile a strip of the same size; each column's temperature, each speed, and each row's height raised on a base along the plate's front and left. A tile whose flow would pass the filament's maximum flow at its column's temperature is left out; every tile touches its neighbors, and a frame of three layers over their walls, with as tall a border round the base (neither read), is the raised edge to peel the plate by. `first-layer values` writes the read plate into the filament's first-layer window: per column, the lowest good nozzle height and the fastest good speed.
 
 Usage: `plymeld calibrate first-layer [OPTIONS] [<command>]`
 
 Subcommands:
 
-- [`window`](#plymeld-calibrate-first-layer-window): Write the first-layer window to grade for a printed first-layer plate: a table per temperature (a row per speed, a column per height), every printed tile '?', every tile left out 'over'.
+- [`values`](#plymeld-calibrate-first-layer-values): Write a read first-layer plate's results into the config file that defines the filament (among the files -cf names, e.g. -cf 'DIR/\*.toml'; else plymeld's config folder's): its first-layer window on the build plate the plate printed on, per column the lowest good nozzle height and the fastest good speed, for the tool's bore; the plate (--plate-gcode) in the comment above it.
 
 Options:
 
@@ -143,24 +143,29 @@ Options:
 - `--temps LOW-HIGH`: the temperature range, whole degrees C, e.g. 200-230, or a single temperature, e.g. 215: a column each, coolest first; default: the filament's print temperature up to its maximum (temperature.print to temperature.max: a first layer runs at or above the print temperature), or its whole range (temperature.min to temperature.max) where it has no print temperature
 - `--step C`: whole degrees between columns; default: 10
 - `--first-speeds S,S,...`: first-layer plate: the tiles' speeds (mm/s), a group of rows each, slow to fast; default: the first layer's speed (plan.mechanism.motion.first\_layer.speed) halved, as it is, and half as fast again
-- `--first-heights MM,MM,...`: first-layer plate: the tiles' nozzle heights (mm), a row each in every speed's group, low to high; default: the first layer's height (plan.mechanism.adhesion.first\_layer.height) one step below and up to two above, a step a tenth of the nozzle's bore (hardware.tool.&lt;key&gt;.bore: 0.16 to 0.28 mm for a 0.2 mm first layer on a 0.4 mm nozzle)
+- `--first-heights MM,MM,...`: first-layer plate: the tiles' nozzle heights (mm), a row each in every speed's group, low to high; default: the first layer's height (plan.mechanism.adhesion.first\_layer.height) and three steps above it, a step a tenth of the nozzle's bore (hardware.tool.&lt;key&gt;.bore: 0.2 to 0.32 mm for a 0.2 mm first layer on a 0.4 mm nozzle)
 - `-h`, `--help`: show the command's help and exit
 
-### `plymeld calibrate first-layer window`
+### `plymeld calibrate first-layer values`
 
-Write the first-layer window to grade for a printed first-layer plate: a table per temperature (a row per speed, a column per height), every printed tile '?', every tile left out 'over'. Replace each '?' with good, marginal, or bad and add it to a config file.
+Write a read first-layer plate's results into the config file that defines the filament (among the files -cf names, e.g. -cf 'DIR/\*.toml'; else plymeld's config folder's): its first-layer window on the build plate the plate printed on, per column the lowest good nozzle height and the fastest good speed, for the tool's bore; the plate (--plate-gcode) in the comment above it. A window already there for that plate is replaced. Prints the change, checks it, writes it, and records it for `plymeld journal --undo`.
 
-Usage: `plymeld calibrate first-layer window [OPTIONS] PLATE`
+Usage: `plymeld calibrate first-layer values [OPTIONS] TEMP=HEIGHT,SPEED...`
 
 Arguments:
 
-- `PLATE` (required): the first-layer plate's g-code, as `plymeld calibrate first-layer` wrote it
+- `TEMP=HEIGHT,SPEED...` (required, one or more): a column's reading: its temperature (C) = the lowest nozzle height (mm) graded good there, every lower one bad, and the fastest speed (mm/s) graded good, each one of the plate's own, e.g. 210=0.28,120; TEMP=none for a column with no good tile (the window leaves that temperature out)
 
 Options:
 
-- `-o FILE`, `--output FILE`: write the window to this TOML file (default: print it)
-- `--plate KEY`: the build plate (hardware.plate.&lt;key&gt;) the window is for: the key the machine's loadout names for the surface it printed on (hardware.machine.&lt;key&gt;.loadout.plate); default: the plate the g-code says it was made for
-- `--bore MM` (required): the bore of the nozzle that printed the plate (mm), e.g. 0.4: a window applies only to that bore (the plate's g-code does not record it)
+- `-cf FILE|GLOB`, `--config-file FILE|GLOB` (repeatable): a config file (.toml or .json) or a glob of them; repeatable, read in order (a glob's matches in natural order); later files win; none given: every .toml file in plymeld's config folder (secrets.toml aside)
+- `-cv PATH=VALUE`, `--config-value PATH=VALUE` (repeatable): one config value, e.g. job.priorities.speed=5 or plan.technique.flat.layer.height=0.2mm; repeatable; wins over every file
+- `--machine KEY`: the machine that prints (hardware.machine.&lt;key&gt;; its loadout gives the plate, tools, and filaments); default: job.machine, else the only machine the config defines
+- `--tool N`: the machine's tool (its index, from 1) the plate printed with; default: 1 (the first-layer plate: the tool its g-code names)
+- `--filament NAME`: the filament the plate printed; default: the one the machine's loadout puts on --tool
+- `--plate-gcode PLATE`: the first-layer plate's g-code, as plymeld wrote it: named, with the plymeld that made it, in the comment
+- `--dry-run`: print the change and check it; write nothing
+- `--journal JOURNAL`: record the change in this journal file; default: the config journal in plymeld's state folder (config.journal.json)
 - `-h`, `--help`: show the command's help and exit
 
 ## `plymeld calibrate motion`

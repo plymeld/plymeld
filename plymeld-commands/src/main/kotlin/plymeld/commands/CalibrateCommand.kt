@@ -906,9 +906,9 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         val s = SliceSettings.of(setup, plymeld.model.Context(0))
         val spool = setup.spool(setup.objects[0].spool)
         val h = s.firstLayerHeightUm
-        // the tiles' values, around the configured first layer (plymeld's choice: a few values either side, so a column holds
+        // the tiles' values, around the configured first layer (plymeld's choice: a few values, so a column holds
         // every combination): the first layer's speed (plan.mechanism.motion.first_layer.speed) halved, as it is, and half
-        // as fast again; its height (plan.mechanism.adhesion.first_layer.height) one step below and up to two above, a step
+        // as fast again; its height (plan.mechanism.adhesion.first_layer.height) and three steps above it, a step
         // a tenth of the nozzle's bore (hardware.tool.bore). In the first layer's line width
         // (plan.mechanism.adhesion.first_layer.line.width); a tile over its column's melt limit left out
         val speedList = firstSpeeds?.let { v -> v.split(',').map { it.trim().toDoubleOrNull()?.takeIf { x -> x > 0 } ?: throw UsageError("--first-speeds is speeds in mm/s above 0, slow to fast, e.g. 40,60,80 (got '$v')") }
@@ -916,7 +916,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             ?: listOf(0.5, 1.0, 1.5).map { Math.round(s.firstLayerSpeed * it).toDouble() }.distinct()
         val heightList = firstHeights?.let { v -> v.split(',').map { Math.round((it.trim().removeSuffix("mm").trim().toDoubleOrNull()?.takeIf { x -> x > 0 } ?: throw UsageError("--first-heights is nozzle heights in mm above 0, low to high, e.g. 0.16,0.2,0.24 (got '$v')")) * 1000) }
             .also { r -> if (r.zipWithNext().any { (a, b) -> b <= a }) throw UsageError("--first-heights must rise, low to high (got '$v')") } }
-            ?: (-1..2).map { h + it * s.nozzleDiameterUm / 10 }.filter { it > 0 }
+            ?: (0..3).map { h + it * s.nozzleDiameterUm / 10 }
         if (speedList.any { it > s.hiddenSpeed + 1e-9 }) throw UsageError("--first-speeds: ${speedList.max()} mm/s is past the machine's print speed (hardware.machine.<key>.motion.print.speed ${s.hiddenSpeed})")
         // the tiles' line ends reach into their walls by the slicer's own line-end overlap (plan.layer.infill.wall_overlap)
         val tiles = plymeld.core.calibrate.FirstLayerTiles(speedList.toDoubleArray(), heightList.toLongArray(), s.firstLayerWidthUm, s.defaultAccel, s.zHopUm, s.infillWallOverlap)
@@ -1016,7 +1016,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         echo("first-layer plate for filament '${spool.material}' on tool $slotN of '${Resolver.resolve(setup, "hardware.machine.model").value}', build plate '$plateName' (bed ${s.bedTempFirstC} C, constant): one layer of tiles, one piece, a frame over their walls and a border round the base, part fan off, flow ratio ${n(s.flowRatio)}")
         echo("columns (print order, coolest first, left to right): ${spec.tempsC.joinToString(", ") { "$it C" }}, each temperature raised on the base in front of its column")
         echo("rows (front to back, the same in every column): a group per speed, ${tiles.speeds.joinToString { n(it) }} mm/s (the first layer's ${n(s.firstLayerSpeed)} mm/s, plan.mechanism.motion.first_layer.speed, halved and half again), " +
-            "a row per height in each, ${tiles.heightsUm.joinToString { n(it / 1000.0) }} mm (around the first layer's ${n(h / 1000.0)} mm, plan.mechanism.adhesion.first_layer.height, in steps of a tenth of the bore); " +
+            "a row per height in each, ${tiles.heightsUm.joinToString { n(it / 1000.0) }} mm (from the first layer's ${n(h / 1000.0)} mm, plan.mechanism.adhesion.first_layer.height, up in steps of a tenth of the bore); " +
             "each row's height and each speed raised on the base at the left")
         echo("each tile: ${n(g.tileLength / 1000.0)} mm long (its lines along X), ${tiles.heightsUm.indices.joinToString("/") { n(plate.tileDepth(it) / 1000.0) }} mm deep by height, ${n(tiles.widthUm / 1000.0)} mm lines (plan.mechanism.adhesion.first_layer.line.width), ${n(tiles.accel)} mm/s2, lift ${n(tiles.liftUm / 1000.0)} mm off each tile and frame ring; " +
             "starting at the middle of its back edge, its lines' ends reaching ${n(tiles.wallOverlap)} of a line into its wall (plan.layer.infill.wall_overlap); every tile touching its neighbors, so the plate is one piece; each column's tiles lowest first")
@@ -1914,15 +1914,15 @@ class FilamentPlateCommand : PlateCommand("filament", "filament") {
     override val bridgeFlows: String? by option("--bridge-flows", metavar = "FRONT,BACK", help = "filament plate: the two bridge decks' flow ratios; default: the bridge flow (plan.layer.bridge.flow) and 0.85x it")
 }
 
-/** `plymeld calibrate first-layer`, with `window` (FirstLayerWindowCommand: a graded plate into the filament's first-layer window). */
+/** `plymeld calibrate first-layer`, with `values` (FirstLayerValuesCommand: a read plate into the filament's first-layer window). */
 class FirstLayerPlateCommand : PlateCommand("first-layer", "first-layer") {
-    override fun help(context: com.github.ajalt.clikt.core.Context) = "The first-layer plate: one layer of first-layer tiles laid out as a table, one piece: a column per temperature (--temps, --step; coolest first, heating and priming between columns), and in each column a group of rows per speed (--first-speeds), a row per nozzle height in each (--first-heights), every tile a strip of the same size; each column's temperature, each speed, and each row's height raised on a base along the plate's front and left. A tile whose flow would pass the filament's maximum flow at its column's temperature is left out; every tile touches its neighbors, and a frame of three layers over their walls, with as tall a border round the base (neither read), is the raised edge to peel the plate by. `first-layer window` turns the graded plate into the filament's first-layer window."
-    init { subcommands(FirstLayerWindowCommand()) }
+    override fun help(context: com.github.ajalt.clikt.core.Context) = "The first-layer plate: one layer of first-layer tiles laid out as a table, one piece: a column per temperature (--temps, --step; coolest first, heating and priming between columns), and in each column a group of rows per speed (--first-speeds), a row per nozzle height in each (--first-heights), every tile a strip of the same size; each column's temperature, each speed, and each row's height raised on a base along the plate's front and left. A tile whose flow would pass the filament's maximum flow at its column's temperature is left out; every tile touches its neighbors, and a frame of three layers over their walls, with as tall a border round the base (neither read), is the raised edge to peel the plate by. `first-layer values` writes the read plate into the filament's first-layer window: per column, the lowest good nozzle height and the fastest good speed."
+    init { subcommands(FirstLayerValuesCommand()) }
     override val invokeWithoutSubcommand = true
     override val temps: String? by option("--temps", metavar = "LOW-HIGH", help = "the temperature range, whole degrees C, e.g. 200-230, or a single temperature, e.g. 215: a column each, coolest first; default: the filament's print temperature up to its maximum (temperature.print to temperature.max: a first layer runs at or above the print temperature), or its whole range (temperature.min to temperature.max) where it has no print temperature")
     override val step: String? by option("--step", metavar = "C", help = "whole degrees between columns; default: 10")
     override val firstSpeeds: String? by option("--first-speeds", metavar = "S,S,...", help = "first-layer plate: the tiles' speeds (mm/s), a group of rows each, slow to fast; default: the first layer's speed (plan.mechanism.motion.first_layer.speed) halved, as it is, and half as fast again")
-    override val firstHeights: String? by option("--first-heights", metavar = "MM,MM,...", help = "first-layer plate: the tiles' nozzle heights (mm), a row each in every speed's group, low to high; default: the first layer's height (plan.mechanism.adhesion.first_layer.height) one step below and up to two above, a step a tenth of the nozzle's bore (hardware.tool.<key>.bore: 0.16 to 0.28 mm for a 0.2 mm first layer on a 0.4 mm nozzle)")
+    override val firstHeights: String? by option("--first-heights", metavar = "MM,MM,...", help = "first-layer plate: the tiles' nozzle heights (mm), a row each in every speed's group, low to high; default: the first layer's height (plan.mechanism.adhesion.first_layer.height) and three steps above it, a step a tenth of the nozzle's bore (hardware.tool.<key>.bore: 0.2 to 0.32 mm for a 0.2 mm first layer on a 0.4 mm nozzle)")
 }
 
 /** `plymeld calibrate ironing`, with `readings` and `values` (IroningReadings.kt). */
@@ -1955,6 +1955,6 @@ class CalibrateCommand : com.github.ajalt.clikt.core.CliktCommand(name = "calibr
             "one subcommand per plate, in the order to run them (each plate's results lean on the ones before it): " +
             PlateCommand.KINDS.joinToString("; ") { (k, what) -> "'$k' ($what)" } + ". " +
             "Every plate but the melt and flow plates also checks its g-code against its specification and writes an instructions page. " +
-            "Readings and write-backs sit under their plate: `melt values`, `flow values`, `first-layer window`, `motion readings`, `motion values`, `ironing readings`, `ironing values`, `seams readings`, `seams values`."
+            "Readings and write-backs sit under their plate: `melt values`, `flow values`, `first-layer values`, `motion readings`, `motion values`, `ironing readings`, `ironing values`, `seams readings`, `seams values`."
     override fun run() = Unit
 }

@@ -1375,7 +1375,7 @@
                       "additionalProperties": false,
                       "properties": {
                         "speed": {
-                          "description": "the first-layer speed with this filament on this build plate (by the plate's key), over the filament's and the machine's and over the plate's first-layer window, which then chooses the first layer's height among the heights graded good at this speed (a warning and the filament's or machine's values when none is) — a speed (mm/s); or a formula (= ...)",
+                          "description": "the first-layer speed with this filament on this build plate (by the plate's key), over the filament's and the machine's and over the plate's first-layer window, which then gives only the first layer's height (a warning and the filament's or machine's values when this speed is past the window's fastest good one) — a speed (mm/s); or a formula (= ...)",
                           "type": [
                             "string",
                             "number"
@@ -1564,8 +1564,36 @@
                     "additionalProperties": {
                       "type": "object",
                       "additionalProperties": {
-                        "description": "the first-layer window at one nozzle temperature (the key, e.g. \"210 C\"): a grade per tile of the first-layer plate (good, marginal, bad, over), a row per speed and a column per nozzle height, laid out as the plate lies seen from the front; the first layer's height and speed are decided from it unless the plan locks them",
-                        "type": "string"
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "height": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "min": {
+                                "description": "the first-layer window at one nozzle temperature (the key, e.g. \"210 C\"): the lowest nozzle height graded good on the first-layer plate, every lower one bad; the first layer's height unless the plan locks it (raised to what the tool lays as a first layer, and not used when it is above that) — a length (mm); or a formula (= ...)",
+                                "type": [
+                                  "string",
+                                  "number"
+                                ]
+                              }
+                            }
+                          },
+                          "speed": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "max": {
+                                "description": "the first-layer window at one nozzle temperature: the fastest first-layer speed graded good on the first-layer plate; the first layer's speed unless the plan locks it or the filament sets one for the build plate (bed.<key>.first_layer.speed) — a speed (mm/s); or a formula (= ...)",
+                                "type": [
+                                  "string",
+                                  "number"
+                                ]
+                              }
+                            }
+                          }
+                        }
                       },
                       "properties": {
                         "from": {

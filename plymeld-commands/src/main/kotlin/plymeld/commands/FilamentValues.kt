@@ -1,7 +1,6 @@
 package plymeld.commands
 
 import com.github.ajalt.clikt.core.UsageError
-import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.path
@@ -20,9 +19,9 @@ import plymeld.config.Site
  * recorded in the config journal for `plymeld journal --undo`; `--dry-run` stops after the check.
  */
 abstract class FilamentValuesCommand(private val plateName: String) : ConfigCommand("values") {
-    private val toolOpt by option("--tool", metavar = "N", help = "the machine's tool (its index, from 1) the plate printed with").default("1")
+    private val toolOpt by option("--tool", metavar = "N", help = "the machine's tool (its index, from 1) the plate printed with; default: 1 (the first-layer plate: the tool its g-code names)")
     private val filament by option("--filament", metavar = "NAME", help = "the filament the plate printed; default: the one the machine's loadout puts on --tool")
-    private val plateGcode by option("--plate-gcode", metavar = "PLATE", help = "the $plateName's g-code, as plymeld wrote it: named, with the plymeld that made it, in the comment").path(mustExist = true)
+    protected val plateGcode by option("--plate-gcode", metavar = "PLATE", help = "the $plateName's g-code, as plymeld wrote it: named, with the plymeld that made it, in the comment").path(mustExist = true)
     private val dryRun by option("--dry-run", help = "print the change and check it; write nothing").flag()
     private val journalOpt by option("--journal", metavar = "JOURNAL", help = "record the change in this journal file; default: the config journal in plymeld's state folder ($JOURNAL)").path(canBeDir = false)
 
@@ -32,15 +31,17 @@ abstract class FilamentValuesCommand(private val plateName: String) : ConfigComm
     /** Where the values go: the config, its machine, the plate's tool (key and index), the filament, and the file that defines it. */
     class Target(val config: Config, val fileArgs: List<String>, val machine: String, val tool: String, val toolN: Int, val filament: String, val file: java.nio.file.Path)
 
-    protected fun target(): Target {
+    /** [plateTool], [plateFilament]: what the plate's g-code says it printed with, the defaults for --tool and --filament. */
+    protected fun target(plateTool: Int? = null, plateFilament: String? = null): Target {
         val fileArgs = files()
         val config = load(fileArgs, configValues)
         val machine = config.machine ?: throw UsageError(config.machineProblem ?: "which machine? give --machine")
-        val toolN = toolOpt.toIntOrNull()?.takeIf { it >= 1 } ?: throw UsageError("--tool is a tool's index, a whole number from 1 (got '$toolOpt')")
+        val toolText = toolOpt ?: plateTool?.toString() ?: "1"
+        val toolN = toolText.toIntOrNull()?.takeIf { it >= 1 } ?: throw UsageError("--tool is a tool's index, a whole number from 1 (got '$toolText')")
         val tools = config.keysOf("tool").filter { config.entry(listOf("hardware", "tool", it, "machine"))?.value == machine }
         fun index(tk: String) = config.entry(listOf("hardware", "tool", tk, "index"))?.let { config.quantity(it, Dimension.COUNT, Site(tool = tk)).toInt() } ?: 1
         val tool = tools.firstOrNull { index(it) == toolN } ?: throw UsageError("machine '$machine' has no tool $toolN")
-        val name = filament ?: (config.loadout("tool", tool, "filament")?.value as String?)?.takeIf { it.isNotEmpty() }
+        val name = filament ?: plateFilament ?: (config.loadout("tool", tool, "filament")?.value as String?)?.takeIf { it.isNotEmpty() }
             ?: throw UsageError("which filament? the machine's loadout puts none on tool $toolN: give --filament")
         // the file that defines the filament: the first of the user's own files with a value under it
         val own = ConfigFiles.readFiles(fileArgs).filter { it.path.size > 2 && it.path[0] == "hardware" && it.path[1] == "filament" && it.path[2] == name }
@@ -69,10 +70,17 @@ abstract class FilamentValuesCommand(private val plateName: String) : ConfigComm
             val got = at.quantity(at.entry(TomlEdit.segments(path))!!, dim, site)
             check(Math.abs(got - p.value) < 1e-6) { "the value written gives $got at ${p.tempC} C, not the reading ${p.value}: nothing written" }
         }
+        val shown = comment.map { "# $it" } + "$path = \"$value\"" + listOfNotNull(TomlEdit.get(before, path)?.let { "(was \"$it\")" })
+        commit(t, before, after, shown, line)
+    }
+
+    /**
+     * [after] (checked by the caller) written over [before] in [t]'s file: [shown] printed under the filament first, then
+     * (unless --dry-run) written and recorded in the journal as [line].
+     */
+    protected fun commit(t: Target, before: String, after: String, shown: List<String>, line: String) {
         echo("${t.file}: hardware.filament.${t.filament}:")
-        comment.forEach { echo("  # $it") }
-        echo("  $path = \"$value\"")
-        TomlEdit.get(before, path)?.let { echo("  (was \"$it\")") }
+        shown.forEach { echo("  $it") }
         if (dryRun) { echo("--dry-run: nothing written"); return }
         java.nio.file.Files.writeString(t.file, after)
         val journal = journalOpt ?: plymeld.config.UserDirs.current().state.resolve(JOURNAL)

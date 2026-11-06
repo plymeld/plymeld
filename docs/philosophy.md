@@ -182,8 +182,8 @@ speed, flow, temperature, and fan.
 
 - **[Built]** `plymeld calibrate`: melt, flow, first-layer, motion, filament, ironing, and seam plates, in the
   order their results depend on each other; every plate but the melt and flow plates with an instructions page.
-- **[Partial]** Reading results back: the melt rate and the flow ratio are written from the readings given as
-  arguments; the first-layer window, the ironing values, the seam shares, and the machine's visible speed and
+- **[Partial]** Reading results back: the melt rate, the flow ratio, and the first-layer window are written from the readings given as
+  arguments; the ironing values, the seam shares, and the machine's visible speed and
   acceleration from graded sheets; the filament plate's results are not read back yet.
 
 ## 4. Goals

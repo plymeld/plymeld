@@ -15,7 +15,7 @@ import java.util.Locale
  * kind of result means (decided before printing), and how the readings are written back.
  */
 object IroningInstructions {
-    /** The grades a zone takes (the first-layer window's words, so one idea has one name): good, marginal, bad. */
+    /** The grades a zone takes: good, marginal, bad (the score of each in IroningReadings). */
     val GRADES = listOf("good", "marginal", "bad")
 
     /** Writes [mdFile] and its picture beside it (same name, .png). */

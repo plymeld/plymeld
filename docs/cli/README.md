@@ -91,7 +91,7 @@ per plate, run in this order, because each plate prints within values the plates
 |---|---|---|---|
 | 1 | `calibrate melt` | the filament's maximum flow at each temperature | `calibrate melt values` |
 | 2 | `calibrate flow` | the filament's flow ratio at each temperature | `calibrate flow values` |
-| 3 | `calibrate first-layer` | the first layer's nozzle height and speed at each temperature | `calibrate first-layer window` |
+| 3 | `calibrate first-layer` | the first layer's nozzle height and speed at each temperature | `calibrate first-layer values` |
 | 4 | `calibrate motion` | the speed and acceleration a visible wall holds without ringing | `calibrate motion readings`, then `calibrate motion values` |
 | 5 | `calibrate filament` | overhangs, bridges, stringing, line widths, and fit, by temperature band | not read back yet |
 | 6 | `calibrate ironing` | the ironing flow, spacing, speed, angle, and inset | `calibrate ironing readings`, then `calibrate ironing values` |
@@ -111,12 +111,14 @@ checks its g-code against its specification and writes an instructions page besi
 it, and what each result means. `plymeld render-plate PLATE.gcode` draws a plate from its g-code, to review before
 printing.
 
-The melt and flow plates take their readings as arguments, one per column, and write them into the config file that
-defines the filament:
+The melt, flow, and first-layer plates take their readings as arguments, one per column, and write them into the config
+file that defines the filament (the first-layer plate's: the lowest good nozzle height and the fastest good speed, as
+the filament's window on the build plate it printed on):
 
 ```
 plymeld calibrate melt values 200=24 210=26 220=28 --tool 1
 plymeld calibrate flow values 200=0.98 210=1 220=1 --tool 1
+plymeld calibrate first-layer values 210=0.28,120 220=0.28,120 230=0.28,120 --plate-gcode first-layer.gcode
 ```
 
 Each prints the change and checks it before writing; `--dry-run` writes nothing, and `plymeld journal --undo` takes

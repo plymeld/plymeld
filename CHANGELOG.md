@@ -33,8 +33,13 @@ section the release's version and date.
   plate by on every side; the thin connectors between columns, which were hard to remove, are gone. The page adds a way
   to read the tiles: once peeled, held up to a light, gaps between a tile's lines show as bright streaks and pinholes. The defaults are tighter: the filament's print temperature up to its maximum at 10 C
   steps (210, 220, and 230 C for the bundled generic PLA), three speeds around the first layer's (half, as set, and half
-  again), and four heights around its height (one step below, two above, a step a tenth of the nozzle). The plate's
-  conditions describe the new layout, so `first-layer window` reads only plates made from now on.
+  again), and four heights from its height up (three steps above it, a step a tenth of the nozzle: 0.2 to 0.32 mm for a 0.2 mm first layer on a 0.4 mm nozzle). The plate's
+  conditions describe the new layout, so `first-layer values` reads only plates made from now on.
+- The first-layer window is two readings per temperature, the lowest good nozzle height (every lower one bad) and the
+  fastest good speed (`"210 C" = { height.min = "0.28 mm", speed.max = "120 mm/s" }`), in place of a grade per tile.
+  `plymeld calibrate first-layer values 210=0.28,120 ... --plate-gcode PLATE` writes it into the filament's file, checked
+  against the plate and recorded for `plymeld journal --undo`; it replaces `first-layer window`. A window in the old
+  grid form is refused: enter its readings again.
 - `--help` names every option's value (`-o FILE`, `--layer MM`, ...), and `plymeld --help` lists `printer credential`
   and `investigate predict`, which it left out.
 

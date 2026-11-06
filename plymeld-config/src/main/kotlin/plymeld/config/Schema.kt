@@ -255,7 +255,7 @@ object Schema {
         q("$f.temperature.idle", Dimension.TEMPERATURE, "temperature of a parked nozzle on a multi-nozzle machine")
         q("$f.bed.<key>.temperature.print", Dimension.TEMPERATURE, "this filament's own bed temperature on a build plate (by the plate's key) after the first layer, over the plate's for its kind")
         q("$f.bed.<key>.temperature.first_layer", Dimension.TEMPERATURE, "this filament's own first-layer bed temperature on a build plate; unset = its bed temperature there (temperature.print)")
-        q("$f.bed.<key>.first_layer.speed", Dimension.SPEED, "the first-layer speed with this filament on this build plate (by the plate's key), over the filament's and the machine's and over the plate's first-layer window, which then chooses the first layer's height among the heights graded good at this speed (a warning and the filament's or machine's values when none is)")
+        q("$f.bed.<key>.first_layer.speed", Dimension.SPEED, "the first-layer speed with this filament on this build plate (by the plate's key), over the filament's and the machine's and over the plate's first-layer window, which then gives only the first layer's height (a warning and the filament's or machine's values when this speed is past the window's fastest good one)")
         q("$f.melt.flow.max", Dimension.FLOW, "fastest it melts; every move is capped to it. Its own value is the default for every machine and tool; one set for the machine (machine.<key>.melt.flow.max) or the tool (tool.<key>.melt.flow.max) wins over it", feeds = true)
         // the melt rate depends on the hot end as much as the plastic, so it is scoped to the machine, with the tool as an
         // override: read through Config.filamentEntry, the tool's over the machine's over the filament's own
@@ -274,7 +274,8 @@ object Schema {
         }
         d("$f.first_layer.window.<key>.from", Type.Text, "the first-layer window on a build plate (by its key): what it was measured with (the plate's g-code, when it printed)")
         q("$f.first_layer.window.<key>.bore", Dimension.LENGTH, "the nozzle bore the first-layer window was measured with; it is used only for a tool of that bore")
-        d("$f.first_layer.window.<key>.<key>", Type.Text, "the first-layer window at one nozzle temperature (the key, e.g. \"210 C\"): a grade per tile of the first-layer plate (good, marginal, bad, over), a row per speed and a column per nozzle height, laid out as the plate lies seen from the front; the first layer's height and speed are decided from it unless the plan locks them")
+        q("$f.first_layer.window.<key>.<key>.height.min", Dimension.LENGTH, "the first-layer window at one nozzle temperature (the key, e.g. \"210 C\"): the lowest nozzle height graded good on the first-layer plate, every lower one bad; the first layer's height unless the plan locks it (raised to what the tool lays as a first layer, and not used when it is above that)")
+        q("$f.first_layer.window.<key>.<key>.speed.max", Dimension.SPEED, "the first-layer window at one nozzle temperature: the fastest first-layer speed graded good on the first-layer plate; the first layer's speed unless the plan locks it or the filament sets one for the build plate (bed.<key>.first_layer.speed)")
         q("$f.overhang.share",Dimension.RATIO, "how far a line may hang past the one below and hold, as a share of its width, at overhang.fan and overhang.speed; the flattest face that holds follows from the layer height", feeds = true)
         q("$f.overhang.fan", Dimension.RATIO, "part fan while a line hangs past the one below (the cooling overhang.share holds at)", feeds = true)
         q("$f.bridge.span.max", Dimension.LENGTH, "the longest span it bridges cleanly between two anchors; a bridge longer than this needs support under its middle. The bundled value is a stand-in until measured", feeds = true)
@@ -636,7 +637,7 @@ object Schema {
         "plan.mechanism.adhesion.brim.where" to listOf("plan.mechanism.adhesion.brim.enabled", "plan.mechanism.adhesion.brim.where"),
         "plan.mechanism.adhesion.prime.line" to listOf("plan.mechanism.adhesion.prime.enabled", "plan.mechanism.adhesion.prime.line",
             "plan.mechanism.adhesion.brim.enabled"),
-        "plan.mechanism.motion.first_layer.speed" to listOf("plan.mechanism.motion.first_layer.speed", "hardware.filament.<key>.first_layer.window.<key>.<key>",
+        "plan.mechanism.motion.first_layer.speed" to listOf("plan.mechanism.motion.first_layer.speed", "hardware.filament.<key>.first_layer.window.<key>.<key>.speed.max",
             "hardware.filament.<key>.motion.first_layer.speed", "hardware.machine.<key>.motion.first_layer.speed"))
 
     /**
