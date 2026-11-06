@@ -35,13 +35,17 @@ import plymeld.program.Step
  *   ([FirstLayerSpec.frameLayerUm]) above the one before, starting a layer above the tile; each ring reaches
  *   [FirstLayerGeometry.fuse] past its tile's edge, over its neighbor's wall, so the rings of touching tiles fuse into one
  *   lattice: stiff, and the raised edge the plate is peeled by. Each tile's inside, the part read, stays uncovered.
+ *   **The border**: as many layers of a ring round the base's whole outline (its cut corner too), on the base's upper
+ *   layer and flush with its edge, the first a layer above the base, so the plate has the frame's raised edge on every
+ *   side, the base's as well as the tiles'.
  *
  * The order: the first column's prime line and the base's first layer (at the prime height, which no tile is below), then
  * column by column coolest first (after the first, the head retracts, rises above every tile, parks in front of the plate,
  * waits for the column's temperature (M109), and lays the column's **prime line** along the base's front, not read), each
  * column's tiles lowest first (so the nozzle never works beside a finished line above it); then, at the last column's
  * temperature, the base's upper layers, set back [FirstLayerGeometry.baseSetback] from the tiles so the frame's rings
- * reaching over the tiles' edges land on the first layer; the labels; and the frame, lowest first. Each tile starts (and its
+ * reaching over the tiles' edges land on the first layer; the labels; and the frame with the border, layer by layer, each
+ * layer lowest first (the border, on the base, last). Each tile starts (and its
  * wall closes) at the middle of its back edge, its lines following from the back, their ends reaching into its wall by
  * the slicer's line-end overlap ([FirstLayerTiles.wallOverlap]). The part fan is off and the bed is the plate's own,
  * constant. Lengths in µm, speeds mm/s, flows mm³/s, accelerations mm/s².
@@ -68,7 +72,7 @@ object FirstLayerGeometry {
     const val primeLen = 30_000L
     /** The head parks this far in front of the plate between columns (as the filament plate parks for its waits). */
     const val parkFront = 10_000L
-    /** The frame's layers over the tiles' walls: enough to make a stiff, raised edge to peel the plate by. */
+    /** The frame's layers over the tiles' walls, and the border's round the base: enough to make a stiff, raised edge to peel the plate by. */
     const val frameLayers = 3
 }
 
@@ -144,6 +148,11 @@ class FirstLayerSpec(
     fun markLabel(k: Int, n: Int) = "block ${k + 1} mark $n"
     fun speedLabelOf(r: Int, n: Int) = "block 1 speed ${r + 1} $n"
     fun heightLabelOf(r: Int, c: Int, n: Int) = "block 1 height ${r + 1}.${c + 1} $n"
+    fun borderLabel(n: Int) = "block 1 border $n"
+    /** The border's layer [n] (1-based) height (µm): [n] layers above the base's top. */
+    fun borderUm(n: Int): Long = baseUm(FirstLayerGeometry.baseLayers) + n * frameLayerUm
+    /** How far in from the base's outline the border's ring's center lies (µm): its line on the base's upper layer, flush with its edge. */
+    val borderInsetUm: Long get() = FirstLayerGeometry.baseSetback + frameWidthUm / 2
     /** Frame ring [n] (1-based)'s height over a tile at height [c]'s (µm): [n] layers above it. */
     fun frameUm(c: Int, n: Int): Long = tiles.heightsUm[c] + n * frameLayerUm
     /** The frame's speed (mm/s): the machine's print speed, held to the hottest column's melt limit through the frame's bead (it prints after the last column, at its temperature). */
@@ -162,7 +171,8 @@ class FirstLayerSpec(
  * touching), "corner" (each tile started at its front-left corner, its lines from the front), "order" (each column's
  * tiles highest first), "frame" (no frame), "framelayers" (one frame layer), "frameinside" (the frame rings 1 mm further
  * in, over the tiles' insides), "framelow" (the frame's first layer at its tiles' own height), "framelift" (no rise off
- * each frame ring before the travel on).
+ * each frame ring before the travel on), "border" (no border), "borderedge" (the border at the base's first-layer edge,
+ * off its upper layer).
  */
 class FirstLayerPlate(private val spec: FirstLayerSpec, private val without: Set<String> = emptySet()) {
     private val t = spec.tiles
@@ -280,7 +290,7 @@ class FirstLayerPlate(private val spec: FirstLayerSpec, private val without: Set
         val pv = spec.prime
         val top = t.heightsUm.max()
         val layers = if ("frame" in without) 0 else if ("framelayers" in without) 1 else g.frameLayers
-        val frameTop = maxOf(top + layers * spec.frameLayerUm, spec.labelUm(g.labelLayers))
+        val frameTop = maxOf(top + layers * spec.frameLayerUm, spec.labelUm(g.labelLayers), spec.borderUm(layers))
         /** [outlines] filled at [z] in [w] µm lines [hz] high, as cell [cell] at the prime values, the nozzle rising off it. */
         fun solid(cell: String, outlines: List<Polygon>, z: Long, w: Long, hz: Long, angle: Double) {
             val ex = Exact(cell, doubleArrayOf(pv.speed), pv.accel, pv.flowRatio, pv.retractMm)
@@ -318,7 +328,8 @@ class FirstLayerPlate(private val spec: FirstLayerSpec, private val without: Set
             }
         }
         // at the last column's temperature: the base's upper layers and the labels on it (no higher than the frame they stand
-        // beside will be), then the frame, layer by layer, each layer's rings lowest first
+        // beside will be), then the frame and the border, layer by layer, each layer's rings lowest first (the border, a layer
+        // over the base's top, above every tile's ring of its layer)
         steps += LiftTo(top + t.liftUm)
         val fw2 = spec.frameWidthUm; val lh = spec.frameLayerUm
         if ("base" !in without) for (n in 2..g.baseLayers) solid(spec.baseLabel(n), baseLayer(n), spec.baseUm(n), fw2, lh, if (n % 2 == 0) 135.0 else 45.0)
@@ -334,6 +345,11 @@ class FirstLayerPlate(private val spec: FirstLayerSpec, private val without: Set
                     steps += extrude("Outer wall", frameRing(k, r, c), true, z, Exact(spec.frameLabel(k, r, c, n), doubleArrayOf(spec.frameSpeed), fv.accel, fv.flowRatio, fv.retractMm), ox, oy, fw2, lh)
                     if ("framelift" !in without) steps += LiftTo(z + t.liftUm)
                 }
+                if ("border" !in without) {
+                    val z = spec.borderUm(n)
+                    steps += extrude("Outer wall", borderRing(), true, z, Exact(spec.borderLabel(n), doubleArrayOf(spec.frameSpeed), fv.accel, fv.flowRatio, fv.retractMm), ox, oy, fw2, lh)
+                    steps += LiftTo(z + t.liftUm)
+                }
             }
         }
         // above every line on the plate before the end template moves away
@@ -341,6 +357,12 @@ class FirstLayerPlate(private val spec: FirstLayerSpec, private val without: Set
         val bb = bounds().let { longArrayOf(it[0] + ox, it[1] + oy, it[2] + ox, it[3] + oy) }
         val fp = doubleArrayOf(bb[0] / 1000.0, bb[1] / 1000.0, bb[2] / 1000.0, bb[1] / 1000.0, bb[2] / 1000.0, bb[3] / 1000.0, bb[0] / 1000.0, bb[3] / 1000.0)
         return PrintProgram(steps, listOf(PrintObject("first_layer_plate", fp, (bb[0] + bb[2]) / 2000.0, (bb[1] + bb[3]) / 2000.0)), exact = true, selfPrimed = true)
+    }
+
+    /** The border's ring (µm, closed): the base's outline [FirstLayerSpec.borderInsetUm] in ("borderedge": half a line in, at the first layer's edge). */
+    fun borderRing(): LongArray {
+        val d = if ("borderedge" in without) spec.frameWidthUm / 2 else spec.borderInsetUm
+        return Offset.offset(listOf(baseOutline()), -d).single().xy
     }
 
     /** The frame's ring over tile ([r], [c]) of column [k] (µm, closed): [FirstLayerSpec.frameInsetUm] in from its edges ("frameinside": 1 mm further in). */

@@ -229,8 +229,10 @@ object PlateIso {
         } }
         // the first-layer plate: a region per column (its row of the page's column table), colored cool to warm in print order,
         // the base with its raised labels, and the prime lines
+        // blue through green to orange: no column comes out gray, the base's color
         fun blockColor(k: Int, n: Int): Color { val f = if (n <= 1) 0.5 else k.toDouble() / (n - 1)
-            return Color((50 + 180 * f).toInt(), (95 + 40 * (1 - Math.abs(2 * f - 1))).toInt(), (215 - 175 * f).toInt()) }
+            val (a, b, u) = if (f <= 0.5) Triple(intArrayOf(40, 80, 200), intArrayOf(40, 150, 90), f * 2) else Triple(intArrayOf(40, 150, 90), intArrayOf(215, 85, 35), f * 2 - 1)
+            return Color((a[0] + (b[0] - a[0]) * u).toInt(), (a[1] + (b[1] - a[1]) * u).toInt(), (a[2] + (b[2] - a[2]) * u).toInt()) }
         fun firstLayerRegions(): List<Region> {
             val n = mdBlocks.size
             val speeds = tileRows.map { it[1] }.distinct(); val heights = tileRows.map { it[2].substringBefore(" ") }.distinct()
@@ -243,8 +245,8 @@ object PlateIso {
                     "melt limit ${row[2].substringBefore(" (")}; tiles left out (over it): ${if (row[3] == "none") "none" else Regex("mm/s at").findAll(row[3]).count().toString()}") +
                     (if (k == 0) listOf(rows, mdHas("The plate is one piece") + ": every tile touching its neighbors and the base", mdHas("The frame") + " (dark): over the tiles' walls only; not read") else emptyList()),
                     listOf("tiles", "frame"))
-            } + Region("Base and labels", Color(150, 150, 158), listOf(
-                mdHas("The base") + " along the front and left, its front-left corner cut off; the columns' temperatures, the speeds, and the rows' heights raised on it."), listOf("base")) +
+            } + Region("Base, labels, and border", Color(150, 150, 158), listOf(
+                mdHas("The base") + " along the front and left, its front-left corner cut off; the columns' temperatures, the speeds, and the rows' heights raised on it; " + mdHas("the border") + " (dark) round it, as tall as the frame."), listOf("base", "border")) +
                 Region("Prime lines", Color(120, 120, 128), listOf(
                 mdHas("The prime line") + ": one per column, along the base's front, laid after the wait for that column's temperature. " + mdHas("It is not read") + "."), listOf("prime"))
         }
@@ -252,9 +254,9 @@ object PlateIso {
         // a CELL name (without its "adhesion:" first-layer prefix) -> (region index, sub-part)
         fun classify(cell: String): Pair<Int, String>? {
             if (firstLayerKind) {
-                val m = Regex("block (\\d+) (prime|base \\d+|mark \\d+|speed \\d+ \\d+|height \\d+\\.\\d+ \\d+|tile \\d+\\.\\d+|frame \\d+\\.\\d+ \\d+)").matchEntire(cell) ?: return null
+                val m = Regex("block (\\d+) (prime|base \\d+|mark \\d+|speed \\d+ \\d+|height \\d+\\.\\d+ \\d+|tile \\d+\\.\\d+|frame \\d+\\.\\d+ \\d+|border \\d+)").matchEntire(cell) ?: return null
                 val k = m.groupValues[1].toInt() - 1; val part = m.groupValues[2]
-                return when { part == "prime" -> (regions.size - 1) to "prime"; part.startsWith("frame") -> k to "frame"; part.startsWith("tile") -> k to "tiles"; else -> (regions.size - 2) to "base" }
+                return when { part == "prime" -> (regions.size - 1) to "prime"; part.startsWith("frame") -> k to "frame"; part.startsWith("border") -> (regions.size - 2) to "border"; part.startsWith("tile") -> k to "tiles"; else -> (regions.size - 2) to "base" }
             }
             val (fam, sub) = filamentKey(cell.removePrefix("adhesion:")) ?: return null
             return famIndex(fam) to sub
@@ -325,7 +327,7 @@ object PlateIso {
         fun darker(c: Color, k: Double) = Color((c.red * k).toInt(), (c.green * k).toInt(), (c.blue * k).toInt())
         val WHITE = Color.WHITE; val GRAY = Color(150, 150, 155)
         fun subColor(g: Group): Color { val c = regions[g.region].color
-            return when (g.sub) { "base" -> mix(c, WHITE, 0.72); "pedestals", "pedestal", "bodies" -> mix(c, GRAY, 0.5); "floors" -> mix(c, GRAY, 0.3); "marker" -> darker(c, 0.6); "frame" -> darker(c, 0.35); "decks" -> mix(c, WHITE, 0.6); else -> c } }   // decks pale: each terrace step stands out from the piers; the melt bodies gray under their bright tops
+            return when (g.sub) { "base" -> mix(c, WHITE, 0.72); "pedestals", "pedestal", "bodies" -> mix(c, GRAY, 0.5); "floors" -> mix(c, GRAY, 0.3); "marker" -> darker(c, 0.6); "frame", "border" -> darker(c, 0.35); "decks" -> mix(c, WHITE, 0.6); else -> c } }   // decks pale: each terrace step stands out from the piers; the melt bodies gray under their bright tops
         // the band tint: odd bands base (a little darker), even bands lighter, the change between bands grayed
         fun bandTint(c: Color, layer: Double): Color {
             if (layer == firstLayerZ) return c

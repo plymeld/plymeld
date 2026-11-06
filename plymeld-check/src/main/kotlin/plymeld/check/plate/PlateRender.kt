@@ -30,7 +30,7 @@ import javax.imageio.ImageIO
  *      and the Z of the extrusion before it and after it
  * The first-layer plate (no melt loop; cells "block k tile r.c", "block k prime", its labels "block k mark" (the
  * temperature), "block k speed r", "block k height c";
- * the frame's rings "block k frame r.c n"):
+ * the frame's rings "block k frame r.c n", the border "block 1 border n"):
  *   A: top view of its one layer, each line colored by the nozzle temperature in force when it printed (prime lines
  *      gray), each tile labeled with the Z and speed of its own moves and a black dot where its first line
  *      starts, each block with that temperature, whether a wait (M109) for it came before the block, and its labels
@@ -121,7 +121,7 @@ object PlateRender {
         val maxZ = moves.maxOf { it.z }
 
         // ---- the first-layer plate: its own picture, then stop
-        if (moves.all { Regex("block \\d+ (prime|base \\d+|mark \\d+|speed \\d+ \\d+|height \\d+\\.\\d+ \\d+|tile \\d+\\.\\d+|frame \\d+\\.\\d+ \\d+)").matches(it.cell) }) {
+        if (moves.all { Regex("block \\d+ (prime|base \\d+|mark \\d+|speed \\d+ \\d+|height \\d+\\.\\d+ \\d+|tile \\d+\\.\\d+|frame \\d+\\.\\d+ \\d+|border \\d+)").matches(it.cell) }) {
             // the conditions block's per-block lines: "; block k = T C, ..., melt limit N mm3/s (...), left out: tile r.c (...); ..."
             val limitOf = HashMap<Int, String>(); val leftOut = HashMap<Int, List<Pair<Int, Int>>>()
             for (l in File(gcodePath).readLines()) {
@@ -144,16 +144,20 @@ object PlateRender {
             }
             fun blockOf(c: String) = Regex("block (\\d+) ").find(c)!!.groupValues[1].toInt()
             fun isFrame(c: String) = c.contains(" frame ")
+            // the raised edge: the frame over the tiles and the border round the base (drawn alike, last)
+            fun isEdge(c: String) = isFrame(c) || c.contains(" border ")
             // the base (its first layer printed with the first column) and the labels raised on it
             fun isBase(c: String) = c.contains(" base ")
             fun isLabel(c: String) = c.contains(" mark ") || c.contains(" speed ") || c.contains(" height ")
             val blocks = moves.map { blockOf(it.cell) }.distinct().sorted()
             // a column's own label in the g-code: its temperature (the row labels and the base are the plate's, said once below)
             fun labels(k: Int): String = if (moves.any { it.cell == "block $k mark 1" }) "temperature label" else "NO temperature label"
-            // the plate's row labels and base, left of and in front of the columns: how many of each the g-code holds
+            // the plate's row labels, base, and border, left of and in front of the columns: how many of each the g-code holds
             fun plateLabels(): String {
                 val cells = moves.map { it.cell }.toSet()
-                return "the base: ${cells.count { Regex("block \\d+ base \\d+").matches(it) }} layer(s); its row labels: ${cells.count { Regex("block \\d+ speed \\d+ 1").matches(it) }} speed(s), ${cells.count { Regex("block \\d+ height \\d+\\.\\d+ 1").matches(it) }} height(s)"
+                val border = moves.filter { it.cell.contains(" border ") }
+                return "the base: ${cells.count { Regex("block \\d+ base \\d+").matches(it) }} layer(s); its row labels: ${cells.count { Regex("block \\d+ speed \\d+ 1").matches(it) }} speed(s), ${cells.count { Regex("block \\d+ height \\d+\\.\\d+ 1").matches(it) }} height(s); " +
+                    if (border.isEmpty()) "border: none" else "border Z ${border.map { it.z }.distinct().sorted().joinToString { "%.2f".format(it) }} mm"
             }
             val tLo = moves.minOf { it.temp }; val tHi = moves.maxOf { it.temp }
             // A on the left at full height, D on the right (now: a tall plate's labels need the room)
@@ -163,12 +167,12 @@ object PlateRender {
             fun px(x: Double) = ax + 90 + (x - minX) * s
             fun py(y: Double) = ay + ah - (y - minY + 4) * s
             g.color = Color.BLACK
-            g.drawString("A  top view: each line colored by the nozzle temperature set when it printed (cool blue to warm red, ${tLo}-${tHi} C); prime lines gray; the base light gray, the labels raised on it dark gray; the frame (a layer up) near-black at its declared width, drawn last", ax, ay - 30)
+            g.drawString("A  top view: each line colored by the nozzle temperature set when it printed (cool blue to warm red, ${tLo}-${tHi} C); prime lines gray; the base light gray, the labels raised on it dark gray; the frame and the border round the base (a layer up) near-black at their declared width, drawn last", ax, ay - 30)
             g.drawString("each tile labeled with its moves' Z (mm) over speed (mm/s); black dot: a tile's first line's start; dashed: left out (the conditions block), over the block's melt limit; each block with its temperature, wait, and labels", ax, ay - 10)
             // every line at its declared width; the first layer first, the frame over it
-            for (m in moves.sortedBy { if (isFrame(it.cell)) 3 else if (isLabel(it.cell)) 2 else if (isBase(it.cell)) 1 else 0 }) {
+            for (m in moves.sortedBy { if (isEdge(it.cell)) 3 else if (isLabel(it.cell)) 2 else if (isBase(it.cell)) 1 else 0 }) {
                 g.stroke = BasicStroke((m.w * s).toFloat(), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
-                g.color = when { isFrame(m.cell) -> Color(25, 25, 30); isLabel(m.cell) -> Color(60, 60, 70); isBase(m.cell) -> Color(185, 185, 190); m.cell.endsWith("prime") -> Color(150, 150, 155); else -> ramp((m.temp - tLo).toDouble() / maxOf(1, tHi - tLo), coolwarm) }
+                g.color = when { isEdge(m.cell) -> Color(25, 25, 30); isLabel(m.cell) -> Color(60, 60, 70); isBase(m.cell) -> Color(185, 185, 190); m.cell.endsWith("prime") -> Color(150, 150, 155); else -> ramp((m.temp - tLo).toDouble() / maxOf(1, tHi - tLo), coolwarm) }
                 g.draw(Line2D.Double(px(m.x0), py(m.y0), px(m.x1), py(m.y1)))
             }
             // each tile's first line's start
@@ -211,8 +215,8 @@ object PlateRender {
             val summary = ArrayList<String>()
             for (k in blocks) {
                 val ms = moves.filter { blockOf(it.cell) == k }
-                // the base's upper layers, the labels, and the frame print after the last column, at its temperature: not the column's own
-                val own = ms.filter { !isFrame(it.cell) && !isLabel(it.cell) && !Regex("block \\d+ base [2-9]").matches(it.cell) }
+                // the base's upper layers, the labels, the frame, and the border print after the last column, at its temperature: not the column's own
+                val own = ms.filter { !isEdge(it.cell) && !isLabel(it.cell) && !Regex("block \\d+ base [2-9]").matches(it.cell) }
                 val temps = own.map { it.temp }.distinct()
                 val waitText = if (waitedBefore[k] == true) "waited (M109)" else "NO WAIT"
                 val head = "block $k: ${temps.joinToString("/")} C${if (waitedBefore[k] == true) "" else ", NO WAIT"}"

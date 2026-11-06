@@ -5,19 +5,21 @@ package plymeld.core.calibrate
  * will run it. Its reference is the [FirstLayerSpec] and the layout figures it works out itself from [FirstLayerGeometry]
  * and [PlateMarks] and from the g-code's own lines, never the generator's paths:
  *
- *  - one layer marker only (the frame, the base's upper layers, and the labels print within it, at their own heights),
+ *  - one layer marker only (the frame, the border, the base's upper layers, and the labels print within it, at their own heights),
  *    and nothing but the plate's cells: per column, its prime line, every tile within its melt limit (and none over it:
- *    those are left out), the frame's rings over every tile, and its temperature label's layers; the base's layers; each
- *    speed's and each row's height label's layers; no other extrusion between the plate's first line and its last;
+ *    those are left out), the frame's rings over every tile, and its temperature label's layers; the base's layers and the
+ *    border's; each speed's and each row's height label's layers; no other extrusion between the plate's first line and
+ *    its last;
  *  - each tile at its height and its speed, the tiles' acceleration and width, its filament per mm the bead model's times
  *    the flow ratio; its flow, read from the g-code, within its column's melt limit; each frame ring at its layer's height
- *    over its tile, the frame's speed (the machine's, held to the hottest column's melt limit), width, and acceleration;
+ *    over its tile and each border layer a layer each above the base's top, at the frame's speed (the machine's, held to
+ *    the hottest column's melt limit), width, and acceleration;
  *    the prime lines and the base's first layer at the prime height (the first layer's, or the lowest tile's if lower) in
  *    the first layer's width, the base's upper layers and the labels a layer each above it in the ordinary width, all at
  *    the first layer's speed;
  *  - each column's nozzle temperature: the target in force on its every line is its own, a wait (M109) to it before its
- *    first line, the columns coolest first; the base's upper layers, the labels, and the frame at the last column's; the
- *    part fan off;
+ *    first line, the columns coolest first; the base's upper layers, the labels, the frame, and the border at the last
+ *    column's; the part fan off;
  *  - the geometry: each tile [FirstLayerGeometry.tileLength] long and as deep as its height's lines make it, exactly that
  *    many lines that spacing apart, its first line starting at the middle of its back edge and its wall closing there;
  *    the tiles in their places, the columns side by side and the rows front to back, every tile touching its neighbors;
@@ -27,9 +29,10 @@ package plymeld.core.calibrate
  *    footprints, sampled every 0.05 mm, connected; nothing above it counted, so nothing can stand in for a gap);
  *  - the order: the base's first layer before any tile; column by column, each column's prime line before its tiles and
  *    its tiles lowest first (the nozzle never works beside a finished line above it); after all the tiles the base's upper
- *    layers and the labels, then the frame, layer by layer, lowest first; its rings [FirstLayerSpec.frameInsetUm] in from
- *    each tile's edges (over its wall, not its inside), ONE piece;
- *  - no travel crosses a finished tile or frame ring at or below its height (the lift).
+ *    layers and the labels, then the frame and the border, layer by layer, each layer lowest first; the frame's rings
+ *    [FirstLayerSpec.frameInsetUm] in from each tile's edges (over its wall, not its inside), ONE piece; the border a ring
+ *    round the base's L on its upper layer, flush with its edge, its front-left corner cut as the base's is;
+ *  - no travel crosses a finished tile, frame ring, or border at or below its height (the lift).
  *
  * Returns the problems (empty = the plate prints as specified).
  */
@@ -43,14 +46,16 @@ object FirstLayerCheck {
     /**
      * A cell label's column (0-based) and part: "prime", "tile" ([r].[c]), "frame" ([r].[c], layer [n]), "base" (layer
      * [n]), "mark" (the temperature label, layer [n]), "speed" (speed [r]'s label, layer [n]), "height" (row [r].[c]'s
-     * label, layer [n]), or null; [r], [c] 0-based, [n] from 1.
+     * label, layer [n]), "border" (layer [n]), or null; [r], [c] 0-based, [n] from 1.
      */
     private class Cell(val block: Int, val part: String, val r: Int = -1, val c: Int = -1, val n: Int = 0) {
-        /** Printed after all the tiles, at the last column's temperature: the base's upper layers, the labels, the frame. */
-        val late: Boolean get() = part == "frame" || part == "mark" || part == "speed" || part == "height" || (part == "base" && n > 1)
+        /** Printed after all the tiles, at the last column's temperature: the base's upper layers, the labels, the frame, the border. */
+        val late: Boolean get() = edge || part == "mark" || part == "speed" || part == "height" || (part == "base" && n > 1)
+        /** The raised edge, printed last, layer by layer: the frame over the tiles and the border round the base. */
+        val edge: Boolean get() = part == "frame" || part == "border"
     }
     private fun cellOf(label: String): Cell? {
-        val m = Regex("block (\\d+) (prime|base (\\d+)|mark (\\d+)|speed (\\d+) (\\d+)|height (\\d+)\\.(\\d+) (\\d+)|tile (\\d+)\\.(\\d+)|frame (\\d+)\\.(\\d+) (\\d+))").matchEntire(label) ?: return null
+        val m = Regex("block (\\d+) (prime|base (\\d+)|mark (\\d+)|speed (\\d+) (\\d+)|height (\\d+)\\.(\\d+) (\\d+)|tile (\\d+)\\.(\\d+)|frame (\\d+)\\.(\\d+) (\\d+)|border (\\d+))").matchEntire(label) ?: return null
         val k = m.groupValues[1].toInt() - 1
         val g = m.groupValues
         return when {
@@ -60,6 +65,7 @@ object FirstLayerCheck {
             g[2].startsWith("height") -> Cell(k, "height", g[7].toInt() - 1, g[8].toInt() - 1, g[9].toInt())
             g[2].startsWith("tile") -> Cell(k, "tile", g[10].toInt() - 1, g[11].toInt() - 1)
             g[2].startsWith("frame") -> Cell(k, "frame", g[12].toInt() - 1, g[13].toInt() - 1, g[14].toInt())
+            g[2].startsWith("border") -> Cell(k, "border", n = g[15].toInt())
             else -> Cell(k, g[2])
         }
     }
@@ -75,6 +81,7 @@ object FirstLayerCheck {
         // the cells
         val want = LinkedHashSet<String>()
         for (n in 1..g.baseLayers) want += spec.baseLabel(n)
+        for (n in 1..g.frameLayers) want += spec.borderLabel(n)
         for (k in 0 until spec.blocks) {
             want += spec.primeLabel(k)
             for (n in 1..g.labelLayers) want += spec.markLabel(k, n)
@@ -91,13 +98,14 @@ object FirstLayerCheck {
         for (c in want) if (c !in byCell) bad("no '$c' cell")
         for (c in byCell.keys) if (c !in want) bad("${byCell.getValue(c).size} extrusion move(s) in '$c', which the specification does not have" +
             (cellOf(c)?.takeIf { it.part == "tile" && it.block in 0 until spec.blocks }?.let { cl -> " (over the ${spec.tempsC[cl.block]} C column's melt limit, ${fmt(spec.capsMm3s[cl.block], 1)} mm3/s: left out)" } ?: ""))
-        // the order: the columns' first-layer lines column by column; after them the base's upper layers and the labels, then the frame
+        // the order: the columns' first-layer lines column by column; after them the base's upper layers and the labels, then
+        // the frame and the border
         val early = moves.filter { cellOf(it.cell)?.let { c -> !c.late } == true }
         val late = moves.filter { cellOf(it.cell)?.late == true }
-        val frameMoves = moves.filter { cellOf(it.cell)?.part == "frame" }
+        val frameMoves = moves.filter { cellOf(it.cell)?.edge == true }
         if (early.map { cellOf(it.cell)!!.block }.zipWithNext().any { (a, b) -> b < a }) bad("the columns do not print in order (the coolest, on the left, first; each column's lines together)")
         early.maxOfOrNull { it.seq }?.let { lastEarly -> late.firstOrNull { it.seq < lastEarly }?.let { bad("'${it.cell}' printed before the last tile: the base's upper layers, the labels, and the frame go on after all the tiles") } }
-        late.filter { cellOf(it.cell)?.part != "frame" }.maxOfOrNull { it.seq }?.let { lastLabel -> frameMoves.firstOrNull { it.seq < lastLabel }?.let { bad("'${it.cell}' printed before the labels: the frame goes on last") } }
+        late.filter { cellOf(it.cell)?.edge == false }.maxOfOrNull { it.seq }?.let { lastLabel -> frameMoves.firstOrNull { it.seq < lastLabel }?.let { bad("'${it.cell}' printed before the labels: the frame and the border go on last") } }
         moves.firstOrNull { cellOf(it.cell)?.part == "tile" }?.let { firstTile -> moves.firstOrNull { it.cell == spec.baseLabel(1) && it.seq > firstTile.seq }?.let { bad("'${it.cell}' printed after the first tile: the base's first layer goes down first") } }
         for (k in 0 until spec.blocks) {
             val firstTile = moves.firstOrNull { cellOf(it.cell)?.let { c -> c.block == k && c.part == "tile" } == true } ?: continue
@@ -106,9 +114,9 @@ object FirstLayerCheck {
             val heights = moves.filter { cellOf(it.cell)?.let { c -> c.block == k && c.part == "tile" } == true }.map { it.zUm }
             heights.zipWithNext().firstOrNull { (a, b) -> b < a }?.let { (a, b) -> bad("the ${spec.tempsC[k]} C column prints a tile at z ${b / 1000.0} after one at z ${a / 1000.0}: its tiles go lowest first, so the nozzle never works beside a finished tile above it") }
         }
-        // the frame: layer by layer, each layer lowest first
+        // the frame and the border: layer by layer, each layer lowest first
         frameMoves.map { cellOf(it.cell)!!.n to it.zUm }.zipWithNext().firstOrNull { (a, b) -> b.first < a.first || (b.first == a.first && b.second < a.second) }
-            ?.let { bad("the frame does not go down layer by layer, each layer lowest first (z ${it.first.second / 1000.0} in layer ${it.first.first}, then z ${it.second.second / 1000.0} in layer ${it.second.first})") }
+            ?.let { bad("the frame and the border do not go down layer by layer, each layer lowest first (z ${it.first.second / 1000.0} in layer ${it.first.first}, then z ${it.second.second / 1000.0} in layer ${it.second.first})") }
         // the columns' temperatures, in the order the g-code reaches them, rise
         val printed = (0 until spec.blocks).mapNotNull { k -> early.firstOrNull { cellOf(it.cell)?.let { c -> c.block == k && c.part != "base" } == true }?.tempC }
         if (printed.zipWithNext().any { (a, b) -> b <= a }) bad("the columns' temperatures as printed, ${printed.joinToString()} C, do not rise column by column (coolest first)")
@@ -128,7 +136,7 @@ object FirstLayerCheck {
             if (c.block !in 0 until spec.blocks) continue
             if ((c.part == "tile" || c.part == "frame" || c.part == "height") && (c.r !in t.speeds.indices || c.c !in t.heightsUm.indices)) continue
             if (c.part == "speed" && c.r !in t.speeds.indices) continue
-            val maxN = when (c.part) { "frame" -> g.frameLayers; "base" -> g.baseLayers; "mark", "speed", "height" -> g.labelLayers; else -> 0 }
+            val maxN = when (c.part) { "frame", "border" -> g.frameLayers; "base" -> g.baseLayers; "mark", "speed", "height" -> g.labelLayers; else -> 0 }
             if (maxN > 0 && c.n !in 1..maxN) continue
             fun once(kind: String, s: String) { if (said.add("${m.cell}/$kind")) bad(s) }
             // after all the tiles, at the last column's temperature: the base's upper layers, the labels, the frame
@@ -141,6 +149,7 @@ object FirstLayerCheck {
             when {
                 c.part == "tile" -> { wantZ = t.heightsUm[c.c]; wantV = t.speeds[c.r]; wantW = t.widthUm; accel = t.accel; beadH = wantZ; flow = spec.flowRatio; what = " (its height)" }
                 c.part == "frame" -> { wantZ = spec.frameUm(c.c, c.n); wantV = spec.frameSpeed; wantW = spec.frameWidthUm; accel = spec.frame.accel; beadH = lh; flow = spec.frame.flowRatio; what = " (${c.n} frame layer(s) above its tile)" }
+                c.part == "border" -> { wantZ = spec.borderUm(c.n); wantV = spec.frameSpeed; wantW = spec.frameWidthUm; accel = spec.frame.accel; beadH = lh; flow = spec.frame.flowRatio; what = " (${c.n} layer(s) above the base's top)" }
                 c.part == "base" && c.n > 1 -> { wantZ = spec.baseUm(c.n); wantV = spec.prime.speed; wantW = spec.frameWidthUm; accel = spec.prime.accel; beadH = lh; flow = spec.prime.flowRatio; what = " (the base's layer ${c.n})" }
                 c.part == "mark" || c.part == "speed" || c.part == "height" -> { wantZ = spec.labelUm(c.n); wantV = spec.prime.speed; wantW = spec.frameWidthUm; accel = spec.prime.accel; beadH = lh; flow = spec.prime.flowRatio; what = " (label layer ${c.n}, on the base)" }
                 else -> { wantZ = spec.primeUm; wantV = spec.prime.speed; wantW = spec.firstWidthUm; accel = spec.prime.accel; beadH = wantZ; flow = spec.prime.flowRatio; what = " (the prime height: the first layer's, or the lowest tile's if lower)" }
@@ -152,11 +161,11 @@ object FirstLayerCheck {
             if (m.widthMm.isNaN() || Math.abs(m.widthMm - wantW / 1000.0) > 5e-4) once("w", "'${m.cell}': declared ${fmt(m.widthMm, 3)} mm wide, not ${fmt(wantW / 1000.0, 3)}")
             if (Math.abs(m.accel - accel) > 0.5) once("a", "'${m.cell}': acceleration ${fmt(m.accel)}, not ${fmt(accel)}")
             // the melt limit, from the g-code itself: filament per mm x the filament's section x the feed
-            if (c.part == "tile" || c.part == "frame") {
+            if (c.part == "tile" || c.edge) {
                 val mm3s = m.e / m.len * spec.filamentMm2 * m.fMmMin / 60
-                val cap = if (c.part == "frame") spec.capsMm3s.last() else spec.capsMm3s[c.block]
+                val cap = if (c.edge) spec.capsMm3s.last() else spec.capsMm3s[c.block]
                 if (mm3s > cap * 1.001 + 1e-6) once("cap", "'${m.cell}': ${fmt(mm3s, 1)} mm3/s, over the melt limit ${fmt(cap, 1)} mm3/s at $wantT C " +
-                    if (c.part == "frame") "(the frame's speed is held to it)" else "(a tile over it is left out, never printed)")
+                    if (c.edge) "(the frame's speed is held to it)" else "(a tile over it is left out, never printed)")
             }
         }
     }
@@ -233,6 +242,17 @@ object FirstLayerCheck {
             val b = box(base, fw2)
             if (Math.abs(b[0] - x0 - setback) > 0.05 || Math.abs(b[1] - y0 - setback) > 0.05 || Math.abs(b[2] - right + setback) > 0.05 || Math.abs(b[3] - back + setback) > 0.05)
                 bad("the base's layer $n spans (${fmt(b[0], 2)}, ${fmt(b[1], 2)})-(${fmt(b[2], 2)}, ${fmt(b[3], 2)}), not set back ${fmt(setback, 2)} mm from the first layer's edges")
+        }
+        // the border: each layer a ring round the base, on its upper layer and flush with its edge (half a line in from it),
+        // its front-left corner cut off as the base's is, and its inner corner where the base meets the tiles' front-left
+        val bi = setback + fw2 / 2
+        for (n in 1..g.frameLayers) moves.filter { it.cell == spec.borderLabel(n) }.takeIf { it.isNotEmpty() }?.let { ring ->
+            val b = box(ring, 0.0)
+            if (Math.abs(b[0] - x0 - bi) > 0.03 || Math.abs(b[1] - y0 - bi) > 0.03 || Math.abs(b[2] - right + bi) > 0.03 || Math.abs(b[3] - back + bi) > 0.03)
+                bad("'${spec.borderLabel(n)}' runs (${fmt(b[0], 2)}, ${fmt(b[1], 2)})-(${fmt(b[2], 2)}, ${fmt(b[3], 2)}), not ${fmt(bi, 2)} mm in from the base's first layer's edges, on its upper layer (${fmt(x0 + bi, 2)}, ${fmt(y0 + bi, 2)})-(${fmt(right - bi, 2)}, ${fmt(back - bi, 2)})")
+            val corner = ring.flatMap { listOf(it.x0 - x0 + it.y0 - y0, it.x1 - x0 + it.y1 - y0) }.min()
+            if (Math.abs(corner - PlateMarks.CHAMFER / 1000.0 - bi * Math.sqrt(2.0)) > 0.05) bad("'${spec.borderLabel(n)}' does not follow the base's cut front-left corner")
+            if (ring.none { Math.abs(it.x1 - (o[0] - bi)) < 0.03 && Math.abs(it.y1 - (o[1] - bi)) < 0.03 }) bad("'${spec.borderLabel(n)}' does not turn at the base's inner corner (${fmt(o[0] - bi, 2)}, ${fmt(o[1] - bi, 2)}): it is not round the base's L")
         }
         // each column's prime line: along x (right to left) under the column, ending at its left edge, overlapping the base's front edge
         for (k in 0 until spec.blocks) {
@@ -373,7 +393,7 @@ object FirstLayerCheck {
             if (!x.isNaN() && (nx != x || ny != y)) {
                 val cl = cell
                 val part = cl?.let { cellOf(it)?.part }
-                if (e > 0 && cl != null && (part == "tile" || part == "frame")) {
+                if (e > 0 && cl != null && (part == "tile" || part == "frame" || part == "border")) {
                     val f = feet.getOrPut(cl) { Foot(cl, ArrayList(), nz, seq) }
                     f.boxes += doubleArrayOf(minOf(x, nx) - hw, minOf(y, ny) - hw, maxOf(x, nx) + hw, maxOf(y, ny) + hw); f.z = nz; f.lastSeq = seq
                 } else if (e <= 0) travels += Tr(seq, x, y, z, nx, ny, nz)

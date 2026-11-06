@@ -23,7 +23,7 @@ import plymeld.model.SliceSettings
  * first, a wait and a prime line before each) and a row per speed and height (a group of rows per speed), every tile a
  * strip of the same length; a base along the front and left, its corner cut off, each column's temperature, each row's
  * height, and each speed raised on it; tiles over the melt limit left out; each tile starting at the middle of its back
- * edge; one piece (every tile touching its neighbors and the base) under a three-layer frame over the tiles' walls. It prints exactly as specified,
+ * edge; one piece (every tile touching its neighbors and the base) under a three-layer frame over the tiles' walls and as tall a border round the base. It prints exactly as specified,
  * and its read-back check can fail: each control below is caught.
  */
 class FirstLayerPlateTest : StringSpec({
@@ -56,6 +56,7 @@ class FirstLayerPlateTest : StringSpec({
             for (r in spec.tiles.speeds.indices) out[spec.speedLabelOf(r, n)] = spec.labelUm(n) / 1000.0
             out[spec.baseLabel(n)] = spec.baseUm(n) / 1000.0
         }
+        for (n in 1..3) out[spec.borderLabel(n)] = spec.borderUm(n) / 1000.0
         return out
     }
     fun expect(own: Map<String, Double>) = plymeld.core.check.GcodeCheck.Expect(0.0, 0.0, 500.0, 500.0, 300.0, maxPrintSpeed = 1000.0, maxTravelSpeed = 1000.0, maxAccel = 100000.0,
@@ -300,6 +301,29 @@ class FirstLayerPlateTest : StringSpec({
         FirstLayerCheck.check(sp, ctl(sp, "framelift")).any { it.contains("across finished 'block") && it.contains("frame") && it.contains("no lift") } shouldBe true
     }
 
+    "the border: three layers of a ring round the base, on its upper layer and flush with its edge, with the frame; its controls are caught" {
+        // independently, from the g-code: the base's top is its second layer, 0.36 mm (0.16 + 0.2); the border a layer each above
+        firstZF(text, "block 1 border 1").first shouldBe (0.56 plusOrMinus 1e-9)
+        firstZF(text, "block 1 border 3").first shouldBe (0.96 plusOrMinus 1e-9)
+        // its ring 0.525 mm in from the base's first layer's edges (the 0.3 mm setback and half its 0.45 mm line): its line's
+        // outer edge on the base's second layer's
+        val b1 = ext(text, "block 1 base 1"); val ring = ext(text, "block 1 border 2")
+        (ring[0] - (b1[0] - 0.25)) shouldBe (0.525 plusOrMinus 0.002)
+        (ring[1] - (b1[1] - 0.25)) shouldBe (0.525 plusOrMinus 0.002)
+        ((b1[3] + 0.25) - ring[3]) shouldBe (0.525 plusOrMinus 0.002)
+        // round the L, not across the tiles: it reaches no further right than the base's front strip's right end, and its
+        // back-right part stops at the tiles' left edge
+        val t11 = ext(text, "block 1 tile 1.1")
+        segs(text, "block 1 border 1").any { Math.abs(it[2] - (t11[0] - 0.25 - 0.525)) < 0.002 && Math.abs(it[3] - (t11[1] - 0.25 - 0.525)) < 0.002 } shouldBe true
+        // in each frame layer, after the tiles' rings (it is that layer's highest)
+        (text.indexOf("; CELL: block 1 border 1\n") > text.lastIndexOf("; CELL: block 3 frame 3.4 1\n")) shouldBe true
+        (text.indexOf("; CELL: block 1 border 1\n") < text.indexOf("; CELL: block 1 frame 1.1 2\n")) shouldBe true
+        // controls that must fail
+        caught(sp, "border", "no 'block 1 border 1' cell")
+        caught(sp, "borderedge", "not 0.53 mm in from the base's first layer's edges")
+        caught(sp, "chamfer", "'block 1 border 1' does not follow the base's cut front-left corner")
+    }
+
     "the tiles' line ends reach into the wall by the line-end overlap (a quarter line here), so no gap where a line turns on the other side" {
         // independently: tile 1.2's (0.2 mm) long lines reach 0.125 mm past bead contact with its wall at each side
         val ss = segs(text, "block 1 tile 1.2")
@@ -319,9 +343,10 @@ class FirstLayerPlateTest : StringSpec({
         md shouldContain "| speed (mm/s) | 0.16 mm | 0.2 mm | 0.24 mm | 0.28 mm | notes |"
         md shouldContain "No tile is left out"
         md shouldContain "middle of its back edge"
+        md shouldContain "Then peel the plate and hold it up to a light"
         md shouldContain "- **The plate is one piece**"
         md shouldContain "- **The base** runs along the plate's front and left, 2 layers, its front-left corner cut off"
-        md shouldContain "| frame (not read) | after all the tiles, 3 layers of rings over every tile's wall, from a layer above its tile, at the last column's temperature: 0.45 mm lines (the plate's ordinary line width), 0.2 mm high (the layer height), 100 mm/s (the machine's print speed, 100 mm/s), 5000 mm/s2; part fan off |"
+        md shouldContain "| frame and border (not read) | after all the tiles, 3 layers of rings over every tile's wall, from a layer above its tile, and of a ring round the base, flush with its upper layer's edge, from a layer above its top; at the last column's temperature: 0.45 mm lines (the plate's ordinary line width), 0.2 mm high (the layer height), 100 mm/s (the machine's print speed, 100 mm/s), 5000 mm/s2; part fan off |"
         md shouldContain "`plymeld calibrate first-layer window plate.gcode --bore <mm>`"
         // the four tile outcomes, and the three about temperature
         md shouldContain "- **The window of good heights narrows as speed rises**: the fastest speed that still has a window is the first-layer speed."

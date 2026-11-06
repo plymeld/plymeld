@@ -875,7 +875,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
     }
 
     /**
-     * The first-layer plate: only first-layer tiles (and a frame over their walls), one layer, one piece, a column
+     * The first-layer plate: only first-layer tiles (and a frame over their walls, a border round the base), one layer, one piece, a column
      * of them per temperature, coolest first, the head parked for each column's wait and a prime line before each column.
      */
     private fun runFirstLayer() {
@@ -995,6 +995,8 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             "the frame 1 mm further in, over the tiles' insides" to without("frameinside"),
             "the frame's first layer at its tiles' own height" to without("framelow"),
             "the lift off the frame rings left out" to without("framelift"),
+            "the border left out" to without("border"),
+            "the border at the base's first-layer edge, off its upper layer" to without("borderedge"),
             "a line laid outside the plate's cells" to addStrayLine(text, spec),
             "a retraction shortened" to alterRetraction(text),
             removeEndLift(text)?.let { "the end's lift removed" to it },
@@ -1011,7 +1013,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         output.parent?.let { java.nio.file.Files.createDirectories(it) }
         java.nio.file.Files.writeString(output, withMachineHeader(text, config, setup, s, prediction))
         val g = plymeld.core.calibrate.FirstLayerGeometry
-        echo("first-layer plate for filament '${spool.material}' on tool $slotN of '${Resolver.resolve(setup, "hardware.machine.model").value}', build plate '$plateName' (bed ${s.bedTempFirstC} C, constant): one layer of tiles, one piece, and a frame over their walls, part fan off, flow ratio ${n(s.flowRatio)}")
+        echo("first-layer plate for filament '${spool.material}' on tool $slotN of '${Resolver.resolve(setup, "hardware.machine.model").value}', build plate '$plateName' (bed ${s.bedTempFirstC} C, constant): one layer of tiles, one piece, a frame over their walls and a border round the base, part fan off, flow ratio ${n(s.flowRatio)}")
         echo("columns (print order, coolest first, left to right): ${spec.tempsC.joinToString(", ") { "$it C" }}, each temperature raised on the base in front of its column")
         echo("rows (front to back, the same in every column): a group per speed, ${tiles.speeds.joinToString { n(it) }} mm/s (the first layer's ${n(s.firstLayerSpeed)} mm/s, plan.mechanism.motion.first_layer.speed, halved and half again), " +
             "a row per height in each, ${tiles.heightsUm.joinToString { n(it / 1000.0) }} mm (around the first layer's ${n(h / 1000.0)} mm, plan.mechanism.adhesion.first_layer.height, in steps of a tenth of the bore); " +
@@ -1032,7 +1034,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             "along the base's front under the column (${n(plymeld.core.calibrate.FirstLayerGeometry.primeLen / 1000.0)} mm, overlapping the base's edge; not read). The first column primes too: " +
             (startPrime?.let { (x, y) -> "the start template's own prime ends at X${n(x)} Y${n(y)}, ${n(Math.hypot(firstTile.first - x, firstTile.second - y))} mm from the first tile" } ?: "the start template lays no prime line"))
         echo("the base and its labels: along the plate's front and left, its front-left corner cut off (the origin), ${g.baseLayers} layers (the first at ${n(spec.primeUm / 1000.0)} mm, the first layer's or the lowest tile's if lower, touching the tiles; the next set back ${n(g.baseSetback / 1000.0)} mm), " +
-            "the labels raised ${g.labelLayers} layers on it, ${n(g.labelGap / 1000.0)} mm apart; ${n(s.firstLayerSpeed)} mm/s; the base's upper layers and the labels after all the tiles, at the last column's temperature")
+            "the labels raised ${g.labelLayers} layers on it, ${n(g.labelGap / 1000.0)} mm apart; ${n(s.firstLayerSpeed)} mm/s; the base's upper layers and the labels after all the tiles, at the last column's temperature; the border (not read): with the frame, as many layers of a ring round the base's whole outline, flush with its upper layer's edge, from a layer above its top, at the frame's speed and width")
         echo(when { level != null -> "bed levelling before the plate (hardware.machine.<key>.gcode.level); --no-level to skip it"; noLevel -> "bed levelling: skipped (--no-level)"; else -> "bed levelling: this machine has none plymeld can run (hardware.machine.<key>.gcode.level is empty): level it when you start the print" })
         warnings.forEach { echo("warning: $it") }
         val paFrom = Resolver.resolveOrNull(setup, "hardware.filament.pressure_advance", plymeld.model.Context(0))?.let { "the filament's, ${it.from}" }
@@ -1042,7 +1044,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             ?: "pressure advance: not set, so the printer's own value applies, unknown to plymeld (set the machine's, the tool's, or the filament's pressure_advance to state it)")
         echo("check: every tile's size, place, height, speed, width, filament per mm, and flow (within its column's melt limit), its start at the middle of its back edge, every column's temperature and the wait before it, " +
             "the prime lines along the base, the base (its corner cut off, its upper layers set back), each label where it goes (its lines inside its digits, every digit printed), every tile touching its neighbors and the plate one piece, each column's tiles lowest first, " +
-            "the frame (${g.frameLayers} layers over the walls only, each a layer above the one under it, after all the tiles, lowest first), no travel across a finished line at its height, nothing else on the plate, and the g-code as the config says. Controls caught: ${controls.joinToString { it.first }}")
+            "the frame (${g.frameLayers} layers over the walls only, each a layer above the one under it, after all the tiles, lowest first), the border (as many layers round the base, on its upper layer, its corner cut), no travel across a finished line at its height, nothing else on the plate, and the g-code as the config says. Controls caught: ${controls.joinToString { it.first }}")
         val page = output.resolveSibling(output.fileName.toString().substringBeforeLast('.') + ".md")
         val paText = pa[spool.tool]?.let { v -> "$v s (${paFrom?.substringBefore(',')})" } ?: "not set: the printer's own, unknown to plymeld (write down what it was if you know)"
         plymeld.core.calibrate.FirstLayerInstructions.write(page, spec, plate, plymeld.core.calibrate.PlateInstructions.Info(
@@ -1072,6 +1074,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             for (r in t.speeds.indices) out[spec.speedLabelOf(r, n)] = spec.labelUm(n) / 1000.0
         }
         for (n in 1..g.baseLayers) out[spec.baseLabel(n)] = spec.baseUm(n) / 1000.0
+        for (n in 1..g.frameLayers) out[spec.borderLabel(n)] = spec.borderUm(n) / 1000.0
         return out
     }
 
@@ -1096,14 +1099,14 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         val g = plymeld.core.calibrate.FirstLayerGeometry
         val block = buildList {
             add("; CALIBRATION_PLATE_START")
-            add("; plate = first-layer (one layer of first-layer tiles, a column per nozzle temperature and a row per speed and height, one piece, and a frame over their walls)")
+            add("; plate = first-layer (one layer of first-layer tiles, a column per nozzle temperature and a row per speed and height, one piece, a frame over their walls and a border round the base)")
             add("; filament = $filament, tool $tool, build plate $plateName")
             add("; first_layer_height = ${n(spec.layerUm / 1000.0)} mm (the prime lines and labels at ${n(spec.primeUm / 1000.0)} mm; each tile at its own), first_layer_line_width = ${n(spec.firstWidthUm / 1000.0)} mm, flow_ratio = ${n(spec.flowRatio)}")
             add("; pressure_advance = ${pa?.let { "$it s" } ?: "the printer's own (not set: unknown)"}, bed = ${s.bedTempFirstC} C (constant), part fan = off, retraction = ${n(spec.prime.retractMm)} mm")
             add("; first_layer_tiles = speeds ${t.speeds.joinToString(", ") { n(it) }} mm/s (a group of rows each, front to back), heights ${t.heightsUm.joinToString(", ") { n(it / 1000.0) }} mm (a row each in every group, front to back), " +
                 "each tile ${n(g.tileLength / 1000.0)} mm long, ${n(t.widthUm / 1000.0)} mm lines along X, ${n(t.accel)} mm/s2, lift ${n(t.liftUm / 1000.0)} mm, each starting at the middle of its back edge, line ends ${n(t.wallOverlap)} of a line into the wall, " +
                 "every tile touching its neighbors (one piece), each column lowest first; a tile over its column's melt limit left out")
-            add("; frame = after all the tiles, ${g.frameLayers} layers of rings over every tile's wall only, from a layer above it, ${n(spec.frameWidthUm / 1000.0)} mm lines ${n(spec.frameLayerUm / 1000.0)} mm high reaching ${n(g.fuse / 1000.0)} mm onto the neighbor, " +
+            add("; frame = after all the tiles, ${g.frameLayers} layers of rings over every tile's wall only, from a layer above it, and of a ring round the base flush with its upper layer's edge, from a layer above its top (the border), ${n(spec.frameWidthUm / 1000.0)} mm lines ${n(spec.frameLayerUm / 1000.0)} mm high reaching ${n(g.fuse / 1000.0)} mm onto the neighbor, " +
                 "${n(spec.frameSpeed)} mm/s (the machine's ${n(spec.frame.speed)} held to the hottest column's melt limit), ${n(spec.frame.accel)} mm/s2, part fan off, lowest first (not read)")
             add("; prime_lines = ${n(g.primeLen / 1000.0)} mm along the base's front under each column, after its wait, at ${n(spec.prime.speed)} mm/s (not read)")
             add("; base = along the plate's front and left, its front-left corner cut off ${n(plymeld.core.calibrate.PlateMarks.CHAMFER / 1000.0)} mm, ${g.baseLayers} layers (the next set back ${n(g.baseSetback / 1000.0)} mm), the labels raised ${g.labelLayers} layers on it: each column's temperature, each speed, each row's height")
@@ -1842,7 +1845,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         val KINDS = listOf(
             "melt" to "the melt rate: a column per temperature, a row per flow, each row's flow printed beside it. Run it first: an accurate melt rate drives so much of the rest, and the other plates are not reliable until it is measured",
             "flow" to "the flow ratio: a column per temperature, a patch per ratio, each patch solid at its own ratio and its top laid at its column's temperature; after the melt plate",
-            "first-layer" to "the first layer: nozzle height x first-layer speed by temperature, one layer of tiles in one piece, a column per temperature and a row per speed and height (a frame over their walls to peel it by); after the flow plate",
+            "first-layer" to "the first layer: nozzle height x first-layer speed by temperature, one layer of tiles in one piece, a column per temperature and a row per speed and height (a frame over their walls and a border round the base to peel it by); after the flow plate",
             "motion" to "the machine: the speed and acceleration a visible wall holds without ringing, per direction: one cross-shaped tower, twelve faces at six speeds (one along X and one along Y each), a band per acceleration, the top band's fastest faces at the machine's limits; graded per cell, the readings become the machine's visible speed and acceleration; after the first-layer plate (the tower, shaken at the machine's limits, needs a first layer that holds)",
             "filament" to "the filament's other tests by temperature band, once its melt rate and flow ratio are measured: overhangs, bridges, stringing, line widths, fit (--tests picks a subset)",
             "ironing" to "the ironing values: one flat slab whose top is divided into zones, each ironed with its own combination of flow, line spacing, speed, angle, and inset, a control zone per speed left as laid; graded zone by zone, the readings become the ironing values",
@@ -1913,7 +1916,7 @@ class FilamentPlateCommand : PlateCommand("filament", "filament") {
 
 /** `plymeld calibrate first-layer`, with `window` (FirstLayerWindowCommand: a graded plate into the filament's first-layer window). */
 class FirstLayerPlateCommand : PlateCommand("first-layer", "first-layer") {
-    override fun help(context: com.github.ajalt.clikt.core.Context) = "The first-layer plate: one layer of first-layer tiles laid out as a table, one piece: a column per temperature (--temps, --step; coolest first, heating and priming between columns), and in each column a group of rows per speed (--first-speeds), a row per nozzle height in each (--first-heights), every tile a strip of the same size; each column's temperature, each speed, and each row's height raised on a base along the plate's front and left. A tile whose flow would pass the filament's maximum flow at its column's temperature is left out; every tile touches its neighbors, and a frame of three layers over their walls (not read) is the raised edge to peel the plate by. `first-layer window` turns the graded plate into the filament's first-layer window."
+    override fun help(context: com.github.ajalt.clikt.core.Context) = "The first-layer plate: one layer of first-layer tiles laid out as a table, one piece: a column per temperature (--temps, --step; coolest first, heating and priming between columns), and in each column a group of rows per speed (--first-speeds), a row per nozzle height in each (--first-heights), every tile a strip of the same size; each column's temperature, each speed, and each row's height raised on a base along the plate's front and left. A tile whose flow would pass the filament's maximum flow at its column's temperature is left out; every tile touches its neighbors, and a frame of three layers over their walls, with as tall a border round the base (neither read), is the raised edge to peel the plate by. `first-layer window` turns the graded plate into the filament's first-layer window."
     init { subcommands(FirstLayerWindowCommand()) }
     override val invokeWithoutSubcommand = true
     override val temps: String? by option("--temps", metavar = "LOW-HIGH", help = "the temperature range, whole degrees C, e.g. 200-230, or a single temperature, e.g. 215: a column each, coolest first; default: the filament's print temperature up to its maximum (temperature.print to temperature.max: a first layer runs at or above the print temperature), or its whole range (temperature.min to temperature.max) where it has no print temperature")
