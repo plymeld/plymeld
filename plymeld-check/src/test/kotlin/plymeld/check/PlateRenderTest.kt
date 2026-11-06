@@ -84,7 +84,7 @@ class PlateRenderTest : StringSpec({
                 val x = 10.0 + 30 * ((k - 1) % 3); val y = 10.0 + 30 * ((k - 1) / 3)
                 appendLine("M109 S${190 + 5 * k}")
                 appendLine("; CELL: block $k tile 1.1"); appendLine("G1 X$x Y$y Z0.2 F2400"); appendLine("G1 X${x + 10} Y$y E0.5"); appendLine("; CELL END")
-                appendLine("; CELL: block $k frame 1"); appendLine("G1 X$x Y${y + 0.5} Z0.4"); appendLine("G1 X${x + 10} Y${y + 0.5} E0.5"); appendLine("; CELL END")
+                appendLine("; CELL: block $k frame 1.1 1"); appendLine("G1 X$x Y${y + 0.5} Z0.4"); appendLine("G1 X${x + 10} Y${y + 0.5} E0.5"); appendLine("; CELL END")
             }
             appendLine("M104 S0")
         }

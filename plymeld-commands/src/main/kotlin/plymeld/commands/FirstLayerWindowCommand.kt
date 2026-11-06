@@ -23,7 +23,7 @@ class FirstLayerWindowCommand : CliktCommand(name = "window") {
     private val bore by option("--bore", metavar = "MM", help = "the bore of the nozzle that printed the plate (mm), e.g. 0.4: a window applies only to that bore (the plate's g-code does not record it)").required()
 
     override fun help(context: com.github.ajalt.clikt.core.Context) =
-        "Write the first-layer window to grade for a printed first-layer plate: a table per temperature laid out as the plate lies, every printed tile '?', every tile left out 'over'. Replace each '?' with good, marginal, or bad and add it to a config file."
+        "Write the first-layer window to grade for a printed first-layer plate: a table per temperature (a row per speed, a column per height), every printed tile '?', every tile left out 'over'. Replace each '?' with good, marginal, or bad and add it to a config file."
 
     override fun run() {
         val b = bore.trim().removeSuffix("mm").trim().toDoubleOrNull()?.takeIf { it > 0 } ?: throw UsageError("--bore is the nozzle bore in mm above 0, e.g. 0.4 (got '$bore')")
@@ -59,8 +59,8 @@ object FirstLayerRecord {
             ?: throw IllegalArgumentException("$fileName: its conditions name no filament, tool, and build plate ('; filament = <key>, tool <n>, build plate <key>')")
         val tilesLine = value("first_layer_tiles") ?: throw IllegalArgumentException("$fileName: its conditions give no first_layer_tiles")
         require("held to the maximum flow" !in tilesLine) { "$fileName: an older first-layer plate, whose tiles over the melt limit printed slower than their row's speed: its tiles cannot be recorded by row speed" }
-        val axes = Regex("""speeds ([0-9., ]+) mm/s \(rows, front to back\), heights ([0-9., ]+) mm \(columns, left to right\)""").find(tilesLine)
-            ?: throw IllegalArgumentException("$fileName: first_layer_tiles does not give the rows' speeds and the columns' heights")
+        val axes = Regex("""speeds ([0-9., ]+) mm/s \(a group of rows each, front to back\), heights ([0-9., ]+) mm \(a row each in every group, front to back\)""").find(tilesLine)
+            ?: throw IllegalArgumentException("$fileName: first_layer_tiles does not give the tiles' speeds and heights")
         val speeds = axes.groupValues[1].split(',').map { it.trim().toDouble() }
         val heights = axes.groupValues[2].split(',').map { it.trim().toDouble() }
         val problems = ArrayList<String>()
@@ -97,9 +97,9 @@ object FirstLayerRecord {
         val sb = StringBuilder()
         sb.append("# The first-layer window to grade, from $fileName (`plymeld calibrate first-layer window`).\n")
         sb.append("# Replace every \"?\" with good, marginal, or bad, as that tile printed; \"over\" marks a tile the plate left out\n")
-        sb.append("# (over the melt limit). plymeld refuses a window with a \"?\" left. Each table lies as the plate does seen from\n")
-        sb.append("# the front: a row per speed, the fastest at the top (the back of the plate), a column per nozzle height, low\n")
-        sb.append("# to high, left to right.\n")
+        sb.append("# (over the melt limit). plymeld refuses a window with a \"?\" left. Each table is one column of the plate (a\n")
+        sb.append("# temperature): a row per speed, the fastest at the top, a column per nozzle height, low to high, left to right\n")
+        sb.append("# (on the plate, each speed is a group of rows, and each height a row in it).\n")
         if (key != madeFor) sb.append("# The plate was made for build plate '$madeFor'; this window is for '$key' (--plate).\n")
         sb.append("[${ConfigFiles.pathText(listOf("hardware", "filament", filament, "first_layer", "window", key))}]\n")
         sb.append("from = \"$fileName, ${made}tool $tool, build plate $madeFor\"\n")

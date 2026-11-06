@@ -507,7 +507,7 @@ class ProductTest : StringSpec({
             ; CALIBRATION_PLATE_START
             ; plate = first-layer (one layer: first-layer tiles, a block per nozzle temperature)
             ; filament = pla-generic, tool 1, build plate pei
-            ; first_layer_tiles = speeds 60, 100, 140 mm/s (rows, front to back), heights 0.2, 0.24 mm (columns, left to right), 0.5 mm lines
+            ; first_layer_tiles = speeds 60, 100, 140 mm/s (a group of rows each, front to back), heights 0.2, 0.24 mm (a row each in every group, front to back), 0.5 mm lines
             ; block 1 = 210 C, 1 marker dot, row 1 from the front, 1 from the left$leftOut1
             ; block 2 = 215 C, 2 marker dots, row 1 from the front, 2 from the left
             ; CALIBRATION_PLATE_END

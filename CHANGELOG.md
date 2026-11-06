@@ -25,11 +25,14 @@ section the release's version and date.
   notches take the size every plate's tally notches have. The slab's first layer prints at the filament's first-layer
   temperature (`temperature.first_layer`, worked out from `--print-temp` when given), and the head waits, parked, for
   the print temperature before the tower.
-- `plymeld calibrate first-layer`: each block's temperature is printed in front of it, each row's speed beside it, and
-  each column's nozzle height behind it, in place of the marker dots, each label on a line that joins it to its block.
-  Its temperatures default to the filament's print temperature up to its maximum (`temperature.print` to
-  `temperature.max`; 210 to 230 C for the bundled generic PLA), where they were its whole range. The blocks go as many
-  to a row as leave 10 mm of bed spare at each side.
+- `plymeld calibrate first-layer` prints a table in one piece, like the melt plate: a column per temperature and a row per
+  first-layer speed and nozzle height, every tile a 40 mm strip with its lines along it. Each column's temperature, each
+  row's height, and each speed are printed on the plate, where marker dots were. Every tile touches its neighbors, and a
+  frame of three layers over their walls is the edge to peel the plate by; the thin connectors between columns, which
+  were hard to remove, are gone. The defaults are tighter: the filament's print temperature up to its maximum at 10 C
+  steps (210, 220, and 230 C for the bundled generic PLA), three speeds around the first layer's (half, as set, and half
+  again), and four heights around its height (one step below, two above, a step a tenth of the nozzle). The plate's
+  conditions describe the new layout, so `first-layer window` reads only plates made from now on.
 - `--help` names every option's value (`-o FILE`, `--layer MM`, ...), and `plymeld --help` lists `printer credential`
   and `investigate predict`, which it left out.
 

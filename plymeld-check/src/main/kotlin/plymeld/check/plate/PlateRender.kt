@@ -30,16 +30,16 @@ import javax.imageio.ImageIO
  *      and the Z of the extrusion before it and after it
  * The first-layer plate (no melt loop; cells "block k tile r.c", "block k prime", its labels "block k mark" (the
  * temperature), "block k speed r", "block k height c";
- * "block k connector c-c' front|back"):
- *   A: top view of its one layer, each line colored by the nozzle temperature in force when it printed (prime lines and
- *      connectors gray), each tile labeled with the Z and speed of its own moves and a black dot where its first line
+ * the frame's rings "block k frame r.c n"):
+ *   A: top view of its one layer, each line colored by the nozzle temperature in force when it printed (prime lines
+ *      gray), each tile labeled with the Z and speed of its own moves and a black dot where its first line
  *      starts, each block with that temperature, whether a wait (M109) for it came before the block, and its labels
  *      as found in the g-code (the temperature, the rows' speeds, the columns' heights); the tiles the conditions block says were left out (over the melt limit) drawn as empty
- *      dashed cells where their column's printed tiles put them, labeled with the block's limit as the conditions say it
+ *      dashed cells where the rows' order puts them, labeled with the block's limit as the conditions say it
  *   D: per block, the same from the g-code, in print order, with its limit (conditions block) and its highest tile flow
  *      (speed x filament per mm, from the moves); its frame's Z, width, speeds, and highest flow
- *   E: (a plate with a frame, cells "block k frame c" and "block k frame c-c' front|back") a close-up of
- *      the first block's front gap between columns 1 and 2, every line at its declared width, the frame drawn over the
+ *   E: (a plate with a frame) a close-up of where the first column's front tile meets the next column's,
+ *      every line at its declared width, the frame drawn over the
  *      tiles; in A too every line is drawn at its declared width, the frame last
  * Everything is read from the g-code text, nothing from plymeld's own model of the plate.
  */
@@ -121,7 +121,7 @@ object PlateRender {
         val maxZ = moves.maxOf { it.z }
 
         // ---- the first-layer plate: its own picture, then stop
-        if (moves.all { Regex("block \\d+ (prime|mark|speed \\d+|height \\d+|tile \\d+\\.\\d+|connector \\d+-\\d+ (front|back)|frame \\d+(-\\d+ (front|back))?)").matches(it.cell) }) {
+        if (moves.all { Regex("block \\d+ (prime|mark|speed \\d+|height \\d+\\.\\d+|tile \\d+\\.\\d+|frame \\d+\\.\\d+ \\d+)").matches(it.cell) }) {
             // the conditions block's per-block lines: "; block k = T C, ..., melt limit N mm3/s (...), left out: tile r.c (...); ..."
             val limitOf = HashMap<Int, String>(); val leftOut = HashMap<Int, List<Pair<Int, Int>>>()
             for (l in File(gcodePath).readLines()) {
@@ -158,31 +158,38 @@ object PlateRender {
             fun px(x: Double) = ax + 90 + (x - minX) * s
             fun py(y: Double) = ay + ah - (y - minY + 4) * s
             g.color = Color.BLACK
-            g.drawString("A  top view: each line colored by the nozzle temperature set when it printed (cool blue to warm red, ${tLo}-${tHi} C); prime lines and connectors gray; the frame (a layer up) near-black at its declared width, drawn last", ax, ay - 30)
+            g.drawString("A  top view: each line colored by the nozzle temperature set when it printed (cool blue to warm red, ${tLo}-${tHi} C); prime lines gray; the frame (a layer up) near-black at its declared width, drawn last", ax, ay - 30)
             g.drawString("each tile labeled with its moves' Z (mm) over speed (mm/s); black dot: a tile's first line's start; dashed: left out (the conditions block), over the block's melt limit; each block with its temperature, wait, and labels", ax, ay - 10)
             // every line at its declared width; the first layer first, the frame over it
             for (m in moves.sortedBy { if (isFrame(it.cell)) 1 else 0 }) {
                 g.stroke = BasicStroke((m.w * s).toFloat(), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
-                g.color = when { isFrame(m.cell) -> Color(25, 25, 30); m.cell.endsWith("prime") -> Color(150, 150, 155); m.cell.contains(" connector ") -> Color(70, 70, 75); else -> ramp((m.temp - tLo).toDouble() / maxOf(1, tHi - tLo), coolwarm) }
+                g.color = when { isFrame(m.cell) -> Color(25, 25, 30); m.cell.endsWith("prime") -> Color(150, 150, 155); else -> ramp((m.temp - tLo).toDouble() / maxOf(1, tHi - tLo), coolwarm) }
                 g.draw(Line2D.Double(px(m.x0), py(m.y0), px(m.x1), py(m.y1)))
             }
             // each tile's first line's start
             g.color = Color.BLACK
             for ((_, ms) in moves.filter { it.cell.contains(" tile ") }.groupBy { it.cell }) g.fill(java.awt.geom.Ellipse2D.Double(px(ms.first().x0) - 3.5, py(ms.first().y0) - 3.5, 7.0, 7.0))
-            // the tiles left out: an empty dashed cell where its column's printed tiles put it (the column's x; rows a tile apart, touching)
+            // the tiles left out: an empty dashed cell where the rows put it: the rows go front to back in (speed, height) order,
+            // so a tile left out lies behind the printed tile before it in that order, a tile's depth further back for each left
+            // out between them, as long as that tile
+            fun rc(cell: String) = cell.substringAfter("tile ").split('.').let { it[0].toInt() to it[1].toInt() }
+            // how far back each block's drawing reaches (mm): its left-out cells too, for its header above them
+            val backOf = HashMap<Int, Double>()
             for ((k, cells) in leftOut) for ((r, c) in cells) {
-                val col = moves.filter { it.cell.startsWith("block $k tile ") && it.cell.endsWith(".$c") }.groupBy { it.cell }
-                if (col.isEmpty()) continue
+                val printedRows = moves.filter { it.cell.startsWith("block $k tile ") }.groupBy { it.cell }
+                val before = printedRows.keys.map { it to rc(it) }.filter { (_, p) -> p.first < r || (p.first == r && p.second < c) }
+                    .maxWithOrNull(compareBy({ it.second.first }, { it.second.second }))?.first ?: continue
                 fun box(ms: List<Mv>) = doubleArrayOf(ms.minOf { minOf(it.x0, it.x1) } - 0.25, ms.minOf { minOf(it.y0, it.y1) } - 0.25, ms.maxOf { maxOf(it.x0, it.x1) } + 0.25, ms.maxOf { maxOf(it.y0, it.y1) } + 0.25)
-                val last = col.maxBy { (cl, _) -> cl.substringAfter("tile ").substringBefore('.').toInt() }
-                val lastR = last.key.substringAfter("tile ").substringBefore('.').toInt(); val lb = box(last.value); val size = lb[3] - lb[1]
-                val y0 = lb[1] + (r - lastR) * size
+                val lb = box(printedRows.getValue(before)); val depth = lb[3] - lb[1]
+                val between = (leftOut[k] ?: emptyList()).count { (r2, c2) -> (r2 to c2).let { p -> (p.first > rc(before).first || (p.first == rc(before).first && p.second > rc(before).second)) && (p.first < r || (p.first == r && p.second < c)) } }
+                val y0 = lb[3] + between * depth
+                backOf[k] = maxOf(backOf[k] ?: Double.NEGATIVE_INFINITY, y0 + depth)
                 g.color = Color(170, 60, 60); g.stroke = BasicStroke(1.5f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10f, floatArrayOf(6f, 5f), 0f)
-                g.draw(java.awt.geom.Rectangle2D.Double(px(lb[0]), py(y0 + size), size * s, size * s))
-                g.font = Font("SansSerif", Font.PLAIN, 9)
-                val cx = px((lb[0] + lb[2]) / 2); val cy = py(y0 + size / 2)
-                val lines = listOf("over the", "melt limit", "(${limitOf[k]} mm3/s", "at ${moves.first { it.cell.startsWith("block $k ") }.temp} C)")
-                for ((i, txt) in lines.withIndex()) g.drawString(txt, (cx - g.fontMetrics.stringWidth(txt) / 2).toInt(), (cy - 12 + i * 10).toInt())
+                g.draw(java.awt.geom.Rectangle2D.Double(px(lb[0]), py(y0 + depth), (lb[2] - lb[0]) * s, depth * s))
+                g.font = Font("SansSerif", Font.PLAIN, 10)
+                val cx = px((lb[0] + lb[2]) / 2); val cy = py(y0 + depth / 2)
+                val txt = "over the melt limit (${limitOf[k]} mm3/s)"
+                g.drawString(txt, (cx - g.fontMetrics.stringWidth(txt) / 2).toInt(), (cy + 4).toInt())
             }
             g.stroke = BasicStroke((0.5 * s).toFloat(), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
             g.font = Font("SansSerif", Font.BOLD, 11)
@@ -199,21 +206,21 @@ object PlateRender {
             val summary = ArrayList<String>()
             for (k in blocks) {
                 val ms = moves.filter { blockOf(it.cell) == k }
-                val temps = ms.map { it.temp }.distinct()
-                val head = "block $k: ${temps.joinToString("/")} C, ${if (waitedBefore[k] == true) "waited (M109)" else "NO WAIT"}"
-                val label = "$head, ${labels(k)}"
+                // the frame prints after the last column, at its temperature: not the column's own
+                val own = ms.filter { !isFrame(it.cell) }
+                val temps = own.map { it.temp }.distinct()
+                val waitText = if (waitedBefore[k] == true) "waited (M109)" else "NO WAIT"
+                val head = "block $k: ${temps.joinToString("/")} C${if (waitedBefore[k] == true) "" else ", NO WAIT"}"
+                val label = "block $k: ${temps.joinToString("/")} C, $waitText, ${labels(k)}"
                 val tileMs = ms.filter { it.cell.contains(" tile ") }
-                // the top of the block's area: its printed lines or the empty cells above them
-                val rows = (tileMs.map { it.cell.substringAfter("tile ").substringBefore('.').toInt() } + (leftOut[k]?.map { it.first } ?: emptyList())).max()
-                val size = tileMs.groupBy { it.cell }.values.maxOf { c -> c.maxOf { maxOf(it.y0, it.y1) } - c.minOf { minOf(it.y0, it.y1) } + 0.5 }
-                val top = maxOf(ms.maxOf { maxOf(it.y0, it.y1) }, tileMs.minOf { minOf(it.y0, it.y1) } - 0.25 + rows * size)
+                // the top of the block's area: its printed lines or its left-out cells behind them
+                val top = maxOf(ms.maxOf { maxOf(it.y0, it.y1) }, backOf[k] ?: Double.NEGATIVE_INFINITY)
                 val left = ms.minOf { minOf(it.x0, it.x1) }
                 g.font = Font("SansSerif", Font.BOLD, 14); g.color = Color(30, 30, 40); g.drawString(head, px(left).toInt(), py(top).toInt() - 18)
-                g.font = Font("SansSerif", Font.PLAIN, 12); g.drawString("limit ${limitOf[k] ?: "?"} mm3/s; highest tile %.1f mm3/s".format(tileMs.maxOf { it.flow }), px(left).toInt(), py(top).toInt() - 4)
+                g.font = Font("SansSerif", Font.PLAIN, 12); g.drawString("limit ${limitOf[k] ?: "?"}, top %.1f mm3/s".format(tileMs.maxOf { it.flow }), px(left).toInt(), py(top).toInt() - 4)
                 summary += label
                 summary += "   tile Z ${tileMs.map { it.z }.distinct().sorted().joinToString { "%.2f".format(it) }} mm, speeds ${tileMs.map { it.v }.distinct().sorted().joinToString { "%.0f".format(it) }} mm/s"
                 summary += "   ${tileMs.map { it.cell }.distinct().size} tiles, ${leftOut[k]?.size ?: 0} left out; melt limit ${limitOf[k] ?: "?"} mm3/s (conditions block), highest tile flow %.1f mm3/s (g-code)".format(tileMs.maxOf { it.flow })
-                summary += "   connectors at Z ${ms.filter { it.cell.contains(" connector ") }.map { it.z }.distinct().sorted().joinToString { "%.2f".format(it) }} mm"
                 val fr = ms.filter { isFrame(it.cell) }
                 summary += if (fr.isEmpty()) "   frame: none" else "   frame Z ${fr.map { it.z }.distinct().sorted().joinToString { "%.2f".format(it) }} mm, ${fr.map { it.w }.distinct().joinToString { "%.2f".format(it) }} mm wide"
                 if (fr.isNotEmpty()) summary += "      ${fr.map { it.v }.distinct().sorted().joinToString { "%.0f".format(it) }} mm/s, highest flow %.1f mm3/s, ${fr.map { it.cell }.distinct().size} cells".format(fr.maxOf { it.flow })
@@ -222,7 +229,7 @@ object PlateRender {
             val dx = ax + aw + 60; var dy = ay + 10
             g.drawString("D  blocks in print order, from the g-code (fan ${moves.map { it.fan }.distinct().joinToString { "%.0f".format(it) }} %, layers: one):", dx, dy)
             for (line in summary) { dy += 21; g.drawString(line, dx + 10, dy) }
-            // E (with a frame): a close-up of the first block's front gap between columns 1 and 2, every line at its declared
+            // E (with a frame): a close-up of where the first column's front tile meets the next column's, every line at its declared
             // width, so the frame's place over the walls (and the tiles' insides left bare) can be read
             moves.filter { it.cell == "block ${blocks.first()} tile 1.1" }.takeIf { it.isNotEmpty() && moves.any { m -> isFrame(m.cell) } }?.let { t11 ->
                 val zx0 = t11.maxOf { maxOf(it.x0, it.x1) } - 5.5; val zy0 = t11.minOf { minOf(it.y0, it.y1) } - 1.0
@@ -232,14 +239,14 @@ object PlateRender {
                 fun zx(x: Double) = dx + (x - zx0) * zs
                 fun zy(y: Double) = zTop + zh * zs - (y - zy0) * zs
                 g.color = Color.BLACK; g.font = Font("SansSerif", Font.PLAIN, 15)
-                g.drawString("E  close-up, %.0f px/mm: block ${blocks.first()}, front gap between columns 1 and 2".format(zs), dx, zTop - 30)
+                g.drawString("E  close-up, %.0f px/mm: block ${blocks.first()}, where its front tile meets the next column's".format(zs), dx, zTop - 30)
                 g.drawString("lines at their declared widths, white = each line's center; frame near-black on top", dx, zTop - 12)
                 val clip = g.clip; g.clipRect(dx, zTop, (zw * zs).toInt(), (zh * zs).toInt())
                 g.color = Color(235, 235, 238); g.fillRect(dx, zTop, (zw * zs).toInt(), (zh * zs).toInt())
                 for (m in moves.sortedBy { if (isFrame(it.cell)) 1 else 0 }) {
                     if (maxOf(m.x0, m.x1) < zx0 - 1 || minOf(m.x0, m.x1) > zx0 + zw + 1 || maxOf(m.y0, m.y1) < zy0 - 1 || minOf(m.y0, m.y1) > zy0 + zh + 1) continue
                     g.stroke = BasicStroke((m.w * zs).toFloat(), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
-                    g.color = when { isFrame(m.cell) -> Color(25, 25, 30, 215); m.cell.contains(" connector ") -> Color(110, 110, 115); else -> ramp((m.temp - tLo).toDouble() / maxOf(1, tHi - tLo), coolwarm) }
+                    g.color = when { isFrame(m.cell) -> Color(25, 25, 30, 215); else -> ramp((m.temp - tLo).toDouble() / maxOf(1, tHi - tLo), coolwarm) }
                     g.draw(Line2D.Double(zx(m.x0), zy(m.y0), zx(m.x1), zy(m.y1)))
                 }
                 // every line's center, thin and white, so each line (a tile's wall from its fill) can be told apart
