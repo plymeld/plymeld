@@ -9,6 +9,13 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Fixed
+
+- `plymeld calibrate --help` said every plate writes an instructions page (the melt and flow plates do not yet) and
+  left `melt values` and `flow values` out of the plates' write-back commands.
+
+## [0.20261106.0] - 2026-11-06
+
 ### Added
 
 - `plymeld calibrate flow`: the flow ratio on a plate of its own, after the melt plate. A column per temperature, a
