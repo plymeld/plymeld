@@ -28,12 +28,13 @@ import javax.imageio.ImageIO
  *      length as read (earlier against its line width; earlier the melt loop's flow round its circle)
  *   D: what the bands were set to, and every temperature command after the first layer began: M104 or M109, its temperature,
  *      and the Z of the extrusion before it and after it
- * The first-layer plate (no melt loop; cells "block k tile r.c", "block k prime", "block k mark";;
+ * The first-layer plate (no melt loop; cells "block k tile r.c", "block k prime", its labels "block k mark" (the
+ * temperature), "block k speed r", "block k height c";
  * "block k connector c-c' front|back"):
  *   A: top view of its one layer, each line colored by the nozzle temperature in force when it printed (prime lines and
  *      connectors gray), each tile labeled with the Z and speed of its own moves and a black dot where its first line
- *      starts, each block with that temperature, whether a wait (M109) for it came before the block, and its marker dots
- *      as counted from the lines; the tiles the conditions block says were left out (over the melt limit) drawn as empty
+ *      starts, each block with that temperature, whether a wait (M109) for it came before the block, and its labels
+ *      as found in the g-code (the temperature, the rows' speeds, the columns' heights); the tiles the conditions block says were left out (over the melt limit) drawn as empty
  *      dashed cells where their column's printed tiles put them, labeled with the block's limit as the conditions say it
  *   D: per block, the same from the g-code, in print order, with its limit (conditions block) and its highest tile flow
  *      (speed x filament per mm, from the moves); its frame's Z, width, speeds, and highest flow
@@ -120,7 +121,7 @@ object PlateRender {
         val maxZ = moves.maxOf { it.z }
 
         // ---- the first-layer plate: its own picture, then stop
-        if (moves.all { Regex("block \\d+ (prime|mark|tile \\d+\\.\\d+|connector \\d+-\\d+ (front|back)|frame \\d+(-\\d+ (front|back))?)").matches(it.cell) }) {
+        if (moves.all { Regex("block \\d+ (prime|mark|speed \\d+|height \\d+|tile \\d+\\.\\d+|connector \\d+-\\d+ (front|back)|frame \\d+(-\\d+ (front|back))?)").matches(it.cell) }) {
             // the conditions block's per-block lines: "; block k = T C, ..., melt limit N mm3/s (...), left out: tile r.c (...); ..."
             val limitOf = HashMap<Int, String>(); val leftOut = HashMap<Int, List<Pair<Int, Int>>>()
             for (l in File(gcodePath).readLines()) {
@@ -144,16 +145,10 @@ object PlateRender {
             fun blockOf(c: String) = Regex("block (\\d+) ").find(c)!!.groupValues[1].toInt()
             fun isFrame(c: String) = c.contains(" frame ")
             val blocks = moves.map { blockOf(it.cell) }.distinct().sorted()
-            // marker dots: each block's mark lines, their footprints (0.5 mm wide) merged where they touch
-            fun dots(k: Int): Int {
-                var boxes = moves.filter { it.cell == "block $k mark" }.map { doubleArrayOf(minOf(it.x0, it.x1) - 0.25, minOf(it.y0, it.y1) - 0.25, maxOf(it.x0, it.x1) + 0.25, maxOf(it.y0, it.y1) + 0.25) }
-                while (true) {
-                    val merged = ArrayList<DoubleArray>()
-                    for (b in boxes) { val hit = merged.firstOrNull { d -> b[0] <= d[2] && b[2] >= d[0] && b[1] <= d[3] && b[3] >= d[1] }
-                        if (hit != null) { hit[0] = minOf(hit[0], b[0]); hit[1] = minOf(hit[1], b[1]); hit[2] = maxOf(hit[2], b[2]); hit[3] = maxOf(hit[3], b[3]) } else merged += b.copyOf() }
-                    if (merged.size == boxes.size) return merged.size
-                    boxes = merged
-                }
+            // the labels a block's g-code holds: its temperature, and how many rows' speeds and columns' heights
+            fun labels(k: Int): String {
+                val cells = moves.map { it.cell }.filter { it.startsWith("block $k ") }.toSet()
+                return "${if ("block $k mark" in cells) "temperature" else "NO temperature"} label, ${cells.count { it.startsWith("block $k speed ") }} speed(s), ${cells.count { it.startsWith("block $k height ") }} height(s)"
             }
             val tLo = moves.minOf { it.temp }; val tHi = moves.maxOf { it.temp }
             // A on the left at full height, D on the right (now: a tall plate's labels need the room)
@@ -164,7 +159,7 @@ object PlateRender {
             fun py(y: Double) = ay + ah - (y - minY + 4) * s
             g.color = Color.BLACK
             g.drawString("A  top view: each line colored by the nozzle temperature set when it printed (cool blue to warm red, ${tLo}-${tHi} C); prime lines and connectors gray; the frame (a layer up) near-black at its declared width, drawn last", ax, ay - 30)
-            g.drawString("each tile labeled with its moves' Z (mm) over speed (mm/s); black dot: a tile's first line's start; dashed: left out (the conditions block), over the block's melt limit; each block with its temperature, wait, and marker dots", ax, ay - 10)
+            g.drawString("each tile labeled with its moves' Z (mm) over speed (mm/s); black dot: a tile's first line's start; dashed: left out (the conditions block), over the block's melt limit; each block with its temperature, wait, and labels", ax, ay - 10)
             // every line at its declared width; the first layer first, the frame over it
             for (m in moves.sortedBy { if (isFrame(it.cell)) 1 else 0 }) {
                 g.stroke = BasicStroke((m.w * s).toFloat(), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
@@ -205,14 +200,15 @@ object PlateRender {
             for (k in blocks) {
                 val ms = moves.filter { blockOf(it.cell) == k }
                 val temps = ms.map { it.temp }.distinct()
-                val label = "block $k: ${temps.joinToString("/")} C, ${if (waitedBefore[k] == true) "waited (M109)" else "NO WAIT"}, ${dots(k)} dot(s)"
+                val head = "block $k: ${temps.joinToString("/")} C, ${if (waitedBefore[k] == true) "waited (M109)" else "NO WAIT"}"
+                val label = "$head, ${labels(k)}"
                 val tileMs = ms.filter { it.cell.contains(" tile ") }
                 // the top of the block's area: its printed lines or the empty cells above them
                 val rows = (tileMs.map { it.cell.substringAfter("tile ").substringBefore('.').toInt() } + (leftOut[k]?.map { it.first } ?: emptyList())).max()
                 val size = tileMs.groupBy { it.cell }.values.maxOf { c -> c.maxOf { maxOf(it.y0, it.y1) } - c.minOf { minOf(it.y0, it.y1) } + 0.5 }
                 val top = maxOf(ms.maxOf { maxOf(it.y0, it.y1) }, tileMs.minOf { minOf(it.y0, it.y1) } - 0.25 + rows * size)
                 val left = ms.minOf { minOf(it.x0, it.x1) }
-                g.font = Font("SansSerif", Font.BOLD, 14); g.color = Color(30, 30, 40); g.drawString(label, px(left).toInt(), py(top).toInt() - 18)
+                g.font = Font("SansSerif", Font.BOLD, 14); g.color = Color(30, 30, 40); g.drawString(head, px(left).toInt(), py(top).toInt() - 18)
                 g.font = Font("SansSerif", Font.PLAIN, 12); g.drawString("limit ${limitOf[k] ?: "?"} mm3/s; highest tile %.1f mm3/s".format(tileMs.maxOf { it.flow }), px(left).toInt(), py(top).toInt() - 4)
                 summary += label
                 summary += "   tile Z ${tileMs.map { it.z }.distinct().sorted().joinToString { "%.2f".format(it) }} mm, speeds ${tileMs.map { it.v }.distinct().sorted().joinToString { "%.0f".format(it) }} mm/s"
