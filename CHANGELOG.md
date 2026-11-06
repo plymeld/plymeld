@@ -36,6 +36,11 @@ section the release's version and date.
 
 - The filament plate's recommendation named the key to enter a measured melt rate under as `melt.flow.maxw`; it is
   `melt.flow.max`.
+
+## [0.20261104.3] - 2026-11-04
+
+### Fixed
+
 - `plymeld init` drew its choice lists blank in a terminal that reports no width (a pseudo-terminal whose size was
   never set); it now draws them 80 columns wide there.
 - `plymeld init` said Esc stops it; Esc does nothing in its lists and prompts. It now says Ctrl+C, which stops it at
