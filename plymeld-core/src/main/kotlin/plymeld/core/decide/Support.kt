@@ -373,7 +373,9 @@ object Overhangs {
     fun standsOn(p: TriangleSoup, x: Double, y: Double, zTop: Double): Double? {
         val c = p.coords
         var best: Double? = null
-        for (i in 0 until p.count) {
+        // only the triangles whose footprint holds (x, y) can be hit: the posed model's grid of them ([Footprints])
+        val g = footprints(p)
+        for (i in g.at(x, y)) {
             val o = 9 * i
             val ax = c[o].toDouble(); val ay = c[o + 1].toDouble(); val az = c[o + 2].toDouble()
             val bx = c[o + 3].toDouble(); val by = c[o + 4].toDouble(); val bz = c[o + 5].toDouble()
@@ -391,6 +393,78 @@ object Overhangs {
             if (z < zTop - 1e-6 && (best == null || z > best)) best = z
         }
         return best
+    }
+
+    /**
+     * The upward-facing triangles of a posed model by where they lie in XY: a grid over the model's footprint, each cell
+     * listing every triangle whose box (grown by [FOOTPRINT_SLACK]) touches it. A ray down from a point can only hit those
+     * of its cell, so [standsOn] tries a few triangles, not every one of a model for each region (a survey asks for every
+     * region; scanning the whole model each time was a twentieth of a pose search). Built once per posed model, held
+     * weakly; a soup's coordinates are not changed once it is made.
+     */
+    private class Footprints(p: TriangleSoup) {
+        private val x0: Double; private val y0: Double; private val cell: Double; private val nx: Int; private val ny: Int
+        private val start: IntArray; private val tris: IntArray
+        init {
+            val c = p.coords
+            var bx0 = Double.POSITIVE_INFINITY; var by0 = bx0; var bx1 = Double.NEGATIVE_INFINITY; var by1 = bx1
+            var up = 0
+            for (i in 0 until p.count) {
+                val o = 9 * i
+                for (k in 0 until 3) { val x = c[o + 3 * k].toDouble(); val y = c[o + 3 * k + 1].toDouble(); bx0 = minOf(bx0, x); bx1 = maxOf(bx1, x); by0 = minOf(by0, y); by1 = maxOf(by1, y) }
+                if (facesUp(c, o)) up++
+            }
+            if (up == 0) { bx0 = 0.0; by0 = 0.0; bx1 = 1.0; by1 = 1.0 }
+            x0 = bx0 - FOOTPRINT_SLACK; y0 = by0 - FOOTPRINT_SLACK
+            val w = bx1 - bx0 + 2 * FOOTPRINT_SLACK; val h = by1 - by0 + 2 * FOOTPRINT_SLACK
+            // about as many cells as upward triangles, square cells, at most FOOTPRINT_CELLS a side
+            cell = maxOf(Math.sqrt(w * h / maxOf(1, up)), maxOf(w, h) / FOOTPRINT_CELLS, 1e-6)
+            nx = maxOf(1, Math.ceil(w / cell).toInt()); ny = maxOf(1, Math.ceil(h / cell).toInt())
+            // each upward triangle's cell range (its box grown by the slack), found once: 4 ints per triangle
+            val ups = IntArray(up); val range = IntArray(4 * up)
+            var u = 0
+            for (t in 0 until p.count) {
+                val o = 9 * t
+                if (!facesUp(c, o)) continue
+                var tx0 = Double.POSITIVE_INFINITY; var ty0 = tx0; var tx1 = Double.NEGATIVE_INFINITY; var ty1 = tx1
+                for (k in 0 until 3) { val x = c[o + 3 * k].toDouble(); val y = c[o + 3 * k + 1].toDouble(); tx0 = minOf(tx0, x); tx1 = maxOf(tx1, x); ty0 = minOf(ty0, y); ty1 = maxOf(ty1, y) }
+                ups[u] = t
+                range[4 * u] = ix(tx0 - FOOTPRINT_SLACK); range[4 * u + 1] = ix(tx1 + FOOTPRINT_SLACK)
+                range[4 * u + 2] = iy(ty0 - FOOTPRINT_SLACK); range[4 * u + 3] = iy(ty1 + FOOTPRINT_SLACK)
+                u++
+            }
+            val count = IntArray(nx * ny + 1)
+            for (q in 0 until up) for (j in range[4 * q + 2]..range[4 * q + 3]) for (i in range[4 * q]..range[4 * q + 1]) count[j * nx + i + 1]++
+            for (k in 1 until count.size) count[k] += count[k - 1]
+            start = count.copyOf()
+            tris = IntArray(count.last())
+            val fill = count.copyOf()
+            for (q in 0 until up) for (j in range[4 * q + 2]..range[4 * q + 3]) for (i in range[4 * q]..range[4 * q + 1]) tris[fill[j * nx + i]++] = ups[q]
+        }
+        private fun ix(x: Double) = ((x - x0) / cell).toInt().coerceIn(0, nx - 1)
+        private fun iy(y: Double) = ((y - y0) / cell).toInt().coerceIn(0, ny - 1)
+        /** The triangles that can lie under (x, y), in index order; none outside the grid. */
+        fun at(x: Double, y: Double): IntArray {
+            val fx = (x - x0) / cell; val fy = (y - y0) / cell
+            if (fx < 0 || fy < 0 || fx >= nx || fy >= ny) return IntArray(0)
+            val k = fy.toInt() * nx + fx.toInt()
+            return tris.copyOfRange(start[k], start[k + 1])
+        }
+    }
+    /** Whether the triangle at [o] faces up (twice its signed XY area above standsOn's threshold): only those can be hit from above. */
+    private fun facesUp(c: FloatArray, o: Int): Boolean {
+        val ax = c[o].toDouble(); val ay = c[o + 1].toDouble()
+        val nz = (c[o + 3] - ax) * (c[o + 7] - ay) - (c[o + 4] - ay) * (c[o + 6] - ax)
+        return nz > 1e-12
+    }
+    /** A triangle's footprint grown by this much (mm) in the grid: wider than standsOn's barycentric tolerance (1e-9 over an edge's length) for any edge over a micron long, so the grid never leaves out a triangle the scan would hit. */
+    private const val FOOTPRINT_SLACK = 1e-2
+    /** The footprint grid's most cells a side: a bound on its size for a model of few large triangles, not a print value. */
+    private const val FOOTPRINT_CELLS = 512
+    private val footprintsOf = java.util.WeakHashMap<TriangleSoup, Footprints>()
+    private fun footprints(p: TriangleSoup): Footprints {
+        synchronized(footprintsOf) { footprintsOf[p] }?.let { return it }
+        return Footprints(p).also { synchronized(footprintsOf) { footprintsOf[p] = it } }
     }
 
     /** Each triangle's three vertex ids, positions within a micron sharing an id: how the survey joins faces into regions. */

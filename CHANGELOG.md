@@ -9,6 +9,12 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Changed
+
+- Deciding how to print a model is faster, with the same decisions and the same g-code: on 3DBenchy the pose and
+  technique search takes about a fifth less time. The slicer prepares each posed model once rather than for each cut,
+  and finding what an overhang stands on looks only at the faces under it.
+
 ## [0.20261106.3] - 2026-11-06
 
 ### Added

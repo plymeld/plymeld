@@ -72,16 +72,24 @@ object Arrangement {
         val n = edges.size
         val out = ArrayList<IntPoint>()
         val order = sweepOrder(edges)
-        val active = ArrayList<Int>()
+        // the edges whose x span may still reach the sweep, in the order they joined, as primitive ints with their right
+        // ends: dropping the passed ones and trying the rest is one pass (a boxed list's removeAll was a twentieth of a
+        // pose search)
+        var active = IntArray(16); var activeMaxX = LongArray(16); var size = 0
         for (i in order) {
             val minX = minOf(edges.x0(i), edges.x1(i))
-            active.removeAll { maxOf(edges.x0(it), edges.x1(it)) < minX }
             val a = edges.p(i); val b = edges.q(i)
-            for (j in active) {
+            var kept = 0
+            for (k in 0 until size) {
+                val j = active[k]
+                if (activeMaxX[k] < minX) continue
+                active[kept] = j; activeMaxX[kept] = activeMaxX[k]; kept++
                 val c = edges.p(j); val d = edges.q(j)
                 if (Segments.properCrossing(a, b, c, d)) out.add(Segments.lineIntersection(a, b, c, d))
             }
-            active.add(i)
+            size = kept
+            if (size == active.size) { active = active.copyOf(size * 2); activeMaxX = activeMaxX.copyOf(size * 2) }
+            active[size] = i; activeMaxX[size] = maxOf(edges.x0(i), edges.x1(i)); size++
         }
         return out
     }

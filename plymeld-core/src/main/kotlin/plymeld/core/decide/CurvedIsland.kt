@@ -29,16 +29,22 @@ class CurvedIsland(val capId: Int, val startMm: Double, val topMm: Double, val l
                     * to [topMm], where the flat layers land a layer and go on; its loops leave the flat layers up to there only.
                     */
                    val shared: Boolean = false) {
-    private val dipOf = HashMap<Int, Double>(cells.size * 2).also { m -> cells.forEachIndexed { q, a -> m[a] = dip[q] } }
+    /**
+     * For each cell of the grid grown by one all round ((i + 1) * (ny + 2) + j + 1), whether it or a cell next to it is the
+     * island's: what [covers] reads, one lookup a point (a pose search asks it of every sloped face under every plan). It
+     * depends on the cells alone, so a [placed] copy shares it; built on first use.
+     */
+    private var nearCache: BooleanArray? = null
+    private fun near(): BooleanArray = nearCache ?: BooleanArray((nx + 2) * (ny + 2)).also { m ->
+        for (a in cells) { val i = a / ny; val j = a % ny; for (di in 0..2) for (dj in 0..2) m[(i + di) * (ny + 2) + j + dj] = true }
+        nearCache = m
+    }
 
     /** Whether (x, y) lies in the island's area (its cell, or one next to it: the grid's cells are coarser than a wall). */
     fun covers(x: Double, y: Double): Boolean {
         val i = Math.floor((x - x0) / cellMm).toInt(); val j = Math.floor((y - y0) / cellMm).toInt()
-        for (di in -1..1) for (dj in -1..1) {
-            val ii = i + di; val jj = j + dj
-            if (ii in 0 until nx && jj in 0 until ny && dipOf.containsKey(ii * ny + jj)) return true
-        }
-        return false
+        if (i < -1 || i > nx || j < -1 || j > ny) return false
+        return near()[(i + 1) * (ny + 2) + j + 1]
     }
 
     /**
@@ -101,6 +107,7 @@ class CurvedIsland(val capId: Int, val startMm: Double, val topMm: Double, val l
 
     /** The island with its grid moved by ([dx], [dy]): from the object's corner to where the object's corner is placed. */
     fun placed(dx: Double, dy: Double) = CurvedIsland(capId, startMm, topMm, layerMm, x0 + dx, y0 + dy, cellMm, nx, ny, cells, dip, fi0, fj0, fwx, fwy, fdip, key, seedXMm, seedYMm, shared)
+        .also { it.nearCache = near() }
 
     override fun toString() = "island '%s' at (%.2f, %.2f): own layers from %.2f to %.2f mm, %.3f mm thick".format(java.util.Locale.ROOT, key, seedXMm, seedYMm, startMm, topMm, layerMm)
 
