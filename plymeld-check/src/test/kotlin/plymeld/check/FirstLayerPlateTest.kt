@@ -20,9 +20,10 @@ import plymeld.model.SliceSettings
 
 /**
  * The first-layer plate: one layer, a block of first-layer tiles per
- * nozzle temperature, coolest first, a wait and a prime line before each block, block n marked by n dots; tiles over the
+ * nozzle temperature, coolest first, a wait and a prime line before each block, each block's temperature, speeds, and
+ * heights printed beside it (each label on a line joining it to the block); tiles over the
  * block's melt limit left out; each tile starting at the middle of its back edge; each block one piece (a column's tiles
- * touching, connectors between columns, the prime line touching the first tile, the dots touching the prime line). It
+ * touching, connectors between columns, the prime line touching the first tile, the labels on rails into it). It
  * prints exactly as specified, and its read-back check can fail: each control below is caught.
  */
 class FirstLayerPlateTest : StringSpec({
@@ -110,20 +111,24 @@ class FirstLayerPlateTest : StringSpec({
         firstZF(text, "block 3 mark").first shouldBe (0.2 plusOrMinus 1e-9)
     }
 
-    "independently: block n has n marker dots in front of its tiles, and blocks run left to right, then a row behind" {
-        // each mark ring's first point, binned by the dot pitch (3 mm dots, 2 mm apart) from the block's leftmost
-        fun ringStarts(k: Int): List<Pair<Double, Double>> {
-            val ls = text.lines(); val out = ArrayList<Pair<Double, Double>>()
-            for ((i, l) in ls.withIndex()) if (l == "; CELL: block $k mark") {
-                val m = ls.subList(i, ls.size).firstNotNullOf { Regex("G1 X([-0-9.]+) Y([-0-9.]+) F.*").matchEntire(it) }
-                out += m.groupValues[1].toDouble() to m.groupValues[2].toDouble()
-            }
-            return out
-        }
+    "independently: each block labeled with its temperature in front of its tiles, each row's speed left of it, each column's height behind it; blocks left to right, then a row behind" {
+        // a cell's lines' extent (x0, y0, x1, y1), from the g-code
+        fun ext(cell: String) = segs(text, cell).let { s -> doubleArrayOf(s.minOf { minOf(it[0], it[2]) }, s.minOf { minOf(it[1], it[3]) }, s.maxOf { maxOf(it[0], it[2]) }, s.maxOf { maxOf(it[1], it[3]) }) }
         for (k in 1..3) {
-            val starts = ringStarts(k); val x0 = starts.minOf { it.first }
-            starts.map { Math.round((it.first - x0) / 5.0) }.distinct().size shouldBe k
+            val t11 = ext("block $k tile 1.1")
+            // the temperature: between the prime line's run and the tiles, starting right of the tiles' left edge
+            val mark = ext("block $k mark"); val run = segs(text, "block $k prime").first()[1]
+            (mark[1] > run && mark[3] < t11[1] && mark[0] > t11[0]) shouldBe true
+            // row r's speed: left of the first column's tile r, level with it (its rail reaching into the tile)
+            for (r in 1..4) { val sl = ext("block $k speed $r"); val tr = ext("block $k tile $r.1")
+                (sl[0] < tr[0] && sl[1] > tr[1] - 1 && sl[3] < tr[3] + 1) shouldBe true }
+            // column c's height: behind its last tile (row 4: none left out here), within the column's width
+            for (c in 1..5) { val hl = ext("block $k height $c"); val tc = ext("block $k tile 4.$c")
+                (hl[1] > tc[3] - 1 && hl[0] > tc[0] - 0.5 && hl[2] < tc[2] + 0.5) shouldBe true }
         }
+        // the temperatures differ, so the labels' lines do: block 1's (205) and block 3's (215), each from its own left
+        fun shape(k: Int) = ext("block $k mark").let { e -> segs(text, "block $k mark").map { s -> listOf(s[0] - e[0], s[1] - e[1], s[2] - e[0], s[3] - e[1]).map { Math.round(it * 100) } } }
+        (shape(1) == shape(3)) shouldBe false
         // block 2 right of block 1 (same row), block 3 behind block 1 (two to a row): where block k's prime line turns
         fun primeTurn(k: Int): Pair<Double, Double> = segs(text, "block $k prime").first().let { it[2] to it[3] }
         (primeTurn(2).first > primeTurn(1).first) shouldBe true; primeTurn(2).second shouldBe (primeTurn(1).second plusOrMinus 1e-9)
@@ -168,7 +173,8 @@ class FirstLayerPlateTest : StringSpec({
         // controls: the lift off the tiles left out; a travel at a finished tile's height straight across it (neither end on it)
         FirstLayerCheck.check(sp, ctl(sp, "tilelift")).any { it.contains("across finished 'block 1 tile 1.1'") && it.contains("no lift") } shouldBe true
         val across = lines.toMutableList().also { ls ->
-            val at = ls.indexOf("; CELL: block 1 mark")
+            // after block 1's tiles: before its frame
+            val at = ls.indexOf("; CELL: block 1 frame 1")
             val t11 = segs(text, "block 1 tile 1.1")
             val x0 = t11.minOf { minOf(it[0], it[2]) }; val x1 = t11.maxOf { maxOf(it[0], it[2]) }; val y = (t11.minOf { minOf(it[1], it[3]) } + t11.maxOf { maxOf(it[1], it[3]) }) / 2
             ls.addAll(at, listOf("G1 X${x0 - 2} Y$y F6000", "G1 Z0.2", "G1 X${x1 + 2} Y$y F6000", "G1 Z1.2"))
@@ -184,9 +190,12 @@ class FirstLayerPlateTest : StringSpec({
         firstZF(t, "block 1 prime").first shouldBe (0.12 plusOrMinus 1e-9)
     }
 
-    "controls: a prime line missing, a marker one dot short, a stray line are caught" {
+    "controls: a prime line missing, a label showing another temperature, a speed or height label missing, a stray line are caught" {
         FirstLayerCheck.check(sp, ctl(sp, "prime")).any { it.contains("no 'block 3 prime' cell") } shouldBe true
-        FirstLayerCheck.check(sp, ctl(sp, "mark")).any { it.contains("block 3's marker has 2 dot(s), not 3") } shouldBe true
+        // block 3's label shows 205 (block 1's), the same width as its own 215: caught by its digits
+        FirstLayerCheck.check(sp, ctl(sp, "mark")).any { it.contains("'block 3 mark': not the label '215' where it goes") } shouldBe true
+        FirstLayerCheck.check(sp, ctl(sp, "speedlabel")).any { it.contains("no 'block 1 speed 1' cell") } shouldBe true
+        FirstLayerCheck.check(sp, ctl(sp, "heightlabel")).any { it.contains("no 'block 1 height 1' cell") } shouldBe true
         val lines = text.lines().toMutableList()
         val end = (lines.indexOfFirst { it == "; CELL: block 1 mark" } until lines.size).first { lines[it] == "; CELL END" }
         lines.addAll(end + 1, listOf("G1 X50 Y50 F6000", "G1 X55 Y50 E0.2 F1200"))
@@ -303,12 +312,12 @@ class FirstLayerPlateTest : StringSpec({
         long.forEach { minOf(it[0], it[2]) shouldBe (x0 + sp - 0.125 plusOrMinus 0.002); maxOf(it[0], it[2]) shouldBe (x1 - sp + 0.125 plusOrMinus 0.002) }
     }
 
-    "the page: blocks by temperature, marker dots and melt limit, a table per block, the outcomes decided before printing" {
+    "the page: blocks by temperature and melt limit, a table per block, the outcomes decided before printing" {
         val md = FirstLayerInstructions.markdown(sp, FirstLayerPlate(sp), PlateInstructions.Info("pla test", "a printer", 0, "test", "plate.gcode", 9.0, "0.035 s", 60, 40.0, 40.0, 0.8), "plate.png")
         md shouldContain "Level the bed"
-        md shouldContain "| 1 | 205 C | 1 dot | 20 mm3/s | none |"
-        md shouldContain "| 3 | 215 C | 3 dots | 20 mm3/s | none |"
-        md shouldContain "Block 2: 210 C (2 dots)"
+        md shouldContain "| 1 | 205 C | 20 mm3/s | none |"
+        md shouldContain "| 3 | 215 C | 20 mm3/s | none |"
+        md shouldContain "Block 2: 210 C"
         md shouldContain "| speed (mm/s) | 0.2 mm | 0.24 mm | 0.28 mm | 0.32 mm | 0.36 mm | notes |"
         md shouldContain "No tile is left out"
         md shouldContain "middle of its back edge"

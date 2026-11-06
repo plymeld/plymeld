@@ -1,6 +1,5 @@
 package plymeld.core.calibrate
 
-import plymeld.geom.Offset
 import plymeld.geom.Polygon
 import plymeld.program.Exact
 import plymeld.program.Extrude
@@ -27,7 +26,7 @@ import plymeld.program.Step
  *
  * **Each block is one piece**, so there is less to peel off the bed: a column's tiles touch edge to edge (each column peels as one strip); between columns, two-line
  * **connectors** at the lower column's height join the columns' front and back corners; the prime line ends touching the
- * block's first tile and the marker dots touch the prime line. Each tile starts (and its wall closes) at the middle of
+ * block's first tile and each label stands on a line joined to the block. Each tile starts (and its wall closes) at the middle of
  * its back edge, its lines following from the back, their ends reaching into its wall by the slicer's
  * line-end overlap ([FirstLayerTiles.wallOverlap]).
  *
@@ -43,8 +42,10 @@ import plymeld.program.Step
  * Blocks print coolest first, heating between them (a nozzle heats faster than it cools): after a block the head
  * retracts, rises above every tile and parks in front of the plate, waits for the next temperature (M109), then lays
  * that block's **prime line** (its own cell, not read): every block has one, the first included (the machine's start
- * template primes elsewhere on the bed). In front of each block's tiles, block n's **marker**: n small square dots
- * (coolest = 1), so the blocks are told apart by geometry, not text. Blocks are laid out left to right, wrapping to a
+ * template primes elsewhere on the bed). **The labels** ([PlateMarks]'s glyphs, one layer like the rest): each block's
+ * temperature in front of its tiles, standing on its prime line; each row's speed left of the row and each column's
+ * nozzle height behind the column, turned to read from the front, each on a rail into its tile, so every digit is part
+ * of the block's one piece ([FirstLayerGeometry.labelGap], [FirstLayerGeometry.fuse]). Blocks are laid out left to right, wrapping to a
  * further row of blocks behind ([FirstLayerSpec.perRow] to a row). The part fan is off and the bed is the plate's own
  * (the start template's), constant. Lengths in µm, speeds mm/s, flows mm³/s, accelerations mm/s².
  */
@@ -53,9 +54,16 @@ import plymeld.program.Step
 object FirstLayerGeometry {
     /** Between blocks, side by side and row to row. */
     const val blockGap = 6_000L
-    /** A marker dot: this square; dots this far apart, in one row touching the prime line's back edge; the dots this far in front of the block's tiles. */
-    const val dot = PlateGeometry.markSize; const val dotGap = 2_000L; const val dotsFront = PlateGeometry.markGap
-    /** The prime line's run along the block's front: this long, or longer where the block's marker dots reach further (it holds them). */
+    /**
+     * The labels ([PlateMarks]'s glyphs, one layer like everything on the plate): the block's temperature standing on its
+     * prime line, [labelFront] in front of its tiles, [labelIn] in from the prime line's turn; each row's speed and each
+     * column's height [labelGap] from their tiles. A label with no base under it stands on a rail (one first-layer line
+     * along the glyphs' baseline, the prime line for the temperature) that runs into its tile, so every digit is part of
+     * the block's one piece; the rail and the glyphs overlap by [fuse] so they print as one.
+     */
+    const val labelFront = PlateGeometry.markGap; const val labelIn = 2_000L; const val labelGap = 1_000L
+    const val fuse = 150L
+    /** The prime line's run along the block's front: this long, or longer where the block's temperature label reaches further (it holds it). */
     const val primeLen = 30_000L
     /** The head parks this far in front of the plate between blocks (as the filament plate parks for its waits). */
     const val parkFront = 10_000L
@@ -69,7 +77,7 @@ class FirstLayerSpec(
     val spool: String,
     /** One block per temperature, in print order: coolest first. */
     val tempsC: IntArray,
-    /** The first layer's height (µm): the marker dots print at it, the prime lines at it or the lowest tile's height if lower; the tiles at their own. */
+    /** The first layer's height (µm): the labels print at it, the prime lines at it or the lowest tile's height if lower; the tiles at their own. */
     val layerUm: Long,
     val filamentDiameterMm: Double,
     /** The flow ratio every line prints at. */
@@ -77,9 +85,9 @@ class FirstLayerSpec(
     val tiles: FirstLayerTiles,
     /** Each block's melt limit (mm³/s): the filament's maximum flow at the block's temperature; a tile over it is left out. */
     val capsMm3s: DoubleArray,
-    /** The prime lines', connectors' and marker dots' speed, acceleration, flow ratio, and retraction (the first layer's). */
+    /** The prime lines', connectors', and labels' speed, acceleration, flow ratio, and retraction (the first layer's). */
     val prime: PathValues,
-    /** The prime lines', connectors', and marker dots' line width (µm, the first layer's). */
+    /** The prime lines', connectors', and labels' line width (µm, the first layer's). */
     val firstWidthUm: Long,
     /**
      * The frame's values: [PathValues.speed] the machine's print speed before the melt limit holds it ([frameSpeed] holds
@@ -122,10 +130,19 @@ class FirstLayerSpec(
     val filamentMm2: Double get() = Math.PI * filamentDiameterMm * filamentDiameterMm / 4
     /** Bead cross-section of a [w] µm line [h] µm high, mm² (the writer's bead model). */
     fun beadMm2(w: Long, h: Long): Double { val hm = h / 1000.0; return hm * (w / 1000.0 - hm * (1 - Math.PI / 4)) }
-    /** Cell labels: block [k] (0-based; "block 1" is the coolest) and its tile ([r], [c]), prime line, marker dots, and connectors. */
+    /** The labels' text: block [k]'s temperature ("205"), row [r]'s speed ("40", mm/s), column [c]'s nozzle height ("0.24", mm). */
+    fun tempText(k: Int): String = tempsC[k].toString()
+    fun speedText(r: Int): String = PlateMarks.whole(tiles.speeds[r])
+    fun heightText(c: Int): String = PlateMarks.mm(tiles.heightsUm[c] / 1000.0)
+    /**
+     * Cell labels: block [k] (0-based; "block 1" is the coolest) and its tile ([r], [c]), prime line, temperature label
+     * ("mark"), row [r]'s speed label, column [c]'s height label, and connectors.
+     */
     fun tileLabel(k: Int, r: Int, c: Int) = "block ${k + 1} ${tiles.label(r, c)}"
     fun primeLabel(k: Int) = "block ${k + 1} prime"
     fun markLabel(k: Int) = "block ${k + 1} mark"
+    fun speedLabelOf(k: Int, r: Int) = "block ${k + 1} speed ${r + 1}"
+    fun heightLabelOf(k: Int, c: Int) = "block ${k + 1} height ${c + 1}"
     /** Block [k]'s connector between columns [c] and [c] + 1 (from 1 in the label), at their front or [back] corners. */
     fun connectorLabel(k: Int, c: Int, back: Boolean) = "block ${k + 1} connector ${c + 1}-${c + 2} ${if (back) "back" else "front"}"
     /** Block [k]'s frame over column [c]'s tile walls, and its frame line across the gap from column [c] to [c] + 1 at their front or [back] corners. */
@@ -144,7 +161,8 @@ class FirstLayerSpec(
 /**
  * Builds the first-layer plate's program from its [spec]. [without]: for the read-back check's controls only, which must
  * catch them: "tilelift" (no rise off each tile before the travel on), "prime" (the last block's prime line left out),
- * "mark" (the last block's marker one dot short), "omit" (every tile printed, those over the melt limit too), "colgap"
+ * "mark" (the last block's temperature label showing the first block's), "speedlabel" (row 1's
+ * speed labels left out), "heightlabel" (column 1's height labels left out), "omit" (every tile printed, those over the melt limit too), "colgap"
  * (a column's tiles 3 mm apart, as before), "connectors" (none), "conninside" (each connector reaching 1 mm
  * into the higher column's tile), "connhigh" (connectors at the higher column's height), "connlate" (each gap's
  * connectors printed after the higher column's tiles), "corner" (each tile started at its front-left corner, its lines
@@ -168,46 +186,85 @@ class FirstLayerPlate(private val spec: FirstLayerSpec, private val without: Set
     /** Row to row in column [c]: the tile's own size, so the column's tiles touch. */
     fun rowPitch(c: Int): Long = tileSize(c) + if ("colgap" in without) PlateGeometry.tileGap else 0L
 
+    private val g = FirstLayerGeometry
+    /** The labels' sizes (µm): the widest and tallest of each kind, so every block lays out alike. */
+    private val tempW: Long get() = (0 until spec.blocks).maxOf { PlateMarks.labelWidth(spec.tempText(it)) }
+    private val tempH: Long get() = (0 until spec.blocks).maxOf { PlateMarks.labelHeight(spec.tempText(it)) }
+    private val speedW: Long get() = t.speeds.indices.maxOf { PlateMarks.labelWidth(spec.speedText(it)) }
+    private val speedH: Long get() = t.speeds.indices.maxOf { PlateMarks.labelHeight(spec.speedText(it)) }
+    /** A column's height label, turned to read from the front up the column: its length along Y, its glyphs' height across X. */
+    private val heightLen: Long get() = t.heightsUm.indices.maxOf { PlateMarks.labelWidth(spec.heightText(it)) }
+    private val heightThick: Long get() = t.heightsUm.indices.maxOf { PlateMarks.labelHeight(spec.heightText(it)) }
+
+    /** The room left of the tiles for the speed labels and their gap (µm). */
+    val speedRoom: Long get() = speedW + g.labelGap
     /** A block's tile grid: as wide as its columns reach, as deep as its longest column (every row counted, printed or not). */
     val gridW: Long get() = t.heightsUm.indices.maxOf { it * pitch + tileSize(it) }
     val gridD: Long get() = t.heightsUm.indices.maxOf { (t.speeds.size - 1) * rowPitch(it) + tileSize(it) }
-    /** Block [k]'s marker dots, end to end (µm). */
-    private fun dotsLen(k: Int): Long = (k + 1) * (FirstLayerGeometry.dot + FirstLayerGeometry.dotGap) - FirstLayerGeometry.dotGap
-    /** Block [k]'s prime line's run along its front (µm, outer length): [FirstLayerGeometry.primeLen], or as far as its marker dots reach. */
-    fun primeRun(k: Int): Long = maxOf(FirstLayerGeometry.primeLen, fw + FirstLayerGeometry.dotGap + dotsLen(k))
-    /** Whether every block's prime line and marker dots fit across its block (one row of dots: at most about a dozen blocks). */
-    val dotsFit: Boolean get() = (0 until spec.blocks).all { primeRun(it) <= gridW }
-    /** A block's footprint: its tiles, its marker dots in front of them, its prime line in front of those (touching them). */
-    val blockW: Long get() = gridW
-    val blockD: Long get() = fw + FirstLayerGeometry.dot + FirstLayerGeometry.dotsFront + gridD
+    /** Block [k]'s prime line's run along its front (µm, outer length, from the tiles' left edge): [FirstLayerGeometry.primeLen], or as far as its temperature label reaches. */
+    fun primeRun(k: Int): Long = maxOf(g.primeLen, fw + g.labelIn + tempW)
+    /** Whether the labels fit their places: the temperature along the prime line under the tiles, a speed beside each row, a height behind each column. */
+    val labelsFit: Boolean get() = (0 until spec.blocks).all { primeRun(it) <= gridW } && speedH + g.labelGap <= rowPitch(0) &&
+        t.heightsUm.indices.all { heightThick + 2 * fw <= tileSize(it) }
+    /** A block's footprint: the speed labels left of its tiles, its prime line and temperature label in front, the height labels behind. */
+    val blockW: Long get() = speedRoom + gridW
+    val blockD: Long get() = fw - g.fuse + tempH + g.labelFront + gridD + g.labelGap + heightLen
     /** Rows of blocks, and blocks in the widest row. */
     val blockRows: Int get() = (spec.blocks + spec.perRow - 1) / spec.perRow
     val blockCols: Int get() = minOf(spec.perRow, spec.blocks)
 
     /** Block [k]'s front-left corner (µm, before the plate is placed): left to right, then the next row behind. */
-    fun blockXY(k: Int): Pair<Long, Long> = (k % spec.perRow) * (blockW + FirstLayerGeometry.blockGap) to (k / spec.perRow) * (blockD + FirstLayerGeometry.blockGap)
-    /** Block [k]'s tile grid's front edge (µm). */
-    fun gridY0(k: Int): Long = blockXY(k).second + blockD - gridD
-    /** Tile ([r], [c]) of block [k], as a box (µm: x0, y0, x1, y1), from the block's left edge; printed or not. */
+    fun blockXY(k: Int): Pair<Long, Long> = (k % spec.perRow) * (blockW + g.blockGap) to (k / spec.perRow) * (blockD + g.blockGap)
+    /** Block [k]'s tile grid's left and front edges (µm). */
+    fun gridX0(k: Int): Long = blockXY(k).first + speedRoom
+    fun gridY0(k: Int): Long = blockXY(k).second + fw - g.fuse + tempH + g.labelFront
+    /** Tile ([r], [c]) of block [k], as a box (µm: x0, y0, x1, y1); printed or not. */
     fun tileBox(k: Int, r: Int, c: Int): LongArray {
-        val x0 = blockXY(k).first + c * pitch; val y0 = gridY0(k) + r * rowPitch(c); val sz = tileSize(c)
+        val x0 = gridX0(k) + c * pitch; val y0 = gridY0(k) + r * rowPitch(c); val sz = tileSize(c)
         return longArrayOf(x0, y0, x0 + sz, y0 + sz)
     }
-    /** Dot [i] (0-based) of block [k]'s marker, as a box (µm): one row, touching the prime line's back edge, right of its turn. */
-    fun dotBox(k: Int, i: Int): LongArray {
-        val (bx, by) = blockXY(k)
-        val x0 = bx + fw + FirstLayerGeometry.dotGap + i * (FirstLayerGeometry.dot + FirstLayerGeometry.dotGap); val y0 = by + fw
-        return longArrayOf(x0, y0, x0 + FirstLayerGeometry.dot, y0 + FirstLayerGeometry.dot)
-    }
     /**
-     * Block [k]'s prime line (µm, its center line): along the block's front edge right to left, to its left edge, then
+     * Block [k]'s prime line (µm, its center line): along the block's front right to left, to the tiles' left edge, then
      * back along that edge to end touching the first tile's front edge (at its front-left corner), so it peels off with
      * the block.
      */
     fun primePath(k: Int): LongArray {
-        val (bx, by) = blockXY(k)
-        val y = by + fw / 2
-        return longArrayOf(bx + primeRun(k) - fw / 2, y, bx + fw / 2, y, bx + fw / 2, gridY0(k) - fw / 2)
+        val x0 = gridX0(k); val y = blockXY(k).second + fw / 2
+        return longArrayOf(x0 + primeRun(k) - fw / 2, y, x0 + fw / 2, y, x0 + fw / 2, gridY0(k) - fw / 2)
+    }
+
+    /**
+     * Block [k]'s labels (µm), each its glyphs and the rail it stands on (an open center line; null for the temperature,
+     * which stands on the prime line), by cell: the temperature ([FirstLayerSpec.markLabel]) on the prime line, right of
+     * its turn; each printed row's speed left of the first column's tile, on a rail into it; each column's height behind
+     * its last printed tile, turned to read from the front, on a rail out of it. The controls: "mark" (the last block's
+     * label showing the first block's temperature), "speedlabel" (row 1's speed left out), "heightlabel" (column 1's
+     * height left out).
+     */
+    fun labels(k: Int): List<Triple<String, List<Polygon>, LongArray?>> {
+        val out = ArrayList<Triple<String, List<Polygon>, LongArray?>>()
+        val ttext = spec.tempText(if ("mark" in without && k == spec.blocks - 1) 0 else k)
+        out += Triple(spec.markLabel(k), PlateMarks.label(ttext, gridX0(k) + g.labelIn, blockXY(k).second + fw - g.fuse), null)
+        for (r in t.speeds.indices) {
+            if (!spec.printed(k, r, 0) || ("speedlabel" in without && r == 0)) continue
+            val st = spec.speedText(r); val w = PlateMarks.labelWidth(st); val hh = PlateMarks.labelHeight(st)
+            val tb = tileBox(k, r, 0)
+            val x0 = tb[0] - g.labelGap - w; val y0 = (tb[1] + tb[3]) / 2 - hh / 2
+            val ry = y0 - fw / 2 + g.fuse
+            out += Triple(spec.speedLabelOf(k, r), PlateMarks.label(st, x0, y0), longArrayOf(x0 + fw / 2, ry, tb[0] + g.fuse, ry))
+        }
+        for (c in t.heightsUm.indices) {
+            val rows = spec.rowsIn(k, c); if (rows == 0 || ("heightlabel" in without && c == 0)) continue
+            val ht = spec.heightText(c); val w = PlateMarks.labelWidth(ht)
+            val last = tileBox(k, rows - 1, c)
+            val y0 = last[3] + g.labelGap
+            // the glyphs turned a quarter counter-clockwise: their baseline along +Y at xb, their tops toward -X
+            val xb = (last[0] + last[2]) / 2 + heightThick / 2
+            val glyphs = PlateMarks.label(ht, 0, 0).map { p -> Polygon(LongArray(p.xy.size) { i -> val u = p.xy[i - i % 2]; val v = p.xy[i - i % 2 + 1]; if (i % 2 == 0) xb - v else y0 + u }) }
+            val rx = xb + fw / 2 - g.fuse
+            out += Triple(spec.heightLabelOf(k, c), glyphs, longArrayOf(rx, last[3] - g.fuse, rx, y0 + w - fw / 2))
+        }
+        return out
     }
     /**
      * Block [k]'s connector between columns [c] and [c] + 1 at their front or [back] corners (µm, its center line), or null
@@ -263,7 +320,7 @@ class FirstLayerPlate(private val spec: FirstLayerSpec, private val without: Set
     fun parkUm(): Pair<Long, Long> = (spec.originXUm + bounds()[2] / 2) to (spec.originYUm - FirstLayerGeometry.parkFront)
 
     fun program(): PrintProgram {
-        require(dotsFit) { "block ${spec.blocks}'s ${spec.blocks} marker dots do not fit across its ${gridW / 1000.0} mm block in one row" }
+        require(labelsFit) { "the labels do not fit the block: the temperature across its ${gridW / 1000.0} mm of tiles, a speed beside each ${rowPitch(0) / 1000.0} mm row, a height behind each column" }
         val steps = ArrayList<Step>()
         val ox = spec.originXUm; val oy = spec.originYUm
         spec.levelGcode?.let { steps += plymeld.program.Custom("bed levelling (hardware.machine.<key>.gcode.level)", it) }
@@ -287,6 +344,16 @@ class FirstLayerPlate(private val spec: FirstLayerSpec, private val without: Set
             // is on its way there, so no lift off it (a lift where a travel crosses a finished tile)
             if (!("prime" in without && k == spec.blocks - 1))
                 steps += extrude("Skirt", primePath(k), false, spec.primeUm, Exact(spec.primeLabel(k), doubleArrayOf(pv.speed), pv.accel, pv.flowRatio, pv.retractMm), ox, oy, fw, spec.primeUm)
+            // the labels, at the first layer's height and values, before the tiles they touch: each its rail, then its
+            // glyphs, the nozzle rising off each (the travel on may cross a finished label)
+            for ((cell, glyphs, rail) in labels(k)) {
+                val ex = Exact(cell, doubleArrayOf(pv.speed), pv.accel, pv.flowRatio, pv.retractMm)
+                rail?.let { steps += extrude("Skirt", it, false, h, ex, ox, oy, fw, h) }
+                val (rings, lines) = PlateFill.fill(glyphs, fw, h, 0.0)
+                for (ring in rings) steps += extrude("Outer wall", ring, true, h, ex, ox, oy, fw, h)
+                for (line in lines) steps += extrude("Bottom surface", line, false, h, ex, ox, oy, fw, h)
+                steps += LiftTo(h + t.liftUm)
+            }
             // the tiles: column by column from the left (lowest first), each column from the front, each tile at its own nozzle
             // height and its row's speed; the nozzle rises by the travel lift off each tile and connector (the travel on crosses
             // finished lines) and comes down to the next one's height over it. After each column, the connectors to the next
@@ -314,10 +381,6 @@ class FirstLayerPlate(private val spec: FirstLayerSpec, private val without: Set
                     }
                 }
             }
-            // the marker: k + 1 dots touching the prime line (one short for the control "mark", on the last block)
-            val dots = if ("mark" in without && k == spec.blocks - 1) k else k + 1
-            for (i in 0 until dots) for (ring in squareRings(dotBox(k, i)))
-                steps += extrude("Outer wall", ring, true, h, Exact(spec.markLabel(k), doubleArrayOf(pv.speed), pv.accel, pv.flowRatio, pv.retractMm), ox, oy, fw, h)
             if ("frame" !in without) steps += frameSteps(k, top, ox, oy)
         }
         // above every line on the plate before the end template moves away
@@ -328,7 +391,7 @@ class FirstLayerPlate(private val spec: FirstLayerSpec, private val without: Set
     }
 
     /**
-     * Block [k]'s frame, after its first layer (its tiles, connectors, prime line, and marker), at the block's temperature:
+     * Block [k]'s frame, after its first layer (its tiles, connectors, prime line, and labels), at the block's temperature:
      * first a rise above every tile ([top] + the lift: the travel on crosses finished tiles), then column by column from the
      * lowest, each column's ring and shared-edge lines one layer above its tiles, and after each column (from the second)
      * the two frame lines across the gap to the column before it, at this column's frame height (the higher): so every
@@ -385,14 +448,6 @@ class FirstLayerPlate(private val spec: FirstLayerSpec, private val without: Set
         return ring to pts.toLongArray()
     }
 
-    /** A square's rings in the first layer's lines, outermost first, solid: the first half a line in, each next a bead spacing further in. */
-    private fun squareRings(b: LongArray): List<LongArray> {
-        val rings = ArrayList<LongArray>()
-        val sp = Math.round(fw - h * (1 - Math.PI / 4))
-        var cur = Offset.offset(listOf(Polygon(longArrayOf(b[0], b[1], b[2], b[1], b[2], b[3], b[0], b[3]))), -fw / 2)
-        while (cur.isNotEmpty()) { for (r in cur) if (r.size >= 3) rings += r.xy; cur = Offset.offset(cur, -sp) }
-        return rings
-    }
 
     /** A path of the plate, placed on the bed. */
     private fun extrude(feature: String, xy: LongArray, closed: Boolean, zUm: Long, ex: Exact, ox: Long, oy: Long, widthUm: Long, heightUm: Long): Extrude {

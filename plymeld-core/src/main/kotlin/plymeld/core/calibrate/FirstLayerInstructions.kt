@@ -10,7 +10,7 @@ import java.util.Locale
 
 /**
  * The page that goes with each first-layer plate ([FirstLayerPlate]; the filament plate's is [PlateInstructions]): what to
- * do before printing, the conditions, a labeled picture (the blocks by temperature and their marker dots), how to read it
+ * do before printing, the conditions, a labeled picture (the blocks by temperature, as their printed labels say), how to read it
  * block by block and speed by speed, a table to fill in, and what each kind of result means, written before the print.
  */
 object FirstLayerInstructions {
@@ -25,7 +25,6 @@ object FirstLayerInstructions {
         val ti = spec.tiles
         val sb = StringBuilder()
         fun l(s: String = "") { sb.append(s).append('\n') }
-        fun dots(k: Int) = "${k + 1} dot${if (k == 0) "" else "s"}"
         l("# First-layer plate: ${info.filament} on ${info.machine}, tool ${info.tool + 1}")
         l()
         l("Made by plymeld ${info.version} on ${info.date} for `${info.gcodeName}`" + (info.predictedMin?.let { ", about ${n(it, 0)} min to print (plymeld's estimate; heating, the wait for each block's temperature, and any levelling come on top)" } ?: "") + ".")
@@ -71,7 +70,7 @@ object FirstLayerInstructions {
             "${n(spec.frameLayerUm / 1000.0, 2)} mm high (the layer height) on top of its tiles; ${if (fv.distinct().size == 1) "${n(fv[0], 0)} mm/s" else "by block ${fv.joinToString(", ") { n(it, 0) }} mm/s"} " +
             "(the machine's print speed, ${n(spec.frame.speed, 0)} mm/s${if (fv.any { it < spec.frame.speed - 1e-9 }) ", held to the block's melt limit" else ""}), ${n(spec.frame.accel, 0)} mm/s2; part fan off |")
         l("| melt limit | by block, below: the filament's maximum flow at the block's temperature; a tile that would need more is left out, never slowed |")
-        l("| prime lines, connectors, marker dots | prime lines ${n(spec.primeUm / 1000.0, 2)} mm high, connectors at the lower of the two columns' heights, dots ${n(spec.layerUm / 1000.0, 2)} mm (the first layer's height); ${n(spec.prime.speed, 0)} mm/s, ${n(spec.firstWidthUm / 1000.0, 2)} mm lines; not read |")
+        l("| prime lines, connectors, labels | prime lines ${n(spec.primeUm / 1000.0, 2)} mm high, connectors at the lower of the two columns' heights, labels ${n(spec.layerUm / 1000.0, 2)} mm (the first layer's height); ${n(spec.prime.speed, 0)} mm/s, ${n(spec.firstWidthUm / 1000.0, 2)} mm lines; not read |")
         l("| retraction | ${n(info.retractMm, 2)} mm |")
         l()
         l("## The plate")
@@ -79,22 +78,23 @@ object FirstLayerInstructions {
         l("![The plate from above: the blocks by temperature]($pngName)")
         l()
         l("- **The blocks** are the ${spec.blocks} groups of tiles, one per nozzle temperature, laid out **left to right" + (if (plate.blockRows > 1) ", then a further row behind" else "") + ", in the order they print: the coolest first**. " +
-            "Each block's temperature is marked in front of it by **marker dots** on the bed: **block n has n dots** (the coolest, block 1, has one). Count the dots, never trust the position alone.")
-        l("- **The prime line** runs along the front of each block, in front of its dots, then back up its left edge to touch the first tile: laid after the wait for that block's temperature, so the first tile does not start with what oozed during the wait. It is not read.")
+            "**Each block's temperature is printed in front of it**, on its prime line; **each row's speed** (mm/s) left of it and **each column's nozzle height** (mm) behind it, turned to read from the front. " +
+            "Each label stands on a line that joins it to the block, so it peels off with it; read the labels, never trust the position alone.")
+        l("- **The prime line** runs along the front of each block, in front of its temperature, then back up its left edge to touch the first tile: laid after the wait for that block's temperature, so the first tile does not start with what oozed during the wait. It is not read.")
         l("- Inside each block, the **first-layer tiles**: up to ${ti.speeds.size * ti.heightsUm.size} flat square tiles, one layer each, each at its own nozzle height and speed. " +
             "**Rows are speeds, the slowest at the front; columns are nozzle heights, the lowest on the left**: the front-left tile of each block is the lowest and slowest, the back-right one the highest and fastest. " +
             "Each tile is a wall round lines laid side by side at the spacing a line of its height should fill exactly, ${n(ti.widthUm / 1000.0, 2)} mm wide, so how its top closes up tells whether that height was right. " +
             "Each tile starts, and its wall closes, at the **middle of its back edge** (any start or stop blob is there); its lines follow from the back.")
-        l("- **Each block is one piece**, so it peels off at once: a column's tiles touch edge to edge, the columns are joined by short **connectors** (two lines across the gap at the front and back corners, at the lower column's height), the prime line touches the first tile and the dots touch the prime line. Peel each block as a whole; the connectors are not read.")
+        l("- **Each block is one piece**, so it peels off at once: a column's tiles touch edge to edge, the columns are joined by short **connectors** (two lines across the gap at the front and back corners, at the lower column's height), the prime line touches the first tile, and each label stands on a line joined to the block. Peel each block as a whole; the connectors are not read.")
         l("- **The frame** holds each block together as it peels: after the block's tiles, a second layer of lines laid **only over the tiles' walls** (round each column and along every edge two of its tiles share, one line over both walls) and across the gaps between columns on top of the connectors, " +
             "stepping up to the higher column. It bonds layer on layer to the walls below, so each column is stiff and the columns are one lattice. **Each tile's inside, the part you read, is left uncovered**: read the tiles inside the frame; the frame is not read.")
         l("- **Tiles over the melt limit are left out**: a tile whose flow (its speed x its line's cross-section x the flow ratio) would pass the filament's maximum flow at its block's temperature is not printed; its place stays empty, so nothing on the plate claims to test what it cannot.")
         l()
-        l("| block | nozzle | marker | melt limit | tiles left out | where |")
-        l("|---|---|---|---|---|---|")
+        l("| block | nozzle | melt limit | tiles left out | where |")
+        l("|---|---|---|---|---|")
         for (k in 0 until spec.blocks) {
             val left = ti.speeds.indices.flatMap { r -> ti.heightsUm.indices.filter { c -> !spec.printed(k, r, c) }.map { c -> "${ti.label(r, c)} (${n(ti.speeds[r], 0)} mm/s, ${n(ti.heightsUm[c] / 1000.0, 2)} mm: ${n(spec.tileFlow(r, c), 1)} mm3/s)" } }
-            l("| ${k + 1} | ${spec.tempsC[k]} C | ${dots(k)} | ${n(spec.capsMm3s[k], 1)} mm3/s${spec.capFrom.getOrNull(k)?.let { " ($it)" } ?: ""} | ${if (left.isEmpty()) "none" else left.joinToString(", ")} | row ${k / spec.perRow + 1} of blocks (from the front), ${k % spec.perRow + 1} from the left |")
+            l("| ${k + 1} | ${spec.tempsC[k]} C | ${n(spec.capsMm3s[k], 1)} mm3/s${spec.capFrom.getOrNull(k)?.let { " ($it)" } ?: ""} | ${if (left.isEmpty()) "none" else left.joinToString(", ")} | row ${k / spec.perRow + 1} of blocks (from the front), ${k % spec.perRow + 1} from the left |")
         }
         l()
         l("| tile row (from the front) | first-layer speed (mm/s) |")
@@ -112,7 +112,7 @@ object FirstLayerInstructions {
         val mid = n(spec.layerUm / 1000.0, 2)
         l("## How to read the first-layer tiles")
         l()
-        l("Look at the tiles with a low light from the side, so every ridge and gap casts a shadow, and run a fingernail across them. Find each block by its marker dots. For each tile:")
+        l("Look at the tiles with a low light from the side, so every ridge and gap casts a shadow, and run a fingernail across them. Find each block by its printed temperature. For each tile:")
         l()
         l("1. A **good** tile is closed, flat, and square-cornered, its lines joined into one smooth sheet, nothing lifted at its edges or corners.")
         l("2. **Too low**: ridges between the lines, plastic ploughed up or pushed to the edges, or thin, see-through spots where the nozzle scraped the bed.")
@@ -120,7 +120,7 @@ object FirstLayerInstructions {
         l("4. **For each block (temperature) and each speed (row), tick the heights whose tiles are good.** The good heights in a row are that speed's window at that temperature.")
         l()
         for (k in 0 until spec.blocks) {
-            l("Block ${k + 1}: ${spec.tempsC[k]} C (${dots(k)})")
+            l("Block ${k + 1}: ${spec.tempsC[k]} C")
             l()
             l("| speed (mm/s) | " + ti.heightsUm.joinToString(" | ") { "${n(it / 1000.0, 2)} mm" } + " | notes |")
             l("|---|" + ti.heightsUm.joinToString("") { "---|" } + "---|")
@@ -142,7 +142,7 @@ object FirstLayerInstructions {
         return sb.toString()
     }
 
-    /** The picture: the plate from above as the program prints it, each block labeled with its temperature and marker count, the tiles' rows and columns, the prime lines. */
+    /** The picture: the plate from above as the program prints it, its printed labels among its lines, each block named with its temperature and melt limit, the prime lines. */
     fun picture(file: java.nio.file.Path, spec: FirstLayerSpec, plate: FirstLayerPlate) {
         System.setProperty("java.awt.headless", "true")
         val paths = plate.program().steps.filterIsInstance<plymeld.program.Extrude>()
@@ -158,7 +158,7 @@ object FirstLayerInstructions {
         fun px(x: Long) = 80 + (x - ox - b[0] + 12_000) * s
         fun py(y: Long) = 120 + (H - 260) - (y - oy - b[1] + 12_000) * s
         g.color = Color.BLACK; g.font = Font("SansSerif", Font.BOLD, 22)
-        g.drawString("First-layer plate from above: a block of tiles per nozzle temperature, printed coolest first (block n has n marker dots in front of it)", 40, 40)
+        g.drawString("First-layer plate from above: a block of tiles per nozzle temperature, coolest first, each with its values printed beside it", 40, 40)
         g.font = Font("SansSerif", Font.PLAIN, 16)
         g.drawString("In each block: rows by speed (the slowest at the front), columns by nozzle height (the lowest on the left); black dot = where a tile starts; dashed: left out, over the melt limit.", 40, 68)
         g.drawString("Gray: prime line and connectors; dark outline: the frame, a second layer over the tiles' walls and across the gaps (none of these is read: read each tile inside its frame).", 40, 90)
@@ -168,7 +168,7 @@ object FirstLayerInstructions {
         for (p in paths) {
             val label = p.exact?.label ?: ""
             val k = Regex("block (\\d+) ").find(label)?.groupValues?.get(1)?.toInt()?.minus(1) ?: 0
-            g.color = when { label.endsWith("prime") -> Color(150, 150, 155); label.contains(" connector ") -> Color(90, 90, 95); label.contains(" frame ") -> Color(35, 35, 40); label.endsWith("mark") -> blockColor(k).darker(); else -> blockColor(k) }
+            g.color = when { label.endsWith("prime") -> Color(150, 150, 155); label.contains(" connector ") -> Color(90, 90, 95); label.contains(" frame ") -> Color(35, 35, 40); label.endsWith("mark") || label.contains(" speed ") || label.contains(" height ") -> blockColor(k).darker(); else -> blockColor(k) }
             g.stroke = BasicStroke(maxOf(2f, (p.widthUm * s).toFloat()), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
             val m = p.xy.size / 2
             for (i in 0 until if (p.closed) m else m - 1) { val j = (i + 1) % m; g.draw(Line2D.Double(px(p.xy[2 * i]), py(p.xy[2 * i + 1]), px(p.xy[2 * j]), py(p.xy[2 * j + 1]))) }
@@ -188,21 +188,12 @@ object FirstLayerInstructions {
         }
         for (k in 0 until spec.blocks) {
             val bx = plate.blockXY(k).first
-            // the block's name above it; the column heights under its front row; the row speeds left of the first block of each row
+            // the block's name above it, in the gap behind it
             g.color = blockColor(k).darker(); g.font = Font("SansSerif", Font.BOLD, 18)
-            val top = t.heightsUm.indices.maxOf { plate.tileBox(k, t.speeds.size - 1, it)[3] }
+            val top = plate.blockXY(k).second + plate.blockD
             // one line, in the gap behind the block (a row of blocks behind starts 6 mm further back)
             g.font = Font("SansSerif", Font.BOLD, 15)
-            g.drawString("block ${k + 1}: ${spec.tempsC[k]} C, ${k + 1} dot${if (k == 0) "" else "s"}, limit ${n(spec.capsMm3s[k], 1)} mm3/s", px(ox + bx).toInt(), (py(oy + top) - 8).toInt())
-            g.font = Font("SansSerif", Font.PLAIN, 12); g.color = Color(30, 30, 30)
-            for (c in t.heightsUm.indices) {
-                val tb = plate.tileBox(k, 0, c); val lb = n(t.heightsUm[c] / 1000.0, 2)
-                g.drawString(lb, (px(ox + (tb[0] + tb[2]) / 2) - g.fontMetrics.stringWidth(lb) / 2).toInt(), (py(oy + (tb[1] + tb[3]) / 2) + 4).toInt())
-            }
-            if (k % spec.perRow == 0) for (r in t.speeds.indices) {
-                val tb = plate.tileBox(k, r, 0); val lb = "${n(t.speeds[r], 0)} mm/s"
-                g.drawString(lb, (px(ox + tb[0]) - g.fontMetrics.stringWidth(lb) - 8).toInt(), (py(oy + (tb[1] + tb[3]) / 2) + 4).toInt())
-            }
+            g.drawString("block ${k + 1}: ${spec.tempsC[k]} C, limit ${n(spec.capsMm3s[k], 1)} mm3/s", px(ox + bx).toInt(), (py(oy + top) - 8).toInt())
             if (k == 0) {
                 val pp = plate.primePath(0)
                 g.color = Color(110, 110, 115); g.font = Font("SansSerif", Font.ITALIC, 13)
@@ -210,7 +201,7 @@ object FirstLayerInstructions {
             }
         }
         g.color = Color(70, 70, 75); g.font = Font("SansSerif", Font.PLAIN, 14)
-        g.drawString("Heights (mm) printed on the front row of each block apply to its whole column; the plate is ${n((b[2] - b[0]) / 1000.0, 0)} x ${n((b[3] - b[1]) / 1000.0, 0)} mm.", 40, H - 30)
+        g.drawString("The plate is ${n((b[2] - b[0]) / 1000.0, 0)} x ${n((b[3] - b[1]) / 1000.0, 0)} mm; each block's temperature, row speeds (mm/s), and column heights (mm) are printed on it, as drawn.", 40, H - 30)
         g.dispose()
         javax.imageio.ImageIO.write(img, "png", file.toFile())
     }
