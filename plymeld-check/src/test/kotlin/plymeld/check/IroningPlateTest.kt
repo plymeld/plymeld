@@ -33,7 +33,7 @@ class IroningPlateTest : StringSpec({
     fun spec(speeds: List<Double> = listOf(15.0, 30.0, 45.0), flows: List<Double> = listOf(0.05, 0.1, 0.15), spacings: List<Long> = listOf(100, 150, 200),
              angles: List<Double> = listOf(0.0, 45.0, 90.0), insets: List<Long> = listOf(100, 200, 400)) =
         IroningSpec(0, "test", speeds.toDoubleArray(), flows.toDoubleArray(), spacings.toLongArray(), angles.toDoubleArray(), insets.toLongArray(),
-            200, 200, IroningGeometry.layers, 440, 500, 400, 1.75, 1.0, 210, 100.0,
+            200, 200, IroningGeometry.layers, 440, 500, 400, 1.75, 1.0, 210, 215, 100.0,
             adhesion = PathValues(40.0, 5000.0, 1.0, 0.8), frame = PathValues(100.0, 5000.0, 1.0, 0.8), top = PathValues(60.0, 3000.0, 1.0, 0.8),
             ironAccel = 3000.0, retractMm = 0.8, liftUm = 200, originXUm = 60_000, originYUm = 60_000)
     val sp = spec()
@@ -136,7 +136,8 @@ class IroningPlateTest : StringSpec({
     "independently of the checks: four layers at one temperature, the fan on from the second; the zones after the top, each at its speed and the ironing rule's plastic; the controls not ironed" {
         val lines = text.lines()
         lines.count { it.startsWith(";LAYER_CHANGE") || it.startsWith("; CHANGE_LAYER") } shouldBe 4
-        lines.filter { it.startsWith("M109") }.distinct() shouldBe listOf("M109 S210 T0")
+        // the first layer and the brim at 215 C (the first-layer temperature), the top and the zones at 210 C, each waited for
+        lines.filter { it.startsWith("M109") }.distinct() shouldBe listOf("M109 S215 T0", "M109 S210 T0")
         val top = lines.indexOf("; CELL: top"); val zone1 = lines.indexOf("; CELL: zone 2")
         (top in 0 until zone1) shouldBe true
         lines.none { it == "; CELL: zone 1" || it == "; CELL: zone 11" || it == "; CELL: zone 21" } shouldBe true
@@ -184,6 +185,9 @@ class IroningPlateTest : StringSpec({
         IroningCheck.check(sp, ctl("order")).any { it.contains("printed before") } shouldBe true
         IroningCheck.check(sp, ctl("topspeed")).any { it.contains("'top': 100.00 mm/s, not 60.00") } shouldBe true
         IroningCheck.check(sp, ctl("topangle")).any { it.contains("not along the slab") } shouldBe true
+        // the first layer at the top's temperature; no wait for the top's temperature before the top
+        IroningCheck.check(sp, ctl("firsttemp")).any { it.contains("'adhesion:brim': at 210 C, not 215 C") } shouldBe true
+        IroningCheck.check(sp, ctl("topwait")).any { it.contains("'top': no wait (M109) for 210 C before it") } shouldBe true
     }
 
     "the lift: the plate as generated rises off the top and off each zone; without the lifts (the writer's taken out too) a travel across a finished zone is caught" {

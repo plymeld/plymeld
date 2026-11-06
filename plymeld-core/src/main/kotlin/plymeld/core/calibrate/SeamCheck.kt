@@ -20,7 +20,8 @@ package plymeld.core.calibrate
  *  - the pieces in order on every layer, each inner wall before its outer, every layer after the one below;
  *  - the slab's size from its outer ring, the chamfer at its front-left corner, above the first layer a tick in the front and
  *    the back edge between each pair of pieces (short or long by the ruler's rule), none on the first layer;
- *  - the one temperature waited for before every line, the part fan off on the first layer and the filament's above;
+ *  - the slab's first layer at the first-layer temperature and the pieces at theirs, each waited for before its first
+ *    line (the slab's layers between heating), the part fan off on the first layer and the filament's above;
  *  - above the slab, no travel at or below its layer's height crosses a piece it neither starts nor ends in.
  *
  * Returns the problems (empty = the plate prints as specified).
@@ -52,8 +53,11 @@ object SeamCheck {
             val slabLayer = (0 until SeamGeometry.slabLayers).firstOrNull { spec.slabLabel(it) == m.cell }
             val piece = spec.pieceOf(m.cell)
             if (slabLayer == null && piece == null) continue
-            if (m.tempC != spec.tempC) first(m.cell, "temp", "'${m.cell}': at ${m.tempC} C, not ${spec.tempC} C")
-            else if (!m.waited) first(m.cell, "wait", "'${m.cell}': no wait (M109) for ${spec.tempC} C before it")
+            // the slab's first layer at the first-layer temperature, waited for; its layers above heating to the pieces'; the
+            // pieces at it, waited for
+            val wantC = if (slabLayer == 0) spec.firstTempC else spec.tempC
+            if (m.tempC != wantC) first(m.cell, "temp", "'${m.cell}': at ${m.tempC} C, not $wantC C")
+            else if (!m.waited && (slabLayer == null || slabLayer == 0)) first(m.cell, "wait", "'${m.cell}': no wait (M109) for $wantC C before it")
             val wantFan = if (slabLayer == 0) 0.0 else spec.fanPct
             if (Math.abs(m.fanPct - wantFan) > 0.5) first(m.cell, "fan", "'${m.cell}': fan ${fmt(m.fanPct)} %, not ${fmt(wantFan)} %")
             val (pv, lw, hz) = when {

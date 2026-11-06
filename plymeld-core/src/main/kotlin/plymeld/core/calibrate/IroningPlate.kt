@@ -49,7 +49,9 @@ import plymeld.program.Step
  * **Printed exactly as specified**: the first layer at the first layer's values and width, the layers between at the
  * frame's (the machine's print speed held to the filament's maximum flow), the top fill at a visible surface's speed and
  * acceleration (the condition recorded with the readings), each zone's pass at its own speed, flow, spacing, angle and inset,
- * no slow-down and no melt cap. An ironing line's filament per mm is the slicer's own ironing rule (Planner: flow x spacing
+ * no slow-down and no melt cap; the first layer and the brim at the filament's first-layer temperature, the layers above
+ * heating to its print temperature, waited for with the head parked in front of the plate before the top, which is laid
+ * and ironed at it; the part fan off on the first layer and the filament's own from the second. An ironing line's filament per mm is the slicer's own ironing rule (Planner: flow x spacing
  * x layer height over the filament's section, times the flow ratio); the writer lays an exact path by the bead model times
  * the path's flow ratio, so each zone's [Exact.flowRatio] is set to give exactly that ([IroningSpec.exactFlowRatio]).
  * Lengths in µm, speeds mm/s, accelerations mm/s².
@@ -120,8 +122,11 @@ class IroningSpec(
     val filamentDiameterMm: Double,
     /** The flow ratio every line prints at (the ironing lines' plastic is scaled by it too, as the slicer's). */
     val flowRatio: Double,
-    /** The plate's one nozzle temperature (the filament's print temperature) and its part fan from the second layer (the first layer's is off). */
-    val tempC: Int, val fanPct: Double,
+    /**
+     * The nozzle temperature of the top and its ironing (the filament's print temperature), the first layer's and the brim's
+     * (its first-layer temperature), and the part fan from the second layer (the first layer's is off).
+     */
+    val tempC: Int, val firstTempC: Int, val fanPct: Double,
     /** The first layer's values; the layers between it and the top (the frame: the machine's values held to the maximum flow); the top fill's (a visible surface's). */
     val adhesion: PathValues, val frame: PathValues, val top: PathValues,
     /** The ironing passes' acceleration (a visible line's) and the retraction before each pass (mm). */
@@ -290,7 +295,8 @@ class IroningSpec(
  * travel on), "order" (the zones in reverse order), "inset" (zone 2's pass 0.3 mm further in from the slab's edge than its
  * inset), "angle" (zone 2's lines at its angle plus 30 degrees), "spacing" (zone 2's lines at 1.5 x its spacing, the same
  * plastic per mm), "topspeed" (the top fill at the frame's speed, not a visible surface's), "topangle" (the top fill at 45
- * degrees, like the layer under it, not along the slab).
+ * degrees, like the layer under it, not along the slab), "firsttemp" (the first layer at the top's temperature), "topwait"
+ * (no wait for the top's temperature before it).
  */
 class IroningPlate(private val spec: IroningSpec, private val without: Set<String> = emptySet()) {
     private val g = IroningGeometry
@@ -443,6 +449,9 @@ class IroningPlate(private val spec: IroningSpec, private val without: Set<Strin
         return Ordering.sweep(chains.map { ToolPath(Feature.IRONING, it, false, spec.nozzleUm, spec.layerUm) }, b[0], b[1]).map { it.xy }
     }
 
+    /** Where the head waits for the top's temperature: [PlateGeometry.parkFront] in front of the plate, brim included, at its middle (bed, µm). */
+    fun parkUm(): Pair<Long, Long> = bounds().let { b -> (spec.originXUm + (b[0] + b[2]) / 2) to (spec.originYUm + b[1] - PlateGeometry.parkFront) }
+
     /** The plate's extent before it is placed (µm: x0, y0, x1, y1), the brim included. */
     fun bounds(): LongArray { val br = if ("brim" in without) 0L else g.brim; return longArrayOf(-br, -br, spec.pieceW + br, spec.pieceD + br) }
 
@@ -450,14 +459,26 @@ class IroningPlate(private val spec: IroningSpec, private val without: Set<Strin
         val steps = ArrayList<Step>()
         val ox = spec.originXUm; val oy = spec.originYUm
         spec.levelGcode?.let { steps += plymeld.program.Custom("bed levelling (hardware.machine.<key>.gcode.level)", it) }
-        // the one temperature (the start template heats to it: this wait is a guard); the part fan off on the first layer
-        steps += SetTemp(spec.tool, spec.tempC, wait = true)
+        // the first layer at the first-layer temperature ("firsttemp": at the top's; the start template heats to it: this wait
+        // is a guard); the part fan off on the first layer
+        val firstC = if ("firsttemp" in without) spec.tempC else spec.firstTempC
+        steps += SetTemp(spec.tool, firstC, wait = true)
         steps += SetFan(0.0)
         for (layer in 0 until spec.layers) {
             val z = spec.zTop(layer); val hz = spec.heightOf(layer)
+            val first = layer == 0; val top = layer == spec.layers - 1
+            // heating to the top's temperature from the second layer; the top, the surface ironed, laid at it: where the first
+            // layer was at another, lift, park in front of the plate and wait for it ("topwait": no wait)
+            if (!first && firstC != spec.tempC) {
+                if (top && "topwait" !in without) {
+                    steps += LiftTo(spec.zTop(layer - 1) + spec.liftUm)
+                    val (px, py) = parkUm()
+                    steps += plymeld.program.Park(px, py, 0.0)
+                    steps += SetTemp(spec.tool, spec.tempC, wait = true)
+                } else if (layer == 1) steps += SetTemp(spec.tool, spec.tempC, wait = false)
+            }
             steps += LayerStart(layer, z, hz)
             if (layer == 1) steps += SetFan(spec.fanPct)
-            val first = layer == 0; val top = layer == spec.layers - 1
             val pv = if (first) spec.adhesion else if (top && "topspeed" !in without) spec.top else spec.frame
             val lw = if (first) spec.firstWidthUm else spec.widthUm
             val ex = Exact(spec.slabLabel(layer), doubleArrayOf(pv.speed), pv.accel, pv.flowRatio, pv.retractMm)
