@@ -1843,7 +1843,9 @@ class FlowPlateCommand : PlateCommand("flow", "flow") {
     override fun help(context: com.github.ajalt.clikt.core.Context) = "The flow plate, after the melt plate: the filament's flow ratio at each temperature: a column per " +
         "temperature (--temps, --step), a square patch per flow ratio (--flow-ratios), each patch solid at its own ratio with its lines exactly the bead " +
         "spacing apart, its top laid at its column's temperature; each patch's ratio printed beside its row and each column's temperature in front of it. " +
-        "Read each column from both ends: the leanest patch without gaps and the richest without ridges; the ratio lies between them."
+        "Read each column for its best patch (closed, no gaps, no ridges); `flow values` writes the readings into the filament's config."
+    init { subcommands(FlowValuesCommand()) }
+    override val invokeWithoutSubcommand = true
     override val temps: String? by option("--temps", metavar = "LOW-HIGH", help = "the temperature range, whole degrees C, e.g. 190-230: a column each, from LOW up by --step; default: the filament's (temperature.min to temperature.max, the spool's label)")
     override val step: String? by option("--step", metavar = "C", help = "whole degrees between columns; default: 10")
     override val flowRatios: String? by option("--flow-ratios", metavar = "R,R,...", help = "the patches' flow ratios, low to high (e.g. 0.94,0.97,1,1.03), a patch each in every column; default: the filament's flow ratio x 0.94 to 1.06 in 0.02 steps")

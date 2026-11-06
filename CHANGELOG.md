@@ -18,6 +18,8 @@ section the release's version and date.
   the filament, as its maximum flow on the machine: a formula through every reading, straight between neighboring
   temperatures and flat past the ends, with the readings in the comment above it. The change is printed and checked
   first, `--dry-run` writes nothing, and `plymeld journal --undo` takes it back.
+- `plymeld calibrate flow values TEMP=RATIO...`: a read flow plate's results, the best patch in each column, written as
+  the filament's flow ratio in the same way: one value when the columns agree, else a formula through every reading.
 
 ### Changed
 
