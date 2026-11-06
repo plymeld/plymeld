@@ -39,7 +39,7 @@ import java.util.Locale
  * against its specification, with deliberately altered copies as controls that must fail; a plate that fails is not written.
  */
 abstract class PlateCommand(name: String, protected val kind: String) : ConfigCommand(name) {
-    private val outputOpt by option("-o", "--output", help = "g-code file to write (required for a plate)").path()
+    private val outputOpt by option("-o", "--output", metavar = "FILE", help = "g-code file to write (required for a plate)").path()
     private val output: java.nio.file.Path get() = outputOpt ?: throw UsageError("-o is required: the g-code file to write")
     private val filament by option("--filament", metavar = "NAME",
         help = "the filament to calibrate: any the config or plymeld's bundled set defines (e.g. pla-generic), loaded or not; a new one with --like; default: the one the machine's loadout puts on --tool")
@@ -1871,7 +1871,7 @@ class MotionPlateCommand : PlateCommand("motion", "motion") {
 
 /** `plymeld calibrate filament`. */
 class FilamentPlateCommand : PlateCommand("filament", "filament") {
-    override fun help(context: com.github.ajalt.clikt.core.Context) = "The filament plate, once its melt rate is measured: the filament's other families of tests (--tests: overhangs, bridges, stringing, line widths, fit) with the temperature varied by band of height, each family on a base of its own, packed to fit the bed, with each family's predicted time and filament."
+    override fun help(context: com.github.ajalt.clikt.core.Context) = "The filament plate, once its melt rate and flow ratio are measured: the filament's other families of tests (--tests: overhangs, bridges, stringing, line widths, fit) with the temperature varied by band of height, each family on a base of its own, packed to fit the bed, with each family's predicted time and filament."
     override val temps: String? by option("--temps", metavar = "LOW-HIGH", help = "the temperature range, whole degrees C, e.g. 195-225: a band each, hottest at the bottom; default: the filament's (temperature.min to temperature.max, the spool's label)")
     override val step: String? by option("--step", metavar = "C", help = "whole degrees between bands; default: 5")
     override val fans: String? by option("--fans", metavar = "LOW,HIGH", help = "filament plate: the two part-fan levels (%) the bands alternate between; default: half the filament's fan, and 1.5x it (at most 100)")
