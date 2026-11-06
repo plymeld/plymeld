@@ -102,7 +102,10 @@ object PlateRender {
         val viridis = listOf(Color(68, 1, 84), Color(59, 82, 139), Color(33, 145, 140), Color(94, 201, 98), Color(253, 231, 37))
         val coolwarm = listOf(Color(59, 76, 192), Color(141, 176, 254), Color(221, 221, 221), Color(244, 154, 123), Color(180, 4, 38))
 
-        val W = 1900; val H = 1150
+        // a first-layer plate's panel D lists up to six lines per block, with panel E's close-up (at least 40 px/mm over
+        // its 7 mm) below them: the picture grows to hold them for a plate of many blocks
+        val firstLayerBlocks = moves.mapNotNull { Regex("^block (\\d+) ").find(it.cell)?.groupValues?.get(1) }.distinct().size
+        val W = 1900; val H = maxOf(1150, 110 + 10 + 21 * (1 + 6 * firstLayerBlocks) + 50 + 7 * 40 + 70)
         val img = BufferedImage(W, H, BufferedImage.TYPE_INT_RGB)
         val g = img.createGraphics()
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
