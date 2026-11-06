@@ -19,7 +19,10 @@ package plymeld.core.calibrate
  *  - the slab's size from its outer ring, and the chamfer at the front arm's front-left corner;
  *  - on every slab layer the arm marks, found as gaps in the layer's lines along each arm's end face: n notches at arm n (1 the
  *    front, counter-clockwise), each a mark's width, past the face's first third, none reaching within a line of the face;
- *  - the one temperature waited for before every line, the part fan off on the first layer and the filament's above;
+ *  - every face's speed label on the tower's first [MotionGeometry.labelLayers] layers at the frame's values, filling the box
+ *    its speed's text takes in front of the face;
+ *  - the slab's first layer at the first-layer temperature, waited for; its layers above at the tower's temperature; the tower
+ *    at it, waited for before its first line; the part fan off on the first layer and the filament's above;
  *  - on the tower's layers no travel longer than [SHORT] at or below the layer's height crosses the cross's outline.
  *
  * Returns the problems (empty = the plate prints as specified).
@@ -45,6 +48,7 @@ object MotionCheck {
         val want = LinkedHashSet<String>()
         for (l in 0 until g.slabLayers) want += spec.slabLabel(l)
         for (b in 0 until spec.bands) { want += spec.innerLabel(b); want += spec.outerLabel(b) }
+        for (k in 1..g.faces) want += spec.speedLabel(k)
         val byCell = moves.groupBy { it.cell }
         for (c in want) if (c !in byCell) bad("no '$c' cell")
         for (c in byCell.keys) if (c !in want && !Part.isPrimeLine(c)) bad("${byCell.getValue(c).size} extrusion move(s) in '$c', which the specification does not have")
@@ -53,9 +57,26 @@ object MotionCheck {
         for (m in moves) {
             val slabLayer = (0 until g.slabLayers).firstOrNull { spec.slabLabel(it) == m.cell }
             val band = spec.bandOfLabel(m.cell)
+            // a speed label: on the tower's first layers, at the frame's values and the tower's temperature
+            if (spec.faceOfLabel(m.cell) != null) {
+                val i = m.layer - g.slabLayers
+                if (i < 0 || i >= g.labelLayers) { once("${m.cell}/layer", "'${m.cell}' printed on layer ${m.layer + 1}, not the tower's first ${g.labelLayers}"); continue }
+                if (m.tempC != spec.tempC) once("${m.cell}/temp", "'${m.cell}': at ${m.tempC} C, not ${spec.tempC} C")
+                if (Math.abs(m.fanPct - spec.fanPct) > 0.5) once("${m.cell}/fan", "'${m.cell}': fan ${fmt(m.fanPct)} %, not ${fmt(spec.fanPct)} %")
+                if (m.widthMm.isNaN() || Math.abs(m.widthMm - spec.widthUm / 1000.0) > 5e-4) once("${m.cell}/w", "'${m.cell}': declared ${fmt(m.widthMm, 3)} mm wide, not ${fmt(spec.widthUm / 1000.0, 3)}")
+                if (Math.abs(m.accel - spec.frame.accel) > 0.5) once("${m.cell}/a", "'${m.cell}': acceleration ${fmt(m.accel)}, not ${fmt(spec.frame.accel)}")
+                if (Math.abs(m.fMmMin / 60 - spec.frame.speed) > 1.0 / 60 + 1e-9) once("${m.cell}/v", "'${m.cell}': ${fmt(m.fMmMin / 60, 2)} mm/s, not ${fmt(spec.frame.speed, 2)}")
+                val wantE = spec.beadMm2(spec.widthUm, spec.layerUm) / fa * spec.frame.flowRatio
+                if (Math.abs(m.e / m.len - wantE) > wantE * 0.01 + 2e-5 / m.len) once("${m.cell}/e", "'${m.cell}': ${fmt(m.e / m.len, 5)} mm of filament per mm, not ${fmt(wantE, 5)}")
+                val top = spec.slabTop + (i + 1) * spec.layerUm
+                if (m.z1Um != top || m.z0Um != m.z1Um) once("${m.cell}/z", "'${m.cell}': a line at z ${m.z1Um / 1000.0} on the layer whose top is ${top / 1000.0}")
+                continue
+            }
             if (slabLayer == null && band == null) continue
-            if (m.tempC != spec.tempC) once("${m.cell}/temp", "'${m.cell}': at ${m.tempC} C, not ${spec.tempC} C")
-            else if (!m.waited) once("${m.cell}/wait", "'${m.cell}': no wait (M109) for ${spec.tempC} C before it")
+            // the slab's first layer at the first-layer temperature, waited for; its layers above heating to the tower's; the tower at it, waited for
+            val wantC = if (slabLayer == 0) spec.firstTempC else spec.tempC
+            if (m.tempC != wantC) once("${m.cell}/temp", "'${m.cell}': at ${m.tempC} C, not $wantC C")
+            else if (!m.waited && (slabLayer == null || slabLayer == 0)) once("${m.cell}/wait", "'${m.cell}': no wait (M109) for $wantC C before it")
             val wantFan = if (slabLayer == 0) 0.0 else spec.fanPct
             if (Math.abs(m.fanPct - wantFan) > 0.5) once("${m.cell}/fan", "'${m.cell}': fan ${fmt(m.fanPct)} %, not ${fmt(wantFan)} %")
             val lw = when { slabLayer != null -> if (slabLayer == 0) spec.firstWidthUm else spec.widthUm; band!!.second -> spec.innerWidthUm; else -> spec.widthUm }
@@ -78,6 +99,7 @@ object MotionCheck {
         }
         val origin = slab(spec, moves, ::bad) ?: return out
         marks(spec, moves, origin, ::bad)
+        labels(spec, moves, origin, ::bad)
         tower(spec, moves, origin, ::bad, ::once)
         out += travels(gcode, spec, origin)
         return out
@@ -106,6 +128,42 @@ object MotionCheck {
             if (corner == null || Math.abs(corner - wantCorner) > 0.05) bad("layer $l: the front arm's front-left corner is cut ${corner?.let { fmt(it - lw / 2 * Math.sqrt(2.0), 2) } ?: "?"} mm (by x + y from the corner), not the ${fmt(g.chamfer / 1000.0, 1)} mm chamfer")
         }
         return doubleArrayOf(ox, oy)
+    }
+
+    /**
+     * The speed labels: face k's lines (its cell, on both of its layers) inside the box its speed's text takes ([PlateMarks]'s
+     * glyph sizes, the speed from the specification by [MotionGeometry.FACE_SPEED]), worked out from the face's own ends: outside
+     * the cross [MotionGeometry.labelGap] from the face, centered along it; and filling that box to within a line and a half on
+     * every side, so a label showing another speed (another width) or none is caught.
+     */
+    private fun labels(spec: MotionSpec, moves: List<Move>, o: DoubleArray, bad: (String) -> Unit) {
+        val g = MotionGeometry
+        val lw = spec.widthUm / 1000.0; val gap = g.labelGap / 1000.0
+        for (k in 1..g.faces) {
+            val mine = moves.filter { it.cell == spec.speedLabel(k) }
+            if (mine.isEmpty()) continue                     // a missing cell is reported with the cells
+            val t = PlateMarks.whole(spec.speeds[g.FACE_SPEED[k - 1]])
+            val w = PlateMarks.labelWidth(t) / 1000.0; val h = PlateMarks.labelHeight(t) / 1000.0
+            val f = faceEnds(k, 0.0, o)
+            val alongX = Math.abs(f[3] - f[1]) < 1e-9
+            val box = if (alongX) {
+                val cx = (f[0] + f[2]) / 2
+                // outward of a counter-clockwise face: to its right, so in front of a face running toward +x
+                val y0 = if (f[2] > f[0]) f[1] - gap - h else f[1] + gap
+                doubleArrayOf(cx - w / 2, y0, cx + w / 2, y0 + h)
+            } else {
+                // the label reads from outside the face: its width along the face, its height outward
+                val cy = (f[1] + f[3]) / 2
+                val x0 = if (f[3] > f[1]) f[0] + gap else f[0] - gap - h
+                doubleArrayOf(x0, cy - w / 2, x0 + h, cy + w / 2)
+            }
+            val got = doubleArrayOf(mine.minOf { minOf(it.x0, it.x1) } - lw / 2, mine.minOf { minOf(it.y0, it.y1) } - lw / 2,
+                mine.maxOf { maxOf(it.x0, it.x1) } + lw / 2, mine.maxOf { maxOf(it.y0, it.y1) } + lw / 2)
+            val outside = got[0] < box[0] - 0.05 || got[1] < box[1] - 0.05 || got[2] > box[2] + 0.05 || got[3] > box[3] + 0.05
+            val short = got[0] > box[0] + 1.5 * lw || got[1] > box[1] + 1.5 * lw || got[2] < box[2] - 1.5 * lw || got[3] < box[3] - 1.5 * lw
+            if (outside || short) bad("face $k's speed label: its lines span (${fmt(got[0], 2)}, ${fmt(got[1], 2)})-(${fmt(got[2], 2)}, ${fmt(got[3], 2)}), " +
+                "not the box '$t' takes ${fmt(gap, 1)} mm in front of the face, (${fmt(box[0], 2)}, ${fmt(box[1], 2)})-(${fmt(box[2], 2)}, ${fmt(box[3], 2)})")
+        }
     }
 
     /**
@@ -242,16 +300,20 @@ object MotionCheck {
         }.takeIf { it >= 0 }?.let { it + 1 }
         var layer = -1
         var x = Double.NaN; var y = Double.NaN; var z = Double.NaN
+        // whether a wall of the layer is laid: before that, a travel at the layer's height passes a layer above the walls below
+        var inWall = false; var wallLaid = false
         for (raw in gcode.lineSequence()) {
             val l = raw.trim()
-            if (l.startsWith(";LAYER_CHANGE") || l.startsWith("; CHANGE_LAYER")) { layer++; continue }
+            if (l.startsWith(";LAYER_CHANGE") || l.startsWith("; CHANGE_LAYER")) { layer++; wallLaid = false; continue }
+            if (l.startsWith("; CELL: ")) { inWall = spec.bandOfLabel(l.removePrefix("; CELL: ").trim()) != null; continue }
+            if (l == "; CELL END") { if (inWall) wallLaid = true; inWall = false; continue }
             val c = l.substringBefore(';').trim()
             if (!c.startsWith("G1 ") && !c.startsWith("G0 ")) continue
             val ws = c.split(Regex("\\s+"))
             fun num(ch: Char) = ws.drop(1).firstOrNull { it.isNotEmpty() && it[0] == ch }?.substring(1)?.toDoubleOrNull()
             val nx = num('X') ?: x; val ny = num('Y') ?: y; val nz = num('Z') ?: z; val e = num('E') ?: 0.0
             val i = layer - g.slabLayers
-            if (!x.isNaN() && (nx != x || ny != y) && e <= 0 && i >= 0 && i < spec.towerLayers && out.size < 20 && Math.hypot(nx - x, ny - y) > SHORT) {
+            if (wallLaid && !x.isNaN() && (nx != x || ny != y) && e <= 0 && i >= 0 && i < spec.towerLayers && out.size < 20 && Math.hypot(nx - x, ny - y) > SHORT) {
                 val top = (spec.slabTop + (i + 1) * spec.layerUm) / 1000.0
                 if (minOf(z, nz) <= top + 1e-6) crosses(x, y, nx, ny)?.let { f ->
                     out += "a travel at z ${fmt(minOf(z, nz), 3)}, the layer's height (${fmt(top, 3)}), crosses face $f (from ${fmt(x, 2)}, ${fmt(y, 2)} to ${fmt(nx, 2)}, ${fmt(ny, 2)}): no lift"

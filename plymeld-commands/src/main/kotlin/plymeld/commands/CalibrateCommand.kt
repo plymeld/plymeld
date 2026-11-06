@@ -32,7 +32,7 @@ import java.util.Locale
  * [--temps LOW-HIGH] [--step S] -o plate.gcode`: a calibration plate for one filament, which
  * need not be loaded or even in the config, printed exactly as specified. One plate per step of the dependency order
  * (temperature, then melt rate, then the rest), and the kind is the subcommand, never picked automatically: the melt plate (the terraced melt test alone, run first), the motion plate (one
- * cross-shaped tower, a speed per face and an acceleration per band, at one temperature;), the filament plate
+ * cross-shaped tower, a speed per face and an acceleration per band, the tower at one temperature;), the filament plate
  * (the other tests, the temperature by band), the first-layer plate (the temperature varied within its one layer), the ironing
  * and the seam plates. The g-code is read back and checked against the plate's specification, with
  * deliberately altered copies as controls that must fail; a plate that fails is not written.
@@ -775,7 +775,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
      * filament on one tool. The filament need not be loaded, nor even in the config: any the config or
      * plymeld's bundled set defines, or a new one started from another (--like).
      */
-    private fun plateConfig(toolN: Int, firstBandC: Int?): Pair<Config, Int> {
+    private fun plateConfig(toolN: Int, firstBandC: Int?, firstLayerToo: Boolean = true): Pair<Config, Int> {
         fun problems(e: ConfigError) = UsageError("the config has ${e.problems.size} problem(s):\n" + e.problems.joinToString("\n") { "  $it" })
         val files = ConfigFiles.bundled() + try { ConfigFiles.readFiles(files()) } catch (e: ConfigError) { throw problems(e) }
         val values = configValues.map { ConfigFiles.value(it) }
@@ -812,9 +812,10 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         }
         // the machines' own loadouts (plate, tools, slots) are left out: the plate loads only this filament
         fun ownLoadout(e: ConfigFiles.Entry) = e.path.size >= 4 && e.path[0] == "hardware" && e.path[1] == "machine" && e.path[3] == "loadout"
-        // the start template heats to the filament's temperatures: the plate's first band's (last, so nothing overrides them)
+        // the start template heats to the filament's temperatures: the plate's first band's (last, so nothing overrides them);
+        // with ![firstLayerToo] only its print temperature, its first layer's then worked out from it as the filament says
         val bandTemps = if (firstBandC == null) emptyList() else
-            listOf("print", "first_layer").map { ConfigFiles.value("hardware.filament.${key(name)}.temperature.$it=\"$firstBandC C\"", "$src (the first band)") }
+            (if (firstLayerToo) listOf("print", "first_layer") else listOf("print")).map { ConfigFiles.value("hardware.filament.${key(name)}.temperature.$it=\"$firstBandC C\"", "$src (the first band)") }
         val stack = ConfigStack(files.filterNot(::ownLoadout) + injected + values.filterNot(::ownLoadout) + bandTemps)
         val model = ModelObject("calibration", listOf("plate"), listOf(index(tk)), src)
         plateName = plateKey
@@ -1354,7 +1355,8 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         val printC: Int = printTemp?.let { whole(it.trim().removeSuffix("C").trim().toDoubleOrNull() ?: throw UsageError("--print-temp is whole degrees C (got '$it')"), "--print-temp") }
             ?: (plainMt?.get("hardware.filament.temperature.print")?.value as Number?)?.toDouble()?.let { whole(it, "the filament's temperature.print") }
             ?: throw UsageError("the motion plate prints at the filament's own temperature (temperature.print), which '${plain.spool(plain.objects[0].spool).material}' has none of: give --print-temp")
-        val (config, slotN) = plateConfig(toolN, printC)
+        // the slab's first layer at the filament's first-layer temperature, worked out from the plate's print temperature
+        val (config, slotN) = plateConfig(toolN, printC, firstLayerToo = false)
         val result = try { ConfigSetup.setup(config) } catch (e: ConfigError) { throw UsageError("the config has ${e.problems.size} problem(s):\n" + e.problems.joinToString("\n") { "  $it" }) }
         val setup = result.setup
         val s = SliceSettings.of(setup, plymeld.model.Context(0))
@@ -1393,7 +1395,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         val level = s.levelGcode?.takeIf { !noLevel }
         fun spec(ox: Long, oy: Long) = try {
             plymeld.core.calibrate.MotionSpec(spool.tool, spool.id, speeds.toDoubleArray(), accels.toDoubleArray(), h, s.firstLayerHeightUm, w, wi, s.firstLayerWidthUm,
-                s.filamentDiameterMm, s.flowRatio, printC, s.fanMinPct,
+                s.filamentDiameterMm, s.flowRatio, printC, s.nozzleTempFirstC, s.fanMinPct,
                 adhesion = PathValues(firstSpeed, s.defaultAccel, s.flowRatio, s.retractMm), frame = PathValues(Math.min(s.hiddenSpeed, outerCap), s.defaultAccel, s.flowRatio, s.retractMm),
                 innerCap = innerCap, retractMm = s.retractMm, liftUm = s.zHopUm, minLayerTimeS = s.slowDownLayerTimeS, travelSpeed = s.travelSpeed,
                 originXUm = ox, originYUm = oy, levelGcode = level)
@@ -1435,6 +1437,11 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             "the front and back arms' marks swapped" to without("markswap"),
             "the arm marks cut through to the faces" to without("markdeep"),
             "the arm marks in the faces' first third" to without("markearly"),
+            "face 1's speed label left out" to without("speedlabel"),
+            "face 1's speed label showing the fastest speed" to without("labeltext"),
+            "the speed labels laid after the walls (their travels across the walls unlifted)" to without("labelsafter"),
+            if (spec.firstTempC != spec.tempC) "the slab's first layer at the tower's temperature" to without("firsttemp") else null,
+            if (spec.firstTempC != spec.tempC) "no wait for the tower's temperature before its first line" to without("towerwait") else null,
             "a wall at 1.5x its first face's speed" to alterTileSpeed(text, spec.outerLabel(0)),
             "a wall with twice its plastic" to alterZoneFlow(text, spec.outerLabel(1)),
             "the part fan ${if (spec.fanPct > 0) "off from the second layer" else "on at the middle layer"}" to (if (spec.fanPct > 0) alterFan(text, toOff = true) else fanOnMidway(text)),
@@ -1456,7 +1463,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         val g = plymeld.core.calibrate.MotionGeometry
         echo("motion plate for machine '$machineName' ($machineDesc), filament '${spool.material}' on tool $slotN, build plate '$plateName' (bed ${s.bedTempFirstC} C, constant): " +
             "one cross-shaped tower ${n(3 * g.arm / 1000.0)} x ${n(3 * g.arm / 1000.0)} mm on a ${n(plateSize)} mm slab, ${spec.bands} bands of ${n(spec.bandLayers * h / 1000.0)} mm (${spec.layers} layers), " +
-            "outer wall ${n(w / 1000.0)} mm, inner ${n(wi / 1000.0)} mm, at $printC C, part fan ${n(spec.fanPct)} % from the second layer")
+            "outer wall ${n(w / 1000.0)} mm, inner ${n(wi / 1000.0)} mm, ${if (spec.firstTempC != printC) "the tower at $printC C (the slab's first layer at ${spec.firstTempC} C)" else "at $printC C"}, part fan ${n(spec.fanPct)} % from the second layer")
         echo("speeds (mm/s, each on one face along X and one along Y): ${speeds.joinToString(", ") { n(it) }}; the fastest $topSpeedWhy")
         echo("accelerations (mm/s2, band 1 at the bottom): ${accels.joinToString(", ") { n(it) }}; the top $topAccelWhy")
         val (cfx, cfy) = spec.facesAt(g.speeds - 1)
@@ -1470,7 +1477,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             ?: Resolver.resolveOrNull(setup, "hardware.machine.pressure_advance", plymeld.model.Context(0))?.let { "the machine's, ${it.from}" }
         echo(pa[spool.tool]?.let { v -> "pressure advance: $v s ($paFrom)" }
             ?: "pressure advance: not set, so the printer's own value applies, unknown to plymeld (set the machine's, the tool's, or the filament's pressure_advance to state it)")
-        echo("check: the layers and cells; every slab and wall line's height, speed, acceleration, width, and filament per mm; on every tower layer each wall's lines on the cross's twelve faces at their speeds, counter-clockwise, every face its full length, the grooves set in; the seams on face 12; the inner wall first; the slab's size and chamfer; the arm marks (n notches in the slab's edge at arm n, clear of the faces); the temperature waited for and the fan; no travel across a wall at its layer's height; and the g-code as the config says. Controls caught: ${controls.joinToString { it.first }}")
+        echo("check: the layers and cells; every slab and wall line's height, speed, acceleration, width, and filament per mm; on every tower layer each wall's lines on the cross's twelve faces at their speeds, counter-clockwise, every face its full length, the grooves set in; the seams on face 12; the inner wall first; the slab's size and chamfer; the arm marks (n notches in the slab's edge at arm n, clear of the faces); each face's speed label in front of it; the slab's first layer at its temperature, the tower's waited for before it, and the fan; no travel across a wall at its layer's height; and the g-code as the config says. Controls caught: ${controls.joinToString { it.first }}")
         val page = output.resolveSibling(output.fileName.toString().substringBeforeLast('.') + ".md")
         val paText = pa[spool.tool]?.let { v -> "$v s (${paFrom?.substringBefore(',')})" } ?: "not set: the printer's own, unknown to plymeld (write down what it was if you know)"
         plymeld.core.calibrate.MotionInstructions.write(page, spec, plate, plymeld.core.calibrate.PlateInstructions.Info(
@@ -1495,7 +1502,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             add("; plate = motion (one hollow cross-shaped tower: twelve faces at six speeds, one face along X and one along Y each; a band per acceleration; graded for ringing per band, speed, and direction)")
             add("; filament = $filament, tool $tool, build plate $plateName")
             add("; machine = $machineName ($machineDesc)")
-            add("; temperature = ${spec.tempC} C throughout, part fan ${n(spec.fanPct)} % from the second layer (off on the first)")
+            add("; temperature = ${spec.firstTempC} C on the slab's first layer (the filament's temperature.first_layer), ${spec.tempC} C above (the tower's), waited for before the tower; part fan ${n(spec.fanPct)} % from the second layer (off on the first)")
             add("; slab = ${n(spec.slabSize / 1000.0)} x ${n(spec.slabSize / 1000.0)} mm cross, ${g.slabLayers} layers (the first ${n(spec.firstLayerUm / 1000.0)} mm, then ${n(spec.layerUm / 1000.0)} mm), the first layer ${n(spec.firstWidthUm / 1000.0)} mm lines at ${n(spec.adhesion.speed)} mm/s, the layers above ${n(spec.widthUm / 1000.0)} mm at ${n(spec.frame.speed)} mm/s and ${n(spec.frame.accel)} mm/s2; the front arm's front-left corner chamfered ${n(g.chamfer / 1000.0)} mm; flow_ratio = ${n(spec.flowRatio)}")
             add("; tower = a cross of five ${n(g.arm / 1000.0)} mm squares, ${spec.bands} bands of ${spec.bandLayers} layers of ${n(spec.layerUm / 1000.0)} mm, a groove ${n(spec.grooveUm / 1000.0)} mm deep for ${g.grooveLayers} layers at the start of each band above the first")
             add("; walls = outer ${n(spec.widthUm / 1000.0)} mm, inner ${n(spec.innerWidthUm / 1000.0)} mm (held to ${n(spec.innerCap)} mm/s), both at their face's speed and their band's acceleration, inner first, the seams on face 12 at ${n(g.seamAt * 100)} % of its length")
@@ -1853,12 +1860,12 @@ class FlowPlateCommand : PlateCommand("flow", "flow") {
 
 /** `plymeld calibrate motion`, with `readings` and `values` (MotionReadings.kt). */
 class MotionPlateCommand : PlateCommand("motion", "motion") {
-    override fun help(context: com.github.ajalt.clikt.core.Context) = "The motion plate, once per printer: one hollow cross-shaped tower whose twelve faces print at six speeds (--motion-speeds; one face along X and one along Y for each) and whose bands print at one acceleration each (--motion-accels), the fastest face of the top band at the machine's limits (the control); at one temperature (the filament's temperature.print, or --print-temp). Graded per band, speed, and direction for ringing; `motion readings` writes the sheet to grade, `motion values` turns the graded sheet into the machine's visible speed and acceleration (hardware.machine.<key>.motion.visible.speed, .visible.acceleration)."
+    override fun help(context: com.github.ajalt.clikt.core.Context) = "The motion plate, once per printer: one hollow cross-shaped tower whose twelve faces print at six speeds (--motion-speeds; one face along X and one along Y for each) and whose bands print at one acceleration each (--motion-accels), the fastest face of the top band at the machine's limits (the control), each face's speed printed on the slab in front of it; the tower at one temperature (the filament's temperature.print, or --print-temp), the slab's first layer at the filament's first-layer temperature. Graded per band, speed, and direction for ringing; `motion readings` writes the sheet to grade, `motion values` turns the graded sheet into the machine's visible speed and acceleration (hardware.machine.<key>.motion.visible.speed, .visible.acceleration)."
     init { subcommands(MotionReadingsCommand(), MotionValuesCommand()) }
     override val invokeWithoutSubcommand = true
     override val motionSpeeds: String? by option("--motion-speeds", metavar = "S,S,S,S,S,S", help = "motion plate: the six speeds (mm/s), slow to fast, each on one face along X and one along Y; default: the machine's print speed held to the filament's maximum flow on the outer wall (the control), and a sixth of it, two sixths ... rounded down to 5 mm/s (plymeld's choice)")
     override val motionAccels: String? by option("--motion-accels", metavar = "A,A,...", help = "motion plate: one acceleration (mm/s2) per band, bottom to top, rising; default: $MOTION_BANDS bands, the machine's print acceleration at the top (the control) and each band below half the one above (plymeld's choice)")
-    override val printTemp: String? by option("--print-temp", metavar = "C", help = "motion plate: the one temperature it prints at; filament plate: the fit test stands on a pedestal up to the band nearest this temperature; default: the filament's temperature.print")
+    override val printTemp: String? by option("--print-temp", metavar = "C", help = "motion plate: the tower's temperature (the slab's first layer follows the filament's first-layer temperature, worked out from it); filament plate: the fit test stands on a pedestal up to the band nearest this temperature; default: the filament's temperature.print")
 }
 
 /** `plymeld calibrate filament`. */
@@ -1871,7 +1878,7 @@ class FilamentPlateCommand : PlateCommand("filament", "filament") {
         "this is the way to leave a family out. The melt test and the motion test are plates of their own (`calibrate melt`, `calibrate motion`). " +
         "The ruler post is on every filament plate (the bands' ruler); every family stands on a base of its own; the families are packed to fit the bed, and a plate that does not fit is refused with a split to make instead")
     override val overhangs: String? by option("--overhangs", metavar = "S,S,...", help = "filament plate: the overhang ledges' shares of a line, low to high (e.g. 0.3,0.5,0.7); default: the filament's overhang.share (hardware.filament.<key>.overhang.share) x 0.7, 1, 1.3, 1.6, 1.9 (below 1)")
-    override val printTemp: String? by option("--print-temp", metavar = "C", help = "motion plate: the one temperature it prints at; filament plate: the fit test stands on a pedestal up to the band nearest this temperature; default: the filament's temperature.print")
+    override val printTemp: String? by option("--print-temp", metavar = "C", help = "motion plate: the tower's temperature (the slab's first layer follows the filament's first-layer temperature, worked out from it); filament plate: the fit test stands on a pedestal up to the band nearest this temperature; default: the filament's temperature.print")
     override val peg: String? by option("--peg", metavar = "MM", help = "filament plate: the fit test's peg diameter (mm); default: 5")
     override val holes: String? by option("--holes", metavar = "MM,MM,...", help = "filament plate: the fit test's hole diameters (mm), small to large; default: the peg and 0.1 to 0.4 mm larger")
     override val widths: String? by option("--widths", metavar = "MM,MM,...", help = "filament plate: the line-width tubes' widths (mm), narrow to wide; default: the nozzle bore x 0.625 to 1.875 in steps of 0.125 (0.25 to 0.75 mm on a 0.4 mm nozzle)")

@@ -26,7 +26,7 @@ class MotionPlateTest : StringSpec({
     val s = SliceSettings.of(setup)
     val speeds = doubleArrayOf(30.0, 60.0, 90.0, 125.0, 155.0, 188.0)
     val accels = doubleArrayOf(1000.0, 2000.0, 4000.0)
-    val sp = MotionSpec(0, "test", speeds, accels, 200, 200, 440, 440, 500, 1.75, 1.0, 210, 100.0,
+    val sp = MotionSpec(0, "test", speeds, accels, 200, 200, 440, 440, 500, 1.75, 1.0, 210, 215, 100.0,
         adhesion = PathValues(40.0, 5000.0, 1.0, 0.8), frame = PathValues(150.0, 8000.0, 1.0, 0.8), innerCap = 150.0, retractMm = 0.8, liftUm = 200,
         minLayerTimeS = 6.0, travelSpeed = 200.0, originXUm = 60_000, originYUm = 60_000)
     fun gcode(p: MotionPlate) = p.gcode(s, setup.foreignTemplateVars, "test")
@@ -43,24 +43,24 @@ class MotionPlateTest : StringSpec({
         (1..12).filter { it % 2 == 0 }.map { fs[it - 1] }.sorted() shouldBe (0..5).toList()
         for (k in 1..12) (Math.abs(fs[k - 1] - fs[(k + 10) % 12]) <= 1) shouldBe true          // face k and the face before it
         sp.bandLayers shouldBe 25; sp.layers shouldBe 3 + 75
-        sp.slabSize shouldBe 98_000L                                                               // 3 x 30 + 2 x 4
+        sp.slabSize shouldBe 111_200L                                                              // 3 x 30 + 2 x 10.6 (2 + 6.6 label + 2)
         // the outer loop on a plain layer: 13 vertices, the seam first, counter-clockwise; on a groove layer set in half a line more
         val l = sp.loop(30, false)
         l.size shouldBe 26
         (plymeld.geom.Polygon(l).signedArea2() > 0) shouldBe true
-        // the front arm's front face (face 1): from (m + a + w/2, m + w/2) along X, placed: 60 + 4 + 30 + 0.22 = 94.22, 64.22
-        l[2] shouldBe 94_220L; l[3] shouldBe 64_220L
+        // the front arm's front face (face 1): from (m + a + w/2, m + w/2) along X, placed: 60 + 10.6 + 30 + 0.22 = 100.82, 70.82
+        l[2] shouldBe 100_820L; l[3] shouldBe 70_820L
         sp.isGroove(25) shouldBe true; sp.isGroove(27) shouldBe false; sp.isGroove(0) shouldBe false
-        sp.loop(25, false)[3] shouldBe 64_220L + 220
+        sp.loop(25, false)[3] shouldBe 70_820L + 220
         // the seam: face 12 runs from (m + a, m + a) down to (m + a, m) on the cross; 80 % along it at the wall's inset
         val seam = sp.loop(30, false)
-        seam[0] shouldBe 94_220L
-        seam[1] shouldBe Math.round(60_000 + 4_000 + 30_000 + 220 + (220 - (30_000 + 220)) * 0.8)
+        seam[0] shouldBe 100_820L
+        seam[1] shouldBe Math.round(60_000 + 10_600 + 30_000 + 220 + (220 - (30_000 + 220)) * 0.8)
         // what a face reaches: sqrt(a x L), L the shortest face (30 - 0.44 mm): at 1000 mm/s2 about 171.9 mm/s
         sp.reach(0) shouldBe (Math.sqrt(1000.0 * 29.56) plusOrMinus 1e-9)
         sp.facesAt(5) shouldBe (7 to 6)
-        shouldThrow<IllegalArgumentException> { MotionSpec(0, "t", doubleArrayOf(30.0, 60.0, 90.0, 120.0, 150.0), accels, 200, 200, 440, 440, 500, 1.75, 1.0, 210, 100.0, sp.adhesion, sp.frame, 150.0, 0.8, 200) }
-        shouldThrow<IllegalArgumentException> { MotionSpec(0, "t", speeds, doubleArrayOf(2000.0, 1000.0), 200, 200, 440, 440, 500, 1.75, 1.0, 210, 100.0, sp.adhesion, sp.frame, 150.0, 0.8, 200) }
+        shouldThrow<IllegalArgumentException> { MotionSpec(0, "t", doubleArrayOf(30.0, 60.0, 90.0, 120.0, 150.0), accels, 200, 200, 440, 440, 500, 1.75, 1.0, 210, 215, 100.0, sp.adhesion, sp.frame, 150.0, 0.8, 200) }
+        shouldThrow<IllegalArgumentException> { MotionSpec(0, "t", speeds, doubleArrayOf(2000.0, 1000.0), 200, 200, 440, 440, 500, 1.75, 1.0, 210, 215, 100.0, sp.adhesion, sp.frame, 150.0, 0.8, 200) }
     }
 
     "the plate as generated passes both checks" {
@@ -71,7 +71,7 @@ class MotionPlateTest : StringSpec({
     "independently of the checks: each band's walls at its acceleration, the outer wall's speeds face by face round the loop, the inner wall held to its cap" {
         val lines = text.lines()
         lines.count { it.startsWith(";LAYER_CHANGE") || it.startsWith("; CHANGE_LAYER") } shouldBe 78
-        lines.filter { it.startsWith("M109") }.distinct() shouldBe listOf("M109 S210 T0")
+        lines.filter { it.startsWith("M109") }.distinct() shouldBe listOf("M109 S215 T0", "M109 S210 T0")
         // the acceleration set before each band's cells (SET_VELOCITY_LIMIT or M204), read from the lines between the cell's marker and its first move
         for (b in 0 until 3) {
             val at = lines.indexOfFirst { it == "; CELL: band ${b + 1} outer" }
@@ -88,6 +88,17 @@ class MotionPlateTest : StringSpec({
         lines.subList(ai, ei).filter { it.startsWith("G1 F") }.maxOf { it.removePrefix("G1 F").toDouble() / 60 } shouldBe (150.0 plusOrMinus 1e-9)
         // the inner wall before the outer on the first tower layer
         (ai < at) shouldBe true
+        // the speed labels, worked here: face 1 (the front arm's front face) runs along y = 60 + 10.6 = 70.6 from x 100.6 to 130.6;
+        // its label "30" stands in front of it, 2 mm off it (y below 68.6, above 62 = 68.6 - 6.6), centered on x 115.6
+        val l1 = lines.indices.filter { lines[it] == "; CELL: speed label 1" }
+        l1.isNotEmpty() shouldBe true
+        val pts = l1.flatMap { s -> (s until lines.size).takeWhile { lines[it] != "; CELL END" }.mapNotNull { Regex("G1 X([-0-9.]+) Y([-0-9.]+) E.*").matchEntire(lines[it]) } }
+            .map { it.groupValues[1].toDouble() to it.groupValues[2].toDouble() }
+        pts.isNotEmpty() shouldBe true
+        pts.all { (_, y) -> y < 68.6 && y > 62.0 } shouldBe true
+        ((pts.minOf { it.first } + pts.maxOf { it.first }) / 2) shouldBe (115.6 plusOrMinus 0.3)
+        // every face's label on the tower's first two layers only
+        for (k in 1..12) lines.count { it == "; CELL: speed label $k" }.let { (it >= 2) shouldBe true }
     }
 
     "controls: the grooves, the chamfer, the order, the speeds reversed, two faces swapped, one acceleration everywhere, the seam at a corner, the slab's speed are caught" {
@@ -99,6 +110,11 @@ class MotionPlateTest : StringSpec({
         MotionCheck.check(sp, ctl("accel")).any { it.contains("'band 2 outer': acceleration 1000, not 2000") } shouldBe true
         MotionCheck.check(sp, ctl("seam")).any { it.contains("not at the seam on face 12") } shouldBe true
         MotionCheck.check(sp, ctl("slabspeed")).any { it.contains("'slab 2': 188.00 mm/s, not 150.00") } shouldBe true
+        MotionCheck.check(sp, ctl("firsttemp")).any { it.contains("'adhesion:slab': at 210 C, not 215 C") } shouldBe true
+        MotionCheck.check(sp, ctl("towerwait")).any { it.contains("'band 1 inner': no wait (M109) for 210 C before it") } shouldBe true
+        MotionCheck.check(sp, ctl("speedlabel")).any { it.contains("no 'speed label 1' cell") } shouldBe true
+        MotionCheck.check(sp, ctl("labeltext")).any { it.contains("face 1's speed label") && it.contains("the box '30' takes") } shouldBe true
+        MotionCheck.check(sp, ctl("labelsafter")).any { it.contains("crosses face") && it.contains("no lift") } shouldBe true
         // a wall's plastic doubled (text), a stray line outside the cells (text)
         val ls = text.lines().toMutableList()
         val at = ls.indexOfFirst { it == "; CELL: band 2 outer" }; val end = (at until ls.size).first { ls[it] == "; CELL END" }
@@ -109,8 +125,8 @@ class MotionPlateTest : StringSpec({
     }
 
     "the arm marks: n notches in the slab's edge in front of arm n's end face, past its first third, clear of the wall; left out, swapped, cut too deep or too early, caught" {
-        // from the outline itself, worked here: probe each end edge 1 mm in from the slab's edge (half the 2 mm notch depth) and
-        // count the stretches outside the polygon; the edges' lines from the slab's size (98) and the margin (4), by hand
+        // from the outline itself, worked here: probe each end edge 1 mm in from the slab's edge (within the 1.5 mm notch depth) and
+        // count the stretches outside the polygon; the edges' lines from the slab's size (111.2) and the margin (10.6), by hand
         fun inside(poly: plymeld.geom.Polygon, x: Double, y: Double): Boolean {
             var c = false
             for (i in 0 until poly.size) { val j = (i + 1) % poly.size
@@ -118,25 +134,25 @@ class MotionPlateTest : StringSpec({
                 if ((yi > y) != (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c }
             return c
         }
-        // arm n's end edge: (start, direction) in mm, the end face starting 4 mm along it
-        val edges = listOf(doubleArrayOf(30.0, 1.0, 1.0, 0.0), doubleArrayOf(97.0, 30.0, 0.0, 1.0), doubleArrayOf(68.0, 97.0, -1.0, 0.0), doubleArrayOf(1.0, 68.0, 0.0, -1.0))
+        // arm n's end edge: (start, direction) in mm, the end face starting 10.6 mm along it
+        val edges = listOf(doubleArrayOf(30.0, 1.0, 1.0, 0.0), doubleArrayOf(110.2, 30.0, 0.0, 1.0), doubleArrayOf(81.2, 110.2, -1.0, 0.0), doubleArrayOf(1.0, 81.2, 0.0, -1.0))
         fun notches(p: MotionPlate): List<List<Double>> {
             val o = p.outline()
             return edges.map { e ->
                 val out = ArrayList<Double>(); var inGap = false
                 // sampled between the hundredths, so no sample lies on a notch's side
-                for (i in 0 until 3800) { val t = (i + 0.5) / 100.0
+                for (i in 0 until 5120) { val t = (i + 0.5) / 100.0
                     val gap = !inside(o, (e[0] + e[2] * t) * 1000, (e[1] + e[3] * t) * 1000)
-                    if (gap && !inGap) out += Math.round(t - 4.0).toDouble()       // where the notch starts, from the face's start
+                    if (gap && !inGap) out += Math.round((t - 10.6) * 10) / 10.0     // where the notch starts, from the face's start
                     inGap = gap }
                 out
             }
         }
-        // centered 20 mm along the face, 4 mm apart, 2 mm wide: arm 1 from 19, arm 2 from 17 and 21, ... (the front edge's first
-        // stretch outside the slab is the chamfer, before the face starts: dropped)
+        // centered 20 mm along the face, 2 mm apart, 1 mm wide (the plates' tally): arm 1 from 19.5, arm 2 from 18.5 and 20.5, ...
+        // (the front edge's first stretch outside the slab is the chamfer, before the face starts: dropped)
         val got = notches(MotionPlate(sp)).map { l -> l.filter { it > 0 } }
-        got shouldBe listOf(listOf(19.0), listOf(17.0, 21.0), listOf(15.0, 19.0, 23.0), listOf(13.0, 17.0, 21.0, 25.0))
-        // clear of the first third (10 mm) and of the face: the deepest point of every notch 2 mm in from the slab's 4 mm margin
+        got shouldBe listOf(listOf(19.5), listOf(18.5, 20.5), listOf(17.5, 19.5, 21.5), listOf(16.5, 18.5, 20.5, 22.5))
+        // clear of the first third (10 mm) and of the face: the deepest point of every notch 1.5 mm in from the slab's 10.6 mm margin
         got.flatten().all { it >= 30.0 / 3 } shouldBe true
         (MotionGeometry.margin - MotionGeometry.markDepth >= 2 * sp.widthUm) shouldBe true
         // the check reads them from the g-code; its controls: no marks, the front and back arms' counts swapped
@@ -147,7 +163,7 @@ class MotionPlateTest : StringSpec({
             p.none { it.contains("right arm") || it.contains("left arm") } shouldBe true
         }
         MotionCheck.check(sp, ctl("markdeep")).any { it.contains("a mark reaches the wall") } shouldBe true
-        MotionCheck.check(sp, ctl("markearly")).any { it.contains("the front arm's end (face 1): a notch from 9.0") && it.contains("within its first third") } shouldBe true
+        MotionCheck.check(sp, ctl("markearly")).any { it.contains("the front arm's end (face 1): a notch from 9.") && it.contains("within its first third") } shouldBe true
     }
 
     "the page names every face, band and grade, the outcomes decided before printing, and the picture is written" {

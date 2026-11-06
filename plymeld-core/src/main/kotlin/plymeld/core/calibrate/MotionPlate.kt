@@ -1,12 +1,5 @@
 package plymeld.core.calibrate
 
-import plymeld.core.Feature
-import plymeld.core.Ordering
-import plymeld.core.Planner
-import plymeld.core.ToolPath
-import plymeld.geom.Hatch
-import plymeld.geom.Linker
-import plymeld.geom.Offset
 import plymeld.geom.Polygon
 import plymeld.program.Exact
 import plymeld.program.Extrude
@@ -41,13 +34,16 @@ import plymeld.program.Step
  *    acceleration the machine's print acceleration; so faces 6 and 7 of the top band print at the machine's limits.
  *  - **The marks** (geometry, not text): arm n (1 front, 2 right, 3 back, 4 left, counter-clockwise from above) has n notches
  *    cut through the slab's edge in front of its end face (face 3n - 2), past the first third of that face; the slab's front-left
- *    corner is chamfered too.
+ *    corner is chamfered too. Every face's speed stands in front of it as a raised label ([PlateMarks], whole mm/s, read from
+ *    outside that face, its baseline along it), [MotionGeometry.labelLayers] layers on the slab beside the tower's first layers.
  *
  * **Printed exactly as specified**: the slab's first layer at the first layer's values and width, its layers above at the
  * frame's (the machine's print speed and acceleration, held to the maximum flow); both tower walls, outer and inner, at their
  * face's speed (the inner held to the maximum flow at its own width) and their band's acceleration, so the walls a cell is read
  * on move only as that cell says; inner wall first, its seam behind the outer's, both on face 12 [MotionGeometry.seamAt] of the
- * way along it (no face starts at a seam); one temperature; the fan off on the first layer, the filament's own above; a parked
+ * way along it (no face starts at a seam); the slab's first layer at the filament's first-layer temperature, its layers above
+ * heating to its print temperature, which the head waits for, lifted and parked in front of the slab, before the tower's first
+ * line, so the whole tower is at that one temperature; the fan off on the first layer, the filament's own above; a parked
  * pause where a layer would take less than the filament's minimum layer time. Lengths µm, speeds mm/s, accelerations mm/s².
  */
 
@@ -55,8 +51,15 @@ import plymeld.program.Step
 object MotionGeometry {
     /** An arm's width: every face's length (less half a line at a convex corner). */
     const val arm = 30_000L
-    /** The slab beyond the cross on every side. */
-    const val margin = 4_000L
+    /** A face's speed label to the face, and to the slab's edge. Plymeld's choice, as the flow plate's. */
+    const val labelGap = 2_000L
+    /**
+     * The slab beyond the cross on every side: room for a speed label in front of an end face, [labelGap] from the face and from
+     * the slab's edge (a label's glyphs, their strokes' ends reaching past the glyph height by up to a stroke on each side).
+     */
+    const val margin = 2 * labelGap + PlateMarks.LABEL_H + 2 * PlateMarks.LABEL_STROKE
+    /** The speed labels stand this many layers on the slab (the tower's first layers beside them). */
+    const val labelLayers = 2
     /** The slab's layers, the first included. */
     const val slabLayers = 3
     /** A band's height (rounded to whole layers). */
@@ -81,14 +84,14 @@ object MotionGeometry {
     fun alongX(k: Int): Boolean = k % 2 == 1
     /**
      * The arm marks, on the base facing up, giving the orientation: arm n (1 the front arm, 2 the right, 3 the back, 4 the left: counter-clockwise from above, like the
-     * faces) has n square notches cut through the slab's edge in front of its end face, face [endFace]. Sizes plymeld's choice
-     *, not measured: [markWidth] wide and [markDepth] deep (a notch a few lines across, as the coupon marks are),
-     * [markPitch] apart, the group centered [markAt] from the end face's starting corner: two thirds along it, so the marks stay
-     * clear of the first third after the corner, where ringing is read, and leave [margin] - [markDepth] of slab before the face.
+     * faces) has n notches cut into the slab's edge in front of its end face, face [endFace]: a [PlateMarks] tally (its
+     * notch's width, depth and pitch, as every plate's), the group centered [markAt] from the end face's starting corner: two
+     * thirds along it, so the marks stay clear of the first third after the corner, where ringing is read, and leave
+     * [margin] - [markDepth] of slab before the face. [markAt] is plymeld's choice, not measured.
      */
-    const val markWidth = 2_000L
-    const val markDepth = 2_000L
-    const val markPitch = 4_000L
+    const val markWidth = PlateMarks.TALLY_W
+    const val markDepth = PlateMarks.TALLY_IN
+    const val markPitch = PlateMarks.TALLY_PITCH
     const val markAt = 20_000L
     /** The arms, counter-clockwise from the front one; arm n has n marks. */
     const val arms = 4
@@ -120,8 +123,11 @@ class MotionSpec(
     val filamentDiameterMm: Double,
     /** The flow ratio every line prints at. */
     val flowRatio: Double,
-    /** The plate's one nozzle temperature and its part fan from the second layer (the first layer's is off). */
-    val tempC: Int, val fanPct: Double,
+    /**
+     * The tower's nozzle temperature (the slab's layers above the first heat to it), the slab's first layer's, and the part fan
+     * from the second layer (the first layer's is off).
+     */
+    val tempC: Int, val firstTempC: Int, val fanPct: Double,
     /** The slab's first layer's values, its layers above (the frame's). */
     val adhesion: PathValues, val frame: PathValues,
     /** The fastest the inner wall may go (mm/s): the filament's maximum flow at its width. */
@@ -151,6 +157,16 @@ class MotionSpec(
     }
 
     private val g = MotionGeometry
+
+    init {
+        require(g.labelLayers <= bandLayers) { "the speed labels' ${g.labelLayers} layers are more than a band's $bandLayers" }
+        for (k in 1..g.faces) {
+            val t = speedText(k)
+            require(PlateMarks.labelHeight(t) + 2 * g.labelGap <= g.margin && PlateMarks.labelWidth(t) + 2 * g.labelGap <= g.arm) {
+                "face $k's speed label '$t' (mm/s) does not fit in front of it"
+            }
+        }
+    }
 
     /** Layers per band ([MotionGeometry.bandHeight] in whole layers, at least the groove and two more). */
     val bandLayers: Int get() = maxOf(g.grooveLayers + 2, Math.round(g.bandHeight.toDouble() / layerUm).toInt())
@@ -230,6 +246,12 @@ class MotionSpec(
         return LongArray(2 * (n + 1)) { j -> if (j < 2) (if (j == 0) sx else sy) else v[j - 2] }
     }
 
+    /** Face [k]'s (1-based) speed label: its text (the outer wall's speed, whole mm/s) and its cell ("speed label 1"). */
+    fun speedText(k: Int): String = PlateMarks.whole(faceSpeed(k))
+    fun speedLabel(k: Int) = "speed label $k"
+    /** Which face (1-based) a speed label's cell names, or null. */
+    fun faceOfLabel(label: String): Int? = Regex("speed label (\\d+)").matchEntire(label)?.groupValues?.get(1)?.toInt()
+
     /** The cell labels: band [b]'s outer and inner walls ("band 1 outer"), the slab's layers ("adhesion:slab", "slab 2" ...). */
     fun outerLabel(b: Int) = "band ${b + 1} outer"
     fun innerLabel(b: Int) = "band ${b + 1} inner"
@@ -248,13 +270,13 @@ class MotionSpec(
  * faces' speeds in reverse, the slowest on face 6), "swap" (faces 1 and 3 swapped), "accel" (every band at the first band's
  * acceleration), "seam" (the loops starting at the front arm's front-left corner, not on face 12), "slabspeed" (the slab's upper
  * layers at the fastest face's speed), "marks" (no arm marks), "markswap" (the front arm with three marks, the back arm with one),
- * "markdeep" (the marks cut through the margin to the faces), "markearly" (the marks a third of an arm nearer the faces' starts).
+ * "markdeep" (the marks cut through the margin to the faces), "markearly" (the marks a third of an arm nearer the faces' starts),
+ * "firsttemp" (the slab's first layer at the tower's temperature), "towerwait" (no wait for the tower's temperature before it),
+ * "speedlabel" (face 1's speed label left out), "labeltext" (face 1's label showing the fastest speed), "labelsafter" (the labels
+ * laid after the walls, so the travels between them cross the layer's walls unlifted).
  */
 class MotionPlate(private val spec: MotionSpec, private val without: Set<String> = emptySet()) {
     private val g = MotionGeometry
-
-    /** Center-to-center distance of two touching [lw] µm lines [hUm] high (the bead model's). */
-    fun spacingOf(lw: Long, hUm: Long): Long = Math.round(lw - hUm * (1 - Math.PI / 4))
 
     /** How many marks arm [n] (1-based) carries, the controls applied ("marks": none; "markswap": the front and back arms' swapped). */
     fun marksOf(n: Int): Int = when {
@@ -297,23 +319,37 @@ class MotionPlate(private val spec: MotionSpec, private val without: Set<String>
         return Polygon(pts.toLongArray())
     }
 
+    /**
+     * Face [k]'s (1-based) speed label (µm, unplaced, raised glyphs): the face's speed, outside the cross [MotionGeometry.labelGap]
+     * from the face and centered along it, read from outside the face (its baseline along the face). The controls: "speedlabel" (face 1's left out),
+     * "labeltext" (face 1's showing the fastest speed).
+     */
+    fun speedMark(k: Int): List<Polygon> {
+        if ("speedlabel" in without && k == 1) return emptyList()
+        val t = if ("labeltext" in without && k == 1) PlateMarks.whole(spec.speeds.last()) else spec.speedText(k)
+        val a = spec.corner(k - 1); val b = spec.corner(k)
+        val dx = java.lang.Long.signum(b[0] - a[0]); val dy = java.lang.Long.signum(b[1] - a[1])
+        val w = PlateMarks.labelWidth(t); val h = PlateMarks.labelHeight(t); val gap = g.labelGap
+        // the outward normal of a counter-clockwise edge is to its right, (dy, -dx); the glyphs' up toward the face, their
+        // baseline along it, so the label reads from outside the face: (u, v) on the label to the face's middle + (u - w/2)
+        // along the reading direction + (gap + h - v) outward
+        val nx = dy.toLong(); val ny = -dx.toLong()
+        val upX = -nx; val upY = -ny
+        val rx = upY; val ry = -upX
+        val mx = (a[0] + b[0]) / 2; val my = (a[1] + b[1]) / 2
+        return PlateMarks.label(t, 0, 0).map { p ->
+            Polygon(LongArray(p.xy.size) { i ->
+                val u = p.xy[i - i % 2] - w / 2; val v = p.xy[i - i % 2 + 1] - (gap + h)
+                if (i % 2 == 0) mx + u * rx + v * upX else my + u * ry + v * upY
+            })
+        }
+    }
+
     /** The slab's fill angle on [layer]: alternating 45 and 135 so neighbors cross. */
     fun fillAngle(layer: Int): Double = if (layer % 2 == 0) 45.0 else 135.0
 
-    /** The slab on [layer] in [lw] µm lines [hUm] high: [PlateGeometry.frameWalls] rings (outermost first), then the inside solid, monotonic. */
-    fun slabPaths(layer: Int, lw: Long, hUm: Long): Pair<List<LongArray>, List<LongArray>> {
-        val sp = spacingOf(lw, hUm)
-        val rings = ArrayList<LongArray>()
-        var cur = Offset.offset(listOf(outline()), -lw / 2)
-        var n = 0
-        while (cur.isNotEmpty() && n < PlateGeometry.frameWalls) { for (r in cur) if (r.size >= 3) rings += r.xy; cur = Offset.offset(cur, -sp); n++ }
-        if (rings.isEmpty() || cur.isEmpty()) return rings to emptyList()
-        val (segs, idx) = Hatch.indexed(cur, fillAngle(layer), sp)
-        if (segs.isEmpty()) return rings to emptyList()
-        val chains = Linker.link(segs, idx, cur, Planner.ANCHOR_SPACINGS * sp, breakAtSplits = true, breakAtForks = true)
-        val end = rings.last()
-        return rings to Ordering.sweep(chains.map { ToolPath(Feature.SOLID, it, false, lw, hUm) }, end[0], end[1]).map { it.xy }
-    }
+    /** The slab on [layer] in [lw] µm lines [hUm] high ([PlateFill]): its rings (outermost first), then the inside solid, monotonic. */
+    fun slabPaths(layer: Int, lw: Long, hUm: Long): Pair<List<LongArray>, List<LongArray>> = PlateFill.fill(listOf(outline()), lw, hUm, fillAngle(layer))
 
     /** The plate's extent before it is placed (µm: x0, y0, x1, y1). */
     fun bounds(): LongArray = longArrayOf(0, 0, spec.slabSize, spec.slabSize)
@@ -342,13 +378,14 @@ class MotionPlate(private val spec: MotionSpec, private val without: Set<String>
         val steps = ArrayList<Step>()
         val ox = spec.originXUm; val oy = spec.originYUm
         spec.levelGcode?.let { steps += plymeld.program.Custom("bed levelling (hardware.machine.<key>.gcode.level)", it) }
-        steps += SetTemp(spec.tool, spec.tempC, wait = true)
+        val firstC = if ("firsttemp" in without) spec.tempC else spec.firstTempC
+        steps += SetTemp(spec.tool, firstC, wait = true)
         steps += SetFan(0.0)
         val park = parkUm()
         for (layer in 0 until g.slabLayers) {
             val z = spec.zTop(layer); val hz = spec.heightOf(layer)
             steps += LayerStart(layer, z, hz)
-            if (layer == 1) steps += SetFan(spec.fanPct)
+            if (layer == 1) { steps += SetFan(spec.fanPct); if (firstC != spec.tempC) steps += SetTemp(spec.tool, spec.tempC, wait = false) }
             val first = layer == 0
             val pv = if (first) spec.adhesion else if ("slabspeed" in without) PathValues(spec.speeds.last(), spec.frame.accel, spec.frame.flowRatio, spec.frame.retractMm) else spec.frame
             val lw = if (first) spec.firstWidthUm else spec.widthUm
@@ -356,6 +393,13 @@ class MotionPlate(private val spec: MotionSpec, private val without: Set<String>
             val (rings, lines) = slabPaths(layer, lw, hz)
             for ((i, ring) in rings.withIndex()) steps += placed(if (i == 0) "Outer wall" else "Inner wall", ring, true, z, ex, ox, oy, lw, hz)
             for (line in lines) steps += placed(if (first) "Bottom surface" else "Internal solid infill", line, false, z, ex, ox, oy, lw, hz)
+        }
+        // the tower at its one temperature from its first line: where the slab's first layer was at another, lift, park in front
+        // of the slab and wait for it
+        if (firstC != spec.tempC && "towerwait" !in without) {
+            steps += LiftTo(spec.slabTop + spec.liftUm)
+            steps += Park(park.first, park.second, 0.0)
+            steps += SetTemp(spec.tool, spec.tempC, wait = true)
         }
         val h = spec.layerUm
         for (i in 0 until spec.towerLayers) {
@@ -366,8 +410,22 @@ class MotionPlate(private val spec: MotionSpec, private val without: Set<String>
             val (il, isp) = loopOf(i, true); val (ol, osp) = loopOf(i, false)
             val inner = Extrude("Inner wall", il, true, z, spec.innerWidthUm, h, tool = spec.tool, exact = Exact(spec.innerLabel(b), isp, a, spec.flowRatio, spec.retractMm))
             val outer = Extrude("Outer wall", ol, true, z, spec.widthUm, h, tool = spec.tool, exact = Exact(spec.outerLabel(b), osp, a, spec.flowRatio, spec.retractMm))
+            // the speed labels on the tower's first layers, before its walls (so no travel crosses a wall of the layer), at the
+            // frame's values, face by face counter-clockwise
+            val labels = ArrayList<Step>()
+            if (i < g.labelLayers) for (k in 1..g.faces) {
+                val glyphs = speedMark(k)
+                if (glyphs.isEmpty()) continue
+                val ex = Exact(spec.speedLabel(k), doubleArrayOf(spec.frame.speed), spec.frame.accel, spec.frame.flowRatio, spec.frame.retractMm)
+                val (rings, lines) = PlateFill.fill(glyphs, spec.widthUm, h, if (i % 2 == 0) 0.0 else 90.0)
+                for (ring in rings) labels += placed("Outer wall", ring, true, z, ex, ox, oy, spec.widthUm, h)
+                for (line in lines) labels += placed("Outer wall", line, false, z, ex, ox, oy, spec.widthUm, h)
+            }
+            if ("labelsafter" !in without) steps += labels
             if ("outerfirst" in without) { steps += outer; steps += inner } else { steps += inner; steps += outer }
-            // the cooling pause: park in front of the slab and wait out the rest of the filament's minimum layer time
+            if ("labelsafter" in without) steps += labels
+            // the cooling pause: park in front of the slab and wait out the rest of the filament's minimum layer time (the walls'
+            // time only, so the labels' layers are paused if anything long)
             if (spec.minLayerTimeS > 0 && i + 1 < spec.towerLayers) {
                 val rest = spec.minLayerTimeS - layerTimeS(listOf(inner, outer), a) - travelS(outer.xy, park)
                 if (rest > 0) steps += Park(park.first, park.second, rest)
