@@ -136,7 +136,7 @@ object PlateIso {
         // (lazy: each plate kind reads only its own page's tables)
         val ledges by lazy { table("ledge (from the left)") }; val spans by lazy { table("span (from the left)") }
         val holes by lazy { table("hole (from the left)") }; val tubes by lazy { table("tube (from the left)") }
-        val hops by lazy { table("hop (gap") }; val patches by lazy { table("patch (column, from the left)") }; val patchRows by lazy { table("row (from the front) | band") }
+        val hops by lazy { table("hop (gap") }
         val tileRows by lazy { table("tile row (from the front)") }; val tileCols by lazy { table("tile column (from the left)") }
         // the page's bands table: the first table under its "## The bands" heading (with a notch column where the plate has the post)
         val mdBands by lazy {
@@ -149,7 +149,6 @@ object PlateIso {
         val decks by lazy { conditions["bridge decks"] ?: error("no 'bridge decks' condition row") }
         val pegSize by lazy { Regex("""a round column \(([^)]+)\)""").find(md)?.groupValues?.get(1) ?: error("no peg size in the .md page") }
         val ringPosts by lazy { Regex("""is a ring of (\d+ round posts \([^)]+\))""").find(md)?.groupValues?.get(1) ?: error("no stringing ring in the .md page") }
-        val marked by lazy { patches.first { it[0].contains("marked") }[1] }
         val holeBand by lazy { Regex("""standing on a pedestal so it prints in (band \d+ \([^)]+\))""").find(md)?.groupValues?.get(1) ?: error("no fit-test band in the .md page") }
 
         // ================================================================ regions
@@ -160,7 +159,7 @@ object PlateIso {
         fun filamentKey(c: String): Pair<String, String>? = when {
             // each family's base, by the family's --tests name
             c.startsWith("base ") -> mapOf("melt" to "melt", "overhangs" to "ledges", "bridges" to "bridges", "fit" to "fit",
-                "line-width" to "tubes", "stringing" to "locks", "flow" to "patches")[c.removePrefix("base ")]?.let { it to "base" }
+                "line-width" to "tubes", "stringing" to "locks")[c.removePrefix("base ")]?.let { it to "base" }
             c == "post" -> "post" to "post"
             // the terraced melt test: each step's top (its strips) and the bodies under them
             c.matches(Regex("melt \\d+\\.(fast|mid|slow)\\.\\d+")) -> "melt" to "strips"
@@ -170,9 +169,6 @@ object PlateIso {
             c == "ledges" -> "ledges" to "ledges"
             c == "pier" -> "bridges" to "piers"
             c.matches(Regex("deck \\d+")) -> "bridges" to "decks"
-            c.matches(Regex("flow \\d+\\.\\d+")) -> "patches" to "patches"
-            c.matches(Regex("pedestal \\d+\\.\\d+")) -> "patches" to "pedestals"
-            c == "mark" -> "patches" to "marker"
             c == "fit block" -> "fit" to "block"
             c == "pedestal" -> "fit" to "pedestal"        // the fit block's (checked below: it lies under the block)
             c == "peg" -> "fit" to "peg"
@@ -180,7 +176,7 @@ object PlateIso {
             c.matches(Regex("lock \\d+")) -> "locks" to "locks"
             else -> null
         }
-        val families = listOf("post", "melt", "ledges", "bridges", "patches", "fit", "tubes", "locks")
+        val families = listOf("post", "melt", "ledges", "bridges", "fit", "tubes", "locks")
         val present = if (firstLayerKind) emptyList() else
             segs.mapNotNull { filamentKey(it.cell.removePrefix("adhesion:"))?.first }.toSet().let { p -> families.filter { it in p } }
         fun famIndex(key: String) = present.indexOf(key)
@@ -217,11 +213,6 @@ object PlateIso {
                 measure("the bridges"),
                 "${spans.size} spans " + arrow(spans.first()[1], spans.last()[1]) + " mm between ${spans.size + 1} piers, shortest on the left",
                 "decks: " + decks.substringBefore(";") + ", one pair at the top of each band, terraced: band 1's at the very front and back, each higher band's one deck further in (every deck a step of its own from above)"), listOf("piers", "decks"))
-            "patches" -> Region("Flow patches", Color(38, 158, 78), listOf(
-                measure("the patches"),
-                "${patchRows.size} rows of ${patches.size} patches, " + mdHas("a row per band, band 1's at the front") + "; flow ratio " + arrow(patches.first()[1], patches.last()[1]) + ", lowest on the left, on pedestals",
-                "read by bracketing: " + "the " + mdHas("leanest patch without gaps") + " and the " + mdHas("richest patch without ridges"),
-                "small square in front marks the current ratio ($marked)"), listOf("patches", "marker"))
             "fit" -> Region("Fit test", Color(150, 100, 45), listOf(
                 measure("the holes and the peg"),
                 "${holes.size} blind holes " + arrow(holes.first()[1], holes.last()[1]) + " mm (clearance " + arrow(holes.first()[2], holes.last()[2]) +
@@ -638,18 +629,11 @@ object PlateIso {
         for ((k, b) in bands.withIndex()) { val m = mdBands.getOrNull(k)
             log("  band ${b.n}: layers Z %.1f-%.1f (slab %.1f-%.1f), %d C, fan %d %%   | .md: %s".format(b.zLo, b.zHi, b.zLo - 0.2, b.zHi, b.temp, b.fan, m?.joinToString(" | ") ?: "MISSING")) }
         require(bands.size == mdBands.size) { "g-code has ${bands.size} bands, the .md page ${mdBands.size}" }
-        // the page says the fit block prints in one band, and each row of flow patches has its top in its own
-        // band: check both against the g-code's bands
+        // the page says the fit block prints in one band: check it against the g-code's bands
         if ("fit" in present) { val ri = famIndex("fit"); val pageBand = Regex("""band (\d+)""").find(holeBand)!!.groupValues[1].toInt()
             val zTop = segs.indices.filter { segGroup[it] == groupIdx["$ri/block"] }.maxOf { segs[it].layer }
             log("  ${regions[ri].name} / block: top layer Z $zTop is in g-code band ${bandOf[zTop] ?: "none (changing)"}; the page says band $pageBand")
             require(bandOf[zTop] == pageBand) { "the fit block's top is not in the band the page says" }
-        }
-        if ("patches" in present) for (row in patchRows) {
-            val r = row[0].toInt(); val pageBand = Regex("""\d+""").find(row[1])!!.value.toInt()
-            val zTop = segs.filter { it.cell.removePrefix("adhesion:").startsWith("flow $r.") }.maxOf { it.layer }
-            log("  Flow patches row $r: top layer Z $zTop is in g-code band ${bandOf[zTop] ?: "none (changing)"}; the page says band $pageBand")
-            require(bandOf[zTop] == pageBand) { "flow patch row $r's top is not in the band the page says" }
         }
     }
 }

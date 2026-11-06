@@ -56,7 +56,7 @@ object PlateInstructions {
     fun firstItem(p: Part): String = when (p) {
         Part.MELT -> "the FAST surface (the machine's print speed)"; Part.OVERHANGS -> "ledge 1 (the lowest share)"; Part.BRIDGES -> "span 1 (the shortest)"
         Part.FIT -> "hole 1 (the smallest)"; Part.LINE_WIDTH -> "tube 1 (the narrowest line)"
-        Part.STRINGING -> "post 1 (hop 1 starts there)"; Part.FLOW -> "the first column (the leanest ratio)"; Part.POST -> "none"
+        Part.STRINGING -> "post 1 (hop 1 starts there)"; Part.POST -> "none"
     }
 
     /**
@@ -176,7 +176,6 @@ object PlateInstructions {
         l("# ${kind.replaceFirstChar { it.uppercase() }} plate: ${info.filament} on ${info.machine}, tool ${info.tool + 1}")
         l()
         l("Made by plymeld ${info.version} on ${info.date} for `${info.gcodeName}`" + (info.predictedMin?.let { ", about ${n(it, 0)} min to print (plymeld's estimate; heating, the waits for each band's temperature, and any levelling come on top)" } ?: "") + ".")
-        val fl = spec.flow
         val lg = spec.ledges
         val br = spec.bridges
         val st = spec.strings
@@ -194,8 +193,7 @@ object PlateInstructions {
                 if (br != null) "**how far a bridge spans, and at which bridge flow**, at each temperature and fan (the bridges)" else null,
                 if (st != null) "**how much retraction stops stringing** at each temperature (the ring)" else null,
                 if (tb != null) "**the narrowest and widest line this nozzle lays well** (the tubes)" else null,
-                if (ft != null) "**the clearance a fit needs** (the holes and the peg)" else null,
-                if (fl != null) "**its flow ratio at each temperature** (the patches)" else null).let { if (it.size > 1) it.dropLast(1).joinToString(", ") + " and " + it.last() else it.joinToString() } + ".")
+                if (ft != null) "**the clearance a fit needs** (the holes and the peg)" else null).let { if (it.size > 1) it.dropLast(1).joinToString(", ") + " and " + it.last() else it.joinToString() } + ".")
         l()
         if (m != null) {
             l("**Run the melt test first**, on its own plate (this one), before the motion plate and the filament plate: " + MELT_WHY + ".")
@@ -257,7 +255,6 @@ object PlateInstructions {
         st?.let { l("| stringing ring | retraction by hop (below); its speed, the travel speed, and the lift are the filament's and tool's own (see the g-code's CALIBRATION_PLATE block) |") }
         br?.let { l("| bridge decks | front flow ${n(it.flows[0], 3)}, back flow ${n(it.flows[1], 3)}; ${n(it.speed, 0)} mm/s, ${n(it.accel, 0)} mm/s2, the fan by band |") }
         lg?.let { l("| overhang ledges | ${n(it.speed, 0)} mm/s, ${n(it.accel, 0)} mm/s2, the fan by band |") }
-        fl?.let { l("| flow patches | ${it.ratios.joinToString(", ") { r -> n(r, 3) }} at ${n(it.speed, 0)} mm/s, ${n(it.accel, 0)} mm/s2, a row per band, each row's tops in its band, on pedestals |") }
         l("| the frame${if (info.frameParts.isNotEmpty()) " (" + info.frameParts.joinToString(", ") + ")" else ""}: read for nothing | ${n(info.frameSpeed, 0)} mm/s" +
             (if (info.frameAccel.isNaN()) "" else ", ${n(info.frameAccel, 0)} mm/s2") + (info.frameWhy?.let { ": $it" } ?: "") + " |")
         l("| first layer | ${n(spec.firstLayerUm / 1000.0, 2)} mm thick (plan.mechanism.adhesion.first_layer.height: a first-layer window's choice, else the setting; the layers above ${n(spec.layerUm / 1000.0, 2)} mm), ${n(info.firstLayerSpeed, 0)} mm/s (the configured first-layer speed, held to the filament's maximum flow) |")
@@ -358,19 +355,6 @@ object PlateInstructions {
             l("|---|---|---|---|")
             for ((k, len) in st.lengthsMm.withIndex()) l("| ${k + 1} | ${k + 1} | ${k + 2} | ${n(len, 2)} |")
             l("| open gap | ${st.lengthsMm.size + 1} | 1 | none: never crossed |")
-        }
-        if (fl != null) {
-            l()
-            l("- **The flow patches** (${where(plate, Part.FLOW)}) are ${fl.fromLayers.size} rows of ${fl.ratios.size} squares, **a row per band, band 1's at the front**, each patch on its pedestal (two walls, sparse lines) with its last ${n(spec.layerUm * (fl.layers + 1) / 1000.0, 1)} mm printed solid at its own flow ratio, so each row's tops print in its own band (at its temperature and fan); in every row the **lowest ratio on the left**, and the columns line up." +
-                (if (fl.marked >= 0) " The **small square in front** of the front row (${if (spec.baseLayers > 0) "on the base" else "on the bed"}) marks the column at the filament's current ratio (${n(fl.ratios[fl.marked], 3)})." else ""))
-            l()
-            l("| patch (column, from the left) | flow ratio |")
-            l("|---|---|")
-            for ((k, r) in fl.ratios.withIndex()) l("| ${k + 1}${if (k == fl.marked) " (marked: current)" else ""} | ${n(r, 3)} |")
-            l()
-            l("| row (from the front) | band | top at z (mm) |")
-            l("|---|---|---|")
-            for (r in fl.fromLayers.indices) { val b = spec.readBand((fl.topLayer(r) + 1) * spec.layerUm); l("| ${r + 1} | ${bandText(b)} | ${n((fl.topLayer(r) + 1) * spec.layerUm / 1000.0, 1)} |") }
         }
         l()
         l("## The bands")
@@ -487,7 +471,7 @@ object PlateInstructions {
             l()
             l("- **A range around the nozzle's size** (the expected result): plymeld's thinnest and widest lines for this tool (`line.width.min` / `line.width.max`), by temperature; variable-width walls stay inside it.")
             l("- **The narrow end gets worse in the colder bands**: expected (colder plastic bonds less across a thin line).")
-            l("- **The widest good line is narrower than the nozzle**: unusual; look at the flow ratio (the patches) and a partial clog first.")
+            l("- **The widest good line is narrower than the nozzle**: unusual; look at the flow ratio (the flow plate) and a partial clog first.")
             l("- **Every tube is good**: a bound at both ends; the next plate can test narrower and wider lines (`--widths`).")
             l()
         }
@@ -513,32 +497,6 @@ object PlateInstructions {
             l("- **Every hop strings in every band**: not the retraction alone. Wet filament strings whatever is done (dry it first); the travel speed and the lift (conditions in the g-code) matter too.")
             l()
         }
-        if (fl != null) {
-            val lo = n(fl.ratios.first(), 3); val hi = n(fl.ratios.last(), 3)
-            l("## How to read the flow patches")
-            l()
-            l("No top is a guaranteed smooth reference, so the ratio is read by **bracketing**: from both ends of each row towards the middle. Look at the patches' tops with a light low to one side, so every ridge and groove casts a shadow, and run a fingernail across them. For **each row** (each band, row 1 at the front):")
-            l()
-            l("1. From the left (the leanest), find the **leanest patch without gaps**: no grooves between its lines, nothing of the layer below showing through.")
-            l("2. From the right (the richest), find the **richest patch without ridges**: no ridges between lines, no ploughed or rough top, no plastic piled at its edges.")
-            l("3. The filament's ratio at that band's temperature lies **between those two**: write both down. If they are the same patch, that is the ratio.")
-            l("4. If even the richest patch ($hi) has gaps, write **\"above $hi\"**; if even the leanest ($lo) has ridges, write **\"below $lo\"**.")
-            l()
-            l("| row | band | nozzle | fan | leanest without gaps | richest without ridges | notes |")
-            l("|---|---|---|---|---|---|---|")
-            for (r in fl.fromLayers.indices) { val b = spec.readBand((fl.topLayer(r) + 1) * spec.layerUm); l("| ${r + 1} | ${b?.let { it.index + 1 } ?: "-"} | ${b?.tempC ?: "-"} C | ${b?.let { n(it.fanPct, 0) } ?: "-"} % |  |  |  |") }
-            l()
-            l("### What the flow results mean (decided before printing)")
-            l()
-            if (fl.marked >= 0) l("- **The marked column is inside the bracket in every row**: the current ratio (${n(fl.ratios[fl.marked], 3)}) is right for this filament with this tool, at these temperatures.")
-            l("- **The bracket is the same in every row**: the ratio does not depend on the temperature in this range; plymeld takes the middle of the bracket.")
-            l("- **The bracket moves from row to row**: the ratio depends on the temperature; plymeld takes it by temperature (the middle of each row's bracket).")
-            l("- **A bracket away from the current ratio**: the rest of the plate printed at the current ratio (${n(spec.flowRatio, 3)}), so its other readings carry that difference: e.g. a ratio 5 % higher means every line on the plate laid about 5 % less plastic than its label says, which can read as a melt limit or a weaker overhang. Set the new ratio before trusting the other readings.")
-            l("- **The leanest without gaps is richer than the richest without ridges** (no patch is both closed and flat): not the ratio alone. Look at the first layer (the bed's level), a nozzle catching the top, wet filament, or the speed (${n(fl.speed, 0)} mm/s, a condition of every reading).")
-            l("- **A bracket at an end of the row** (${lo} or ${hi}): a bound, not a value; the next plate for this filament should move the range past it.")
-            l("- **All the patches look alike**: the steps are too small to see on this filament; a next plate with wider steps (`--flow-ratios`) can tell them apart.")
-            l()
-        }
         l("plymeld cannot read these results back in yet (`plymeld calibrate read` is planned). Keep the filled tables and this page together.")
         return sb.toString()
     }
@@ -546,7 +504,7 @@ object PlateInstructions {
     /** The picture's title line: which layer each part on the plate is drawn at, naming only the parts the plate has. */
     fun pictureTitle(spec: CalibrationSpec): String {
         val shown = listOfNotNull(if (spec.parts.any { it != Part.MELT }) "a layer of band 1" else null, if (spec.baseLayers > 0) "the bases' top layer, notched" else null, if (spec.melt != null) "every melt step's top" else null, if (spec.bridges != null) "every band's bridge decks" else null,
-            if (spec.flow != null) "each row of flow patches at its top" else null, if (spec.fit != null) "the fit block at its first layer" else null)
+            if (spec.fit != null) "the fit block at its first layer" else null)
         return "From above (${shown.joinToString("; ")})"
     }
 
@@ -560,9 +518,8 @@ object PlateInstructions {
         val program = plate.program()
         val readZ = spec.bands.first().let { it.fromUm + spec.layerUm }
         // the bases from their last layer (its notches cut); the ledges from band 1's top read layer, where they stand out
-        // furthest; every band's bridge decks (each band's in its own strips, as seen from above); each row of flow patches
-        // from its top layer and the fit block from its first (on their pedestals); everything else from band 1's first
-        // read layer
+        // furthest; every band's bridge decks (each band's in its own strips, as seen from above); the fit block from its
+        // first (on its pedestal); everything else from band 1's first read layer
         val ledgeZ = spec.bands.first().readToUm
         val baseZ = spec.baseLayers * spec.layerUm
         val fitZ = spec.fit?.let { (it.fromLayer + 1) * spec.layerUm }
@@ -575,8 +532,6 @@ object PlateInstructions {
                 lb.startsWith("melt ") -> true
                 lb.startsWith("deck ") -> plate.deckBandAt(it.zUm) != null
                 lb.endsWith("ledges") -> it.zUm == ledgeZ
-                lb.startsWith("flow ") -> spec.flow!!.let { f -> it.zUm == (f.topLayer(lb.removePrefix("flow ").substringBefore('.').toInt() - 1) + 1) * spec.layerUm }
-                lb.startsWith("pedestal ") -> false
                 lb == "fit block" || lb == "pedestal" || lb == "peg" -> it.zUm == fitZ
                 else -> it.zUm == readZ
             }
@@ -725,26 +680,6 @@ object PlateInstructions {
             g.font = Font("SansSerif", Font.BOLD, 13); g.color = Color(40, 140, 160)
             val rb = plate.footprint(Part.STRINGING)
             g.drawString("stringing ring: posts 1-$n0, hops' retraction (mm)", px(ox + rb[0]).toInt(), (py(oy + rb[3]) - 4).toInt())
-        }
-        // the flow patches: each column's number and ratio behind the back row, each row's band left of it; the marker's meaning
-        spec.flow?.let { f ->
-            g.font = Font("SansSerif", Font.PLAIN, 14)
-            for (k in f.ratios.indices) {
-                val bx = plate.patchBox(f.fromLayers.size - 1, k)
-                val label = "${k + 1}: ${n(f.ratios[k], 3)}"
-                val tw = g.fontMetrics.stringWidth(label)
-                g.color = Color(20, 20, 20)
-                g.drawString(label, (px(ox + (bx[0] + bx[2]) / 2) - tw / 2).toInt(), (py(oy + bx[3]) - 8).toInt())
-            }
-            for (r in f.fromLayers.indices) {
-                val bx = plate.patchBox(r, 0); val bd = spec.readBand((f.topLayer(r) + 1) * spec.layerUm)
-                val label = "band ${bd?.let { it.index + 1 } ?: "?"}"
-                g.drawString(label, (px(ox + bx[0]) - g.fontMetrics.stringWidth(label) - 6).toInt(), (py(oy + (bx[1] + bx[3]) / 2) + 5).toInt())
-            }
-            plate.markBox()?.let { mb ->
-                g.color = Color(70, 140, 95); g.font = Font("SansSerif", Font.BOLD, 15)
-                g.drawString("marker: the current flow ratio (${n(f.ratios[f.marked], 3)})", (px(ox + mb[2]) + 10).toInt(), (py(oy + mb[1]) - 2).toInt())
-            }
         }
         // the direction the flow rises, and the post
         g.font = Font("SansSerif", Font.BOLD, 16); g.color = Color(60, 90, 160)

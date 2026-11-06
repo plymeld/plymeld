@@ -84,16 +84,6 @@ object CalibrationCheck {
                     else if (layer == read - 1) add((if (layer == 0) "adhesion:" else "") + mt.floorLabel(b, s))
                     else if (layer == read) for (k in 0 until mt.count) add(mt.label(b, s, k))
                 } }
-                val f = spec.flow
-                if (f != null) {
-                    val pre = if (layer == 0) "adhesion:" else ""
-                    // a row per band: its patches solid up to its top, on their pedestals below
-                    for (r in f.fromLayers.indices) {
-                        if (layer >= f.fromLayers[r] && layer <= f.topLayer(r)) for (k in f.ratios.indices) add(pre + f.label(r, k))
-                        else if (layer < f.fromLayers[r]) for (k in f.ratios.indices) add(pre + f.pedestalLabel(r, k))
-                    }
-                    if (layer - spec.baseLayers <= f.layers && f.marked in f.ratios.indices) add("${pre}mark")
-                }
                 if (spec.ledges != null) add(if (layer == 0) "adhesion:ledges" else "ledges")
                 spec.strings?.let { st -> for (j in 1..st.posts) add((if (layer == 0) "adhesion:" else "") + "post $j") }
                 spec.tubes?.let { tb -> if (layer < tb.layers) for (k in tb.widthsUm.indices) add((if (layer == 0) "adhesion:" else "") + "tube ${k + 1}") }
@@ -184,7 +174,7 @@ object CalibrationCheck {
      *  - the parts (the post and each family of tests, packed): every part's lines on every layer, widened by half
      *    their declared width, at least [PlateGeometry.familyGap] from every other part's;
      *  - the terraced melt test ([meltGeometry]);
-     *  - the bases, the flow patches, the ledges, the bridges, the stringing ring, the tubes, the fit test
+     *  - the bases, the ledges, the bridges, the stringing ring, the tubes, the fit test
      *    (each its own function, below).
      */
     fun geometry(spec: CalibrationSpec, gcode: String): List<String> {
@@ -264,7 +254,6 @@ object CalibrationCheck {
             // the bases' layers hold no test (the bases are checked on their own, below)
             if (zUm <= spec.baseLayers * spec.layerUm) continue
             val ss = segs.map { Seg(it.cell, it.x0, it.y0, it.x1, it.y1, it.speed) }
-            flowGeometry(spec, zUm, ss, ::bad)
             ledgeGeometry(spec, zUm, ss, ::bad)
             bridgeGeometry(spec, zUm, ss, ::bad, bridgeRow, decksLaid)
             ringGeometry(spec, zUm, ss, ::bad)
@@ -538,7 +527,7 @@ object CalibrationCheck {
      * [PlateGeometry.baseMargin] wider than its test (the test's lines above the base, read from the g-code) on every side;
      * its front face whole on the first layer, and on every layer above it broken by exactly one notch, as wide as
      * [PlateGeometry.baseNotchW] plus a line (the outer ring steps round it) and [PlateGeometry.baseNotchIn] deep, standing in
-     * front of the test's first item as the g-code lays it (the first ledge, span, tube, hole, column of patches, ring post,
+     * front of the test's first item as the g-code lays it (the first ledge, span, tube, hole, ring post,
      * the melt test's FAST surface).
      */
     private fun baseGeometry(spec: CalibrationSpec, byZ: Map<Long, List<Seg>>, tests: Map<Part, DoubleArray>, cells: Map<String, DoubleArray>, bad: (String) -> Unit) {
@@ -552,8 +541,6 @@ object CalibrationCheck {
             Part.FIT -> cell("fit block")?.let { b -> val a = b[0] + PlateGeometry.fitWall / 1000.0; a to a + spec.fit!!.holesUm.max() / 1000.0 }
             Part.LINE_WIDTH -> cell("tube 1")?.let { it[0] to it[2] }
             Part.STRINGING -> cell("post 1")?.let { it[0] to it[2] }
-            Part.FLOW -> (0 until spec.flow!!.fromLayers.size).flatMap { r -> listOfNotNull(cell(spec.flow.label(r, 0)), cell(spec.flow.pedestalLabel(r, 0))) }
-                .takeIf { it.isNotEmpty() }?.let { bs -> bs.minOf { it[0] } to bs.maxOf { it[2] } }
             Part.POST -> null
         }
         for (layer in 0 until spec.baseLayers) {
@@ -807,79 +794,6 @@ object CalibrationCheck {
                       val flow: Double = Double.NaN, val wd: Double = Double.NaN) { val len get() = Math.hypot(x1 - x0, y1 - y0) }
 
     /**
-     * The flow-ratio patches on the layer at [zUm], from the g-code's own lines, against figures this check
-     * works out itself (not the generator's): every patch square, as many lines as make it about
-     * [PlateGeometry.patchAbout] across at the bead model's spacing, its lines exactly that spacing apart (the
-     * spacing is what makes the flow ratio the only thing that varies); a row per band, each
-     * row's patches low to high from the left [PlateGeometry.patchGap] apart, the rows in band order
-     * from the front, a patch and that gap apart and in line; the marker in front of the front row's patch at the current
-     * ratio.
-     */
-    private fun flowGeometry(spec: CalibrationSpec, zUm: Long, segs: List<Seg>, bad: (String) -> Unit) {
-        val f = spec.flow ?: return
-        val layer = (zUm / spec.layerUm - 1).toInt()
-        val zs = "z ${zUm / 1000.0}"
-        // a patch's size: whole lines of the plate's own width at the bead spacing, about [PlateGeometry.patchAbout]
-        // across; on the first layer its lines are the first layer's width, as many as fit in that size at their spacing
-        val h = spec.layerUm / 1000.0
-        val w0 = spec.widthUm / 1000.0; val sp0 = w0 - h * (1 - Math.PI / 4)
-        val lines0 = maxOf(2, Math.floor((PlateGeometry.patchAbout / 1000.0 - w0 - 2 * sp0) / sp0 + 1e-9).toInt() + 1)
-        val size = (lines0 - 1) * sp0 + 2 * sp0 + w0
-        val w = lineW(spec, zUm)
-        val sp = w - h * (1 - Math.PI / 4)
-        val lines = maxOf(1, Math.floor((size - w - 2 * sp) / sp + 1e-6).toInt() + 1)
-        val gap = PlateGeometry.patchGap / 1000.0
-        // each row on this layer (solid up to its top, its pedestals below): its patches' boxes
-        val rows = java.util.TreeMap<Int, List<DoubleArray>>()
-        for (r in f.fromLayers.indices) {
-            val solid = layer >= f.fromLayers[r] && layer <= f.topLayer(r)
-            if (!solid && layer >= f.fromLayers[r]) continue
-            val boxes = ArrayList<DoubleArray>()
-            for (k in f.ratios.indices) {
-                val name = if (solid) f.label(r, k) else f.pedestalLabel(r, k)
-                val pn = "${r + 1}.${k + 1}"
-                val mine = segs.filter { it.cell == name || it.cell == "adhesion:$name" }
-                if (mine.isEmpty()) { bad("$zs: flow patch $pn (band ${r + 1}'s row) has no ${if (solid) "lines" else "pedestal"}"); return }
-                // its wall's center line half a line in from its edge: the box of everything it lays, widened by half a line
-                val b = doubleArrayOf(mine.minOf { minOf(it.x0, it.x1) } - w / 2, mine.minOf { minOf(it.y0, it.y1) } - w / 2, mine.maxOf { maxOf(it.x0, it.x1) } + w / 2, mine.maxOf { maxOf(it.y0, it.y1) } + w / 2)
-                boxes += b
-                if (Math.abs(b[2] - b[0] - size) > 0.03 || Math.abs(b[3] - b[1] - size) > 0.03) bad("$zs: flow patch $pn${if (solid) "" else "'s pedestal"} is ${fmt(b[2] - b[0], 2)} x ${fmt(b[3] - b[1], 2)} mm, not ${fmt(size, 2)} square ($lines lines at ${fmt(sp, 3)} mm)")
-                if (!solid) continue
-                // its lines: the long moves, one bead spacing apart across them
-                val long = mine.filter { it.len > size - w - 2 * sp - 0.05 && it.len < size - w - 2 * sp + 0.05 && (Math.abs(it.x1 - it.x0) < 1e-6 || Math.abs(it.y1 - it.y0) < 1e-6) }
-                val alongX = long.count { Math.abs(it.y1 - it.y0) < 1e-6 } > long.size / 2
-                val across = long.filter { if (alongX) Math.abs(it.y1 - it.y0) < 1e-6 else Math.abs(it.x1 - it.x0) < 1e-6 }.map { if (alongX) it.y0 else it.x0 }.sorted()
-                if (across.size != lines) bad("$zs: flow patch $pn has ${across.size} lines, not $lines")
-                else for (i in 1 until across.size) if (Math.abs(across[i] - across[i - 1] - sp) > 0.012) { bad("$zs: flow patch $pn's lines ${i} and ${i + 1} are ${fmt(across[i] - across[i - 1], 3)} mm apart, not ${fmt(sp, 3)} (the bead spacing)"); break }
-            }
-            // one row, low to high from the left, the gap between them
-            for (k in 1 until boxes.size) {
-                if (Math.abs(boxes[k][0] - boxes[k - 1][2] - gap) > 0.03 || Math.abs(boxes[k][1] - boxes[0][1]) > 0.03) bad("$zs: flow patch ${r + 1}.${k + 1} is not in row ${r + 1}, ${fmt(gap, 1)} mm after patch ${r + 1}.$k")
-            }
-            rows[r] = boxes
-        }
-        // the rows in band order from the front, each a patch and the gap behind the one before, in line with it
-        val first = rows.firstEntry() ?: return
-        for ((r, boxes) in rows) if (r != first.key) {
-            val behind = (r - first.key) * (size + gap)
-            if (Math.abs(boxes[0][0] - first.value[0][0]) > 0.03 || Math.abs(boxes[0][1] - first.value[0][1] - behind) > 0.03)
-                bad("$zs: flow row ${r + 1} (band ${r + 1}'s) is not ${fmt(behind, 2)} mm behind row ${first.key + 1}, in line with it (its first patch at x ${fmt(boxes[0][0], 2)}, y ${fmt(boxes[0][1], 2)})")
-        }
-        // the marker: on the bed (as tall as a patch on the bed would be), in front of the front row's patch at the current ratio, centered on it
-        val mark = segs.filter { it.cell.endsWith("mark") }
-        if (layer > f.layers) return
-        if (f.marked in f.ratios.indices) {
-            val front = rows[0] ?: run { bad("$zs: no front row of flow patches (band 1's) to mark"); return }
-            if (mark.isEmpty()) bad("$zs: no marker in front of flow patch 1.${f.marked + 1} (the current ratio ${f.ratios[f.marked]})")
-            else {
-                val cx = (mark.minOf { minOf(it.x0, it.x1) } + mark.maxOf { maxOf(it.x0, it.x1) }) / 2
-                val pb = front[f.marked]
-                if (Math.abs(cx - (pb[0] + pb[2]) / 2) > 0.05 || mark.maxOf { maxOf(it.y0, it.y1) } > pb[1]) bad("$zs: the marker is not in front of flow patch 1.${f.marked + 1}, centered (its center x ${fmt(cx, 2)}, the patch's ${fmt((pb[0] + pb[2]) / 2, 2)})")
-            }
-        } else if (mark.isNotEmpty()) bad("$zs: a marker, but no patch is at the current ratio")
-    }
-
-    /**
      * The overhang ledges on the layer at [zUm], from the g-code's outermost lines: how far each ledge's front
      * stands out of the spine's own front (measured between the ledges, on the same layer) against what this
      * check works out itself: in a band's read part, [i] layers in, [i] times its share of the outer wall's
@@ -1130,10 +1044,10 @@ object CalibrationCheck {
 
     /**
      * Whether a cell is the plate's frame (read for nothing) above the first layer, by its label alone: a base, a melt body or
-     * floor, a pier, a pedestal, the ruler post, the flow marker. On the first layer they are "adhesion:" cells.
+     * floor, a pier, a pedestal, the ruler post. On the first layer they are "adhesion:" cells.
      */
     fun isFrameCell(label: String): Boolean = label.startsWith("base ") || label.startsWith("melt body ") || label.startsWith("melt floor ") || label == "pier" ||
-        label == "pedestal" || label.startsWith("pedestal ") || label == "post" || label == "mark"
+        label == "pedestal" || label == "post"
 
     /**
      * The frame's motion by the g-code alone (the visible-line cap does not apply to a calibration plate): every frame
@@ -1187,14 +1101,14 @@ object CalibrationCheck {
 
     /** The values a cell prints with, by the specification. */
     private fun values(spec: CalibrationSpec, cell: String): PathValues = when {
-        cell in setOf("adhesion:post", "adhesion:mark", "adhesion:ledges", "adhesion:pier") || cell.startsWith("adhesion:flow ") -> spec.adhesion
+        cell in setOf("adhesion:post", "adhesion:ledges", "adhesion:pier") -> spec.adhesion
         cell.startsWith("adhesion:melt body ") || cell.startsWith("adhesion:melt floor ") -> spec.adhesion
         cell.startsWith("melt body ") || cell.startsWith("melt floor ") -> spec.frame
         meltStrip(cell) != null -> spec.melt!!.let { mt -> PathValues(mt.speeds[meltStrip(cell)!![1]], mt.accel, spec.flowRatio, spec.retractMm) }
         cell == "ledges" -> spec.ledges!!.let { PathValues(it.speed, it.accel, spec.flowRatio, spec.retractMm) }
         cell == "pier" -> spec.frame
-        cell == "pedestal" || cell.startsWith("pedestal ") -> spec.frame
-        cell == "adhesion:pedestal" || cell.startsWith("adhesion:pedestal ") -> spec.adhesion
+        cell == "pedestal" -> spec.frame
+        cell == "adhesion:pedestal" -> spec.adhesion
         cell.startsWith("adhesion:post ") || cell.startsWith("adhesion:tube ") || cell == "adhesion:fit block" || cell == "adhesion:peg" -> spec.adhesion
         cell == "fit block" || cell == "peg" -> spec.fit!!.let { PathValues(it.speed, it.accel, spec.flowRatio, spec.retractMm) }
         cell.startsWith("tube ") -> spec.tubes!!.let { PathValues(it.speed, it.accel, spec.flowRatio, spec.retractMm) }
@@ -1202,8 +1116,7 @@ object CalibrationCheck {
         cell.startsWith("adhesion:base ") -> spec.adhesion
         cell.startsWith("base ") -> spec.frame
         cell.startsWith("deck ") -> spec.bridges!!.let { PathValues(it.speed, it.accel, it.flows[cell.removePrefix("deck ").toInt() - 1], spec.retractMm) }
-        cell == "post" || cell == "mark" -> spec.frame
-        cell.startsWith("flow ") -> spec.flow!!.let { f -> PathValues(f.speed, f.accel, f.ratios[cell.substringAfter('.').toInt() - 1], spec.retractMm) }
+        cell == "post" -> spec.frame
         else -> error("no cell '$cell' in the specification")
     }
 

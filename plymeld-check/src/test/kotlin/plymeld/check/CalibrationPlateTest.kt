@@ -62,7 +62,7 @@ class CalibrationPlateTest : StringSpec({
         // every post ring of one layer relabelled: that layer has no post
         val lines = text.lines().toMutableList()
         val starts = lines.indices.filter { lines[it].startsWith("; CHANGE_LAYER") }
-        for (k in starts[40] until starts[41]) if (lines[k] == "; CELL: post") lines[k] = "; CELL: mark"
+        for (k in starts[40] until starts[41]) if (lines[k] == "; CELL: post") lines[k] = "; CELL: pier"
         CalibrationCheck.check(spec, lines.joinToString("\n")).any { it.contains("no 'post' cell") } shouldBe true
     }
 
@@ -379,7 +379,7 @@ class CalibrationPlateTest : StringSpec({
         shouldThrow<IllegalArgumentException> { CalibrationSpec(0, "test", CalibrationSpec.meltBands(205, 220, 5, 100.0, 3 * 120L, 120), 120, w, 1.75,
             adhesion = spec.adhesion, frame = spec.frame, melt = meltSpec.melt, flowRatio = 1.0, retractMm = 0.8, originXUm = 0, originYUm = 0) }.message!! shouldContain "above the next layer"
         // the filament plate's families: not the melt test (nor the motion test, MotionPlate's)
-        plymeld.core.calibrate.Part.FILAMENT_TESTS.map { it.key } shouldBe listOf("overhangs", "bridges", "stringing", "line-width", "flow", "fit")
+        plymeld.core.calibrate.Part.FILAMENT_TESTS.map { it.key } shouldBe listOf("overhangs", "bridges", "stringing", "line-width", "fit")
         // a melt test with another family is refused
         shouldThrow<IllegalArgumentException> { melted().let { m -> CalibrationSpec(0, "test", m.bands, h, w, 1.75, adhesion = spec.adhesion, frame = spec.frame, melt = m.melt,
             flowRatio = 1.0, retractMm = 0.8, originXUm = 0, originYUm = 0, ledges = plymeld.core.calibrate.Ledges(doubleArrayOf(0.5), 60.0, 5000.0)) } }.message!! shouldContain "a plate of its own"
@@ -389,45 +389,6 @@ class CalibrationPlateTest : StringSpec({
         meltBands.map { it.tempC } shouldBe listOf(220, 215, 210, 205)
         meltBands.map { it.readToUm } shouldBe listOf(1_800L, 2_200, 2_600, 3_000)
         meltBands.all { it.toUm == it.readToUm } shouldBe true
-    }
-
-    // the same plate with the flow-ratio patches: 0.94, 0.97, 1 (marked), 1.03, 1.06
-    val flowed = CalibrationSpec(0, "test", bands, h, w, 1.75, adhesion = spec.adhesion, frame = spec.frame, melt = null,
-        flowRatio = 1.0, retractMm = 0.8, originXUm = 100_000, originYUm = 100_000,
-        flow = plymeld.core.calibrate.FlowPatches(doubleArrayOf(0.94, 0.97, 1.0, 1.03, 1.06), 2, 80.0, 5000.0, 4))
-    val flowText = CalibrationPlate(flowed).gcode(s, setup.foreignTemplateVars, "test")
-
-    "flow patches: each at its own ratio, lines at the bead spacing; the plate passes" {
-        CalibrationCheck.check(flowed, flowText).shouldBeEmpty()
-        // independently of the check: filament per mm of patch 5's lines over patch 1's is the ratios' quotient
-        fun ePerMm(cell: String): Double {
-            var x = Double.NaN; var y = Double.NaN; var inCell = false; var e = 0.0; var len = 0.0
-            for (l in flowText.lines()) {
-                if (l.startsWith("; CELL: ")) { inCell = l == "; CELL: $cell"; continue }
-                val m = Regex("G1 X([-0-9.]+) Y([-0-9.]+) E([0-9.]+).*").matchEntire(l)
-                val g = Regex("G1 X([-0-9.]+) Y([-0-9.]+).*").matchEntire(l)
-                if (m != null && inCell && !x.isNaN()) { val nx = m.groupValues[1].toDouble(); val ny = m.groupValues[2].toDouble(); len += Math.hypot(nx - x, ny - y); e += m.groupValues[3].toDouble() }
-                if (g != null) { x = g.groupValues[1].toDouble(); y = g.groupValues[2].toDouble() }
-            }
-            return e / len
-        }
-        (ePerMm("flow 1.5") / ePerMm("flow 1.1")) shouldBe (1.06 / 0.94 plusOrMinus 0.002)
-        // five patches on each of the first five layers, each a wall and its lines
-        Regex("; CELL: (adhesion:)?flow \\d").findAll(flowText).count() shouldBe 5 * 5 * 2
-    }
-
-    "controls: a patch's line made richer, the marker left out, a patch at the wrong spacing are caught" {
-        val lines = flowText.lines().toMutableList()
-        val at = lines.indices.last { lines[it] == "; CELL: flow 1.2" }
-        val k = (at until lines.size).first { Regex("G1 X[-0-9.]+ Y[-0-9.]+ E[0-9.]+.*").matches(lines[it]) }
-        val e = lines[k].substringAfter(" E").substringBefore(' ')
-        lines[k] = lines[k].replace(" E$e", " E" + String.format(java.util.Locale.ROOT, "%.5f", e.toDouble() * 1.03))
-        CalibrationCheck.check(flowed, lines.joinToString("\n")).any { it.contains("'flow 1.2'") } shouldBe true
-        CalibrationCheck.check(flowed, CalibrationPlate(flowed, without = setOf("mark")).gcode(s, setup.foreignTemplateVars, "test")).any { it.contains("no marker") } shouldBe true
-        // the same plate drawn for 0.42 mm lines but checked as 0.44: its lines are closer than the bead spacing
-        val narrow = CalibrationSpec(0, "test", bands, h, 420, 1.75, adhesion = spec.adhesion, frame = spec.frame, melt = null,
-            flowRatio = 1.0, retractMm = 0.8, originXUm = 100_000, originYUm = 100_000, flow = flowed.flow)
-        CalibrationCheck.check(flowed, CalibrationPlate(narrow).gcode(s, setup.foreignTemplateVars, "test")).any { it.contains("flow patch") } shouldBe true
     }
 
     // the same plate with the overhang ledges: shares 0.35 .. 0.95
@@ -536,12 +497,11 @@ class CalibrationPlateTest : StringSpec({
             .any { it.contains("before stringing post 2 (hop 1)") } shouldBe true
     }
 
-    "the default stringing lengths, tube widths and flow ratios" {
+    "the default stringing lengths and tube widths" {
         // the defaults the command uses, against the numbers the user gave (a 0.4 mm nozzle: 0.25 to 0.75 mm in 0.05 steps)
         plymeld.core.calibrate.Tubes.defaultWidths(400) shouldBe listOf(250L, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750)
         plymeld.core.calibrate.Tubes.defaultWidths(600) shouldBe listOf(380L, 450, 530, 600, 680, 750, 830, 900, 980, 1050, 1130)
         plymeld.core.calibrate.Strings.defaultLengths() shouldBe listOf(0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6)
-        plymeld.core.calibrate.FlowPatches.defaultRatios(1.0) shouldBe listOf(0.94, 0.96, 0.98, 1.0, 1.02, 1.04, 1.06)
     }
 
     // the same plate with the line-width tubes: 0.35 .. 0.65 mm
@@ -581,17 +541,16 @@ class CalibrationPlateTest : StringSpec({
             .any { it.contains("hole 3 is") } shouldBe true
     }
 
-    // the flow patches and the fit block on pedestals: the patches' solid layers ending at layer 24, the block from layer 15
-    fun raised(patchFrom: Int, fitFrom: Int) = CalibrationSpec(0, "test", bands, h, w, 1.75, adhesion = spec.adhesion, frame = spec.frame, melt = null,
+    // the fit block on a pedestal, the block from layer 15
+    fun raised(fitFrom: Int) = CalibrationSpec(0, "test", bands, h, w, 1.75, adhesion = spec.adhesion, frame = spec.frame, melt = null,
         flowRatio = 1.0, retractMm = 0.8, originXUm = 100_000, originYUm = 100_000,
-        flow = plymeld.core.calibrate.FlowPatches(doubleArrayOf(0.94, 0.97, 1.0, 1.03, 1.06), 2, 80.0, 5000.0, 4, fromLayers = intArrayOf(patchFrom)),
         fit = plymeld.core.calibrate.Fit(5_000, longArrayOf(5_000, 5_100, 5_200), 60.0, 5000.0, 12, 27, fromLayer = fitFrom))
-    val raisedSpec = raised(20, 15)
+    val raisedSpec = raised(15)
 
-    "pedestals: the patches and the fit block start where specified; one started a layer early is caught" {
+    "pedestals: the fit block starts where specified; one started a layer early is caught" {
         val t = CalibrationPlate(raisedSpec).gcode(s, setup.foreignTemplateVars, "test")
         CalibrationCheck.check(raisedSpec, t).shouldBeEmpty()
-        // independently: the patches' first solid layer is layer 20 (z 4.2 mm), the block's layer 15 (z 3.2 mm)
+        // independently: the block's first layer is layer 15 (z 3.2 mm), its pedestal's first layer 1 (z 0.4 mm)
         // the height the cell's first line is laid at, from the moves' own Z
         fun firstZ(cell: String): Double {
             var z = 0.0; var inCell = false
@@ -602,11 +561,9 @@ class CalibrationPlateTest : StringSpec({
             }
             return Double.NaN
         }
-        firstZ("flow 1.1") shouldBe (4.2 plusOrMinus 1e-9)
         firstZ("fit block") shouldBe (3.2 plusOrMinus 1e-9)
-        firstZ("pedestal 1.1") shouldBe (0.4 plusOrMinus 1e-9)
-        CalibrationCheck.check(raisedSpec, CalibrationPlate(raised(19, 15)).gcode(s, setup.foreignTemplateVars, "test")).any { it.contains("flow") || it.contains("pedestal") } shouldBe true
-        CalibrationCheck.check(raisedSpec, CalibrationPlate(raised(20, 14)).gcode(s, setup.foreignTemplateVars, "test")).any { it.contains("fit block") || it.contains("pedestal") } shouldBe true
+        firstZ("pedestal") shouldBe (0.4 plusOrMinus 1e-9)
+        CalibrationCheck.check(raisedSpec, CalibrationPlate(raised(14)).gcode(s, setup.foreignTemplateVars, "test")).any { it.contains("fit block") || it.contains("pedestal") } shouldBe true
     }
     "the plate's page: levelling first, the conditions, the melt test's strips and flows per band, how to read it, what to enter" {
         val plate = CalibrationPlate(meltSpec)
@@ -646,33 +603,25 @@ class CalibrationPlateTest : StringSpec({
         // FAST held by the machine (30 mm3/s would center it at 377.7 mm/s): the page says the top of the range is the machine's
         md shouldContain "**the top of the range is the machine's limit, not the filament's**"
         // a plate without the melt test, its maximum flow still the placeholder: the page recommends the melt plate first
-        val rmd = plymeld.core.calibrate.PlateInstructions.markdown(flowed, CalibrationPlate(flowed),
+        val rmd = plymeld.core.calibrate.PlateInstructions.markdown(ledgeSpec, CalibrationPlate(ledgeSpec),
             plymeld.core.calibrate.PlateInstructions.Info("pla test", "a printer", 0, "test", "plate.gcode", 9.0, "0.035 s", 60, 40.0, 100.0, 0.8, maxFlowPlaceholder = true), "plate.png")
         rmd shouldContain "**Recommended: run the melt test first.**"
         rmd shouldContain "`plymeld calibrate melt ...`"
         rmd shouldContain "# Filament plate: pla test"
         // measured (not the placeholder): no recommendation
-        plymeld.core.calibrate.PlateInstructions.markdown(flowed, CalibrationPlate(flowed),
+        plymeld.core.calibrate.PlateInstructions.markdown(ledgeSpec, CalibrationPlate(ledgeSpec),
             plymeld.core.calibrate.PlateInstructions.Info("pla test", "a printer", 0, "test", "plate.gcode", 9.0, "0.035 s", 60, 40.0, 100.0, 0.8), "plate.png") shouldNotContain "Recommended: run the melt test first"
         // the picture's title names only the parts on the plate
         plymeld.core.calibrate.PlateInstructions.pictureTitle(spec) shouldBe "From above (a layer of band 1)"
         plymeld.core.calibrate.PlateInstructions.pictureTitle(meltSpec) shouldBe "From above (the bases' top layer, notched; every melt step's top)"
-        plymeld.core.calibrate.PlateInstructions.pictureTitle(flowed) shouldBe "From above (a layer of band 1; each row of flow patches at its top)"
-        // with the flow patches: a row for each, the marked one, and how to read them
-        val fmd = plymeld.core.calibrate.PlateInstructions.markdown(flowed, CalibrationPlate(flowed),
-            plymeld.core.calibrate.PlateInstructions.Info("pla test", "a printer", 0, "test", "plate.gcode", 9.0, "0.035 s", 60, 40.0, 100.0, 0.8), "plate.png")
-        fmd shouldContain "| 3 (marked: current) | 1 |"
-        fmd shouldContain "| 5 | 1.06 |"
-        fmd shouldContain "## How to read the flow patches"
     }
 
-    // every family of the filament plate on one plate, its first layer in [firstW] µm lines; the patches and the block on the
-    // bed ([patchFrom], [fitFrom] 0: their first layer theirs) or on pedestals ([lastSpan]: the bridges' last span); the melt
-    // test is a plate of its own, the motion test too (MotionPlate)
-    fun everything(firstW: Long, patchFrom: Int = 0, fitFrom: Int = 0, lastSpan: Long = 32_000) = CalibrationSpec(0, "test", bands, h, w, 1.75, adhesion = spec.adhesion, frame = spec.frame,
+    // every family of the filament plate on one plate, its first layer in [firstW] µm lines; the block on the bed ([fitFrom]
+    // 0: its first layer its own) or on a pedestal; [lastSpan]: the bridges' last span. The melt and flow tests are plates of
+    // their own, the motion test too (MotionPlate)
+    fun everything(firstW: Long, fitFrom: Int = 0, lastSpan: Long = 32_000) = CalibrationSpec(0, "test", bands, h, w, 1.75, adhesion = spec.adhesion, frame = spec.frame,
         melt = null,
         flowRatio = 1.0, retractMm = 0.8, originXUm = 100_000, originYUm = 100_000, firstWidthUm = firstW,
-        flow = plymeld.core.calibrate.FlowPatches(doubleArrayOf(0.94, 0.97, 1.0, 1.03, 1.06), 2, 80.0, 5000.0, 4, fromLayers = intArrayOf(patchFrom)),
         ledges = ledgeSpec.ledges, bridges = bridged(longArrayOf(8_000, 14_000, 20_000, 26_000, lastSpan)).bridges, strings = postSpec.strings, tubes = tubeSpec.tubes,
         fit = plymeld.core.calibrate.Fit(5_000, longArrayOf(5_000, 5_100, 5_200), 60.0, 5000.0, 12, 27, fromLayer = fitFrom))
     // the lines of each cell on the first layer, read from the g-code text: declared width, filament per mm,
@@ -704,8 +653,8 @@ class CalibrationPlateTest : StringSpec({
         return ls.drop(second).filter { Regex("G1 X[-0-9.]+ Y[-0-9.]+ E[0-9.]+.*").matches(it) } }
 
     "the first layer in the first-layer width (the tubes in their own); every part's outline and every layer above as before" {
-        for ((patchFrom, fitFrom) in listOf(0 to 0, 20 to 15)) {
-            val wide = everything(500, patchFrom, fitFrom); val same = everything(440, patchFrom, fitFrom)
+        for (fitFrom in listOf(0, 15)) {
+            val wide = everything(500, fitFrom); val same = everything(440, fitFrom)
             val t = CalibrationPlate(wide).gcode(s, setup.foreignTemplateVars, "test")
             val t0 = CalibrationPlate(same).gcode(s, setup.foreignTemplateVars, "test")
             CalibrationCheck.check(wide, t).shouldBeEmpty()
@@ -754,12 +703,11 @@ class CalibrationPlateTest : StringSpec({
     }
 
     // the filament plate as `plymeld calibrate filament` makes it: every family on a 3-layer base, the
-    // bands above the bases, a row of flow patches per band, the eleven tubes, the stringing ring; 4 bands
+    // bands above the bases, the eleven tubes, the stringing ring; 4 bands
     val bb = CalibrationSpec.bands(205, 220, 5, 50.0 to 100.0, 3 * h, 2_400, 800)
     fun lastRead(b: Int) = (bb[b].readToUm / h).toInt() - 1
     fun based(packW: Long = Long.MAX_VALUE, packD: Long = Long.MAX_VALUE) = CalibrationSpec(0, "test", bb, h, w, 1.75, adhesion = spec.adhesion, frame = spec.frame,
         melt = null, flowRatio = 1.0, retractMm = 0.8, originXUm = 100_000, originYUm = 100_000, firstWidthUm = 500,
-        flow = plymeld.core.calibrate.FlowPatches(plymeld.core.calibrate.FlowPatches.defaultRatios(1.0).toDoubleArray(), 3, 80.0, 5000.0, 4, fromLayers = IntArray(bb.size) { lastRead(it) - 4 }),
         ledges = ledgeSpec.ledges, bridges = bridgeSpec.bridges, strings = plymeld.core.calibrate.Strings(plymeld.core.calibrate.Strings.defaultLengths().toDoubleArray(), 80.0, 5000.0),
         tubes = plymeld.core.calibrate.Tubes(plymeld.core.calibrate.Tubes.defaultWidths(400).toLongArray(), 60.0, 5000.0, (bb.last().readToUm / h).toInt()),
         fit = plymeld.core.calibrate.Fit(5_000, longArrayOf(5_000, 5_100, 5_200), 60.0, 5000.0, lastRead(2) - (bb[2].fromUm / h).toInt() + 1, lastRead(2) + 1, fromLayer = (bb[2].fromUm / h).toInt()),
@@ -812,12 +760,12 @@ class CalibrationPlateTest : StringSpec({
                 }
             }
         }
-        // the flow base's notch in front of the first column: between the first patch's left and right edges
-        val base = cellLines(basedText).getValue(1 to "base flow"); val fy = base.minOf { minOf(it[1], it[3]) }
+        // the tubes' base's notch in front of the first tube: between tube 1's left and right edges
+        val base = cellLines(basedText).getValue(1 to "base line-width"); val fy = base.minOf { minOf(it[1], it[3]) }
         val front = base.filter { Math.abs(it[1] - fy) < 0.01 && Math.abs(it[3] - fy) < 0.01 }.map { minOf(it[0], it[2]) to maxOf(it[0], it[2]) }.sortedBy { it.first }
         val gap = front.zipWithNext().first { (a, c) -> c.first - a.second > 0.05 }.let { (a, c) -> (a.second + c.first) / 2 }
-        val patch = extent(cellLines(basedText).filterKeys { it.second == "pedestal 1.1" }.values.flatten())
-        (gap in patch[0]..patch[2]) shouldBe true
+        val tube = extent(cellLines(basedText).filterKeys { it.second == "tube 1" }.values.flatten())
+        (gap in tube[0]..tube[2]) shouldBe true
     }
 
     "controls: a notch filled in, a notch through the first layer, a base 5 mm short, the bands not above the bases, the parts packed with no gap are caught" {
@@ -864,24 +812,13 @@ class CalibrationPlateTest : StringSpec({
         // one line of a base's second layer left out (its extrusion removed: a travel in its place)
         val ls = basedText.lines().toMutableList()
         val second = ls.indices.filter { ls[it].startsWith("; CHANGE_LAYER") || ls[it].startsWith(";LAYER_CHANGE") }[1]
-        val fillStart = (second until ls.size).filter { ls[it] == "; CELL: base flow" }[2]
+        val fillStart = (second until ls.size).filter { ls[it] == "; CELL: base line-width" }[2]
         val end = (fillStart until ls.size).first { ls[it] == "; CELL END" }
         val moves = (fillStart until end).filter { Regex("G1 X[-0-9.]+ Y[-0-9.]+ E[0-9.]+").matches(ls[it]) }
         fun xy(i: Int) = Regex("G1 X([-0-9.]+) Y([-0-9.]+).*").matchEntire(ls[i])!!.groupValues.let { it[1].toDouble() to it[2].toDouble() }
         val k = (moves.size / 2 until moves.size).first { j -> val (x0, y0) = xy(moves[j - 1]); val (x1, y1) = xy(moves[j]); Math.abs(x1 - x0) > 0.01 && Math.abs(y1 - y0) > 0.01 }
         ls[moves[k]] = ls[moves[k]].substringBefore(" E")
         CalibrationCheck.baseFill(basedSpec, ls.joinToString("\n")).any { it.contains("not one bead spacing") || it.contains("is not covered") } shouldBe true
-    }
-
-    "flow patches at every band: a row of 7 per band, each row's top on its band's last read layer; a row left out is caught" {
-        val cells = cellLines(basedText)
-        val flows = cells.keys.map { it.second }.filter { it.startsWith("flow ") }.toSet()
-        flows.size shouldBe 7 * 4
-        for (r in 1..4) {
-            val top = cells.keys.filter { it.second == "flow $r.1" }.maxOf { it.first }
-            ((top + 1) * h) shouldBe bb[r - 1].readToUm
-        }
-        CalibrationCheck.check(basedSpec, CalibrationPlate(basedSpec, without = setOf("flowrow")).gcode(s, setup.foreignTemplateVars, "test")).any { it.contains("'pedestal 4.1'") || it.contains("'flow 4.1'") } shouldBe true
     }
 
     "line-width tubes: eleven, 0.25 to 0.75 mm, each at its own width by its filament per mm; all at the plate's width is caught" {
@@ -922,9 +859,9 @@ class CalibrationPlateTest : StringSpec({
         fil.values.sum() shouldBe (total.filamentMm plusOrMinus 1e-6 * total.filamentMm)
         // every family has its own share; the bases' and the post's cells are attributed too
         for (p in basedSpec.parts) (time.filterKeys { it.isNotEmpty() && plymeld.core.calibrate.Part.ofCell(it) == p }.values.sum() > 0) shouldBe true
-        // control: the attribution sees where the time goes (the plate without its flow patches has none of theirs)
-        val noFlow = CalibrationPlate(basedSpec.keeping(basedSpec.parts.toSet() - plymeld.core.calibrate.Part.FLOW)).gcode(s, setup.foreignTemplateVars, "test")
-        plymeld.core.Predict.byCell(noFlow, machine, null, plymeld.core.Predict.limits(s)).first!!.keys.none { it.isNotEmpty() && plymeld.core.calibrate.Part.ofCell(it) == plymeld.core.calibrate.Part.FLOW } shouldBe true
+        // control: the attribution sees where the time goes (the plate without its tubes has none of theirs)
+        val noTubes = CalibrationPlate(basedSpec.keeping(basedSpec.parts.toSet() - plymeld.core.calibrate.Part.LINE_WIDTH)).gcode(s, setup.foreignTemplateVars, "test")
+        plymeld.core.Predict.byCell(noTubes, machine, null, plymeld.core.Predict.limits(s)).first!!.keys.none { it.isNotEmpty() && plymeld.core.calibrate.Part.ofCell(it) == plymeld.core.calibrate.Part.LINE_WIDTH } shouldBe true
     }
 
     "an exact program refuses a path without its own values" {

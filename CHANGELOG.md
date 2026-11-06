@@ -9,6 +9,36 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Added
+
+- `plymeld calibrate flow`: the flow ratio on a plate of its own, after the melt plate. A column per temperature, a
+  square patch per flow ratio (`--flow-ratios`), each patch's ratio and each column's temperature printed on the plate;
+  only the patches' top layer is laid at the column's temperature, after a wait.
+- `plymeld calibrate melt values TEMP=FLOW...`: a read melt plate's results written into the config file that defines
+  the filament, as its maximum flow on the machine: a formula through every reading, straight between neighboring
+  temperatures and flat past the ends, with the readings in the comment above it. The change is printed and checked
+  first, `--dry-run` writes nothing, and `plymeld journal --undo` takes it back.
+- `plymeld calibrate flow values TEMP=RATIO...`: a read flow plate's results, the best patch in each column, written as
+  the filament's flow ratio in the same way: one value when the columns agree, else a formula through every reading.
+
+### Changed
+
+- Every move's flow keeps a buffer below the filament's maximum flow: `plan.mechanism.motion.melt.buffer`, 10 % by
+  default (moves capped at 90 % of `melt.flow.max`), 0 % for none. Moves the melt rate limits print 10 % slower; the
+  melt plate's rows, which probe the limit itself, are not held to it.
+- `plymeld calibrate melt` prints a table: a column per temperature (10 °C apart by default), a row per flow from half
+  the filament's expected maximum flow to twice it (`--flow-step`), each row's flow and each column's temperature
+  printed on the plate. Its base prints at the filament's own temperatures; the columns are waited for one by one.
+- The filament plate no longer has flow-ratio patches (`--tests flow`, `--flow-ratios`): the flow plate measures the flow
+  ratio before the plates that depend on it.
+
+### Fixed
+
+- The filament plate's recommendation named the key to enter a measured melt rate under as `melt.flow.maxw`; it is
+  `melt.flow.max`.
+
+## [0.20261104.3] - 2026-11-04
+
 ### Fixed
 
 - `plymeld init` drew its choice lists blank in a terminal that reports no width (a pseudo-terminal whose size was

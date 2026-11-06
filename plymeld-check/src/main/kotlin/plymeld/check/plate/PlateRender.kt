@@ -261,40 +261,37 @@ object PlateRender {
         // (the filament plate from here on: no first-layer tiles on it; any left over are drawn apart)
         val tileMoves = moves.filter { it.cell.startsWith("tile ") }
 
-        // the terraced melt test's strips: "melt B.SURFACE.K"; each at its own Z (its floor's
-        // top plus its thickness), so they are not layers: kept out of the per-layer panels
-        val stripRx = Regex("melt (\\d+)\\.(fast|mid|slow)\\.(\\d+)")
+        // the melt plate's rows: cells "melt C.R", column C (a temperature), row R (a flow), on its read layer
+        val stripRx = Regex("melt (\\d+)\\.(\\d+)")
         val strips = moves.filter { stripRx.matches(it.cell) }
-        val surfaceNames = listOf("fast", "mid", "slow")
-        val layered = moves.filterNot { it.cell.startsWith("tile ") || stripRx.matches(it.cell) }
-        // each melt step's floor (cells "melt floor B.SURFACE"): its Z by band, read from its lines
-        val floorZ = moves.filter { it.cell.startsWith("melt floor ") }.groupBy { Regex("melt floor (\\d+)\\.").find(it.cell)!!.groupValues[1].toInt() }
-            .mapValues { (_, ms) -> ms.map { it.z }.distinct().single() }
+        val layered = moves.filterNot { it.cell.startsWith("tile ") }
+        // the melt plate's floor layer (cells "melt floor C"): panel A shows it and everything above it, the rows over it
+        val meltFloorZ = moves.filter { it.cell.startsWith("melt floor ") }.minOfOrNull { it.z }
 
-        // ---- A: top view of one layer, by flow (and every melt step's top over it)
-        val layerZ = layered.map { it.z }.distinct().minBy { Math.abs(it - pickZ) }
-        // the chosen layer first, every step's strips over it, but the strips of a step whose floor is the chosen layer (so a
-        // step's floor shows: the layer under its strips)
-        val floorBand = floorZ.entries.firstOrNull { Math.abs(it.value - layerZ) < 1e-6 }?.key
-        val layer = layered.filter { Math.abs(it.z - layerZ) < 1e-6 } + strips.filter { stripRx.matchEntire(it.cell)!!.groupValues[1].toInt() != floorBand }
-        val flowLo = layer.minOf { it.flow }; val flowHi = layer.maxOf { it.flow }
+        // ---- A: top view of one layer, by flow (the melt plate: its floor layer up, its rows colored by flow, the rest gray)
+        val layerZ = meltFloorZ ?: layered.map { it.z }.distinct().minBy { Math.abs(it - pickZ) }
+        val layer = if (meltFloorZ != null) layered.filter { it.z >= meltFloorZ - 1e-6 }.sortedBy { if (stripRx.matches(it.cell)) 1 else 0 }
+            else layered.filter { Math.abs(it.z - layerZ) < 1e-6 }
+        val colored = if (strips.isNotEmpty()) strips else layer
+        val flowLo = colored.minOf { it.flow }; val flowHi = colored.maxOf { it.flow }
         run {
             val ax = 40; val ay = 92; val aw = 1060; val ah = 400
             val s = minOf(aw / (maxX - minX + 4), ah / (maxY - minY + 4))
             fun px(x: Double) = ax + (x - minX + 2) * s
             fun py(y: Double) = ay + ah - (y - minY + 2) * s
-            g.color = Color.BLACK; g.drawString("A  top view, layer at z ${"%.2f".format(layerZ)} mm" + (if (strips.isNotEmpty()) " under every melt step's strips (each at its own z)" + (floorBand?.let { " but band $it's, whose floor it is" } ?: "") else "") + ":", ax, ay - 28)
+            g.color = Color.BLACK; g.drawString("A  top view, " + (if (meltFloorZ != null) "z %.2f mm and up: the floors and labels gray, the rows by flow".format(layerZ) else "layer at z ${"%.2f".format(layerZ)} mm") + ":", ax, ay - 28)
             g.drawString("each line colored by its volumetric flow, at its declared width", ax + 22, ay - 10)
             for (m in layer) {
                 g.stroke = BasicStroke((m.w * s).toFloat(), BasicStroke.CAP_BUTT, BasicStroke.JOIN_ROUND)   // each line its declared width
-                g.color = ramp((m.flow - flowLo) / (flowHi - flowLo), viridis)
+                g.color = if (strips.isNotEmpty() && !stripRx.matches(m.cell)) Color(185, 185, 190) else ramp((m.flow - flowLo) / maxOf(1e-9, flowHi - flowLo), viridis)
                 g.draw(Line2D.Double(px(m.x0), py(m.y0), px(m.x1), py(m.y1)))
             }
-            // each melt step's band, from its strips' cell names, at its right
-            g.font = Font("SansSerif", Font.PLAIN, 13); g.color = Color.BLACK
-            for ((b, ms) in strips.groupBy { stripRx.matchEntire(it.cell)!!.groupValues[1].toInt() }) {
-                val yMid = (ms.minOf { minOf(it.y0, it.y1) } + ms.maxOf { maxOf(it.y0, it.y1) }) / 2; val x1 = ms.maxOf { maxOf(it.x0, it.x1) }
-                g.drawString("band $b: strips at z %.2f-%.2f, %d C, fan %.0f %%".format(ms.minOf { it.z }, ms.maxOf { it.z }, ms.first().temp, ms.first().fan), px(x1).toInt() + 8, py(yMid).toInt() + 5)
+            // each melt column's temperature (the nozzle's set temperature when its rows printed), above it
+            g.font = Font("SansSerif", Font.BOLD, 13); g.color = Color.BLACK
+            for ((_, ms) in strips.groupBy { stripRx.matchEntire(it.cell)!!.groupValues[1].toInt() }) {
+                val xMid = (ms.minOf { minOf(it.x0, it.x1) } + ms.maxOf { maxOf(it.x0, it.x1) }) / 2; val y1 = ms.maxOf { maxOf(it.y0, it.y1) }
+                val t = "${ms.map { it.temp }.distinct().joinToString("/")} C"
+                g.drawString(t, (px(xMid) - g.fontMetrics.stringWidth(t) / 2).toInt(), py(y1).toInt() - 6)
             }
             g.font = Font("SansSerif", Font.PLAIN, 15)
             // the first-layer tiles (layer 0, each at its own Z): amber, each labeled with the Z and speed of its own moves
@@ -332,7 +329,7 @@ object PlateRender {
             // within 0.4 mm of that step's own front: a staircase, each step at its band's temperature)
             // (the melt plate has no post: NaN, so no line counts as the post's front)
             val postFront = moves.filter { it.cell.endsWith("post") }.minOfOrNull { minOf(it.y0, it.y1) } ?: Double.NaN
-            fun stepOf(c: String) = Regex("melt (body |floor )?(\\d+)\\.").find(c.removePrefix("adhesion:"))?.groupValues?.get(2)?.toInt()
+            fun stepOf(c: String) = Regex("^melt (floor )?(\\d+)(\\.\\d+)?$").find(c.removePrefix("adhesion:"))?.groupValues?.get(2)?.toInt()
             val stepFront = moves.filter { stepOf(it.cell) != null }.groupBy { stepOf(it.cell)!! }.mapValues { (_, ms) -> ms.minOf { minOf(it.y0, it.y1) } }
             val faces = moves.filter { m -> (m.cell.endsWith("post") && Math.abs(m.y0 - m.y1) < 1e-6 && m.y0 < postFront + 0.4) ||
                 (stepOf(m.cell)?.let { b -> Math.abs(m.y0 - m.y1) < 1e-6 && m.y0 < stepFront.getValue(b) + 0.4 } ?: false) }
@@ -355,93 +352,81 @@ object PlateRender {
             // each wait (M109) after the first layer: a dashed line at the bottom of the layer it comes before, labeled at the left
             val lh = layered.map { it.z }.distinct().sorted().zipWithNext { a, b -> b - a }.minOrNull() ?: 0.2
             g.stroke = BasicStroke(1.2f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10f, floatArrayOf(6f, 4f), 0f); g.font = Font("SansSerif", Font.PLAIN, 12)
-            for (w in tempCmds.filter { it.cmd == "M109" && !it.zAfter.isNaN() }) {
-                g.color = Color(30, 30, 30); g.draw(Line2D.Double(px(minX), pz(w.zAfter - lh), px(maxX), pz(w.zAfter - lh)))
-                g.drawString("M109 ${w.temp}", bx + 4, pz(w.zAfter - lh).toInt() - 2)
+            // waits at one height (the melt plate's, between its blocks within one layer) share a line and one label, in print order
+            for ((z, ws) in tempCmds.filter { it.cmd == "M109" && !it.zAfter.isNaN() }.groupBy { Math.round((it.zAfter - lh) * 1000) / 1000.0 }) {
+                g.color = Color(30, 30, 30); g.draw(Line2D.Double(px(minX), pz(z), px(maxX), pz(z)))
+                g.drawString("M109 ${ws.joinToString(", ") { it.temp.toString() }}", bx + 4, pz(z).toInt() - 2)
             }
             g.font = Font("SansSerif", Font.PLAIN, 15)
         }
 
-        // ---- C: the melt test's strips: flow against line width, a line per surface, a marker per band (all from the g-code)
+        // ---- C: the melt plate's grid as read from the g-code: a cell per row and column, its flow (speed x filament per mm)
+        // and colored by it; per row its speed, line count and length, and how long it holds its flow
         val stripSummary = ArrayList<String>()
         if (strips.isNotEmpty()) run {
-            val cx = 1200; val cy = 70; val cw = 650; val ch = 420
-            // per strip cell, its long lines (along X, over half the strip's longest): its thickness from its Z over its step's floor
-            // (the "melt floor B.*" lines' Z:), and again from its filament per mm through the bead model at its
-            // declared width (the two must agree); flow = speed x filament per mm x filament area
-            class Strip(val band: Int, val surface: Int, val k: Int, val h: Double, val hE: Double, val w: Double, val flow: Double, val v: Double, val lines: Int, val len: Double, val z: Double, val temp: Int, val fan: Double)
+            val cx = 1160; val cy = 70; val cw = 700; val ch = 440
+            class Cell(val col: Int, val row: Int, val flow: Double, val v: Double, val lines: Int, val len: Double, val holdS: Double, val z: Double, val temp: Int, val fan: Double)
             val all = strips.groupBy { it.cell }.map { (c, ms) ->
                 val m = stripRx.matchEntire(c)!!
-                val band = m.groupValues[1].toInt()
-                val longest = ms.maxOf { it.len }; val ls = ms.filter { Math.abs(it.y1 - it.y0) < 1e-6 && it.len > longest / 2 }
-                val area = ls.sumOf { it.e } / ls.sumOf { it.len } * filArea          // mm3 per mm: the bead (flow ratio included)
-                // (1 - pi/4) h^2 - w h + area = 0, the thinner root
-                val w = ls.first().w; val q = 1 - Math.PI / 4
-                val hE = (w - Math.sqrt(w * w - 4 * q * area)) / (2 * q)
-                Strip(band, surfaceNames.indexOf(m.groupValues[2]), m.groupValues[3].toInt(), ls.first().z - (floorZ[band] ?: Double.NaN), hE, w,
-                    ls.map { it.flow }.average(), ls.map { it.v }.average(), ls.size, ls.map { it.len }.average(), ls.first().z, ls.first().temp, ls.first().fan)
+                Cell(m.groupValues[1].toInt(), m.groupValues[2].toInt(), ms.sumOf { it.flow * it.len } / ms.sumOf { it.len }, ms.sumOf { it.v * it.len } / ms.sumOf { it.len },
+                    ms.count { it.len > ms.maxOf { l -> l.len } / 2 }, ms.maxOf { it.len }, ms.sumOf { it.len / it.v }, ms.first().z, ms.first().temp, ms.first().fan)
             }
-            val fHi = all.maxOf { it.flow } * 1.1; val wLo = all.minOf { it.h } - 0.02; val wHi = all.maxOf { it.h } + 0.02
-            fun px(wd: Double) = cx + (wd - wLo) / (wHi - wLo) * cw
-            fun py(f: Double) = cy + ch - f / fHi * ch
-            g.color = Color.BLACK; g.drawString("C  melt strips from the g-code: flow (mm3/s) by strip thickness", cx - 40, cy - 28)
-            g.drawString("(its Z over its floor), per surface and band", cx - 18, cy - 10)
-            val fStep = listOf(0.5, 1.0, 2.0, 5.0, 10.0).first { fHi / it <= 12 }
-            g.color = Color(220, 220, 225); g.stroke = BasicStroke(1f)
-            run { var f = 0.0; while (f <= fHi) { g.drawLine(cx, py(f).toInt(), cx + cw, py(f).toInt()); f += fStep } }
-            g.color = Color.BLACK; g.drawRect(cx, cy, cw, ch)
-            run { var f = 0.0; while (f <= fHi) { g.drawString(if (fStep < 1) "%.1f".format(f) else "%.0f".format(f), cx - 32, py(f).toInt() + 5); f += fStep * 2 } }
-            for (hh in all.map { Math.round(it.h * 100) / 100.0 }.distinct().sorted()) g.drawString("%.2f".format(hh), px(hh).toInt() - 14, cy + ch + 18)
-            g.drawString("strip thickness (mm): its Z minus its step's floor Z; every strip %s mm wide".format(all.map { "%.2f".format(it.w) }.distinct().joinToString("/")), cx + 60, cy + ch + 38)
-            val surfColor = listOf(Color(205, 70, 40), Color(190, 150, 30), Color(50, 100, 190))
-            val bands = all.map { it.band }.distinct().sorted()
-            for (sf in 0 until 3) {
-                val mine = all.filter { it.surface == sf }
-                if (mine.isEmpty()) continue
-                g.color = surfColor[sf]; g.stroke = BasicStroke(1.5f)
-                // the line: band 1's strips in order
-                val b1 = mine.filter { it.band == bands.first() }.sortedBy { it.k }
-                for ((a, b) in b1.zipWithNext()) g.draw(Line2D.Double(px(a.h), py(a.flow), px(b.h), py(b.flow)))
-                // every band's strips, each band's marker a little to the right of the last (so all show)
-                for (st in mine) {
-                    val bi = bands.indexOf(st.band); val dx = (bi - (bands.size - 1) / 2.0) * 5
-                    val x = px(st.h) + dx; val y = py(st.flow)
-                    when (bi % 4) { 0 -> g.fill(java.awt.geom.Ellipse2D.Double(x - 4, y - 4, 8.0, 8.0)); 1 -> g.fill(java.awt.Rectangle((x - 4).toInt(), (y - 4).toInt(), 8, 8))
-                        2 -> g.draw(java.awt.geom.Ellipse2D.Double(x - 4, y - 4, 8.0, 8.0)); else -> g.draw(java.awt.Rectangle((x - 4).toInt(), (y - 4).toInt(), 8, 8)) }
-                }
-                val vs = mine.map { it.v }.distinct()
-                g.drawString("${surfaceNames[sf].uppercase()}: ${vs.joinToString("/") { "%.1f".format(it) }} mm/s", cx + 12, cy + 22 + sf * 20)
+            val cols = all.map { it.col }.distinct().sorted(); val rows = all.map { it.row }.distinct().sorted()
+            g.color = Color.BLACK; g.drawString("C  the melt grid from the g-code: each row's flow (mm3/s) in each column", cx - 20, cy - 28)
+            g.drawString("(speed x filament per mm), lowest row at the bottom; per row its speed, lines, and hold", cx - 20, cy - 10)
+            val left = cx + 70; val gridW = cw - 70 - 200
+            val cellW = gridW.toDouble() / cols.size; val cellH = (ch - 30).toDouble() / rows.size
+            g.font = Font("SansSerif", Font.PLAIN, minOf(13, maxOf(9, (cellH * 0.8).toInt())))
+            val fm = g.fontMetrics
+            for (c in all) {
+                val x = left + cols.indexOf(c.col) * cellW; val y = cy + 30 + (rows.size - 1 - rows.indexOf(c.row)) * cellH
+                g.color = ramp((c.flow - flowLo) / maxOf(1e-9, flowHi - flowLo), viridis)
+                g.fill(java.awt.geom.Rectangle2D.Double(x + 1, y + 1, cellW - 2, cellH - 2))
+                g.color = if ((c.flow - flowLo) / maxOf(1e-9, flowHi - flowLo) > 0.6) Color.BLACK else Color.WHITE
+                val t = "%.2f".format(c.flow)
+                g.drawString(t, (x + cellW / 2 - fm.stringWidth(t) / 2).toInt(), (y + cellH / 2 + fm.ascent / 2 - 1).toInt())
             }
             g.color = Color.BLACK
-            // the markers' key, four bands to a line
-            val keys = bands.withIndex().map { (i, b) -> "band $b ${listOf("dot", "square", "ring", "box")[i % 4]}" }.chunked(4)
-            for ((r, row) in keys.withIndex()) g.drawString((if (r == 0) "markers: " else "             ") + row.joinToString("  "), cx + 12, cy + 22 + (3 + r) * 20)
-            // the thickness two ways (Z over the floor, and the filament per mm): the largest disagreement
-            val worst = all.maxOf { Math.abs(it.h - it.hE) }
-            g.drawString("thickness by Z vs by filament per mm: at most %.4f mm apart".format(worst), cx + 12, cy + 22 + (3 + keys.size) * 20)
-            for (sf in 0 until 3) for (b in bands) {
-                val mine = all.filter { it.surface == sf && it.band == b }.sortedBy { it.k }
-                if (mine.isEmpty()) continue
-                stripSummary += "band $b ${surfaceNames[sf]} (floor z %.2f, %d C, fan %.0f %%): ".format(floorZ[b] ?: Double.NaN, mine.first().temp, mine.first().fan) +
-                    mine.joinToString("  ") { "z %.2f h %.3f (by E %.3f) %.2f".format(it.z, it.h, it.hE, it.flow) } + " mm3/s; %.2f mm/s; lines %s x %s mm".format(mine.first().v,
-                        mine.map { it.lines }.distinct().joinToString("/"), mine.map { "%.2f".format(it.len) }.distinct().joinToString("/"))
+            for ((i, col) in cols.withIndex()) {
+                val t = "${all.filter { it.col == col }.map { it.temp }.distinct().joinToString("/")} C"
+                g.drawString(t, (left + i * cellW + cellW / 2 - fm.stringWidth(t) / 2).toInt(), cy + 22)
             }
-            stripSummary += "thickness by Z vs by filament per mm: at most %.4f mm apart".format(worst)
+            g.drawString("speed", left + gridW + 8, cy + 22); g.drawString("lines x mm", left + gridW + 68, cy + 22); g.drawString("hold", left + gridW + 150, cy + 22)
+            for ((i, r) in rows.withIndex()) {
+                val mine = all.filter { it.row == r }
+                val y = (cy + 30 + (rows.size - 1 - i) * cellH + cellH / 2 + fm.ascent / 2 - 1).toInt()
+                g.drawString("row $r", cx + 6, y)
+                g.drawString("%.1f".format(mine.first().v), left + gridW + 8, y)
+                g.drawString("${mine.map { it.lines }.distinct().joinToString("/")} x %.1f".format(mine.first().len), left + gridW + 68, y)
+                g.drawString("%.1f s".format(mine.minOf { it.holdS }), left + gridW + 150, y)
+            }
+            g.font = Font("SansSerif", Font.PLAIN, 15)
+            // a row's flow is the same in every column; the rows' steps
+            val spread = rows.maxOf { r -> all.filter { it.row == r }.let { ms -> ms.maxOf { it.flow } - ms.minOf { it.flow } } }
+            val means = rows.map { r -> all.filter { it.row == r }.map { it.flow }.average() }
+            val steps = means.zipWithNext { a, b -> b - a }
+            val line1 = "within a row, across the columns: flows at most %.3f mm3/s apart".format(spread)
+            val line2 = if (steps.isEmpty()) "one row" else "row to row: %.3f to %.3f mm3/s".format(steps.min(), steps.max())
+            g.drawString(line1, cx, cy + ch + 22); g.drawString(line2, cx, cy + ch + 42)
+            for (r in rows) {
+                val mine = all.filter { it.row == r }.sortedBy { it.col }
+                stripSummary += "row $r (z %.2f, fan %.0f %%): ".format(mine.first().z, mine.first().fan) + mine.joinToString("  ") { "%d C %.2f".format(it.temp, it.flow) } +
+                    " mm3/s; %.2f mm/s; %d lines x %.2f mm; hold %.2f s".format(mine.first().v, mine.first().lines, mine.first().len, mine.minOf { it.holdS })
+            }
+            stripSummary += line1; stripSummary += line2
         }
 
         // ---- D: what the bands were set to, from the g-code
         run {
             val dx = 1290; var dy = 640           // right of B's temperature labels (x 1180 to about 1230)
             g.color = Color.BLACK; g.drawString("D  per layer, as the g-code sets them (runs of identical layers merged):", dx - 40, dy - 10)
-            // the melt strips count in the layer they print on, the one above their step's floor (else a layer of strips alone,
-            // the last step's, would be missing here)
-            val step = layered.map { it.z }.distinct().sorted().zipWithNext { a, b -> b - a }.minOrNull() ?: 0.2
-            val stripLayers = strips.map { m -> Math.round((floorZ.getValue(stripRx.matchEntire(m.cell)!!.groupValues[1].toInt()) + step) * 1000) / 1000.0 to m }
-            val rows = (layered.map { it.z to it } + stripLayers).groupBy({ it.first }, { it.second }).toSortedMap().map { (z, ms) -> Triple(z, ms.first().temp, ms.first().fan) }
+            // a layer's every temperature, low to high (the melt plate's read layer holds one per column; its prime lines, at the
+            // floor's height, print after each column's wait)
+            val rows = layered.map { it.z to it }.groupBy({ it.first }, { it.second }).toSortedMap().map { (z, ms) -> Triple(z, ms.map { it.temp }.distinct().sorted(), ms.first().fan) }
             var i = 0
             while (i < rows.size) {
                 var j = i; while (j + 1 < rows.size && rows[j + 1].second == rows[i].second && Math.abs(rows[j + 1].third - rows[i].third) < 0.5) j++
-                g.drawString("z %.2f-%.2f mm   %d C   fan %.0f %%   (%d layers)".format(rows[i].first - 0.2, rows[j].first, rows[i].second, rows[i].third, j - i + 1), dx, dy + 18)
+                g.drawString("z %.2f-%.2f mm   %s C   fan %.0f %%   (%d layers)".format(rows[i].first - 0.2, rows[j].first, rows[i].second.joinToString(", "), rows[i].third, j - i + 1), dx, dy + 18)
                 dy += 21; i = j + 1
             }
             // every temperature command after the plate's first extrusion, with the Z extruded at before and after it

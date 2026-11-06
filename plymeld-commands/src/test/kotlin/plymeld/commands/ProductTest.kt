@@ -239,6 +239,25 @@ class ProductTest : StringSpec({
         }
         startFlow("n") shouldBe "; max flow 21"
         startFlow("m") shouldBe "; max flow 15"
+        // every move's flow, by the g-code alone (filament per mm x the 1.75 mm filament's area x speed), held to the melt
+        // rate less the melt buffer: 90 % of 21 with the bundled 10 %; the control, the buffer at 0 %, reaches the 21 itself
+        fun highestFlow(vararg cv: String): Double {
+            val out = d.resolve("flow-${cv.size}.gcode")
+            SliceCommand().parse(listOf("-cf", d.resolve("hw.toml").toString(), "--machine", "n", "-m", d.resolve("box.stl").toString(), "-o", out.toString()) + cv.flatMap { listOf("-cv", it) })
+            var x = Double.NaN; var y = Double.NaN; var f = 0.0; var top = 0.0
+            for (l in Files.readString(out).lines()) {
+                if (!l.startsWith("G1 ")) continue
+                fun num(c: Char) = Regex(" $c([-0-9.]+)").find(l)?.groupValues?.get(1)?.toDouble()
+                num('F')?.let { f = it }
+                val nx = num('X') ?: x; val ny = num('Y') ?: y; val e = num('E') ?: 0.0
+                val len = Math.hypot(nx - x, ny - y)
+                if (e > 0 && len > 0.5) top = maxOf(top, e / len * Math.PI * 1.75 * 1.75 / 4 * f / 60)
+                x = nx; y = ny
+            }
+            return top
+        }
+        highestFlow().let { (it <= 21 * 0.9 * 1.002) shouldBe true; (it > 21 * 0.9 * 0.98) shouldBe true }
+        highestFlow("plan.mechanism.motion.melt.buffer=0%").let { (it > 21 * 0.98) shouldBe true; (it <= 21 * 1.002) shouldBe true }
     }
 
     "plymeld config: a machine's measured visible speed is said to replace the bundled stand-in; control: a job value of yours is not" {

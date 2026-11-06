@@ -68,25 +68,26 @@ class MotionReadingsTest : StringSpec({
 
     "the values from a graded sheet: per band the fastest speed clean in both directions, credited what a face reaches; the quickest pair over a face written for the machine" {
         val sheet = MotionRecord.blank(gcode, "motion.gcode")
-        // the samples' plate: speeds 30, 60, 90, 125, 155, 188 mm/s; accelerations 310, 630, 1250, 2500, 5000, 10000 mm/s2; faces 29.56 mm
+        // the samples' plate: speeds 25, 55, 80, 110, 140, 169 mm/s (the top one held to the outer wall's melt cap, less the
+        // melt buffer); accelerations 310, 630, 1250, 2500, 5000, 10000 mm/s2; faces 29.56 mm
         sheet shouldContain "accel \\ speed"
         // clean (hidden) up to this speed index per band, by grid; plain past it
         val xTo = intArrayOf(5, 5, 4, 3, 1, -1); val yTo = intArrayOf(5, 4, 4, 2, 1, -1)
         val g = graded(sheet) { grid, b, j -> j <= (if (grid == "along_x") xTo[b] else yTo[b]) }
         val (text, report) = MotionRecord.values(g, "readings.toml")
-        // worked by hand: both directions clean to 188, 155, 155, 90, 60, none; credited at most floor(sqrt(a x 29.56)): 95 (310), 136 (630), 192 (1250);
-        // a face's time L/v + v/a: 95 @ 310 0.618 s, 136 @ 630 0.433, 155 @ 1250 0.315, 90 @ 2500 0.364, 60 @ 5000 0.505: the quickest 155 mm/s at 1250 mm/s2
-        text shouldContain "[hardware.machine.example-corexy]\nmotion.visible.speed = \"155 mm/s\"\nmotion.visible.acceleration = \"1250 mm/s2\""
-        report.any { it.contains("band 1, 310 mm/s2") && it.contains("95 mm/s (the most a face reaches here; nominal 188)") } shouldBe true
+        // worked by hand: both directions clean to 169, 140, 140, 80, 55, none; credited at most floor(sqrt(a x 29.56)): 95 (310), 136 (630), 192 (1250);
+        // a face's time L/v + v/a: 95 @ 310 0.618 s, 136 @ 630 0.433, 140 @ 1250 0.323, 80 @ 2500 0.402, 55 @ 5000 0.548: the quickest 140 mm/s at 1250 mm/s2
+        text shouldContain "[hardware.machine.example-corexy]\nmotion.visible.speed = \"140 mm/s\"\nmotion.visible.acceleration = \"1250 mm/s2\""
+        report.any { it.contains("band 1, 310 mm/s2") && it.contains("95 mm/s (the most a face reaches here; nominal 169)") } shouldBe true
         report.any { it.contains("band 4, 2500 mm/s2") && it.contains("binding: along Y") } shouldBe true
         report.any { it.contains("the control") && it.contains("along X plain, along Y plain") } shouldBe true
         // the written file reads back as config entries at the machine's paths
-        plymeld.config.ConfigFiles.readToml(text, "motion.toml").any { it.path == listOf("hardware", "machine", "example-corexy", "motion", "visible", "speed") && it.value.toString() == "155 mm/s" } shouldBe true
+        plymeld.config.ConfigFiles.readToml(text, "motion.toml").any { it.path == listOf("hardware", "machine", "example-corexy", "motion", "visible", "speed") && it.value.toString() == "140 mm/s" } shouldBe true
         // the default is hidden (faint ripples are not clean): the same sheet graded faint gives no values by
         // default, and the same pair with --clean faint
         val faint = graded(sheet, "faint") { grid, b, j -> j <= (if (grid == "along_x") xTo[b] else yTo[b]) }
         MotionRecord.values(faint, "readings.toml").first shouldNotContain "visible.speed ="
-        MotionRecord.values(faint, "readings.toml", "faint").first shouldContain "motion.visible.speed = \"155 mm/s\""
+        MotionRecord.values(faint, "readings.toml", "faint").first shouldContain "motion.visible.speed = \"140 mm/s\""
         shouldThrow<IllegalArgumentException> { MotionRecord.values(sheet, "readings.toml") }.message!! shouldContain "not graded yet"
         shouldThrow<IllegalArgumentException> { MotionRecord.values(g.replaceFirst(Regex("(mm/s2\\s+)(hidden|plain)"), "$1meh"), "readings.toml") }.message!! shouldContain "'meh' is not a grade"
         shouldThrow<IllegalArgumentException> { MotionRecord.values(g, "readings.toml", "glaring") }.message!! shouldContain "--clean"

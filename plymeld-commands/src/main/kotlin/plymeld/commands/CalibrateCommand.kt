@@ -55,6 +55,8 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
     protected open val tests: String? get() = null
     /** --melt-fan: a plate of the kinds that take it declares the option; null for the rest. */
     protected open val meltFan: String? get() = null
+    /** --flow-step: a plate of the kinds that take it declares the option; null for the rest. */
+    protected open val flowStep: String? get() = null
     private val noLevel by option("--no-level", help = "do not run the machine's bed levelling (hardware.machine.<key>.gcode.level) before the plate").flag()
     /** --overhangs: a plate of the kinds that take it declares the option; null for the rest. */
     protected open val overhangs: String? get() = null
@@ -99,7 +101,213 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
 
     override fun run() {
         if (currentContext.invokedSubcommand != null) return
-        when (kind) { "first-layer" -> runFirstLayer(); "ironing" -> runIroning(); "seams" -> runSeams(); "motion" -> runMotion(); else -> runBanded(kind) }
+        when (kind) { "melt" -> runMelt(); "flow" -> runFlow(); "first-layer" -> runFirstLayer(); "ironing" -> runIroning(); "seams" -> runSeams(); "motion" -> runMotion(); else -> runBanded(kind) }
+    }
+
+    /**
+     * A plate's candidate columns, one per temperature, coolest first: --temps and --step as given ([given]), else the
+     * filament's range (its label's) at 10 C steps; with the filament's own print temperature, [printC] (null: it has none).
+     */
+    private class Columns(val all: List<Int>, val lowC: Int, val highC: Int, val stepC: Int, val printC: Int?, val given: Boolean)
+    private fun columnTemps(toolN: Int): Columns {
+        val stepC = whole((step ?: "10").toDoubleOrNull() ?: throw UsageError("--step is a whole number of degrees (got '$step')"), "--step")
+        if (stepC < 1) throw UsageError("--step is at least 1 degree (got $stepC)")
+        // the filament as the config has it: its range and its own print temperature
+        val plain = ConfigSetup.setup(plateConfig(toolN, null).first).setup
+        val plainMt = plain.spool(plain.objects[0].spool).let { sp -> plain.materialTool[sp.material to sp.tool] }
+        fun plainC(key: String) = (plainMt?.get(key)?.value as Number?)?.toDouble()
+        val printC = plainC("hardware.filament.temperature.print")?.let { whole(it, "the filament's temperature.print") }
+        val (lowC, highC) = temps?.let { range(it, "--temps").let { (a, b) -> whole(a, "--temps") to whole(b, "--temps") } } ?: run {
+            val lo = plainC("hardware.filament.temperature.min"); val hi = plainC("hardware.filament.temperature.max")
+            if (lo == null || hi == null) throw UsageError("which temperatures? the filament has no range (temperature.min / temperature.max, the spool's label): give --temps LOW-HIGH")
+            whole(lo, "the filament's temperature.min") to whole(hi, "the filament's temperature.max")
+        }
+        if (highC < lowC) throw UsageError("--temps runs low to high (got $lowC-$highC)")
+        return Columns(generateSequence(lowC) { it + stepC }.takeWhile { it <= highC }.toList(), lowC, highC, stepC, printC, temps != null || step != null)
+    }
+
+    /**
+     * The columns a plate prints: all of [c] where they [fits]; else, unless they were given (then [tooBig] refuses), as many
+     * neighbors as fit, centered on the print temperature (the middle of the range without one), and a line saying so.
+     */
+    private fun fitColumns(c: Columns, fits: (List<Int>) -> Boolean, tooBig: (List<Int>) -> Nothing): Pair<List<Int>, String?> {
+        val all = c.all
+        if (fits(all)) return all to null
+        if (c.given || all.size == 1) tooBig(all)
+        val center = all.indices.minBy { Math.abs(all[it] - (c.printC ?: (c.lowC + c.highC) / 2)) }
+        val most = (all.size - 1 downTo 1).firstOrNull { k -> val from = (center - k / 2).coerceIn(0, all.size - k); fits(all.subList(from, from + k)) } ?: tooBig(all.subList(center, center + 1))
+        val from = (center - most / 2).coerceIn(0, all.size - most)
+        return all.subList(from, from + most) to "the range ${c.lowC}-${c.highC} C at ${c.stepC} C steps (${all.size} temperatures) does not fit the bed: " +
+            "the $most nearest ${c.printC?.let { "the print temperature, $it C" } ?: "its middle"}; --temps and --step choose others"
+    }
+
+    /**
+     * The settings at the filament's own temperatures, for a plate of columns: the start template heats to its first-layer
+     * temperature, and the base prints at its own; the plate sets each column's temperature itself.
+     */
+    private fun ownSettings(toolN: Int): Triple<plymeld.config.Config, plymeld.model.SliceSettings, plymeld.model.Setup> {
+        val (config, _) = plateConfig(toolN, null)
+        val setup = try { ConfigSetup.setup(config).setup } catch (e: ConfigError) { throw UsageError("the config has ${e.problems.size} problem(s):\n" + e.problems.joinToString("\n") { "  $it" }) }
+        return Triple(config, SliceSettings.of(setup, plymeld.model.Context(0)), setup)
+    }
+
+    /**
+     * The melt plate ([plymeld.core.calibrate.MeltPlate]): a column per temperature, coolest first, a row per flow. The
+     * temperatures: --temps and --step as given (refused when they do not fit the bed); else the filament's range (its
+     * label's) at 10 C steps, or, where those do not fit, as many neighbors as fit, centered on its print temperature (said
+     * so). The rows: from half the filament's expected maximum flow to twice it ([plymeld.core.calibrate.MeltSpec.flows]),
+     * each the same bead (the plate's line width, the tool's thickest layer), a row the machine's print speed cannot reach
+     * left out (said so). A row's line as long as fits the columns across the bed, up to the old surface's 60 mm.
+     */
+    private fun runMelt() {
+        val toolN = toolOpt.toIntOrNull()?.takeIf { it >= 1 } ?: throw UsageError("--tool is a tool's index, a whole number from 1 (got '$toolOpt')")
+        val flowStepV = flowStep?.let { it.trim().removeSuffix("mm3/s").trim().toDoubleOrNull()?.takeIf { v -> v > 0 } ?: throw UsageError("--flow-step is mm3/s above 0, e.g. 0.5 (got '$it')") }
+        val fanOff = when (meltFan?.trim()) { null, "on" -> false; "off" -> true; else -> throw UsageError("--melt-fan is 'on' (the filament's own fan, the default) or 'off' (got '$meltFan')") }
+        val g = plymeld.core.calibrate.MeltGeometry
+        val cols = columnTemps(toolN)
+        val (config, s0, setup0) = ownSettings(toolN)
+        fun toolMm(key: String) = (Resolver.resolveOrNull(setup0, key, plymeld.model.Context(0))?.value as Number?)?.toDouble()
+        // every row the same bead: the plate's line width, the tool's thickest layer (the fattest bead the tool lays, so a row
+        // reaches its flow at the lowest speed)
+        val readUm = Math.round((toolMm("hardware.tool.layer.height.max") ?: throw UsageError("the melt plate's rows are as thick as the tool lays (tool layer.height.max), which the config does not give")) * 1000)
+        val h = s0.layerHeightUm; val w = s0.outerWallWidthUm
+        // the rows probe the limit itself: around the maximum flow as the config has it, not less the melt buffer
+        val expected = s0.maxVolumetricMeasured
+        val bead = plymeld.core.calibrate.MeltSpec.bead(w, readUm)
+        // the rows: half to twice the expected flow; those the machine's print speed cannot reach at this bead left out
+        val allFlows = plymeld.core.calibrate.MeltSpec.flows(expected, flowStepV)
+        val reach = s0.hiddenSpeed * bead * s0.flowRatio
+        val flows = allFlows.filter { it <= reach + 1e-9 }
+        if (flows.size < 2) throw UsageError("the machine's print speed (${n(s0.hiddenSpeed)} mm/s, hardware.machine.<key>.motion.print.speed) lays at most ${n(reach)} mm3/s at this plate's line: too few rows to read")
+        val cut = if (flows.size < allFlows.size) "the rows above ${n(flows.last())} mm3/s are left out: the machine's print speed (${n(s0.hiddenSpeed)} mm/s) lays at most ${n(reach)} mm3/s at this line, so a reading clean to the last row means at least that" else null
+        val level = s0.levelGcode?.takeIf { !noLevel }
+        val firstH = s0.firstLayerHeightUm; val fhm = firstH / 1000.0
+        // the base's first layer: the first-layer line width at the first-layer speed, held to the filament's flow (as every plate's)
+        val baseW = s0.firstLayerWidthUm
+        val firstSpeed = Math.min(s0.firstLayerSpeed, s0.maxVolumetric / (fhm * (baseW / 1000.0 - fhm * (1 - Math.PI / 4)) * s0.flowRatio))
+        fun spec(tempsC: List<Int>, lineUm: Long, ox: Long = 0, oy: Long = 0, tool: Int = 0, spool: String = "") = plymeld.core.calibrate.MeltSpec(
+            tool = tool, spool = spool, tempsC = tempsC.toIntArray(), flows = flows.toDoubleArray(),
+            baseFirstC = s0.nozzleTempFirstC, basePrintC = s0.nozzleTempC, fanPct = if (fanOff) 0.0 else s0.fanMinPct,
+            layerUm = h, firstLayerUm = firstH, widthUm = w, firstWidthUm = baseW, readUm = readUm, lineUm = lineUm,
+            holdS = PlateGeometry.meltHoldS, filamentDiameterMm = s0.filamentDiameterMm, flowRatio = s0.flowRatio, accel = s0.defaultAccel,
+            adhesion = PathValues(firstSpeed, s0.defaultAccel, s0.flowRatio, s0.retractMm), frame = PathValues(s0.hiddenSpeed, s0.defaultAccel, s0.flowRatio, s0.retractMm),
+            frameCap = s0.maxVolumetric, liftUm = s0.zHopUm, originXUm = ox, originYUm = oy, levelGcode = level)
+        // the bed, less the head's parking place in front (counted on both sides of the center)
+        fun bed(k: String) = (Resolver.resolve(setup0, "hardware.machine.build.$k").value as Number).toDouble()
+        val bedW = bed("right") - bed("left"); val bedD = bed("back") - bed("front")
+        val park = g.parkFront / 1000.0
+        // a row's line for [tempsC] columns: as long as fits them across the bed with PlateGeometry.bedSpare to spare at each
+        // edge (the width is linear in it), at most lineMax
+        fun lineFor(tempsC: List<Int>): Long {
+            val b = plymeld.core.calibrate.MeltPlate(spec(tempsC, g.lineMax)).bounds()
+            val over = (b[2] - b[0]) - (Math.round(bedW * 1000) - 2 * PlateGeometry.bedSpare)
+            return if (over <= 0) g.lineMax else g.lineMax - (over + tempsC.size - 1) / tempsC.size
+        }
+        fun fits(tempsC: List<Int>): Boolean {
+            val line = lineFor(tempsC); if (line < g.lineMin) return false
+            val b = plymeld.core.calibrate.MeltPlate(spec(tempsC, line)).bounds()
+            return (b[2] - b[0]) / 1000.0 <= bedW && (b[3] - b[1]) / 1000.0 + 2 * park <= bedD
+        }
+        fun tooBig(tempsC: List<Int>): Nothing {
+            val b = plymeld.core.calibrate.MeltPlate(spec(tempsC, maxOf(g.lineMin, lineFor(tempsC)))).bounds()
+            val deep = (b[3] - b[1]) / 1000.0 + 2 * park > bedD
+            throw UsageError("the melt plate does not fit this machine: ${tempsC.size} temperatures and ${flows.size} rows make it ${n((b[2] - b[0]) / 1000.0)} x ${n((b[3] - b[1]) / 1000.0)} mm " +
+                "(and ${n(park)} mm in front for the head to park); the bed is ${n(bedW)} x ${n(bedD)} mm (hardware.machine.<key>.build): " +
+                if (deep) "fewer rows (a larger --flow-step)" else "fewer temperatures (--temps, --step)")
+        }
+        val (chosen, narrowed) = fitColumns(cols, ::fits, ::tooBig)
+        val line = lineFor(chosen)
+        val s = s0; val setup = setup0
+        val spool = setup.spool(setup.objects[0].spool)
+        val draft = plymeld.core.calibrate.MeltPlate(spec(chosen, line)).bounds()
+        val cx = Math.round((bed("left") + bed("right")) * 500); val cy = Math.round((bed("front") + bed("back")) * 500)
+        val sp = spec(chosen, line, cx - (draft[0] + draft[2]) / 2, cy - (draft[1] + draft[3]) / 2, spool.tool, spool.id)
+        val plate = plymeld.core.calibrate.MeltPlate(sp)
+        val pa = setup.pressureAdvanceByTool()
+        val text = plate.gcode(s, setup.foreignTemplateVars, PlymeldVersion.value, pa)
+        val changeS = (Resolver.resolveOrNull(setup, "hardware.machine.tool_change.time")?.value as Number?)?.toDouble()
+        val prediction = plymeld.core.Predict.gcode(text, s.machineDescription, changeS, plymeld.core.Predict.limits(s))
+        output.parent?.let { java.nio.file.Files.createDirectories(it) }
+        java.nio.file.Files.writeString(output, withMachineHeader(text, config, setup, s, prediction))
+        val b = plate.bounds()
+        val apart = n(flows[1] - flows[0])
+        echo("melt plate: '${spool.material}' on tool ${toolN} of '${Resolver.resolve(setup, "hardware.machine.model").value}' (bed ${s.bedTempFirstC} C)")
+        echo("  base and floor at the filament's own temperatures: ${s.nozzleTempFirstC} C on the first layer (temperature.first_layer), then ${s.nozzleTempC} C (temperature.print); " +
+            "the first layer ${n(baseW / 1000.0)} mm lines at ${n(firstSpeed)} mm/s")
+        echo("  columns: ${chosen.joinToString(", ")} C, coolest on the left, each waited for before its rows")
+        narrowed?.let { echo("  $it") }
+        echo("  rows: ${n(flows.first())} to ${n(flows.last())} mm3/s, $apart apart (the filament's expected maximum flow: ${n(expected)}), lowest at the front; " +
+            "every row ${n(w / 1000.0)} mm lines ${n(readUm / 1000.0)} mm thick, ${n(line / 1000.0)} mm long, at ${n(sp.speed(0))} to ${n(sp.speed(sp.rows - 1))} mm/s, each holding its flow at least ${n(PlateGeometry.meltHoldS)} s")
+        cut?.let { echo("  $it") }
+        echo("  ${n((b[2] - b[0]) / 1000.0)} x ${n((b[3] - b[1]) / 1000.0)} mm, ${g.baseLayers + 2} layers; predicted ${prediction.timeS?.let { n(it / 60) + " min" } ?: "time not predicted"}")
+        echo("-> $output")
+    }
+
+    /**
+     * The flow plate ([plymeld.core.calibrate.FlowPlate]): a column per temperature, coolest first (chosen as the melt
+     * plate's are), a patch per flow ratio (--flow-ratios, else the filament's ratio x 0.94 to 1.06). The patches at a
+     * visible surface's speed and acceleration, held so the richest stays within the filament's maximum flow; only their top
+     * layer at the column's temperature.
+     */
+    private fun runFlow() {
+        val toolN = toolOpt.toIntOrNull()?.takeIf { it >= 1 } ?: throw UsageError("--tool is a tool's index, a whole number from 1 (got '$toolOpt')")
+        val cols = columnTemps(toolN)
+        val (config, s, setup) = ownSettings(toolN)
+        val ratios = flowRatios?.let { f -> f.split(',').map { it.trim().toDoubleOrNull()?.takeIf { r -> r > 0 } ?: throw UsageError("--flow-ratios is ratios above 0, low to high, e.g. 0.94,0.97,1 (got '$f')") }
+            .also { r -> if (r.size < 2 || r.zipWithNext().any { (a, b) -> b <= a }) throw UsageError("--flow-ratios is at least two ratios, rising, low to high (got '$f')") } }
+            ?: plymeld.core.calibrate.FlowSpec.defaultRatios(s.flowRatio)
+        val g = plymeld.core.calibrate.FlowGeometry
+        val h = s.layerHeightUm; val w = s.outerWallWidthUm
+        val bead = plymeld.core.calibrate.MeltSpec.bead(w, h)
+        // the patches: a visible surface's speed, held so the richest patch stays within the filament's maximum flow
+        val speed = Math.min(s.visibleSpeed, s.maxVolumetric / (bead * ratios.max()))
+        val firstH = s.firstLayerHeightUm; val fhm = firstH / 1000.0
+        val baseW = s.firstLayerWidthUm
+        val firstSpeed = Math.min(s.firstLayerSpeed, s.maxVolumetric / (fhm * (baseW / 1000.0 - fhm * (1 - Math.PI / 4)) * s.flowRatio))
+        val frameSpeed = Math.min(s.hiddenSpeed, s.maxVolumetric / (bead * s.flowRatio))
+        val level = s.levelGcode?.takeIf { !noLevel }
+        val solid = plymeld.core.calibrate.FlowSpec.solidLayersFor(h)
+        fun spec(tempsC: List<Int>, ox: Long = 0, oy: Long = 0, tool: Int = 0, spool: String = "") = plymeld.core.calibrate.FlowSpec(
+            tool = tool, spool = spool, tempsC = tempsC.toIntArray(), ratios = ratios.toDoubleArray(),
+            baseFirstC = s.nozzleTempFirstC, basePrintC = s.nozzleTempC, fanPct = s.fanMinPct,
+            layerUm = h, firstLayerUm = firstH, widthUm = w, firstWidthUm = baseW, solidLayers = solid, speed = speed, accel = s.visibleAccel,
+            adhesion = PathValues(firstSpeed, s.defaultAccel, s.flowRatio, s.retractMm), frame = PathValues(frameSpeed, s.defaultAccel, s.flowRatio, s.retractMm),
+            liftUm = s.zHopUm, originXUm = ox, originYUm = oy, levelGcode = level)
+        // the bed, less the head's parking place in front (counted on both sides of the center), and PlateGeometry.bedSpare at
+        // each side
+        fun bed(k: String) = (Resolver.resolve(setup, "hardware.machine.build.$k").value as Number).toDouble()
+        val bedW = bed("right") - bed("left"); val bedD = bed("back") - bed("front")
+        val park = g.parkFront / 1000.0
+        fun size(tempsC: List<Int>) = plymeld.core.calibrate.FlowPlate(spec(tempsC)).bounds().let { (it[2] - it[0]) / 1000.0 to (it[3] - it[1]) / 1000.0 }
+        fun fits(tempsC: List<Int>): Boolean = size(tempsC).let { (pw, pd) -> pw <= bedW - 2 * PlateGeometry.bedSpare / 1000.0 && pd + 2 * park <= bedD }
+        fun tooBig(tempsC: List<Int>): Nothing {
+            val (pw, pd) = size(tempsC)
+            throw UsageError("the flow plate does not fit this machine: ${tempsC.size} temperatures and ${ratios.size} ratios make it ${n(pw)} x ${n(pd)} mm " +
+                "(and ${n(park)} mm in front for the head to park); the bed is ${n(bedW)} x ${n(bedD)} mm (hardware.machine.<key>.build): " +
+                if (pd + 2 * park > bedD) "fewer ratios (--flow-ratios)" else "fewer temperatures (--temps, --step)")
+        }
+        val (chosen, narrowed) = fitColumns(cols, ::fits, ::tooBig)
+        val spool = setup.spool(setup.objects[0].spool)
+        val draft = plymeld.core.calibrate.FlowPlate(spec(chosen)).bounds()
+        val cx = Math.round((bed("left") + bed("right")) * 500); val cy = Math.round((bed("front") + bed("back")) * 500)
+        val sp = spec(chosen, cx - (draft[0] + draft[2]) / 2, cy - (draft[1] + draft[3]) / 2, spool.tool, spool.id)
+        val plate = plymeld.core.calibrate.FlowPlate(sp)
+        val text = plate.gcode(s, setup.foreignTemplateVars, PlymeldVersion.value, setup.pressureAdvanceByTool())
+        val changeS = (Resolver.resolveOrNull(setup, "hardware.machine.tool_change.time")?.value as Number?)?.toDouble()
+        val prediction = plymeld.core.Predict.gcode(text, s.machineDescription, changeS, plymeld.core.Predict.limits(s))
+        output.parent?.let { java.nio.file.Files.createDirectories(it) }
+        java.nio.file.Files.writeString(output, withMachineHeader(text, config, setup, s, prediction))
+        val b = plate.bounds()
+        echo("flow plate: '${spool.material}' on tool $toolN of '${Resolver.resolve(setup, "hardware.machine.model").value}' (bed ${s.bedTempFirstC} C)")
+        echo("  base at the filament's own temperatures: ${s.nozzleTempFirstC} C on the first layer (temperature.first_layer), then ${s.nozzleTempC} C (temperature.print); " +
+            "the first layer ${n(baseW / 1000.0)} mm lines at ${n(firstSpeed)} mm/s")
+        echo("  columns: ${chosen.joinToString(", ")} C, coolest on the left; each column's top layer waited for at its temperature, the ${solid} layers under it at ${s.nozzleTempC} C")
+        narrowed?.let { echo("  $it") }
+        echo("  patches: flow ratios ${ratios.joinToString(", ") { n(it) }}, leanest at the front (the filament's own: ${n(s.flowRatio)}); " +
+            "each ${n(plate.patchSize / 1000.0)} mm square, ${n(w / 1000.0)} mm lines ${n(plate.spacing / 1000.0)} mm apart (the bead spacing), ${solid + 1} layers of ${n(h / 1000.0)} mm, " +
+            "at ${n(speed)} mm/s${if (speed < s.visibleSpeed - 1e-9) " (a visible surface's ${n(s.visibleSpeed)}, held to the filament's maximum flow at ${n(ratios.max())})" else " (a visible surface's)"}")
+        echo("  ${n((b[2] - b[0]) / 1000.0)} x ${n((b[3] - b[1]) / 1000.0)} mm, ${plate.topLayer + 1} layers; predicted ${prediction.timeS?.let { n(it / 60) + " min" } ?: "time not predicted"} (the temperature waits on top)")
+        echo("-> $output")
     }
 
     /**
@@ -129,7 +337,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         if (kind == "filament") {
             val valueOptions = listOf(Part.OVERHANGS to listOf("--overhangs" to overhangs),
                 Part.BRIDGES to listOf("--spans" to spans, "--bridge-flows" to bridgeFlows), Part.STRINGING to listOf("--retractions" to retractions),
-                Part.LINE_WIDTH to listOf("--widths" to widths), Part.FLOW to listOf("--flow-ratios" to flowRatios), Part.FIT to listOf("--peg" to peg, "--holes" to holes, "--print-temp" to printTemp))
+                Part.LINE_WIDTH to listOf("--widths" to widths), Part.FIT to listOf("--peg" to peg, "--holes" to holes, "--print-temp" to printTemp))
             for ((p, opts) in valueOptions) for ((o, v) in opts) {
                 if (v == null) continue
                 if (v.trim() == "none") throw UsageError("$o none: to leave the ${p.title} out, list the families you want with --tests, without '${p.key}' (e.g. --tests ${Part.FILAMENT_TESTS.filter { it != p }.joinToString(",") { it.key }})")
@@ -211,13 +419,6 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         // the stringing ring, the fit test): their condition, read with the result, unchanged; held to the same
         // maximum flow
         val surfaceSpeed = Math.min(s.visibleSpeed, meltCap)
-        // the flow-ratio patches (at every band, i.e. each temperature: 7 ratios in 0.02 steps centered on 1, 0.94 to
-        // 1.06): given, or the filament's ratio x 0.94 to 1.06; a visible surface's speed; about 1 mm tall
-        val ratios = if (Part.FLOW !in selected) null else when {
-            flowRatios != null -> flowRatios!!.split(',').map { it.trim().toDoubleOrNull()?.takeIf { r -> r > 0 } ?: throw UsageError("--flow-ratios is ratios above 0, low to high, e.g. 0.94,0.97,1 (got '$flowRatios')") }
-                .also { r -> if (r.zipWithNext().any { (a, b) -> b <= a }) throw UsageError("--flow-ratios must rise, low to high (got '$flowRatios')") }
-            else -> plymeld.core.calibrate.FlowPatches.defaultRatios(s.flowRatio)
-        }
         // the overhang ledges: given, or the filament's share x 0.7 to 1.9 (placeholders, centered on its value; a share of
         // 1 or more is a bridge, not an overhang); at its overhang speed if it has one, else a visible surface's
         val shareList = if (Part.OVERHANGS !in selected) null else when {
@@ -270,11 +471,6 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
                 .also { r -> if (r.zipWithNext().any { (a, b) -> b <= a }) throw UsageError("--holes must rise, small to large (got '$holes')") } } ?: (0..4).map { pegUm + it * 100L }
             plymeld.core.calibrate.Fit(pegUm, hl.toLongArray(), surfaceSpeed, s.visibleAccel, ownLast - ownFirst + 1, ownLast + 1, fromLayer = ownFirst)
         }
-        // the flow patches: a row per band, each row's solid layers (about 1 mm) ending on its band's last read layer, on pedestals below
-        val patchLayers = maxOf(3, Math.round(1000.0 / h).toInt() - 1)
-        val flow = ratios?.let { r -> plymeld.core.calibrate.FlowPatches(r.toDoubleArray(), r.indexOfFirst { Math.abs(it - s.flowRatio) < 1e-9 },
-            Math.min(s.visibleSpeed, s.maxVolumetric / (bead * r.max())), s.visibleAccel, patchLayers,
-            fromLayers = IntArray(bands.size) { b -> maxOf(baseLayers, (bands[b].readToUm / h).toInt() - 1 - patchLayers) }) }
         fun bed(k: String) = (Resolver.resolve(setup, "hardware.machine.build.$k").value as Number).toDouble()
         val level = s.levelGcode?.takeIf { !noLevel }
         // the room the parts are packed into: the bed, less the head's parking place in front (counted on both sides of the center)
@@ -294,7 +490,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             frame = PathValues(frameSpeed, frameAccel, s.flowRatio, s.retractMm),
             melt = null, flowRatio = s.flowRatio, retractMm = s.retractMm, originXUm = 0, originYUm = 0, firstWidthUm = s.firstLayerWidthUm,
             minLayerTimeS = s.slowDownLayerTimeS, travelSpeed = s.travelSpeed, levelGcode = level,
-            flow = flow, ledges = ledges, bridges = bridges, strings = strings, tubes = tubes, fit = fit,
+            ledges = ledges, bridges = bridges, strings = strings, tubes = tubes, fit = fit,
             packWidthUm = Math.round(bedW * 1000), packDepthUm = Math.round((bedD - 2 * park) * 1000), baseLayers = baseLayers, firstLayerUm = firstH,
             // the melt plate has no ruler post: its steps mark the bands (plymeld's choice; CalibrationSpec.ruler)
             ruler = kind != "melt")
@@ -384,10 +580,6 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             "band 2's step one layer low" to without("meltstep"),
         )) + (if (spec.firstWidthUm == w) emptyList() else listOf(
             "the first layer's ordinary lines at the plate's own width" to without("firstwidth"),
-        )) + (if (flow == null) emptyList() else listOfNotNull(
-            "a flow patch's line 4 % richer" to alterPatchFlow(text),
-            "the top band's row of flow patches left out" to without("flowrow"),
-            if (flow.marked < 0) null else "the flow marker left out" to without("mark"),
         )) + (if (!pauseMatters) emptyList() else listOf(
             "the cooling pause left out" to noPause,
         )) + (if (ledges == null) emptyList() else listOf(
@@ -465,8 +657,6 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         }
         echo(if (spec.ruler) "ruler post (front-left, its front-left corner chamfered = the origin): a notch per band, every fourth long"
             else "no ruler post: the steps mark the bands (band 1 at the front and lowest, each next behind and 2 layers higher), and the bands are too short for its notches")
-        flow?.let { f -> echo("flow patches: ${f.ratios.joinToString { n(it) }}, ${n(plate.patchSize / 1000.0)} mm square, a row per band (band 1's at the front), each row's last ${n(spec.layerUm * (f.layers + 1) / 1000.0)} mm solid on pedestals, its top on its band's last read layer, at ${n(f.speed)} mm/s" +
-            (if (f.marked >= 0) "; the marker in front of ${n(f.ratios[f.marked])} (the current ratio)" else "; none at the current ratio ${n(s.flowRatio)}, so no marker")) }
         ledges?.let { lg -> echo("overhang ledges: shares ${lg.shares.joinToString { n(it) }} of a ${n(w / 1000.0)} mm line (steps ${lg.shares.joinToString { n(it * w / 1000.0) }} mm a layer), " +
             "each band's read layers, at ${n(lg.speed)} mm/s (${if (s.overhangSpeed != null) "the filament's hardware.filament.overhang.speed" else "a visible surface's: the filament has no hardware.filament.overhang.speed"})") }
         bridges?.let { br -> echo("bridges: spans ${br.spansUm.joinToString { n(it / 1000.0) }} mm between ${br.spansUm.size + 1} piers, the row ${n(plate.bridgeDepth / 1000.0)} mm deep; on every band's top read layer two decks across them, " +
@@ -492,17 +682,16 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         val meltSlot = ConfigSetup.slots(config, config.machine!!, ArrayList()).single()
         val maxFlowKey = ConfigSetup.meltEntry(config, plymeld.config.Site(machine = config.machine, tool = meltSlot.tool, filament = meltSlot.filament))?.key
             ?: "hardware.filament.${spool.material}.melt.flow.max"
-        val maxFlowEnterKey = plymeld.config.ConfigFiles.pathText(listOf("hardware", "filament", spool.material, "machine", config.machine!!, "melt", "flow", "maxw"))
+        val maxFlowEnterKey = plymeld.config.ConfigFiles.pathText(listOf("hardware", "filament", spool.material, "machine", config.machine!!, "melt", "flow", "max"))
         val maxFlowPlaceholder = maxFlow != null && maxFlow.from.startsWith(plymeld.config.ConfigFiles.BUNDLED_SOURCE)
         val maxFlowNow = maxFlow?.let { "${n((it.value as Number).toDouble())} mm3/s, from ${it.from}${if (maxFlowPlaceholder) ": plymeld's bundled placeholder" else ""}" }
         // the frame's parts on this plate, its values, and which limit holds its speed (the machine's, not the
         // visible-line cap; the maximum flow a physical limit, said when it binds and whether it is still the placeholder)
         val frameParts = listOfNotNull(if (spec.ruler) "the post" else null, "the bases above their first layer", melt?.let { "the melt bodies" },
-            if (flow != null || fit != null) "the pedestals" else null, bridges?.let { "the piers" },
-            flow?.takeIf { it.marked >= 0 }?.let { "the flow marker" })
+            fit?.let { "the pedestal" }, bridges?.let { "the piers" })
         val frameWhy = "the machine's print speed (hardware.machine.<key>.motion.print.speed, ${n(s.hiddenSpeed)} mm/s) and acceleration (motion.print.acceleration)" +
-            (if (!frameHeld) "; the filament's maximum flow (${n(s.maxVolumetric)} mm3/s) allows ${n(meltCap)} mm/s on its lines, so the machine's speed binds"
-            else "; the speed held to the filament's maximum flow ($maxFlowKey, ${maxFlowNow ?: n(s.maxVolumetric) + " mm3/s"}) for its ${n(w / 1000.0)} mm lines: that is the binding limit" +
+            (if (!frameHeld) "; the filament's maximum flow less the melt buffer (${n(s.maxVolumetric)} mm3/s) allows ${n(meltCap)} mm/s on its lines, so the machine's speed binds"
+            else "; the speed held to the filament's maximum flow ($maxFlowKey, ${maxFlowNow ?: n(s.maxVolumetricMeasured) + " mm3/s"}) less the melt buffer (${n(s.meltBuffer * 100)} %, plan.mechanism.motion.melt.buffer) for its ${n(w / 1000.0)} mm lines: that is the binding limit" +
                 (if (maxFlowPlaceholder) ", and it is the bundled placeholder until ${if (melt != null) "this plate" else "the melt plate"} measures it" else ""))
         echo("frame (${frameParts.joinToString()}) at ${n(frameSpeed)} mm/s, ${n(frameAccel)} mm/s2: $frameWhy; first layer ${n(fhm)} mm thick ($firstFrom; the layers above ${n(hm)} mm, every layer of the plate shifted up by the difference) at ${n(firstSpeed)} mm/s (" +
             (if (firstSpeed < s.firstLayerSpeed - 1e-9) "the configured first-layer speed ${n(s.firstLayerSpeed)} held to the filament's maximum flow for its ${n(firstWidest / 1000.0)} mm lines" else "the configured first-layer speed") +
@@ -662,7 +851,6 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             spec.strings?.let { st -> add("; stringing_ring = ${st.posts} posts, hops counter-clockwise from post 1 with retractions ${st.lengthsMm.joinToString(", ") { n(it) }} mm, the open gap (post ${st.posts} to 1) never crossed, ${n(PlateGeometry.ringPostGap / 1000.0)} mm gaps, retraction speed ${n(s.retractSpeed)} mm/s, travel ${n(s.travelSpeed)} mm/s, lift ${n(s.zHopUm / 1000.0)} mm") }
             spec.bridges?.let { br -> add("; bridges = spans ${br.spansUm.joinToString(", ") { n(it / 1000.0) }} mm (left to right), decks at flow ${n(br.flows[0])} (front) and ${n(br.flows[1])} (back), ${n(br.speed)} mm/s, ${n(br.accel)} mm/s2, on every band's top read layer, terraced (band k's decks in deck strip k from the front and from the back)") }
             spec.ledges?.let { lg -> add("; overhang_ledges = shares ${lg.shares.joinToString(", ") { n(it) }} of the line width (left to right), ${n(lg.speed)} mm/s, ${n(lg.accel)} mm/s2, every band") }
-            spec.flow?.let { f -> add("; flow_patches = ${f.ratios.joinToString(", ") { n(it) }} (left to right; marked: ${if (f.marked >= 0) n(f.ratios[f.marked]) else "none"}), ${n(f.speed)} mm/s, ${n(f.accel)} mm/s2, a row per band (band 1's at the front), each row's top on its band's last read layer, on pedestals") }
             for (b in spec.bands) add("; band ${b.index + 1} = z ${n(b.fromUm / 1000.0)}-${n(b.readToUm / 1000.0)} mm, ${b.tempC} C, fan ${n(b.fanPct)} %" +
                 (m?.let { mt -> ", wait (M109) before the layer at z ${n((b.fromUm + spec.layerUm) / 1000.0)} mm, melt floor top at z ${n(spec.meltReadLayer(b.index) * spec.layerUm / 1000.0)} mm, " +
                     "strips at z ${n((spec.meltReadLayer(b.index) * spec.layerUm + mt.heightsUm.first()) / 1000.0)}-${n((spec.meltReadLayer(b.index) * spec.layerUm + mt.heightsUm.last()) / 1000.0)} mm" } ?: ""))
@@ -725,12 +913,13 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         // the printed plate showed a gap at every second line end along each tile's left and right walls)
         val tiles = plymeld.core.calibrate.FirstLayerTiles(speedList.toDoubleArray(), heightList.toLongArray(), s.firstLayerWidthUm, s.defaultAccel, s.zHopUm, s.infillWallOverlap)
         // each block's melt limit: the filament's maximum flow (melt.flow.max) with its print temperature
-        // (temperature.print) set to the block's, the config resolved again as `-cv` would set it; a constant gives the same
-        // limit in every block, a formula of the temperature its value there
+        // (temperature.print) set to the block's, the config resolved again as `-cv` would set it, less the melt buffer
+        // (plan.mechanism.motion.melt.buffer); a constant gives the same limit in every block, a formula of the temperature
+        // its value there
         val capPairs = tempList.map { tc ->
             val cs = try { ConfigSetup.setup(plateConfig(toolN, tc).first).setup } catch (e: ConfigError) { throw UsageError("the config has ${e.problems.size} problem(s) at $tc C:\n" + e.problems.joinToString("\n") { "  $it" }) }
             val v = Resolver.resolveOrNull(cs, "hardware.filament.melt.flow.max", plymeld.model.Context(0)) ?: throw UsageError("'${spool.material}' has no maximum flow (melt.flow.max): the tiles over it cannot be left out")
-            (v.value as Number).toDouble() to "${v.from}, with temperature.print = $tc C (the block's)"
+            (v.value as Number).toDouble() * (1 - s.meltBuffer) to "${v.from}, with temperature.print = $tc C (the block's), less the melt buffer ${n(s.meltBuffer * 100)} %"
         }
         val prime = PathValues(s.firstLayerSpeed, s.defaultAccel, s.flowRatio, s.retractMm)
         // the frame: not read, so as the filament plate's frame: the machine's print speed
@@ -1190,7 +1379,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
                 if (sp.size != plymeld.core.calibrate.MotionGeometry.speeds) throw UsageError("--motion-speeds is ${plymeld.core.calibrate.MotionGeometry.speeds} speeds, one per face along X and one along Y (got ${sp.size})")
                 if (sp.zipWithNext().any { (a, b) -> b <= a }) throw UsageError("--motion-speeds must rise, slow to fast (got '$motionSpeeds')")
                 if (sp.max() > s.hiddenSpeed + 1e-9) throw UsageError("--motion-speeds: ${n(sp.max())} mm/s is past the machine's print speed (hardware.machine.<key>.motion.print.speed, ${n(s.hiddenSpeed)} mm/s)")
-                if (sp.max() > outerCap + 1e-9) throw UsageError("--motion-speeds: ${n(sp.max())} mm/s is past what the filament's maximum flow ($maxFlowKey, ${n(s.maxVolumetric)} mm3/s) allows on a ${n(w / 1000.0)} mm outer wall (${n(outerCap)} mm/s): the wall would starve, which reads like ringing")
+                if (sp.max() > outerCap + 1e-9) throw UsageError("--motion-speeds: ${n(sp.max())} mm/s is past what the filament's maximum flow ($maxFlowKey) less the melt buffer (${n(s.maxVolumetric)} mm3/s) allows on a ${n(w / 1000.0)} mm outer wall (${n(outerCap)} mm/s): the wall would starve, which reads like ringing")
             } ?: (1..6).map { k -> if (k == 6) topSpeed else maxOf(5.0, Math.floor(topSpeed * k / 6 / 5) * 5) }
         if (speeds.zipWithNext().any { (a, b) -> b <= a }) throw UsageError("the fastest speed is ${n(topSpeed)} mm/s (${if (flowBinds) "the filament's maximum flow" else "the machine's print speed"}): too slow to spread six speeds 5 mm/s apart; give --motion-speeds")
         // the accelerations: given (rising), or MOTION_BANDS of them, the machine's print acceleration and each band below half the
@@ -1225,7 +1414,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         fun gcodeOf(p: plymeld.core.calibrate.MotionPlate) = p.gcode(s, setup.foreignTemplateVars, PlymeldVersion.value, pa)
         val machineDesc = Resolver.resolve(setup, "hardware.machine.model").value.toString()
         val topSpeedWhy = if (motionSpeeds != null) "given (--motion-speeds)" else if (flowBinds)
-            "the machine's print speed (hardware.machine.<key>.motion.print.speed, ${n(s.hiddenSpeed)} mm/s) held to the filament's maximum flow ($maxFlowKey, ${n(s.maxVolumetric)} mm3/s${if (maxFlowPlaceholder) ", plymeld's bundled placeholder" else ""}) on the ${n(w / 1000.0)} mm outer wall: the flow binds"
+            "the machine's print speed (hardware.machine.<key>.motion.print.speed, ${n(s.hiddenSpeed)} mm/s) held to the filament's maximum flow ($maxFlowKey${if (maxFlowPlaceholder) ", plymeld's bundled placeholder" else ""}) less the melt buffer (${n(s.maxVolumetric)} mm3/s) on the ${n(w / 1000.0)} mm outer wall: the flow binds"
             else "the machine's print speed (hardware.machine.<key>.motion.print.speed): it binds (the filament's maximum flow allows ${n(outerCap)} mm/s on the outer wall)"
         val topAccelWhy = if (motionAccels != null) "given (--motion-accels)" else "the machine's print acceleration (hardware.machine.<key>.motion.print.acceleration)"
         val text = withMotionConditions(gcodeOf(plate), spec, spool.material, slotN, s, pa[spool.tool], machineDesc, topSpeedWhy, topAccelWhy)
@@ -1615,15 +1804,16 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
 
     companion object {
         /**
-         * The plates by kind, in the dependency order (temperature (coarse) -> melt rate -> flow ratio ->
-         * pressure advance -> retraction / cooling / dimensions / first layer: the melt plate alone, the motion plate after
-         * it, the rest on one plate once the melt rate is known), each with what it is for.
+         * The plates by kind, in the order they are run: each relies on the results of those before it (melt rate, then
+         * flow ratio, then the machine's motion, the first layer, the filament's other tests, the surfaces), each with what
+         * it is for.
          */
         val KINDS = listOf(
-            "melt" to "the melt rate: the terraced melt test alone, a step per temperature. Run it first: an accurate melt rate drives so much of the rest, and the other plates are not reliable until it is measured",
+            "melt" to "the melt rate: a column per temperature, a row per flow, each row's flow printed beside it. Run it first: an accurate melt rate drives so much of the rest, and the other plates are not reliable until it is measured",
+            "flow" to "the flow ratio: a column per temperature, a patch per ratio, each patch solid at its own ratio and its top laid at its column's temperature; after the melt plate",
             "motion" to "the machine: the speed and acceleration a visible wall holds without ringing, per direction: one cross-shaped tower, twelve faces at six speeds (one along X and one along Y each), a band per acceleration, the top band's fastest faces at the machine's limits; graded per cell, the readings become the machine's visible speed and acceleration; after the melt plate",
-            "filament" to "the filament's other tests by temperature band, once its melt rate is measured: overhangs, bridges, stringing, line widths, flow ratio, fit (--tests picks a subset)",
             "first-layer" to "the first layer: nozzle height x first-layer speed, a block of tiles per temperature, all in one layer (a frame over their walls holds each block together)",
+            "filament" to "the filament's other tests by temperature band, once its melt rate and flow ratio are measured: overhangs, bridges, stringing, line widths, fit (--tests picks a subset)",
             "ironing" to "the ironing values: one flat slab whose top is divided into zones, each ironed with its own combination of flow, line spacing, speed, angle, and inset, a control zone per speed left as laid; graded zone by zone, the readings become the ironing values",
             "seams" to "the seam measure's shares: eight hollow pieces on one slab, each with its outer wall's seam laid one way (a point seam or plymeld's scarf, on a round wall, mid-face, in a corner, on a face leaning 30 and 45 degrees); graded piece by piece for how far away the seam shows, the ratios become method.quality.seam.scarf_share, .corner_share and method.quality.visibility.under",
         )
@@ -1634,12 +1824,31 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
 }
 
 
-/** `plymeld calibrate melt`: The melt plate, run first: the terraced melt test alone over a temperature range (--temps, --step), a short step per temperature; an accurate melt rate drives so much of the rest. */
+/** `plymeld calibrate melt`: the melt plate, run first: a table printed in plastic, a column per temperature and a row per flow. */
 class MeltPlateCommand : PlateCommand("melt", "melt") {
-    override fun help(context: com.github.ajalt.clikt.core.Context) = "The melt plate, run first: the terraced melt test alone over a temperature range (--temps, --step), a short step per temperature; an accurate melt rate drives so much of the rest."
-    override val temps: String? by option("--temps", metavar = "LOW-HIGH", help = "melt, filament, and first-layer plates: the temperature range, whole degrees C, e.g. 195-225 (first-layer plate: also a single temperature, e.g. 215); default: the filament's (temperature.min to temperature.max, the spool's label)")
-    override val step: String? by option("--step", metavar = "C", help = "melt and filament plates: whole degrees between bands; first-layer plate: between blocks; default: 5")
-    override val meltFan: String? by option("--melt-fan", metavar = "on|off", help = "melt plate: the part fan in every band at the filament's own (cooling.fan; 'on', the default) or off ('off')")
+    override fun help(context: com.github.ajalt.clikt.core.Context) = "The melt plate, run first: the filament's maximum flow at each temperature, as a table printed in plastic: a column per " +
+        "temperature (--temps, --step), a row per flow (--flow-step), each row the same line at its own speed, its flow printed beside it and each " +
+        "column's temperature in front of it. Read each column for the first row with gaps; `melt values` writes the readings into the filament's config. " +
+        "An accurate melt rate drives so much of the rest."
+    init { subcommands(MeltValuesCommand()) }
+    override val invokeWithoutSubcommand = true
+    override val temps: String? by option("--temps", metavar = "LOW-HIGH", help = "the temperature range, whole degrees C, e.g. 190-230: a column each, from LOW up by --step; default: the filament's (temperature.min to temperature.max, the spool's label)")
+    override val step: String? by option("--step", metavar = "C", help = "whole degrees between columns; default: 10")
+    override val meltFan: String? by option("--melt-fan", metavar = "on|off", help = "the part fan in every column at the filament's own (cooling.fan; 'on', the default) or off ('off')")
+    override val flowStep: String? by option("--flow-step", metavar = "MM3S", help = "mm3/s between rows (each row that much more flow than the one in front of it); the rows run from half the filament's expected maximum flow to twice it; default: the finest of 0.25, 0.5, 1, 2, 5 that keeps them to about 24")
+}
+
+/** `plymeld calibrate flow`: the flow plate, after the melt plate: a column per temperature, a patch per flow ratio. */
+class FlowPlateCommand : PlateCommand("flow", "flow") {
+    override fun help(context: com.github.ajalt.clikt.core.Context) = "The flow plate, after the melt plate: the filament's flow ratio at each temperature: a column per " +
+        "temperature (--temps, --step), a square patch per flow ratio (--flow-ratios), each patch solid at its own ratio with its lines exactly the bead " +
+        "spacing apart, its top laid at its column's temperature; each patch's ratio printed beside its row and each column's temperature in front of it. " +
+        "Read each column for its best patch (closed, no gaps, no ridges); `flow values` writes the readings into the filament's config."
+    init { subcommands(FlowValuesCommand()) }
+    override val invokeWithoutSubcommand = true
+    override val temps: String? by option("--temps", metavar = "LOW-HIGH", help = "the temperature range, whole degrees C, e.g. 190-230: a column each, from LOW up by --step; default: the filament's (temperature.min to temperature.max, the spool's label)")
+    override val step: String? by option("--step", metavar = "C", help = "whole degrees between columns; default: 10")
+    override val flowRatios: String? by option("--flow-ratios", metavar = "R,R,...", help = "the patches' flow ratios, low to high (e.g. 0.94,0.97,1,1.03), a patch each in every column; default: the filament's flow ratio x 0.94 to 1.06 in 0.02 steps")
 }
 
 /** `plymeld calibrate motion`, with `readings` and `values` (MotionReadings.kt). */
@@ -1654,9 +1863,9 @@ class MotionPlateCommand : PlateCommand("motion", "motion") {
 
 /** `plymeld calibrate filament`. */
 class FilamentPlateCommand : PlateCommand("filament", "filament") {
-    override fun help(context: com.github.ajalt.clikt.core.Context) = "The filament plate, once its melt rate is measured: the filament's other families of tests (--tests: overhangs, bridges, stringing, line widths, flow ratio, fit) with the temperature varied by band of height, each family on a base of its own, packed to fit the bed, with each family's predicted time and filament."
-    override val temps: String? by option("--temps", metavar = "LOW-HIGH", help = "melt, filament, and first-layer plates: the temperature range, whole degrees C, e.g. 195-225 (first-layer plate: also a single temperature, e.g. 215); default: the filament's (temperature.min to temperature.max, the spool's label)")
-    override val step: String? by option("--step", metavar = "C", help = "melt and filament plates: whole degrees between bands; first-layer plate: between blocks; default: 5")
+    override fun help(context: com.github.ajalt.clikt.core.Context) = "The filament plate, once its melt rate is measured: the filament's other families of tests (--tests: overhangs, bridges, stringing, line widths, fit) with the temperature varied by band of height, each family on a base of its own, packed to fit the bed, with each family's predicted time and filament."
+    override val temps: String? by option("--temps", metavar = "LOW-HIGH", help = "the temperature range, whole degrees C, e.g. 195-225: a band each, hottest at the bottom; default: the filament's (temperature.min to temperature.max, the spool's label)")
+    override val step: String? by option("--step", metavar = "C", help = "whole degrees between bands; default: 5")
     override val fans: String? by option("--fans", metavar = "LOW,HIGH", help = "filament plate: the two part-fan levels (%) the bands alternate between; default: half the filament's fan, and 1.5x it (at most 100)")
     override val tests: String? by option("--tests", metavar = "T,T,...", help = "filament plate: the families of tests on it, any of ${Part.FILAMENT_TESTS.joinToString(",") { it.key }} (default: all of them); " +
         "this is the way to leave a family out. The melt test and the motion test are plates of their own (`calibrate melt`, `calibrate motion`). " +
@@ -1669,7 +1878,6 @@ class FilamentPlateCommand : PlateCommand("filament", "filament") {
     override val retractions: String? by option("--retractions", metavar = "MM,MM,...", help = "filament plate: the stringing ring's hops' retraction lengths (mm), short to long, a hop each; default: 0.4 to 1.6 in 0.2 steps")
     override val spans: String? by option("--spans", metavar = "MM,MM,...", help = "filament plate: the bridges' spans (mm), short to long; default: 8,14,20,26,32")
     override val bridgeFlows: String? by option("--bridge-flows", metavar = "FRONT,BACK", help = "filament plate: the two bridge decks' flow ratios; default: the bridge flow (plan.layer.bridge.flow) and 0.85x it")
-    override val flowRatios: String? by option("--flow-ratios", metavar = "R,R,...", help = "filament plate: the flow-ratio patches' ratios, low to high (e.g. 0.94,0.97,1,1.03), a row of them per band; default: the filament's flow ratio x 0.94 to 1.06 in 0.02 steps")
 }
 
 /** `plymeld calibrate first-layer`, with `window` (FirstLayerWindowCommand: a graded plate into the filament's first-layer window). */
@@ -1677,8 +1885,8 @@ class FirstLayerPlateCommand : PlateCommand("first-layer", "first-layer") {
     override fun help(context: com.github.ajalt.clikt.core.Context) = "The first-layer plate: first-layer tiles only, one layer, a block of them per temperature (coolest first, heating and priming between blocks), each tile at its own nozzle height (--first-heights) and speed (--first-speeds); a tile whose flow would pass the filament's maximum flow at its block's temperature is left out, and each block's tiles are joined into one piece, a frame laid over their walls (a second layer, not read) holding it together. `first-layer window` turns the graded plate into the filament's first-layer window."
     init { subcommands(FirstLayerWindowCommand()) }
     override val invokeWithoutSubcommand = true
-    override val temps: String? by option("--temps", metavar = "LOW-HIGH", help = "melt, filament, and first-layer plates: the temperature range, whole degrees C, e.g. 195-225 (first-layer plate: also a single temperature, e.g. 215); default: the filament's (temperature.min to temperature.max, the spool's label)")
-    override val step: String? by option("--step", metavar = "C", help = "melt and filament plates: whole degrees between bands; first-layer plate: between blocks; default: 5")
+    override val temps: String? by option("--temps", metavar = "LOW-HIGH", help = "the temperature range, whole degrees C, e.g. 195-225, or a single temperature, e.g. 215: a block each, coolest first; default: the filament's (temperature.min to temperature.max, the spool's label)")
+    override val step: String? by option("--step", metavar = "C", help = "whole degrees between blocks; default: 5")
     override val firstSpeeds: String? by option("--first-speeds", metavar = "S,S,...", help = "first-layer plate: the tiles' speeds (mm/s), a row of tiles each, slow to fast; default: 40,60,80,100")
     override val firstHeights: String? by option("--first-heights", metavar = "MM,MM,...", help = "first-layer plate: the tiles' nozzle heights (mm), a column of tiles each, low to high; default: five, from half the nozzle's bore up in steps of a tenth of it (hardware.tool.<key>.bore: 0.2 to 0.36 mm on a 0.4 mm nozzle)")
 }
@@ -1707,7 +1915,7 @@ class SeamsPlateCommand : PlateCommand("seams", "seams") {
  * kind offers only the options it takes.
  */
 class CalibrateCommand : com.github.ajalt.clikt.core.CliktCommand(name = "calibrate") {
-    init { subcommands(MeltPlateCommand(), MotionPlateCommand(), FilamentPlateCommand(), FirstLayerPlateCommand(), IroningPlateCommand(), SeamsPlateCommand()) }
+    init { subcommands(MeltPlateCommand(), FlowPlateCommand(), MotionPlateCommand(), FirstLayerPlateCommand(), FilamentPlateCommand(), IroningPlateCommand(), SeamsPlateCommand()) }
     override fun help(context: com.github.ajalt.clikt.core.Context) =
         "Make a calibration plate for one filament (--filament, --tool), printed exactly as specified, check its g-code, and write its instructions page: " +
             "one subcommand per plate, in the order to run them (each plate's results lean on the ones before it): " +

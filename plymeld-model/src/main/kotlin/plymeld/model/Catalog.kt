@@ -283,6 +283,7 @@ object Catalog {
             5.0, "'5mm default is fine' (plymeld's figure, accepted)")
         s("plan.mechanism.motion.first_layer.speed", INTENT, SPEED, "speed of everything on the first layer (adhesion)")
         s("plan.mechanism.motion.bridge.speed", INTENT, SPEED, "bridge speed; a wall line slows toward it as more of it hangs over air")
+        s("plan.mechanism.motion.melt.buffer", INTENT, FRACTION, "the share of the filament's maximum flow kept unused: every move's flow is capped at the maximum flow less this share")
         s("plan.technique.ironing.speed", INTENT, SPEED, "ironing speed")
         s("plan.mechanism.motion.visible.acceleration", INTENT, ACCEL, "acceleration of visible lines (outer walls, top and bottom surfaces); the rest print at the machine's printing acceleration")
         s("plan.mechanism.motion.detour.margin", INTENT, LENGTH, "avoid_crossing: how far outside an island's outer wall a detour runs (beyond the wall's center line plus half its width)",

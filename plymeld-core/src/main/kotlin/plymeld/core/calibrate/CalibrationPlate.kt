@@ -20,9 +20,9 @@ import plymeld.program.Step
 /**
  * The calibration plates made by band of height, generated from their own specification and
  * printed exactly as specified (no pose, layer-height, technique, or run-time decisions: [PrintProgram.exact]). One
- * plate per step of the dependency order (temperature, then melt rate, then the rest): the **melt plate**
- * (the terraced melt test alone, a short step per temperature, run first) and the **filament plate** (the overhang ledges, the bridges, the stringing ring,
- * the line-width tubes, the flow-ratio patches a row per band, the fit test; the temperature by band). Their parts ([Part]):
+ * plate per step of the dependency order: the **filament plate** (the overhang ledges, the bridges, the stringing ring,
+ * the line-width tubes, the fit test; the temperature by band). The melt plate ([MeltPlate]) and the flow plate ([FlowPlate])
+ * are their own, a column per temperature. Its parts ([Part]):
  * the ruler post where the plate has one, and its families of tests, each laid out in a frame of its own and packed onto the
  * plate ([PlatePacking]). The first-layer tiles are a plate of their own
  * ([FirstLayerPlate]: temperature varied within the first layer); the motion plate is its own too ([MotionPlate];
@@ -117,36 +117,22 @@ class MeltTerraces(val topSpeed: Double, val machineSpeed: Double, val centerFlo
             val mid = bead(wUm, (hs.first() + hs.last()) / 2)
             return Math.min(machineSpeed, centerFlow / (mid * flowRatio))
         }
+        /** FAST's thickest strip runs at this many times the filament's expected maximum flow (plymeld's choice): see [fastSpeedTop]. */
+        const val TOP_OF_EXPECTED = 2.0
+        /**
+         * The melt plate's FAST speed (mm/s): the machine's print speed [machineSpeed], or less, so that FAST's thickest strip (a
+         * [wUm] line [maxUm] thick) runs at [TOP_OF_EXPECTED] times [expected] (mm³/s, the filament's expected maximum flow) at
+         * [flowRatio]. FAST's strips then span about 0.74 to 2 times it, MID's (half FAST's speed) about 0.37 to 1, so the
+         * plate brackets a maximum flow up to twice the expected one in one print. Plymeld's choice.
+         */
+        fun fastSpeedTop(machineSpeed: Double, expected: Double, wUm: Long, maxUm: Long, flowRatio: Double): Double =
+            Math.min(machineSpeed, TOP_OF_EXPECTED * expected / (bead(wUm, maxUm) * flowRatio))
         /**
          * Lines in a strip: as many as hold the FAST strip's flow for [PlateGeometry.meltHoldS] at [topSpeed] (each line
          * [PlateGeometry.meltLineLen] long; a time, so the same at every thickness), and at least [MIN_LINES]; the same count on
          * all three surfaces.
          */
         fun linesFor(topSpeed: Double): Int = maxOf(MIN_LINES, Math.ceil(PlateGeometry.meltHoldS * topSpeed / (PlateGeometry.meltLineLen / 1000.0) - 1e-9).toInt())
-    }
-}
-
-/**
- * The flow-ratio test: square patches, each printed solid at its own flow ratio (one wall,
- * then lines at exactly the bead model's spacing, so the ratio alone decides whether they close up), [layers] layers above
- * their first; their tops are read. A row of them per band:
- * row r's solid layers start at [fromLayers][r] (each row's ending on its band's last read layer), and below that each patch
- * stands on a pedestal (two walls, sparse lines inside); 0 = on the bed, the first layer the adhesion layer. Row 1 (band 1,
- * the hottest) at the front. [ratios] run low to high from the left; [marked]: the patch at the filament's current ratio (a
- * small square in front of the front row's, on the bed), or -1. At [speed] / [accel]: the speed a visible surface prints at,
- * recorded as the condition.
- */
-class FlowPatches(val ratios: DoubleArray, val marked: Int, val speed: Double, val accel: Double, val layers: Int, val fromLayers: IntArray = intArrayOf(0)) {
-    /** The cell label of patch [k] (from the left) of row [r] (from the front), both from 1 in the label: "flow r.k". */
-    fun label(r: Int, k: Int) = "flow ${r + 1}.${k + 1}"
-    /** The cell label of that patch's pedestal. */
-    fun pedestalLabel(r: Int, k: Int) = "pedestal ${r + 1}.${k + 1}"
-    /** Row [r]'s top layer (its last solid layer, the one read). */
-    fun topLayer(r: Int) = fromLayers[r] + layers
-
-    companion object {
-        /** The default ratios: the filament's [ratio] x 0.94 to 1.06, to 0.001. */
-        fun defaultRatios(ratio: Double): List<Double> = (-3..3).map { k -> Math.round(ratio * (1 + 0.02 * k) * 1000) / 1000.0 }
     }
 }
 
@@ -253,7 +239,7 @@ class FirstLayerTiles(val speeds: DoubleArray, val heightsUm: LongArray, val wid
 enum class Part(val key: String, val title: String) {
     POST("post", "ruler post"), MELT("melt", "terraced melt test"), OVERHANGS("overhangs", "overhang ledges"), BRIDGES("bridges", "bridges"),
     FIT("fit", "fit test"), LINE_WIDTH("line-width", "line-width tubes"),
-    STRINGING("stringing", "stringing ring"), FLOW("flow", "flow-ratio patches");
+    STRINGING("stringing", "stringing ring");
 
     companion object {
         /**
@@ -262,7 +248,7 @@ enum class Part(val key: String, val title: String) {
          * ruler post is not one (it is on every filament plate: the bands' ruler); nor are the melt test and the motion test,
          * each a plate of its own (`calibrate melt`, `calibrate motion`).
          */
-        val FILAMENT_TESTS = listOf(OVERHANGS, BRIDGES, STRINGING, LINE_WIDTH, FLOW, FIT)
+        val FILAMENT_TESTS = listOf(OVERHANGS, BRIDGES, STRINGING, LINE_WIDTH, FIT)
 
         /** Whether a cell is the prime line the writer lays before the first layer (part of no test: [ofCell] has none for it). */
         fun isPrimeLine(label: String) = label == plymeld.gcode.PrimeLine.CELL
@@ -279,7 +265,6 @@ enum class Part(val key: String, val title: String) {
                 c == "fit block" || c == "pedestal" || c == "peg" -> FIT
                 c.startsWith("tube ") -> LINE_WIDTH
                 c.startsWith("post ") -> STRINGING
-                c.startsWith("flow ") || c.startsWith("pedestal ") || c == "mark" -> FLOW
                 else -> error("no part of the plate has a cell '$label'")
             }
         }
@@ -297,8 +282,8 @@ class CalibrationSpec(
     /** The first layer, under band 0 (adhesion: [adhesion] values, the part fan off, band 0's temperature; not read). */
     val adhesion: PathValues,
     /**
-     * The plate's own marks and supports above the first layer (ruler post, bases, pedestals, piers, the melt test's bodies,
-     * the flow marker): not read for any value. `plymeld calibrate` prints them at the machine's print
+     * The plate's own marks and supports above the first layer (ruler post, bases, pedestals, piers, the melt test's bodies):
+     * not read for any value. `plymeld calibrate` prints them at the machine's print
      * speed and acceleration, held to the filament's maximum flow, never the visible-line cap (checked
      * against the config by [CalibrationCheck.frameMotion]).
      */
@@ -328,8 +313,6 @@ class CalibrationSpec(
     val travelSpeed: Double = 0.0,
     /** The machine's bed levelling, run after its start template (automatic where possible, disableable); null = none. */
     val levelGcode: String? = null,
-    /** The flow-ratio patches, or null (left out). */
-    val flow: FlowPatches? = null,
     /** The overhang ledges, or null (left out). */
     val ledges: Ledges? = null,
     /** The bridges, or null (left out). */
@@ -371,7 +354,7 @@ class CalibrationSpec(
     init {
         // a plate per step of the dependency order: the melt test alone on its plate ("This [melt] is its own
         // plate/test")
-        val families = listOfNotNull(melt?.let { Part.MELT }, flow?.let { Part.FLOW }, ledges?.let { Part.OVERHANGS }, bridges?.let { Part.BRIDGES },
+        val families = listOfNotNull(melt?.let { Part.MELT }, ledges?.let { Part.OVERHANGS }, bridges?.let { Part.BRIDGES },
             strings?.let { Part.STRINGING }, tubes?.let { Part.LINE_WIDTH }, fit?.let { Part.FIT })
         require(melt == null || families == listOf(Part.MELT)) { "the melt test is a plate of its own (the melt plate): not with ${families.filter { it != Part.MELT }.joinToString { it.title }}" }
         // the melt strips stand on their floor up to the thickest's thickness: within the next layer's top, so the next
@@ -403,7 +386,7 @@ class CalibrationSpec(
     val parts: List<Part> get() = Part.values().filter { p ->
         when (p) {
             Part.POST -> ruler; Part.MELT -> melt != null; Part.OVERHANGS -> ledges != null; Part.BRIDGES -> bridges != null
-            Part.FIT -> fit != null; Part.LINE_WIDTH -> tubes != null; Part.STRINGING -> strings != null; Part.FLOW -> flow != null
+            Part.FIT -> fit != null; Part.LINE_WIDTH -> tubes != null; Part.STRINGING -> strings != null
         }
     }
 
@@ -415,7 +398,7 @@ class CalibrationSpec(
                 packWidthUm: Long = this.packWidthUm, packDepthUm: Long = this.packDepthUm) = CalibrationSpec(
         tool, spool, bands, layerUm, widthUm, filamentDiameterMm, adhesion, frame, melt.takeIf { Part.MELT in keep }, flowRatio, retractMm,
         originXUm, originYUm, firstWidthUm, minLayerTimeS, travelSpeed, levelGcode,
-        flow.takeIf { Part.FLOW in keep }, ledges.takeIf { Part.OVERHANGS in keep }, bridges.takeIf { Part.BRIDGES in keep },
+        ledges.takeIf { Part.OVERHANGS in keep }, bridges.takeIf { Part.BRIDGES in keep },
         strings.takeIf { Part.STRINGING in keep }, tubes.takeIf { Part.LINE_WIDTH in keep }, fit.takeIf { Part.FIT in keep },
         packWidthUm, packDepthUm, baseLayers, ruler, firstLayerUm)
 
@@ -423,13 +406,13 @@ class CalibrationSpec(
     fun withBands(bands: List<Band>) = CalibrationSpec(
         tool, spool, bands, layerUm, widthUm, filamentDiameterMm, adhesion, frame, melt, flowRatio, retractMm,
         originXUm, originYUm, firstWidthUm, minLayerTimeS, travelSpeed, levelGcode,
-        flow, ledges, bridges, strings, tubes, fit, packWidthUm, packDepthUm, baseLayers, ruler, firstLayerUm)
+        ledges, bridges, strings, tubes, fit, packWidthUm, packDepthUm, baseLayers, ruler, firstLayerUm)
 
     /** The same specification with [melt] in place of its own: for choosing the melt test's widths (as many as fit). */
     fun withMelt(melt: MeltTerraces?) = CalibrationSpec(
         tool, spool, bands, layerUm, widthUm, filamentDiameterMm, adhesion, frame, melt, flowRatio, retractMm,
         originXUm, originYUm, firstWidthUm, minLayerTimeS, travelSpeed, levelGcode,
-        flow, ledges, bridges, strings, tubes, fit, packWidthUm, packDepthUm, baseLayers, ruler, firstLayerUm)
+        ledges, bridges, strings, tubes, fit, packWidthUm, packDepthUm, baseLayers, ruler, firstLayerUm)
 
     companion object {
         /**
@@ -513,8 +496,11 @@ object PlateGeometry {
      * for a layer height that does not divide 1 mm: 0.28 mm gives 4 layers, 1.12 mm).
      */
     fun meltBodyLayers(layerUm: Long): Int = maxOf(1, Math.round(meltFirstBody.toDouble() / layerUm).toInt())
-    // the melt test's three surfaces stand [patchGap] apart (the flow patches' gap, reused); its steps touch (terraced, band
-    // 1's at the front, each colder band's directly behind: the bridge decks' terraces)
+    // the melt test's three surfaces stand [meltSurfaceGap] apart; its steps touch (terraced, band 1's at the front, each
+    // colder band's directly behind: the bridge decks' terraces)
+    const val meltSurfaceGap = 3_000L
+    // a marker: a small square this size, this far in front of what it marks (the first-layer plate's dots)
+    const val markSize = 3_000L; const val markGap = 1_500L
     // the ruler post: 8 x 8 mm, its front-left corner chamfered (the origin mark); the front face past the chamfer (6 mm)
     // keeps material either side of the long notch. Packed first, at the plate's front-left corner.
     const val postX = 0L; const val postY = 0L; const val post = 8_000L
@@ -543,11 +529,6 @@ object PlateGeometry {
     /** Less than this to spare at a bed's edge gets a warning (check the bed's clips or wiper are clear); the packing keeps it where the bed allows. */
     const val bedSpare = 10_000L
 
-    // the flow-ratio patches: about this square (exactly: a whole number of lines at the bead spacing), this far apart in a
-    // row and between rows (a row per band); the marker (a small square) this far in front of the front row's patch at the
-    // current ratio
-    const val patchAbout = 12_000L; const val patchGap = 3_000L
-    const val markSize = 3_000L; const val markGap = 1_500L
     // the overhang spine: this thick; a ledge this long every this far, the spine running this far past the first and last
     const val ledgeBase = 3_000L; const val ledgeLen = 8_000L; const val ledgeGap = 3_000L; const val ledgeEnd = 3_000L
 
@@ -596,7 +577,7 @@ object PlateGeometry {
 }
 
 /**
- * Builds the plate's program from its [spec]. [without]: features left out ("notches", "pause", "mark", "lean", "decks"; "untiered": the top band's bridge decks where the row before the terraces had them; "deckoverlap": the top band's decks half a deck over the band below's; "widths": the tubes at the plate's own width; "clearance": the holes at the peg's size; "firstwidth": the
+ * Builds the plate's program from its [spec]. [without]: features left out ("notches", "pause", "lean", "decks"; "untiered": the top band's bridge decks where the row before the terraces had them; "deckoverlap": the top band's decks half a deck over the band below's; "widths": the tubes at the plate's own width; "clearance": the holes at the peg's size; "firstwidth": the
  * first layer's ordinary lines at the plate's own width, not the first layer's; "tubefirst": one tube's first layer at the
  * first layer's width, not its own; the melt test's: "meltmidfast": the MID surface at the FAST speed; "meltwidth": band 1's
  * FAST strip 3 0.05 mm wider than the plate's line width; "meltheight": that strip 0.04 mm above its thickness; "melt2read":
@@ -606,7 +587,7 @@ object PlateGeometry {
  * writer's own lift); "meltwaitlate": band 2's
  * temperature set without a wait (M104) at its start and waited for (M109) only after its read layer, so its settling and read
  * layers print before the temperature is reached; "meltstep": band 2's step one layer low (its read layer on its settling
- * layer, its body one layer shorter); "flowrow": the top band's row of flow patches;
+ * layer, its body one layer shorter);
  * "familygap": the parts packed with no gap between them; "ringreverse": the stringing ring's lengths in reverse order;
  * "basefill": the bases without their notches; "basenotch1": the notches cut through the bases' first layer too;
  * "baseshort": the first family's base 5 mm short on its right; the bases' fill ([basePaths]): "baserings" concentric rings to the
@@ -811,35 +792,6 @@ class CalibrationPlate(private val spec: CalibrationSpec, private val without: S
                     for (ring in solidRings(listOf(circle(Math.round(cx), Math.round(cy), PlateGeometry.ringPost, ccw = true)), lw)) out += extrude("Outer wall", ring, true, top, ex, lw)
                 }
             }
-            // the flow-ratio patches, a row per band: each patch on its pedestal up to its row's first solid layer, then
-            // solid at its ratio (on the bed, their first layer the adhesion layer, not read), the lines turning 90 degrees
-            // layer by layer, the row's top on its band's last read layer; the marker in front of the front row's patch at
-            // the current ratio, on the bed
-            Part.FLOW -> {
-                val flow = spec.flow!!
-                for (r in flow.fromLayers.indices) {
-                    if ("flowrow" in without && r == flow.fromLayers.size - 1) continue
-                    val from = flow.fromLayers[r]
-                    val solid = layer >= from && layer <= flow.topLayer(r)
-                    for (k in flow.ratios.indices) {
-                        if (solid) {
-                            val ex = if (first) adhesionEx(flow.label(r, k)) else Exact(flow.label(r, k), doubleArrayOf(flow.speed), flow.accel, flow.ratios[k], spec.retractMm)
-                            val (ring, lines) = patchPaths(r, k, alongX = (layer - from) % 2 == 1, lw = lw)
-                            out += extrude("Outer wall", ring, true, top, ex, lw)
-                            out += extrude(if (layer == flow.topLayer(r)) "Top surface" else "Internal solid infill", lines, false, top, ex, lw)
-                        } else if (layer < from) {
-                            val ex = Exact((if (first) "adhesion:" else "") + flow.pedestalLabel(r, k), doubleArrayOf(frame.speed), frame.accel, frame.flowRatio, frame.retractMm)
-                            val (rings, lines) = pedestalPaths(patchBox(r, k), alongX = layer % 2 == 1, lw = lw)
-                            for (ring in rings) out += extrude("Outer wall", ring, true, top, ex, lw)
-                            out += extrude("Sparse infill", lines, false, top, ex, lw)
-                        }
-                    }
-                }
-                val mark = markBox()
-                // on the bed (or the base), as tall as a patch there would be
-                if (layer - spec.baseLayers <= flow.layers && mark != null && "mark" !in without) for (ring in squareRings(mark, lw = lw)) out += extrude("Outer wall", ring, true, top,
-                    Exact(if (first) "adhesion:mark" else "mark", doubleArrayOf(frame.speed), frame.accel, frame.flowRatio, frame.retractMm), lw)
-            }
         }
         return out
     }
@@ -852,7 +804,7 @@ class CalibrationPlate(private val spec: CalibrationSpec, private val without: S
 
     /**
      * Where [p]'s base notch stands along its front edge (x, µm, on the plate): in front of the test's first item (the first
-     * ledge, the first span, the first tube, hole 1, the first column of flow patches, post 1 of the stringing ring, the melt
+     * ledge, the first span, the first tube, hole 1, post 1 of the stringing ring, the melt
      * test's FAST surface).
      */
     fun notchX(p: Part): Long = when (p) {
@@ -862,7 +814,6 @@ class CalibrationPlate(private val spec: CalibrationSpec, private val without: S
         Part.FIT -> holeCenter(0).first
         Part.LINE_WIDTH -> tubeBox(0).let { (it[0] + it[2]) / 2 }
         Part.STRINGING -> Math.round(ringPost(0).first)
-        Part.FLOW -> patchBox(0, 0).let { (it[0] + it[2]) / 2 }
         Part.POST -> error("the post has no base")
     }
 
@@ -1052,10 +1003,10 @@ class CalibrationPlate(private val spec: CalibrationSpec, private val without: S
     }
     /**
      * Band [band]'s step's surface [s] (0 FAST, 1 MID, 2 SLOW, left to right), as a box (µm: x0, y0, x1, y1): the body under
-     * it and the strips on it. The surfaces [PlateGeometry.patchGap] apart; the steps touching, band 1's at the front.
+     * it and the strips on it. The surfaces [PlateGeometry.meltSurfaceGap] apart; the steps touching, band 1's at the front.
      */
     fun meltBox(band: Int, s: Int): LongArray {
-        val x0 = ox(Part.MELT) + s * (meltSurfaceW + PlateGeometry.patchGap); val y0 = oy(Part.MELT) + band * meltStepD
+        val x0 = ox(Part.MELT) + s * (meltSurfaceW + PlateGeometry.meltSurfaceGap); val y0 = oy(Part.MELT) + band * meltStepD
         return longArrayOf(x0, y0, x0 + meltSurfaceW, y0 + meltStepD)
     }
     /** Strip [k]'s lines on band [band]'s step's surface [s]: back and forth along X, each [PlateGeometry.meltLineLen] long, centered in the surface. */
@@ -1117,49 +1068,6 @@ class CalibrationPlate(private val spec: CalibrationSpec, private val without: S
         val mm = maxOf(2, Math.round((wy1 - wy0).toDouble() / PlateGeometry.pedestalPitch).toInt())
         val xAt = (1 until mm).map { wy0 + it * (wy1 - wy0) / mm }
         return rings to listOf(ys, zigzag(true, xAt, in0x, in1x))
-    }
-
-    /** Lines across a flow patch: as many as make it about [PlateGeometry.patchAbout] square at the bead spacing. */
-    val patchLines: Int get() = maxOf(2, ((PlateGeometry.patchAbout - w - 2 * spacing) / spacing).toInt() + 1)
-    /** A flow patch's outer size (µm): its lines at the bead spacing, the wall round them touching them, the wall's own width. */
-    val patchSize: Long get() = (patchLines - 1) * spacing + 2 * spacing + w
-    /** Room in front of the front row for the marker (µm): the marker and its gap, or none. */
-    private val markRoom: Long get() = spec.flow?.let { f -> if (f.marked in f.ratios.indices) PlateGeometry.markSize + PlateGeometry.markGap else 0L } ?: 0L
-    /**
-     * Flow patch [k] (from the left) of row [r] (from the front: row r is band r's), its outer square (µm: x0, y0, x1, y1):
-     * the rows [PlateGeometry.patchGap] apart behind the marker, the patches in a row as far apart.
-     */
-    fun patchBox(r: Int, k: Int): LongArray {
-        val pitch = patchSize + PlateGeometry.patchGap
-        val x0 = ox(Part.FLOW) + k * pitch; val y0 = oy(Part.FLOW) + markRoom + r * pitch
-        return longArrayOf(x0, y0, x0 + patchSize, y0 + patchSize)
-    }
-    /** The marker's square, centered in front of the front row's patch at the current flow ratio (µm), or null (none marked). */
-    fun markBox(): LongArray? {
-        val f = spec.flow ?: return null
-        if (f.marked !in f.ratios.indices) return null
-        val p = patchBox(0, f.marked); val cx = (p[0] + p[2]) / 2; val s = PlateGeometry.markSize
-        return longArrayOf(cx - s / 2, p[1] - PlateGeometry.markGap - s, cx + s / 2, p[1] - PlateGeometry.markGap)
-    }
-
-    /**
-     * Flow patch [k] of row [r]'s paths on one layer, in [lw] µm lines: its wall (a closed ring half a line in from its edge)
-     * and its lines (one open path, back and forth, each line one bead spacing from the next and from the wall: as many as
-     * fit; at the plate's own width, [patchLines] exactly filling it), along X or Y.
-     */
-    private fun patchPaths(r: Int, k: Int, alongX: Boolean, lw: Long): Pair<LongArray, LongArray> {
-        val b = patchBox(r, k); val sp = spacingOf(lw)
-        val r0x = b[0] + lw / 2; val r0y = b[1] + lw / 2; val r1x = b[2] - lw / 2; val r1y = b[3] - lw / 2
-        val ring = longArrayOf(r0x, r0y, r1x, r0y, r1x, r1y, r0x, r1y)
-        val f0x = r0x + sp; val f0y = r0y + sp; val f1x = r1x - sp; val f1y = r1y - sp
-        val pts = ArrayList<Long>()
-        val lines = if (lw == w) patchLines else maxOf(1, ((f1x - f0x) / sp).toInt() + 1)
-        for (i in 0 until lines) {
-            val across = i * sp
-            if (alongX) { val y = f0y + across; if (i % 2 == 0) { pts += f0x; pts += y; pts += f1x; pts += y } else { pts += f1x; pts += y; pts += f0x; pts += y } }
-            else { val x = f0x + across; if (i % 2 == 0) { pts += x; pts += f0y; pts += x; pts += f1y } else { pts += x; pts += f1y; pts += x; pts += f0y } }
-        }
-        return ring to pts.toLongArray()
     }
 
     /** The overhang spine's left end and its back (µm, on the plate); its front [PlateGeometry.ledgeBase] in front of the back, the ledges standing out of it. */
