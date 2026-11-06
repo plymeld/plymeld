@@ -18,6 +18,9 @@ section the release's version and date.
   temperature (`temperature.first_layer`), as a print does, and the rest at its print temperature: the head waits,
   parked in front of the plate, for the print temperature before the ironing plate's top and before the seam plate's
   pieces. Each plate's check and page name both temperatures.
+- `slice` from a plan file plans each object's layers once: the in-island retraction the plan locks is no longer
+  planned for again before the slice. Where the layers do not all fit the layer cache (a large model), this saves
+  planning the whole model a second time.
 
 ## [0.20261106.3] - 2026-11-06
 

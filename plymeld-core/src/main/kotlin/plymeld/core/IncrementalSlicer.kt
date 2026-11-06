@@ -1330,8 +1330,7 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
             val v = if (p.feature in visible) st.visibleSpeed else st.hiddenSpeed
             if (v > 0) timeS += lenMm / v
         }
-        val d = if (lockE != null) plymeld.core.decide.RetractionDecision.decide(objectName, plymeld.gcode.StringRisk.Result.NONE, plymeld.gcode.StringRisk.Result.NONE, retractS, null, "",
-                weights, lockE.value as Boolean, lockE.from)
+        val d = if (lockE != null) locked(lockE, weights, retractS)
             else timed("retraction") { plymeld.core.decide.RetractionDecision.decide(objectName, measured(planned), measured(off), retractS, timeS,
                 "a quick estimate from the paths' lengths and speeds", weights, null, null) }
         retractionDecision = d
@@ -1340,6 +1339,23 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         // follows them (an arched bridge's top lost its print-temperature rise when the retracting side won)
         for ((o, n) in planned.zip(off)) { bandOf[o]?.let { bandOf[n] = it }; bridgeTops[o]?.let { bridgeTops[n] = it }; islandOf[o]?.let { islandOf[n] = it } }
         return off
+    }
+
+    private fun locked(lockE: plymeld.model.Resolved, weights: plymeld.core.decide.Weights, retractS: Double): plymeld.core.decide.Decision<Boolean> =
+        plymeld.core.decide.RetractionDecision.decide(objectName, plymeld.gcode.StringRisk.Result.NONE, plymeld.gcode.StringRisk.Result.NONE, retractS, null, "",
+            weights, lockE.value as Boolean, lockE.from)
+
+    /**
+     * The in-island retraction decision for [setup] where plan.mechanism.motion.no_retract_in_island locks it (a plan file
+     * does), without planning the layers: the decision [planned] would record, which measures nothing when locked. Null
+     * where it is unset (the decision is weighed on the planned layers).
+     */
+    fun lockedRetraction(setup: Setup): plymeld.core.decide.Decision<Boolean>? {
+        val lockE = Resolver.resolveOrNull(setup, "plan.mechanism.motion.no_retract_in_island", ctx) ?: return null
+        val st = SliceSettings.of(setup, ctx)
+        val weights = Resolver.resolve(setup, "job.priorities", ctx).let { plymeld.core.decide.Weights.parse(it.value as String, it.from) }
+        val retractS = plymeld.core.decide.RetractionDecision.retractS(st.retractMm, st.retractSpeed, st.deretractSpeed, st.zHopUm / 1000.0, st.travelSpeed)
+        return locked(lockE, weights, retractS).also { retractionDecision = it }
     }
 
     /** The layers the last [slice] or [planned] laid out (empty for a multi-filament object: its layers are per filament). */
