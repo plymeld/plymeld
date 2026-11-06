@@ -12,8 +12,13 @@ import plymeld.config.Schema
  * command or option that is in the tree is in the model, and the test demands a place in the UI for it.
  */
 class CommandModel(val root: Command, val paths: List<ConfigPath>) {
-    /** A command: its [path] from the root (`plymeld printer loadout` is `["printer", "loadout"]`), as `--help` describes it. */
-    class Command(val path: List<String>, val help: String, val options: List<Option>, val arguments: List<Argument>, val subcommands: List<Command>) {
+    /**
+     * A command: its [path] from the root (`plymeld printer loadout` is `["printer", "loadout"]`), as `--help` describes it;
+     * [runsAlone]: a command with subcommands that also runs without one (`plymeld calibrate melt` makes the plate,
+     * `plymeld calibrate melt values` writes its readings back).
+     */
+    class Command(val path: List<String>, val help: String, val options: List<Option>, val arguments: List<Argument>, val subcommands: List<Command>,
+                  val runsAlone: Boolean = false) {
         val name: String get() = path.lastOrNull() ?: "plymeld"
         val line: String get() = (listOf("plymeld") + path).joinToString(" ")
         /** This command and every command under it, parents first. */
@@ -100,7 +105,7 @@ class CommandModel(val root: Command, val paths: List<ConfigPath>) {
             }
             val arguments = params.filterIsInstance<HelpFormatter.ParameterHelp.Argument>().map { Argument(it.name, it.help, it.required, it.repeatable) }
             val subs = c.registeredSubcommands().map { command(it, ctx, path + it.commandName) }
-            return Command(path, c.help(ctx).trim(), options, arguments, subs)
+            return Command(path, c.help(ctx).trim(), options, arguments, subs, runsAlone = subs.isNotEmpty() && c.invokeWithoutSubcommand)
         }
     }
 }

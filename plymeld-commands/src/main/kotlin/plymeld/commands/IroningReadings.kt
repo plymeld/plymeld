@@ -17,7 +17,7 @@ import java.util.Locale
  */
 class IroningReadingsCommand : CliktCommand(name = "readings") {
     private val plate by argument("PLATE", help = "the ironing plate's g-code, as `plymeld calibrate ironing` wrote it").path(mustExist = true)
-    private val output by option("-o", "--output", help = "write the sheet to this TOML file (default: print it)").path()
+    private val output by option("-o", "--output", metavar = "FILE", help = "write the sheet to this TOML file (default: print it)").path()
 
     override fun help(context: com.github.ajalt.clikt.core.Context) =
         "Write the readings sheet to grade for a printed ironing plate: an entry per zone with its values, its grade '?'. Replace each '?' with good, marginal, or bad, then turn the sheet into the ironing values with `calibrate ironing values`."
@@ -40,7 +40,7 @@ class IroningReadingsCommand : CliktCommand(name = "readings") {
  */
 class IroningValuesCommand : CliktCommand(name = "values") {
     private val sheet by argument("READINGS", help = "the graded readings sheet, as `plymeld calibrate ironing readings` wrote it and you graded it").path(mustExist = true)
-    private val output by option("-o", "--output", help = "write the values to this TOML config file (default: print it)").path()
+    private val output by option("-o", "--output", metavar = "FILE", help = "write the values to this TOML config file (default: print it)").path()
 
     override fun help(context: com.github.ajalt.clikt.core.Context) =
         "Turn a graded ironing readings sheet into the ironing values (plan.technique.ironing.*): per setting the value whose zones graded best, with where it came from, and the best single zone beside them. Add the written file with -cf."
