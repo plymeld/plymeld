@@ -84,7 +84,7 @@ abstract class ModelConfigCommand(name: String) : ConfigCommand(name) {
  * complete, nothing is decided again; with none, plymeld decides and says so.
  */
 class SliceCommand : ModelConfigCommand("slice") {
-    private val output by option("-o", "--output", help = "g-code file to write").path().required()
+    private val output by option("-o", "--output", metavar = "FILE", help = "g-code file to write").path().required()
     private val from by option("--from", metavar = "GCODE",
         help = "start from what a g-code `plymeld slice -o` wrote was made from: the config and plan in its source block (-cf and -cv add to them; -m names the model files)").path()
     override fun help(context: com.github.ajalt.clikt.core.Context) = "Slice models (-m) to g-code with config files (-cf) and values (-cv)."
@@ -188,7 +188,7 @@ internal fun curvedLimits(plan: plymeld.core.decide.Plan, setup: plymeld.model.S
 
 /** `plymeld plan -cf ... -m ... [-o plan.toml]`: each decision and why; with -o, the decisions as a config file to slice with. */
 class PlanCommand : ModelConfigCommand("plan") {
-    private val output by option("-o", "--output", help = "write the decisions as a config file (TOML), for `plymeld slice -cf`").path()
+    private val output by option("-o", "--output", metavar = "FILE", help = "write the decisions as a config file (TOML), for `plymeld slice -cf`").path()
     override fun help(context: com.github.ajalt.clikt.core.Context) =
         "Show how plymeld would print the models (-m) with config files (-cf) and values (-cv), and why; -o writes the decisions as a config file."
 
@@ -302,8 +302,8 @@ class ShowConfigCommand : ConfigCommand("config") {
  * `$schema`); with --markdown, the settings catalog's tables written into that page below its marker line.
  */
 class SchemaCommand : CliktCommand(name = "schema") {
-    private val output by option("-o", "--output", help = "file to write (default: print it)").path()
-    private val markdown by option("--markdown", help = "rewrite the settings tables in this page below its marker line, instead of the JSON Schema").path()
+    private val output by option("-o", "--output", metavar = "FILE", help = "file to write (default: print it)").path()
+    private val markdown by option("--markdown", metavar = "PAGE", help = "rewrite the settings tables in this page below its marker line, instead of the JSON Schema").path()
     override fun help(context: com.github.ajalt.clikt.core.Context) =
         "Print (or write, -o) the config schema as JSON Schema, for editors checking config files; or rewrite the settings catalog's tables (--markdown)."
     override fun run() {

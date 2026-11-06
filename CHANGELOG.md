@@ -9,6 +9,12 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Added
+
+- Command-line docs: a guide to how the commands fit together (`docs/cli/README.md`: setup, the config, slicing,
+  the printer, calibration), and a command reference (`docs/cli/reference/`), a page per command with every option,
+  written from the commands themselves. `plymeld commands --markdown DIR` writes the reference.
+
 ### Changed
 
 - The calibration plates run melt, flow, first layer, motion, then the rest: the first-layer plate now comes before the
@@ -19,6 +25,12 @@ section the release's version and date.
   notches take the size every plate's tally notches have. The slab's first layer prints at the filament's first-layer
   temperature (`temperature.first_layer`, worked out from `--print-temp` when given), and the head waits, parked, for
   the print temperature before the tower.
+- `--help` names every option's value (`-o FILE`, `--layer MM`, ...), and `plymeld --help` lists `printer credential`
+  and `investigate predict`, which it left out.
+
+### Fixed
+
+- `plymeld render-plate` crashed ("negative width") on a first-layer plate of many blocks, such as the default nine.
 
 ## [0.20261106.2] - 2026-11-06
 

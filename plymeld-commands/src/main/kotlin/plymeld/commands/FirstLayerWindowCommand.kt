@@ -18,7 +18,7 @@ import java.util.Locale
  */
 class FirstLayerWindowCommand : CliktCommand(name = "window") {
     private val plate by argument("PLATE", help = "the first-layer plate's g-code, as `plymeld calibrate first-layer` wrote it").path(mustExist = true)
-    private val output by option("-o", "--output", help = "write the window to this TOML file (default: print it)").path()
+    private val output by option("-o", "--output", metavar = "FILE", help = "write the window to this TOML file (default: print it)").path()
     private val plateKey by option("--plate", metavar = "KEY", help = "the build plate (hardware.plate.<key>) the window is for: the key the machine's loadout names for the surface it printed on (hardware.machine.<key>.loadout.plate); default: the plate the g-code says it was made for")
     private val bore by option("--bore", metavar = "MM", help = "the bore of the nozzle that printed the plate (mm), e.g. 0.4: a window applies only to that bore (the plate's g-code does not record it)").required()
 

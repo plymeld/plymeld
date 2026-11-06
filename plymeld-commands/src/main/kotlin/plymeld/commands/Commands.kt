@@ -18,15 +18,15 @@ object PlymeldVersion {
 
 class Plymeld : CliktCommand(name = "plymeld") {
     init {
-        versionOption(PlymeldVersion.value)
+        versionOption(PlymeldVersion.value, help = "show the version and exit")
     }
 
     override fun help(context: com.github.ajalt.clikt.core.Context) =
         "plymeld — a 3D print slicer. Commands: slice (models to g-code), plan (how plymeld would print the models, and why), and config (what the config adds up to), " +
             "each with config files (-cf), config values (-cv), and models (-m); schema (the config's JSON Schema, or the settings reference); calibrate (a calibration plate for one filament); render-plate (pictures of a plate from its g-code); layers (inspect a model's slices); " +
-            "printer (talk to the machine's printer over its connection in the config: status, watch, camera, files, send, pause, resume, cancel, and loadout, which compares what it has loaded with the config's; each says what it sends); " +
-            "investigate (slice, plan, check, config with the settings in a project or g-code file, to compare plymeld's result with that file — never how a print is set up); " +
-            "commands (every command and option plymeld has, and every config path, as the UI reads them); " +
+            "printer (talk to the machine's printer over its connection in the config: status, watch, camera, files, send, pause, resume, cancel, loadout, which compares what it has loaded with the config's, and credential, which sets one in its secrets file; each says what it sends); " +
+            "investigate (slice, plan, check, config with the settings in a project or g-code file, to compare plymeld's result with that file — never how a print is set up — and predict, the time and filament of any g-code file); " +
+            "commands (every command and option plymeld has, and every config path, as the UI reads them; or the command reference as Markdown pages); " +
             "edit (write values into a config file, the rest of it kept as it was); journal (the edits made with --journal: list, undo, redo); " +
             "init (set up your printers and filaments, asked in the terminal; it starts by itself when a command finds no config)."
 

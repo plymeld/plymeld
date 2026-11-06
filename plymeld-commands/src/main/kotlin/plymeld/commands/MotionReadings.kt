@@ -20,7 +20,7 @@ import java.util.Locale
  */
 class MotionReadingsCommand : CliktCommand(name = "readings") {
     private val plate by argument("PLATE", help = "the motion plate's g-code, as `plymeld calibrate motion` wrote it").path(mustExist = true)
-    private val output by option("-o", "--output", help = "write the sheet to this TOML file (default: print it)").path()
+    private val output by option("-o", "--output", metavar = "FILE", help = "write the sheet to this TOML file (default: print it)").path()
 
     override fun help(context: com.github.ajalt.clikt.core.Context) =
         "Write the readings sheet to grade for a printed motion plate: two grids (faces along X, faces along Y), a row per band (acceleration) and a column per speed, every cell '?'. Replace each '?' with hidden, faint, or plain (how far away the face's ripples show), then turn the sheet into the machine's visible speed and acceleration with `calibrate motion values`."
@@ -44,7 +44,7 @@ class MotionReadingsCommand : CliktCommand(name = "readings") {
 class MotionValuesCommand : CliktCommand(name = "values") {
     private val sheet by argument("READINGS", help = "the graded readings sheet, as `plymeld calibrate motion readings` wrote it and you graded it").path(mustExist = true)
     private val clean by option("--clean", metavar = "GRADE", help = "the worst grade that still counts as clean: hidden or faint (default: hidden, no ripples even close up)").default(MotionInstructions.DEFAULT_CLEAN)
-    private val output by option("-o", "--output", help = "write the values to this TOML config file (default: print it)").path()
+    private val output by option("-o", "--output", metavar = "FILE", help = "write the values to this TOML config file (default: print it)").path()
 
     override fun help(context: com.github.ajalt.clikt.core.Context) =
         "Turn a graded motion readings sheet into the machine's visible speed and acceleration (hardware.machine.<key>.motion.visible.speed, .visible.acceleration): per band the fastest speed clean in both directions (and every slower speed), and of those the pair that lays a face of the plate's length quickest, with where it came from. Add the written file with -cf."

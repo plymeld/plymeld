@@ -20,7 +20,7 @@ import java.util.Locale
  */
 class SeamReadingsCommand : CliktCommand(name = "readings") {
     private val plate by argument("PLATE", help = "the seam plate's g-code, as `plymeld calibrate seams` wrote it").path(mustExist = true)
-    private val output by option("-o", "--output", help = "write the sheet to this TOML file (default: print it)").path()
+    private val output by option("-o", "--output", metavar = "FILE", help = "write the sheet to this TOML file (default: print it)").path()
 
     override fun help(context: com.github.ajalt.clikt.core.Context) =
         "Write the readings sheet to grade for a printed seam plate: an entry per piece with its kind, its grade '?'. Replace each '?' with hidden, faint, plain, or glaring (how far away its seam shows), then turn the sheet into the seam measure's shares with `calibrate seams values`."
@@ -43,7 +43,7 @@ class SeamReadingsCommand : CliktCommand(name = "readings") {
  */
 class SeamValuesCommand : CliktCommand(name = "values") {
     private val sheet by argument("READINGS", help = "the graded readings sheet, as `plymeld calibrate seams readings` wrote it and you graded it").path(mustExist = true)
-    private val output by option("-o", "--output", help = "write the shares to this TOML config file (default: print it)").path()
+    private val output by option("-o", "--output", metavar = "FILE", help = "write the shares to this TOML config file (default: print it)").path()
 
     override fun help(context: com.github.ajalt.clikt.core.Context) =
         "Turn a graded seam readings sheet into the seam measure's shares (method.quality.seam.scarf_share, .corner_share, method.quality.visibility.under): each one piece's score over its reference's, with where it came from; a share the readings cannot give is left out and said so. Add the written file with -cf."
