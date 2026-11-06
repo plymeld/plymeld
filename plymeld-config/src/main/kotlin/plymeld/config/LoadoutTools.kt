@@ -6,8 +6,8 @@ import plymeld.model.Setup
 
 /**
  * Which tool prints each part, read from the config as written: the pre-print check's reference for "every line printed
- * by the tool its part was assigned" (GcodeCheck, ModelCheck). A part's slot (`model.object.<key>.part.<part>.slot`,
- * on the copy or its base, else the model file's own), the machine's loadout slot with that number ([ConfigSetup.slots]),
+ * by the tool its part was assigned" (GcodeCheck, ModelCheck). A part's slot ([ConfigSetup.partSlot]: its own lock, else the
+ * model file's number through `model.slots`), the machine's loadout slot with that number ([ConfigSetup.slots]),
  * and that slot's tool's `index`; as the g-code's T number, index - 1 (T0 is the tool of index 1). It reads the config, not
  * the pipeline's Setup or its program, so a tool lost on the way from one to the g-code shows.
  */
@@ -17,10 +17,7 @@ object LoadoutTools {
         val (machine, slots) = loaded(c)
         return c.objects.associate { o ->
             o.key to o.partKeys.indices.map { k ->
-                val pk = o.partKeys[k]
-                val lock = c.entry(listOf("model", "object", o.key, "part", pk, "slot")) ?: c.entry(listOf("model", "object", o.base, "part", pk, "slot"))
-                val n = lock?.let { c.quantity(it, Dimension.COUNT, Site(machine = machine, obj = o, part = pk)).toInt() } ?: o.model.partSlots[k]
-                toolOf(slots, n, machine, "part '${o.model.partNames[k]}' of '${o.key}'")
+                toolOf(slots, ConfigSetup.partSlot(c, o, k, Site(machine = machine)), machine, "part '${o.model.partNames[k]}' of '${o.key}'")
             }
         }
     }
@@ -50,6 +47,5 @@ object LoadoutTools {
     }
 
     private fun toolOf(slots: List<ConfigSetup.Slot>, n: Int, machine: String, what: String): Int =
-        (slots.firstOrNull { it.number == n } ?: throw ConfigError(listOf("$what uses filament $n, but the loadout has " +
-            "${slots.joinToString { it.number.toString() }} (hardware.machine.$machine.loadout)"))).toolIndex - 1
+        (slots.firstOrNull { it.number == n } ?: throw ConfigError(listOf(ConfigSetup.notLoaded(what, n, slots, machine)))).toolIndex - 1
 }

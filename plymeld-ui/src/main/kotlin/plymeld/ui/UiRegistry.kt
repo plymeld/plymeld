@@ -20,8 +20,8 @@ object UiRegistry {
 
     val surfaces: List<Surface> = listOf(
         Surface("plymeld", "the finder: the root's help; its subcommands each their own"),
-        Surface("plymeld plan", "the window: steps 1 to 4 (the job opened as `plan` reads it; the plan's sentences and Why); $FORM", setOf("-cf", "-m", "--machine")),
-        Surface("plymeld slice", "the window: step 5 (Slice & check), the console, the stage's Layers tab; $FORM", setOf("-cf", "-m", "--machine", "-o")),
+        Surface("plymeld plan", "the window: steps 1 to 4 (the job opened as `plan` reads it, step 1 offering every part from one slot where a filament is not loaded; the plan's sentences and Why); $FORM", setOf("-cf", "-m", "--machine", "--slot")),
+        Surface("plymeld slice", "the window: step 5 (Slice & check), the console, the stage's Layers tab; $FORM", setOf("-cf", "-m", "--machine", "--slot", "-o")),
         Surface("plymeld printer send", "the window: step 6 (Send to the <key>): the sliced file uploaded, its refusal in the step; $FORM", setOf("-cf", "--machine")),
         Surface("plymeld config", "the finder: every setting of the job's config by name, value, or meaning; a hit opens the drawer on its chain (the value in force, its source, what it overrode)", setOf("-cf", "--machine")),
         Surface("plymeld commands", "the finder: every command by its line or help; a hit opens its form"),

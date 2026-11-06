@@ -48,6 +48,12 @@ abstract class ConfigCommand(name: String) : CliktCommand(name = name) {
     }
 }
 
+/** `--slot N` as the config value it sets: the slot map's every-number entry (`model.slots."*" = N`), from the option. */
+fun slotEntry(n: Int): ConfigFiles.Entry {
+    if (n < 1) throw UsageError("--slot is a slot's number, from 1 (got $n)")
+    return ConfigFiles.Entry(listOf("model", "slots", "*"), n.toLong(), "--slot")
+}
+
 /** The model files of a product command: `--model` / `-m`, repeatable, globs in natural order. */
 abstract class ModelConfigCommand(name: String) : ConfigCommand(name) {
     protected val modelArgs by option("-m", "--model", metavar = "FILE|GLOB",
@@ -74,9 +80,16 @@ abstract class ModelConfigCommand(name: String) : ConfigCommand(name) {
     // --plate", which only `investigate slice` had)
     protected val plateOpt by option("--plate", metavar = "N", help = "which plate of a 3MF project to use (1-based, as the project numbers them); needed when several have objects").int()
 
+    // a multi-color model printed from one filament, without editing it: the slot map's every-number entry for this run
+    protected val slotOpt by option("--slot", metavar = "N",
+        help = "print every part from slot N of the loadout, whatever filament the model file puts it on (sets model.slots.\"*\" = N for this run, over the config; model.slots maps the model's filaments one by one)").int()
+
+    /** [slotOpt] as the config value it sets, after every -cv value. */
+    protected fun slotEntries(): List<ConfigFiles.Entry> = slotOpt?.let { listOf(slotEntry(it)) }.orEmpty()
+
     protected fun models(): List<java.nio.file.Path> = ConfigFiles.expand(modelArgs)
 
-    protected fun product(rePlan: Boolean = false): Product = Product(stack(), models(), machineOpt, plateOpt, rePlan) { echo(it) }
+    protected fun product(rePlan: Boolean = false): Product = Product(ConfigStack(stack().all + slotEntries()), models(), machineOpt, plateOpt, rePlan) { echo(it) }
 }
 
 /**
@@ -114,7 +127,7 @@ class SliceCommand : ModelConfigCommand("slice") {
             if (sha != r.sha256) echo("warning: model '${r.name}' is not the file ${g.fileName} was made from (its SHA-256 differs)")
         }
         val stack = try {
-            ConfigStack(ConfigFiles.bundled() + src.entries + src.plan + ConfigFiles.readFiles(configFiles) + configValues.map { ConfigFiles.value(it) })
+            ConfigStack(ConfigFiles.bundled() + src.entries + src.plan + ConfigFiles.readFiles(configFiles) + configValues.map { ConfigFiles.value(it) } + slotEntries())
         } catch (e: plymeld.config.ConfigError) {
             throw UsageError("the config has ${e.problems.size} problem(s):\n" + e.problems.joinToString("\n") { "  $it" })
         }

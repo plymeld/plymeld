@@ -72,6 +72,12 @@ class Product(given: ConfigStack, modelFiles: List<Path>, machine: String? = nul
         } catch (e: ConfigError) {
             throw UsageError("the config has ${e.problems.size} problem(s):\n" + e.problems.joinToString("\n") { "  $it" })
         }
+        // the parts the slot map (model.slots) or a part's own slot moved off the model file's filament: said per object
+        for ((k, o) in config.objects.withIndex()) {
+            val moved = o.model.partSlots.indices.mapNotNull { i -> result.setup.objects[k].parts[i].spool.removePrefix("spool ").toIntOrNull()
+                ?.takeIf { it != o.model.partSlots[i] }?.let { o.model.partSlots[i] to it } }.distinct().sortedBy { it.first }
+            if (moved.isNotEmpty()) say("'${o.key}': the model's filament ${moved.joinToString { (f, t) -> "$f printed from slot $t" }} (model.slots, or a part's own slot)")
+        }
         // every setting the slice needs, for each object and part, before anything is decided: one run names every value to set
         val missing = LinkedHashSet<String>()
         for ((k, o) in result.setup.objects.withIndex()) for (part in listOf<Int?>(null) + o.parts.indices) {

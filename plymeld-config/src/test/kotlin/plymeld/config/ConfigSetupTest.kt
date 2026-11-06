@@ -238,6 +238,29 @@ class ConfigSetupTest : StringSpec({
     "a part's filament number that is not loaded is an error naming it" {
         shouldThrow<ConfigError> { setup(models = listOf(ModelObject("x", listOf("p"), listOf(3), "x.stl"))) }.message!! shouldContain "uses filament 3"
     }
+    "the slot map (model.slots) prints the model's filaments from the loaded slots: by number, \"*\" for every one, an object's own first, a part's own slot over both" {
+        // a four-color model on a machine with slots 1 and 2 loaded
+        val four = ModelObject("x", listOf("a", "b", "c", "d"), listOf(1, 2, 3, 4), "x.3mf")
+        fun spools(vararg extra: Pair<String, Any>) = setup(*extra, models = listOf(four)).setup.objects.single().parts.map { it.spool }
+        // control: as the model says, refused, and the refusal names the map and the option
+        shouldThrow<ConfigError> { spools() }.message!!.let { it shouldContain "uses filament 3"; it shouldContain "model.slots"; it shouldContain "--slot 1" }
+        // every number to slot 1
+        spools("model.slots.*" to 1L) shouldBe List(4) { "spool 1" }
+        // by number; a number not in the map prints from the model's own (2 is loaded)
+        spools("model.slots.3" to 1L, "model.slots.4" to 2L) shouldBe listOf("spool 1", "spool 2", "spool 1", "spool 2")
+        // a number's own entry over "*"
+        spools("model.slots.*" to 1L, "model.slots.4" to 2L) shouldBe listOf("spool 1", "spool 1", "spool 1", "spool 2")
+        // the object's own map over the model's, number by number and "*" alike
+        spools("model.slots.*" to 1L, "model.object.x.slots.*" to 2L) shouldBe List(4) { "spool 2" }
+        spools("model.slots.3" to 1L, "model.slots.4" to 1L, "model.object.x.slots.4" to 2L) shouldBe listOf("spool 1", "spool 2", "spool 1", "spool 2")
+        // a part's own slot over every map
+        spools("model.slots.*" to 1L, "model.object.x.part.d.slot" to 2L) shouldBe listOf("spool 1", "spool 1", "spool 1", "spool 2")
+        // a map to a slot that is not loaded is refused like the model's own number
+        shouldThrow<ConfigError> { spools("model.slots.*" to 5L) }.message!! shouldContain "uses filament 5"
+        // the pre-print check's tools read the same map
+        val c = Config(ConfigStack(ConfigFiles.bundled() + (machine + listOf("model.slots.3" to 1L, "model.slots.4" to 2L)).map { (k, v) -> ConfigFiles.Entry(k.split('.'), v, "test") }), listOf(four))
+        LoadoutTools.byObject(c).getValue("x") shouldBe listOf(0, 1, 0, 1)
+    }
     "pauses as asked" {
         val p = setup("plan.pause.ballast.at" to "12.4 mm").pauses.single()
         p.kind shouldBe "at"; (p.value as Double) shouldBe (12.4 plusOrMinus 1e-9)
