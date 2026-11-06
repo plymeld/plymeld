@@ -502,8 +502,9 @@ class Product(given: ConfigStack, modelFiles: List<Path>, machine: String? = nul
             append(comment(st.why) + "\n")
             st.value.layerHeightMm?.let { append("technique.flat.layer.height = ${mm(it)}\n") }
             // the first layer as this slice lays it: its height was worked out before the layer height was decided, and slicing
-            // with this plan (the decided height set) would work it out again from that
-            (plymeld.model.Resolver.resolveOrNull(result.setup, "plan.mechanism.adhesion.first_layer.height", plymeld.model.Context(k))?.value as Number?)
+            // with this plan (the decided height set) would work it out again from that; where a first-layer window decided the
+            // object's height, its own line below writes it, with its reason (a key twice in one table is a TOML error)
+            if (result.firstLayer.none { it.obj == o.key && it.part == null && it.heightMm != null }) (plymeld.model.Resolver.resolveOrNull(result.setup, "plan.mechanism.adhesion.first_layer.height", plymeld.model.Context(k))?.value as Number?)
                 ?.toDouble()?.let { append("mechanism.adhesion.first_layer.height = ${mm(it)}\n") }
             for ((i, b) in st.value.bands.withIndex()) {
                 val n = i + 1

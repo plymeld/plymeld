@@ -24,6 +24,8 @@ section the release's version and date.
 
 ### Fixed
 
+- `plymeld plan -o` wrote the first layer's height twice in an object's table when a first-layer window decided it,
+  and `slice` refused the plan file ("previously defined"); it is written once, with the window's reason.
 - The prime line no longer follows the first object's edge in between two of its feet (an arch's, a bridge's piers),
   where it lay under the span: a side whose line would turn in there is skipped for the next.
 
