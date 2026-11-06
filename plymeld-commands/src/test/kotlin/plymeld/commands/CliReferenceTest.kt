@@ -47,6 +47,18 @@ class CliReferenceTest : StringSpec({
         pages.getValue(CliReference.INDEX) shouldContain "[`plymeld printer send`](printer.md#plymeld-printer-send)"
         CommandModel.read().root.subcommands.map { CliReference.file(it) } shouldContainExactly pages.keys.drop(1)
     }
+    "every command's usage line, and every option's line, are --help's own" {
+        val problems = ArrayList<String>()
+        val all = pages.values.joinToString("\n")
+        for (c in CommandModel.read().root.all()) {
+            val out = StringBuilder(); Commands.invoke(c.path + "--help", { out.append(it).append('\n') })
+            val help = out.toString()
+            val usage = help.lines().first { it.startsWith("Usage: ") }.removePrefix("Usage: ").trim()
+            if ("Usage: `$usage`" !in all) problems += "${c.line}: --help's usage '$usage' is on no page"
+            for (o in c.options) if ("- `${o.term}`:" !in all) problems += "${c.line}: no page lists ${o.term} as --help writes it"
+        }
+        problems.shouldBeEmpty()
+    }
     "control: a page changed by one word, a missing page, and a stray page are each caught" {
         val changed = pages.toMutableMap().also { it["slice.md"] = it.getValue("slice.md").replaceFirst("g-code", "gcode") }
         differences(changed, pages) shouldContainExactly listOf("slice.md: differs from what the commands write")

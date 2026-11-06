@@ -59,7 +59,7 @@ object CliReference {
         appendLine()
         appendLine(md(root.help))
         appendLine()
-        appendLine("Usage: `plymeld [OPTIONS] <command>`")
+        appendLine("Usage: `${usage(root)}`")
         options(root)
         appendLine()
         appendLine("## Commands")

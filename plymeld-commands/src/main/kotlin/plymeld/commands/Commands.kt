@@ -22,7 +22,20 @@ class Plymeld : CliktCommand(name = "plymeld") {
         // --help tags a required option [required]; every command under the root inherits it. The command model renders each
         // option's term and description with the same settings (CommandModel.Terms), so the window and the reference show
         // what --help shows
-        configureContext { helpFormatter = { com.github.ajalt.clikt.output.MordantHelpFormatter(it, showRequiredTag = HELP_SHOWS_REQUIRED) } }
+        configureContext { helpFormatter = { HelpFormat(it) } }
+    }
+
+    /**
+     * Clikt's help, with a required option tagged, and a subcommand in the usage line bracketed where the command also runs
+     * without one (`plymeld calibrate melt [<options>] [<command>] [<args>]...`: the plate itself, or its `values`), as
+     * the command model and the reference write it.
+     */
+    private class HelpFormat(ctx: com.github.ajalt.clikt.core.Context) : com.github.ajalt.clikt.output.MordantHelpFormatter(ctx, showRequiredTag = HELP_SHOWS_REQUIRED) {
+        override fun renderUsageParametersString(parameters: List<com.github.ajalt.clikt.output.HelpFormatter.ParameterHelp>): String {
+            val s = super.renderUsageParametersString(parameters)
+            val c = context.command
+            return if (c.invokeWithoutSubcommand && c.registeredSubcommands().isNotEmpty() && "[<command>]" !in s) s.replace("<command>", "[<command>]") else s
+        }
     }
 
     companion object {
