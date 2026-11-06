@@ -37,10 +37,37 @@ object Slicer {
         return out
     }
 
-    fun slice(soup: TriangleSoup, zsMm: DoubleArray): List<Layer> {
+    /**
+     * The triangles' indices by their lowest z, ties in index order (the order a stable sort gives), sorted as primitive
+     * longs: each one's lowest z above the soup's lowest in the high 32 bits, its index in the low 32. A boxed sort of the
+     * indices by key spent more of a pose search than the slicing it ordered. A soup taller than 2^31 grid units (over
+     * 2 km) is sorted the boxed way.
+     */
+    internal fun byZmin(zmin: LongArray): IntArray {
+        val n = zmin.size
+        if (n == 0) return IntArray(0)
+        var lo = zmin[0]; var hi = zmin[0]
+        for (z in zmin) { if (z < lo) lo = z; if (z > hi) hi = z }
+        if (hi - lo >= Int.MAX_VALUE.toLong()) return (0 until n).sortedBy { zmin[it] }.toIntArray()
+        val keys = LongArray(n) { ((zmin[it] - lo) shl 32) or it.toLong() }
+        keys.sort()
+        return IntArray(n) { (keys[it] and 0xFFFFFFFFL).toInt() }
+    }
+
+    /** A soup made ready to slice: its vertices on the grid, each triangle's lowest and highest z, the triangles by lowest z. */
+    private class Prepared(val v: LongArray, val zmin: LongArray, val zmax: LongArray, val order: IntArray)
+
+    /**
+     * Each soup's [Prepared] form, by identity and held weakly (it goes with the soup): one posed model is sliced again and
+     * again (a pose search's surveys cut it at a few heights per candidate plan, and snapping and sorting every triangle
+     * for each was the larger part of that). A soup's coordinates are not changed once it is made, so its form stays true.
+     */
+    private val prepared = java.util.WeakHashMap<TriangleSoup, Prepared>()
+
+    private fun prepare(soup: TriangleSoup): Prepared {
+        synchronized(prepared) { prepared[soup] }?.let { return it }
         val v = snap(soup)
         val n = soup.count
-        val zs = LongArray(zsMm.size) { Units.mm(zsMm[it]) }
         // Bucket: for each layer, which triangles span it. Triangles are sorted by zmin
         // and swept; a triangle is "active" at plane z when zmin < z <= zmax... using the
         // on-plane-is-above rule: it crosses iff exists vertex with z < plane and one with z >= plane.
@@ -53,7 +80,14 @@ object Slicer {
             if (z2 < lo) lo = z2; if (z2 > hi) hi = z2
             zmin[t] = lo; zmax[t] = hi
         }
-        val order = (0 until n).sortedBy { zmin[it] }.toIntArray()
+        return Prepared(v, zmin, zmax, byZmin(zmin)).also { synchronized(prepared) { prepared[soup] = it } }
+    }
+
+    fun slice(soup: TriangleSoup, zsMm: DoubleArray): List<Layer> {
+        val pr = prepare(soup)
+        val v = pr.v; val zmin = pr.zmin; val zmax = pr.zmax; val order = pr.order
+        val n = soup.count
+        val zs = LongArray(zsMm.size) { Units.mm(zsMm[it]) }
         val layers = ArrayList<Layer>(zs.size)
         val active = IntArrayList()
         var next = 0

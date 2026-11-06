@@ -411,7 +411,8 @@ object PoseDecision {
         val areaOf = if (survey) DoubleArray(p.count) else null
         val zcOf = if (survey) DoubleArray(p.count) else null
         val sevOfK = if (survey) Array(techniques.size) { DoubleArray(p.count) } else null
-        fun spotsOf(k: Int): List<SupportPlan.Spot> = (techniques[k].support?.chosen.orEmpty()) + f?.supportSpotsLocked.orEmpty()
+        val spotsOfK = Array(techniques.size) { k -> (techniques[k].support?.chosen.orEmpty()) + f?.supportSpotsLocked.orEmpty() }
+        fun spotsOf(k: Int): List<SupportPlan.Spot> = spotsOfK[k]
         /** The height of the layer of [t] that holds z (the last layer above the model's top). */
         fun heightAt(t: DoubleArray, z: Double): Double {
             var i = java.util.Arrays.binarySearch(t, z).let { if (it < 0) -it - 1 else it }
@@ -463,8 +464,10 @@ object PoseDecision {
             if (Math.abs(down) < FLAT_COS) {
                 slopedArea += area * seen
                 val fx = (c[o] + c[o + 3] + c[o + 6]) / 3.0; val fy = (c[o + 1] + c[o + 4] + c[o + 7]) / 3.0
+                var anyProbe = false
                 for (q in probe.indices) {
                     inProbe[q] = probe[q].covers(fx, fy) && zc - zMin > probe[q].startMm && zc - zMin <= probe[q].topMm + 1e-6
+                    if (inProbe[q]) anyProbe = true
                     alongProbe[q] = inProbe[q] && cosToIslandLayer(probe[q], probeWarps[q], nx / len, ny / len, nz / len, fx, fy, zc) >= FLAT_COS
                     upProbe[q] = inProbe[q] && !alongProbe[q] && nz / len > UP_SIN
                     if (inProbe[q]) probeArea[q] += area * seen
@@ -478,7 +481,7 @@ object PoseDecision {
                     if (j < 0) { val hz = heightAt(t, zc); v = stairStep(hz, Math.abs(down), Math.abs(down), power); lineSum[k] += area * seen * hz }
                     else { val (st, ln) = islandStep(islandsOf[k][j], islandWarps[k][j], nx / len, ny / len, nz / len, fx, fy, zc, power); v = st; lineSum[k] += area * seen * ln }
                     stepSum[k] += area * seen * v
-                    for (q in probe.indices) if (inProbe[q]) {
+                    if (anyProbe) for (q in probe.indices) if (inProbe[q]) {
                         probeStep[k][q] += area * seen * v
                         if (alongProbe[q]) probeStepAlong[k][q] += area * seen * v
                         if (upProbe[q]) probeStepUp[k][q] += area * seen * v

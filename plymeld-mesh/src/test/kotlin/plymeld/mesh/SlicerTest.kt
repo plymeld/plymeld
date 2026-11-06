@@ -47,6 +47,19 @@ class SlicerTest : StringSpec({
         val layer = Slicer.slice(holed, doubleArrayOf(2.0))[0]
         (layer.openChains.size > 0) shouldBe true
     }
+
+    "the triangles' sweep order is the stable sort by lowest z, ties in index order, negative heights and a soup taller than the packing included" {
+        val r = java.util.Random(7)
+        for (case in 0 until 20) {
+            // few distinct heights, so ties are many; some below zero
+            val zmin = LongArray(500 + case) { (r.nextInt(40) - 10) * 1000L }
+            Slicer.byZmin(zmin).toList() shouldBe (zmin.indices).sortedBy { zmin[it] }
+        }
+        // past what 32 bits pack: the boxed sort, the same order
+        val tall = longArrayOf(5_000_000_000L, -1L, 0L, 5_000_000_000L, -1L)
+        Slicer.byZmin(tall).toList() shouldBe listOf(1, 4, 2, 0, 3)
+        Slicer.byZmin(LongArray(0)).size shouldBe 0
+    }
 })
 
 /** Axis-aligned unit cube [0,1]³ as 12 outward-facing triangles. */
