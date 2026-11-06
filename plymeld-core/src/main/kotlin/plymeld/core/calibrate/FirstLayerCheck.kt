@@ -26,7 +26,7 @@ package plymeld.core.calibrate
  *    where it goes, its lines inside its digits, every digit printed; the plate's first layer ONE piece (its lines'
  *    footprints, sampled every 0.05 mm, connected; nothing above it counted, so nothing can stand in for a gap);
  *  - the order: the base's first layer before any tile; column by column, each column's prime line before its tiles and
- *    its tiles lowest first (the nozzle never works beside a finished line above it); after every tile the base's upper
+ *    its tiles lowest first (the nozzle never works beside a finished line above it); after all the tiles the base's upper
  *    layers and the labels, then the frame, layer by layer, lowest first; its rings [FirstLayerSpec.frameInsetUm] in from
  *    each tile's edges (over its wall, not its inside), ONE piece;
  *  - no travel crosses a finished tile or frame ring at or below its height (the lift).
@@ -46,7 +46,7 @@ object FirstLayerCheck {
      * label, layer [n]), or null; [r], [c] 0-based, [n] from 1.
      */
     private class Cell(val block: Int, val part: String, val r: Int = -1, val c: Int = -1, val n: Int = 0) {
-        /** Printed after every tile, at the last column's temperature: the base's upper layers, the labels, the frame. */
+        /** Printed after all the tiles, at the last column's temperature: the base's upper layers, the labels, the frame. */
         val late: Boolean get() = part == "frame" || part == "mark" || part == "speed" || part == "height" || (part == "base" && n > 1)
     }
     private fun cellOf(label: String): Cell? {
@@ -96,7 +96,7 @@ object FirstLayerCheck {
         val late = moves.filter { cellOf(it.cell)?.late == true }
         val frameMoves = moves.filter { cellOf(it.cell)?.part == "frame" }
         if (early.map { cellOf(it.cell)!!.block }.zipWithNext().any { (a, b) -> b < a }) bad("the columns do not print in order (the coolest, on the left, first; each column's lines together)")
-        early.maxOfOrNull { it.seq }?.let { lastEarly -> late.firstOrNull { it.seq < lastEarly }?.let { bad("'${it.cell}' printed before the last tile: the base's upper layers, the labels, and the frame go on after every tile") } }
+        early.maxOfOrNull { it.seq }?.let { lastEarly -> late.firstOrNull { it.seq < lastEarly }?.let { bad("'${it.cell}' printed before the last tile: the base's upper layers, the labels, and the frame go on after all the tiles") } }
         late.filter { cellOf(it.cell)?.part != "frame" }.maxOfOrNull { it.seq }?.let { lastLabel -> frameMoves.firstOrNull { it.seq < lastLabel }?.let { bad("'${it.cell}' printed before the labels: the frame goes on last") } }
         moves.firstOrNull { cellOf(it.cell)?.part == "tile" }?.let { firstTile -> moves.firstOrNull { it.cell == spec.baseLabel(1) && it.seq > firstTile.seq }?.let { bad("'${it.cell}' printed after the first tile: the base's first layer goes down first") } }
         for (k in 0 until spec.blocks) {
@@ -131,7 +131,7 @@ object FirstLayerCheck {
             val maxN = when (c.part) { "frame" -> g.frameLayers; "base" -> g.baseLayers; "mark", "speed", "height" -> g.labelLayers; else -> 0 }
             if (maxN > 0 && c.n !in 1..maxN) continue
             fun once(kind: String, s: String) { if (said.add("${m.cell}/$kind")) bad(s) }
-            // after every tile, at the last column's temperature: the base's upper layers, the labels, the frame
+            // after all the tiles, at the last column's temperature: the base's upper layers, the labels, the frame
             val wantT = if (c.late) spec.tempsC.last() else spec.tempsC[c.block]
             if (m.tempC != wantT) once("temp", "'${m.cell}': at ${m.tempC} C, not $wantT C")
             else if (!m.waited) once("wait", "'${m.cell}': no wait (M109) for $wantT C before it: it may print while the nozzle is still heating")

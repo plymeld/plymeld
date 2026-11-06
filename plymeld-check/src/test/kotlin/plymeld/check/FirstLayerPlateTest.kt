@@ -130,7 +130,7 @@ class FirstLayerPlateTest : StringSpec({
         firstZF(text, "block 1 base 2").first shouldBe (0.36 plusOrMinus 1e-9)
         firstZF(text, "block 3 mark 1").first shouldBe (0.56 plusOrMinus 1e-9)
         firstZF(text, "block 1 height 2.3 2").first shouldBe (0.76 plusOrMinus 1e-9)
-        // the base's first layer before any tile; its second layer and the labels after every tile, before the frame
+        // the base's first layer before any tile; its second layer and the labels after all the tiles, before the frame
         (text.indexOf("; CELL: block 1 base 1\n") < text.indexOf("; CELL: block 1 tile ")) shouldBe true
         (text.indexOf("; CELL: block 1 base 2\n") > text.lastIndexOf("; CELL: block 3 tile ")) shouldBe true
         (text.lastIndexOf("; CELL: block 1 speed ") < text.indexOf("; CELL: block 1 frame ")) shouldBe true
@@ -280,12 +280,12 @@ class FirstLayerPlateTest : StringSpec({
         (p.first()[1] + 0.25 - (base.minOf { minOf(it[1], it[3]) } - 0.25)) shouldBe (0.15 plusOrMinus 0.002)
     }
 
-    "the frame: three layers of rings over every tile's wall only, from a layer above it, after every tile; its controls are caught" {
+    "the frame: three layers of rings over every tile's wall only, from a layer above it, after all the tiles; its controls are caught" {
         // independently, from the g-code: tile 1.1 (0.16) has rings at 0.36, 0.56, 0.76; tile 1.4 (0.28) at 0.48 ...
         firstZF(text, "block 1 frame 1.1 1").first shouldBe (0.36 plusOrMinus 1e-9)
         firstZF(text, "block 1 frame 1.1 3").first shouldBe (0.76 plusOrMinus 1e-9)
         firstZF(text, "block 3 frame 2.4 1").first shouldBe (0.48 plusOrMinus 1e-9)
-        // after every tile
+        // after all the tiles
         (text.indexOf("; CELL: block 1 frame 1.1 1\n") > text.lastIndexOf("; CELL: block 3 tile ")) shouldBe true
         // over the wall only: the ring's center 0.075 mm in from the tile's edge, its 0.45 mm line reaching 0.3 mm in (within the
         // 0.5 mm wall) and 0.15 mm out over the neighbor's
@@ -321,7 +321,7 @@ class FirstLayerPlateTest : StringSpec({
         md shouldContain "middle of its back edge"
         md shouldContain "- **The plate is one piece**"
         md shouldContain "- **The base** runs along the plate's front and left, 2 layers, its front-left corner cut off"
-        md shouldContain "| frame (not read) | after every tile, 3 layers of rings over every tile's wall, from a layer above its tile, at the last column's temperature: 0.45 mm lines (the plate's ordinary line width), 0.2 mm high (the layer height), 100 mm/s (the machine's print speed, 100 mm/s), 5000 mm/s2; part fan off |"
+        md shouldContain "| frame (not read) | after all the tiles, 3 layers of rings over every tile's wall, from a layer above its tile, at the last column's temperature: 0.45 mm lines (the plate's ordinary line width), 0.2 mm high (the layer height), 100 mm/s (the machine's print speed, 100 mm/s), 5000 mm/s2; part fan off |"
         md shouldContain "`plymeld calibrate first-layer window plate.gcode --bore <mm>`"
         // the four tile outcomes, and the three about temperature
         md shouldContain "- **The window of good heights narrows as speed rises**: the fastest speed that still has a window is the first-layer speed."

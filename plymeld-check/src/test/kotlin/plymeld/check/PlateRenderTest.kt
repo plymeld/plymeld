@@ -73,7 +73,7 @@ class PlateRenderTest : StringSpec({
         (img.width to img.height) shouldBe (1900 to 1150)
         pixels(out, 0x3b4cc0) shouldBeGreaterThan 0   // the tile, at the one temperature: the cool end of the ramp (59, 76, 192)
         log.joinToString("\n") shouldContain "first-layer plate, 5 extrusion moves, 1 blocks"
-        log.joinToString("\n") shouldContain "block 1: 205 C, waited (M109), temperature label, 0 speed(s), 0 height(s)"
+        log.joinToString("\n") shouldContain "block 1: 205 C, waited (M109), temperature label"
     }
     "a first-layer plate of nine framed blocks is drawn whole: the picture grows to hold every block's lines and the close-up" {
         // nine blocks, each a tile and a frame line over it: the per-block summary (six lines a block) runs past the
@@ -95,7 +95,7 @@ class PlateRenderTest : StringSpec({
         img.width shouldBe 1900
         img.height shouldBeGreaterThan 1150
         log.joinToString("\n") shouldContain "9 blocks"
-        log.joinToString("\n") shouldContain "block 9: 235 C, waited (M109), NO temperature label, 0 speed(s), 0 height(s)"
+        log.joinToString("\n") shouldContain "block 9: 235 C, waited (M109), NO temperature label"
     }
     "a g-code without plate cells is refused (control)" {
         val bare = write("bare.gcode", "M83\nG1 X0 Y0 F3000\nG1 X10 Y0 E1\n")

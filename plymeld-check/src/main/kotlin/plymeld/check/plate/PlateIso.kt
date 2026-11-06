@@ -31,8 +31,8 @@ import javax.imageio.ImageIO
  *   - anchors: each leader ends on a pixel that the depth buffer shows belongs to that region
  * Two kinds of picture, told apart by the page's title: the plates made by band of height ("# Melt plate",
  * "# Filament plate": a region per test, bands by height) and the first-layer plate ("# First-layer
- * plate": one layer, a region per block of tiles, colored cool to warm by temperature, its frame darker, and the prime
- * lines; each block's temperature and marker dots are read from the g-code too and must agree with the page's block
+ * plate": one layer, a region per column of tiles, colored cool to warm by temperature, its frame darker, the base with its labels, and the prime
+ * lines; each column's temperature is read from the g-code too and must agree with the page's column
  * table, or the render fails).
  */
 object PlateIso {
@@ -137,14 +137,14 @@ object PlateIso {
         val ledges by lazy { table("ledge (from the left)") }; val spans by lazy { table("span (from the left)") }
         val holes by lazy { table("hole (from the left)") }; val tubes by lazy { table("tube (from the left)") }
         val hops by lazy { table("hop (gap") }
-        val tileRows by lazy { table("tile row (from the front)") }; val tileCols by lazy { table("tile column (from the left)") }
+        val tileRows by lazy { table("row (from the front) | speed") }
         // the page's bands table: the first table under its "## The bands" heading (with a notch column where the plate has the post)
         val mdBands by lazy {
             val h = mdLines.indexOfFirst { it == "## The bands" }; require(h >= 0) { "no '## The bands' section in the .md page" }
             val i = (h until mdLines.size).first { mdLines[it].startsWith("| band |") }
             mdLines.drop(i + 2).takeWhile { it.startsWith("|") }.map { r -> r.trim('|').split("|").map { it.trim() } }
         }
-        val mdBlocks by lazy { table("block | nozzle") }
+        val mdBlocks by lazy { table("column (from the left) | nozzle") }
         val conditions by lazy { table("condition |").associate { it[0] to it[1] } }
         val decks by lazy { conditions["bridge decks"] ?: error("no 'bridge decks' condition row") }
         val pegSize by lazy { Regex("""a round column \(([^)]+)\)""").find(md)?.groupValues?.get(1) ?: error("no peg size in the .md page") }
@@ -227,31 +227,34 @@ object PlateIso {
                 "the " + mdHas("open gap") + " (post ${hops.last()[1]} to post 1, at the ring's front) is never crossed: the control"), listOf("locks"))
             else -> error("no region for the family '$key'")
         } }
-        // the first-layer plate: a region per block (its row of the page's block table), colored cool to warm in print order,
-        // and the prime lines
+        // the first-layer plate: a region per column (its row of the page's column table), colored cool to warm in print order,
+        // the base with its raised labels, and the prime lines
         fun blockColor(k: Int, n: Int): Color { val f = if (n <= 1) 0.5 else k.toDouble() / (n - 1)
             return Color((50 + 180 * f).toInt(), (95 + 40 * (1 - Math.abs(2 * f - 1))).toInt(), (215 - 175 * f).toInt()) }
         fun firstLayerRegions(): List<Region> {
             val n = mdBlocks.size
-            val tiles = "tiles: rows by speed " + arrow(tileRows.first()[1], tileRows.last()[1]) + " mm/s (" + mdHas("the slowest at the front") + "), columns by nozzle height " +
-                arrow(num(tileCols.first()[1]), num(tileCols.last()[1])) + " mm (" + mdHas("the lowest on the left") + ")"
+            val speeds = tileRows.map { it[1] }.distinct(); val heights = tileRows.map { it[2].substringBefore(" ") }.distinct()
+            val rows = "rows: a group per speed " + arrow(speeds.first(), speeds.last()) + " mm/s (" + mdHas("the slowest at the front") + "), a row per nozzle height " +
+                arrow(heights.first(), heights.last()) + " mm in each (" + mdHas("the lowest at the front") + ")"
             return mdBlocks.withIndex().map { (k, row) ->
-                // the page's block table: block | nozzle | marker | melt limit | tiles left out | where
-                Region("Block ${row[0]}: ${row[1]}", blockColor(k, n), listOf(
-                    "nozzle ${row[1]}, marker: ${row[2]} in front of the tiles; ${row[5]}",
-                    "melt limit ${row[3].substringBefore(" (")}; tiles left out (over it): ${if (row[4] == "none") "none" else Regex("tile \\d+\\.\\d+").findAll(row[4]).count().toString()}") +
-                    (if (k == 0) listOf(tiles, "block n has n dots: " + mdHas("Count the dots, never trust the position alone"), mdHas("Each block is one piece") + ": columns joined by connectors", mdHas("The frame") + " (dark): a second layer over the tiles' walls only, across the gaps on the connectors; not read") else emptyList()),
-                    listOf("tiles", "marker", "frame"))
-            } + Region("Prime lines", Color(120, 120, 128), listOf(
-                mdHas("The prime line") + ": one per block, along its front and back up its left edge to touch the first tile, laid after the wait for that block's temperature. " + mdHas("It is not read") + "."), listOf("prime"))
+                // the page's column table: column | nozzle | melt limit | tiles left out
+                Region("Column ${row[0]}: ${row[1]}", blockColor(k, n), listOf(
+                    "nozzle ${row[1]}, printed in front of it on the base",
+                    "melt limit ${row[2].substringBefore(" (")}; tiles left out (over it): ${if (row[3] == "none") "none" else Regex("mm/s at").findAll(row[3]).count().toString()}") +
+                    (if (k == 0) listOf(rows, mdHas("The plate is one piece") + ": every tile touching its neighbors and the base", mdHas("The frame") + " (dark): over the tiles' walls only; not read") else emptyList()),
+                    listOf("tiles", "frame"))
+            } + Region("Base and labels", Color(150, 150, 158), listOf(
+                mdHas("The base") + " along the front and left, its front-left corner cut off; the columns' temperatures, the speeds, and the rows' heights raised on it."), listOf("base")) +
+                Region("Prime lines", Color(120, 120, 128), listOf(
+                mdHas("The prime line") + ": one per column, along the base's front, laid after the wait for that column's temperature. " + mdHas("It is not read") + "."), listOf("prime"))
         }
         val regions = if (firstLayerKind) firstLayerRegions() else filamentRegions()
         // a CELL name (without its "adhesion:" first-layer prefix) -> (region index, sub-part)
         fun classify(cell: String): Pair<Int, String>? {
             if (firstLayerKind) {
-                val m = Regex("block (\\d+) (prime|mark|tile \\d+\\.\\d+|connector \\d+-\\d+ (front|back)|frame \\d+(?:-\\d+ (?:front|back))?)").matchEntire(cell) ?: return null
-                val k = m.groupValues[1].toInt() - 1
-                return when { m.groupValues[2] == "prime" -> (regions.size - 1) to "prime"; m.groupValues[2] == "mark" -> k to "marker"; m.groupValues[2].startsWith("frame") -> k to "frame"; else -> k to "tiles" }
+                val m = Regex("block (\\d+) (prime|base \\d+|mark \\d+|speed \\d+ \\d+|height \\d+\\.\\d+ \\d+|tile \\d+\\.\\d+|frame \\d+\\.\\d+ \\d+)").matchEntire(cell) ?: return null
+                val k = m.groupValues[1].toInt() - 1; val part = m.groupValues[2]
+                return when { part == "prime" -> (regions.size - 1) to "prime"; part.startsWith("frame") -> k to "frame"; part.startsWith("tile") -> k to "tiles"; else -> (regions.size - 2) to "base" }
             }
             val (fam, sub) = filamentKey(cell.removePrefix("adhesion:")) ?: return null
             return famIndex(fam) to sub
@@ -589,7 +592,7 @@ object PlateIso {
         g.font = Font("SansSerif", Font.PLAIN, 16); g.color = Color(70, 70, 78)
         if (firstLayerKind) {
             g.drawString("Geometry read from the g-code (every extrusion inside a ; CELL: one layer, each tile at its own height, a frame (dark) a layer over the walls where the plate has one, z drawn ${ZS.toInt()}x); labels from ${File(mdPath).name}.", 20, 70)
-            g.drawString("Viewed from the front left; a color per block, cool to warm in print order. It measures " + measure("the blocks of tiles") + ".", 20, 92)
+            g.drawString("Viewed from the front left; a color per column, cool to warm in print order; the base and its labels gray. It measures " + mdHas("the nozzle height, speed, and first-layer temperature a first layer goes down well at") + ".", 20, 92)
         }
         else g.drawString("Geometry read from the g-code (every extrusion inside a ; CELL, all ${layerList.size} layers, z drawn ${ZS.toInt()}x); labels from ${File(mdPath).name}. " +
             "Viewed from the front left; one color per test, alternate bands lighter and darker.", 20, 70)
@@ -605,23 +608,15 @@ object PlateIso {
         log("unmapped cells: " + (if (unmapped.isEmpty()) "none" else unmapped.joinToString()))
         require(unmapped.isEmpty() || !firstLayerKind) { "cells the first-layer plate should not have: $unmapped" }
         if (firstLayerKind) {
-            // each block's temperature and wait, and its marker dots, from the g-code against the page's block table
-            log("blocks from the g-code vs the .md table:")
-            require(mdBlocks.size == regions.size - 1) { "the page lists ${mdBlocks.size} blocks" }
+            // each column's temperature and wait, from its tiles in the g-code, against the page's column table (the base's upper
+            // layers, the labels, and the frame print after the last column, at its temperature: not the column's own)
+            log("columns from the g-code vs the .md table:")
+            require(mdBlocks.size == regions.size - 2) { "the page lists ${mdBlocks.size} columns" }
             for ((k, row) in mdBlocks.withIndex()) {
-                val mine = segs.filter { it.cell.startsWith("block ${k + 1} ") }
+                val mine = segs.filter { it.cell.startsWith("block ${k + 1} tile ") }
                 val temps = mine.map { it.temp }.distinct(); val allWaited = mine.all { it.waited }
-                var boxes = mine.filter { it.cell.endsWith(" mark") }.map { s -> doubleArrayOf(minOf(s.x0, s.x1) - s.w / 2, minOf(s.y0, s.y1) - s.w / 2, maxOf(s.x0, s.x1) + s.w / 2, maxOf(s.y0, s.y1) + s.w / 2) }
-                while (true) {
-                    val merged = ArrayList<DoubleArray>()
-                    for (b in boxes) { val hit = merged.firstOrNull { d -> b[0] <= d[2] && b[2] >= d[0] && b[1] <= d[3] && b[3] >= d[1] }
-                        if (hit != null) { hit[0] = minOf(hit[0], b[0]); hit[1] = minOf(hit[1], b[1]); hit[2] = maxOf(hit[2], b[2]); hit[3] = maxOf(hit[3], b[3]) } else merged += b.copyOf() }
-                    if (merged.size == boxes.size) break
-                    boxes = merged
-                }
-                log("  block ${k + 1}: g-code ${temps.joinToString("/")} C, waited for: $allWaited, ${boxes.size} dot(s)   | .md: ${row.joinToString(" | ")}")
-                require(temps == listOf(num(row[1]).toInt()) && allWaited) { "block ${k + 1}: the g-code prints at ${temps} C (waited: $allWaited), the page says ${row[1]}" }
-                require(boxes.size == num(row[2]).toInt()) { "block ${k + 1}: ${boxes.size} marker dots in the g-code, the page says ${row[2]}" }
+                log("  column ${k + 1}: g-code ${temps.joinToString("/")} C, waited for: $allWaited   | .md: ${row.joinToString(" | ")}")
+                require(temps == listOf(num(row[1]).toInt()) && allWaited) { "column ${k + 1}: the g-code prints its tiles at ${temps} C (waited: $allWaited), the page says ${row[1]}" }
             }
             return
         }

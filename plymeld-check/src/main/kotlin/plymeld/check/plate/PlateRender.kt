@@ -148,10 +148,12 @@ object PlateRender {
             fun isBase(c: String) = c.contains(" base ")
             fun isLabel(c: String) = c.contains(" mark ") || c.contains(" speed ") || c.contains(" height ")
             val blocks = moves.map { blockOf(it.cell) }.distinct().sorted()
-            // the labels a block's g-code holds: its temperature, and how many rows' speeds and columns' heights
-            fun labels(k: Int): String {
-                val cells = moves.map { it.cell }.filter { it.startsWith("block $k ") }.toSet()
-                return "${if ("block $k mark 1" in cells) "temperature" else "NO temperature"} label, ${cells.count { it.startsWith("block $k speed ") && it.endsWith(" 1") }} speed(s), ${cells.count { it.startsWith("block $k height ") && it.endsWith(" 1") }} height(s)"
+            // a column's own label in the g-code: its temperature (the row labels and the base are the plate's, said once below)
+            fun labels(k: Int): String = if (moves.any { it.cell == "block $k mark 1" }) "temperature label" else "NO temperature label"
+            // the plate's row labels and base, left of and in front of the columns: how many of each the g-code holds
+            fun plateLabels(): String {
+                val cells = moves.map { it.cell }.toSet()
+                return "the base: ${cells.count { Regex("block \\d+ base \\d+").matches(it) }} layer(s); its row labels: ${cells.count { Regex("block \\d+ speed \\d+ 1").matches(it) }} speed(s), ${cells.count { Regex("block \\d+ height \\d+\\.\\d+ 1").matches(it) }} height(s)"
             }
             val tLo = moves.minOf { it.temp }; val tHi = moves.maxOf { it.temp }
             // A on the left at full height, D on the right (now: a tall plate's labels need the room)
@@ -231,6 +233,7 @@ object PlateRender {
             g.font = Font("SansSerif", Font.PLAIN, 15); g.color = Color.BLACK
             val dx = ax + aw + 60; var dy = ay + 10
             g.drawString("D  blocks in print order, from the g-code (fan ${moves.map { it.fan }.distinct().joinToString { "%.0f".format(it) }} %, layers: one):", dx, dy)
+            summary += plateLabels()
             for (line in summary) { dy += 21; g.drawString(line, dx + 10, dy) }
             // E (with a frame): a close-up of where the first column's front tile meets the next column's, every line at its declared
             // width, so the frame's place over the walls (and the tiles' insides left bare) can be read

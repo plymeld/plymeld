@@ -30,7 +30,7 @@ import plymeld.program.Step
  *   its front-left corner cut off ([PlateMarks.CHAMFER], the origin every plate is read from), its first layer touching the
  *   tiles; on it, raised [FirstLayerGeometry.labelLayers] layers ([PlateMarks]'s glyphs): each column's temperature in front
  *   of it, each row's nozzle height left of it, each speed left of its group, [FirstLayerGeometry.labelGap] apart.
- * - **One piece**: every tile touches its neighbors and the base, so the plate's first layer is one sheet; after every tile,
+ * - **One piece**: every tile touches its neighbors and the base, so the plate's first layer is one sheet; after all the tiles,
  *   **the frame**: [FirstLayerGeometry.frameLayers] layers of rings over every tile's wall only, each a layer
  *   ([FirstLayerSpec.frameLayerUm]) above the one before, starting a layer above the tile; each ring reaches
  *   [FirstLayerGeometry.fuse] past its tile's edge, over its neighbor's wall, so the rings of touching tiles fuse into one
@@ -128,10 +128,10 @@ class FirstLayerSpec(
     val filamentMm2: Double get() = Math.PI * filamentDiameterMm * filamentDiameterMm / 4
     /** Bead cross-section of a [w] µm line [h] µm high, mm² (the writer's bead model). */
     fun beadMm2(w: Long, h: Long): Double { val hm = h / 1000.0; return hm * (w / 1000.0 - hm * (1 - Math.PI / 4)) }
-    /** The labels' text: column [k]'s temperature ("205"), speed [r] ("40", mm/s), height [c] ("0.24", mm). */
+    /** The labels' text: column [k]'s temperature ("205"), speed [r] ("40", mm/s), height [c] ("0.20", mm: every height to the hundredth, so the column of them reads alike). */
     fun tempText(k: Int): String = tempsC[k].toString()
     fun speedText(r: Int): String = PlateMarks.whole(tiles.speeds[r])
-    fun heightText(c: Int): String = PlateMarks.mm(tiles.heightsUm[c] / 1000.0)
+    fun heightText(c: Int): String = String.format(java.util.Locale.ROOT, "%.2f", tiles.heightsUm[c] / 1000.0)
     /**
      * Cell labels: column [k] ("block 1" the coolest) and its tile ([r], [c]), prime line, and frame ring [n] (1-based
      * layer) over tile ([r], [c]); the base's layer [n]; label layer [n] of column [k]'s temperature ("mark"), of speed
