@@ -13,6 +13,7 @@ import plymeld.program.Exact
 import plymeld.program.Extrude
 import plymeld.program.LayerStart
 import plymeld.program.LiftTo
+import plymeld.program.Park
 import plymeld.program.PrintObject
 import plymeld.program.PrintProgram
 import plymeld.program.SetFan
@@ -45,7 +46,8 @@ import plymeld.program.Step
  * **Printed exactly as specified**: the slab's first layer at the first layer's values and width, its layers above at the
  * frame's; every outer wall at a visible wall's speed and acceleration (the condition the seams are read under; no
  * overhang slow-down on the leaning faces: their step-out is a 30 or 45 degree overhang's), every inner wall at the
- * machine's print speed, both held to the filament's maximum flow; one temperature (the filament's print temperature),
+ * machine's print speed, both held to the filament's maximum flow; the slab's first layer at the filament's first-layer temperature, its layers
+ * above heating to the pieces' (the filament's print temperature), waited for with the head parked in front of the slab,
  * the part fan off on the first layer and the filament's own from the second. Lengths in µm, speeds mm/s, accelerations mm/s².
  */
 
@@ -127,8 +129,8 @@ class SeamSpec(
     val filamentDiameterMm: Double,
     /** The flow ratio every line prints at. */
     val flowRatio: Double,
-    /** The plate's one nozzle temperature (the filament's print temperature) and its part fan from the second layer (the first layer's is off). */
-    val tempC: Int, val fanPct: Double,
+    /** The pieces' nozzle temperature (the filament's print temperature), the slab's first layer's (its first-layer temperature), and the part fan from the second layer (the first layer's is off). */
+    val tempC: Int, val firstTempC: Int, val fanPct: Double,
     /** The slab's first layer's values; its layers above (the frame); the outer walls' (a visible wall's); the inner walls' (the machine's print speed). */
     val adhesion: PathValues, val frame: PathValues, val outer: PathValues, val inner: PathValues,
     /** The scarf seams' ramp length (µm, plan.technique.scarf_seam.length) and starting thickness (a share of the layer, .start). */
@@ -242,7 +244,8 @@ class SeamSpec(
  * front face, not its corner), "lean" (piece 7 vertical, not leaning), "inner" (piece 3's inner wall seamed at the front,
  * under the outer wall's seam), "ticks" (no ticks), "chamfer" (no chamfer), "order" (the pieces in reverse order on every
  * layer), "outerfirst" (each piece's outer wall before its inner), "slabspeed" (the slab's upper layers at the outer wall's
- * speed, not the frame's).
+ * speed, not the frame's), "firsttemp" (the slab's first layer at the pieces' temperature), "piecewait" (no wait for the
+ * pieces' temperature before them).
  */
 class SeamPlate(private val spec: SeamSpec, private val without: Set<String> = emptySet()) {
     private val g = SeamGeometry
@@ -291,6 +294,9 @@ class SeamPlate(private val spec: SeamSpec, private val without: Set<String> = e
     /** The plate's extent before it is placed (µm: x0, y0, x1, y1). */
     fun bounds(): LongArray = longArrayOf(0, 0, spec.slabW, spec.slabD)
 
+    /** Where the head waits for the pieces' temperature: [PlateGeometry.parkFront] in front of the slab, at its middle (bed, µm). */
+    fun parkUm(): Pair<Long, Long> = (spec.originXUm + spec.slabW / 2) to (spec.originYUm - PlateGeometry.parkFront)
+
     /** Whether piece [k] prints with a scarf seam (its style, or a control's swap). */
     fun scarfed(k: Int): Boolean = when {
         "scarf" in without && k == 1 -> false
@@ -334,12 +340,15 @@ class SeamPlate(private val spec: SeamSpec, private val without: Set<String> = e
         val steps = ArrayList<Step>()
         val ox = spec.originXUm; val oy = spec.originYUm
         spec.levelGcode?.let { steps += plymeld.program.Custom("bed levelling (hardware.machine.<key>.gcode.level)", it) }
-        steps += SetTemp(spec.tool, spec.tempC, wait = true)
+        // the slab's first layer at the first-layer temperature ("firsttemp": at the pieces'), waited for; heating to the
+        // pieces' from its second layer
+        val firstC = if ("firsttemp" in without) spec.tempC else spec.firstTempC
+        steps += SetTemp(spec.tool, firstC, wait = true)
         steps += SetFan(0.0)
         for (layer in 0 until g.slabLayers) {
             val z = spec.zTop(layer); val hz = spec.heightOf(layer)
             steps += LayerStart(layer, z, hz)
-            if (layer == 1) steps += SetFan(spec.fanPct)
+            if (layer == 1) { steps += SetFan(spec.fanPct); if (firstC != spec.tempC) steps += SetTemp(spec.tool, spec.tempC, wait = false) }
             val first = layer == 0
             val pv = if (first) spec.adhesion else if ("slabspeed" in without) spec.outer else spec.frame
             val lw = if (first) spec.firstWidthUm else spec.widthUm
@@ -347,6 +356,14 @@ class SeamPlate(private val spec: SeamSpec, private val without: Set<String> = e
             val (rings, lines) = slabPaths(layer, lw, hz)
             for ((i, ring) in rings.withIndex()) steps += placed(if (i == 0) "Outer wall" else "Inner wall", ring, true, z, ex, ox, oy, lw, hz)
             for (line in lines) steps += placed(if (first) "Bottom surface" else "Internal solid infill", line, false, z, ex, ox, oy, lw, hz)
+        }
+        // the pieces at their one temperature from their first line: where the slab's first layer was at another, lift, park in
+        // front of the slab and wait for it ("piecewait": no wait)
+        if (firstC != spec.tempC && "piecewait" !in without) {
+            steps += LiftTo(spec.slabTop + spec.liftUm)
+            val (px, py) = parkUm()
+            steps += Park(px, py, 0.0)
+            steps += SetTemp(spec.tool, spec.tempC, wait = true)
         }
         // the pieces, layer by layer, each piece its inner wall then its outer (the slicer's order), the outer's seam as specified
         val h = spec.layerUm

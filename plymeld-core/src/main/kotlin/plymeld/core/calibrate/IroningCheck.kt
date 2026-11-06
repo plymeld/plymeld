@@ -22,7 +22,9 @@ package plymeld.core.calibrate
  *    plan, each zone's stretch of its perimeter edge cut with its label (square notches for its flow's place, then V
  *    notches for its spacing's; none for a control); the legend raised behind the slabs;
  *  - each zone's lines ending at its cell's edge where it faces a neighbor (the un-ironed frame between them);
- *  - the one temperature waited for before every line, the part fan off on the first layer and the filament's above it;
+ *  - the first layer and the brim at the first-layer temperature and the top and the zones at the print temperature, each
+ *    waited for before its first line (the layers between heating), the part fan off on the first layer and the
+ *    filament's above it;
  *  - once the top is finished, no travel at or below its height leaves the zone cell it starts in (the lift off the top and
  *    off each zone; the ironing's own travels between a zone's lines stay in its cell), the travel counted at its lower end.
  *
@@ -62,8 +64,11 @@ object IroningCheck {
             val slabLayer = if (m.cell == spec.brimLabel) 0 else (0 until spec.layers).firstOrNull { spec.slabLabel(it) == m.cell }
             if (k == null && slabLayer == null) continue
             if (k != null && (k !in spec.zones.indices || spec.zones[k].control)) continue
-            if (m.tempC != spec.tempC) first(m.cell, "temp", "'${m.cell}': at ${m.tempC} C, not ${spec.tempC} C")
-            else if (!m.waited) first(m.cell, "wait", "'${m.cell}': no wait (M109) for ${spec.tempC} C before it")
+            // the first layer and the brim at the first-layer temperature, waited for; the layers between heating to the top's;
+            // the top and the zones at it, waited for
+            val wantC = if (slabLayer == 0) spec.firstTempC else spec.tempC
+            if (m.tempC != wantC) first(m.cell, "temp", "'${m.cell}': at ${m.tempC} C, not $wantC C")
+            else if (!m.waited && (slabLayer == null || slabLayer == 0 || slabLayer == spec.layers - 1)) first(m.cell, "wait", "'${m.cell}': no wait (M109) for $wantC C before it")
             val wantFan = if (slabLayer == 0) 0.0 else spec.fanPct
             if (Math.abs(m.fanPct - wantFan) > 0.5) first(m.cell, "fan", "'${m.cell}': fan ${fmt(m.fanPct)} %, not ${fmt(wantFan)} %")
             val (wantZ, wantV, wantW, accel, wantE) = if (slabLayer != null) {

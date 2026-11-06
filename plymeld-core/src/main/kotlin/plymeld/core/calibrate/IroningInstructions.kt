@@ -61,7 +61,8 @@ object IroningInstructions {
         l("| condition | value |")
         l("|---|---|")
         l("| filament, tool | ${info.filament}, tool ${info.tool + 1} |")
-        l("| nozzle temperature | ${spec.tempC} C throughout (the filament's print temperature), waited for before the first line |")
+        l(if (spec.firstTempC != spec.tempC) "| nozzle temperature | the top and its ironing at ${spec.tempC} C (the filament's print temperature), waited for (the head parked in front of the plate) before the top; the first layer and the brim at ${spec.firstTempC} C, the filament's first-layer temperature |"
+            else "| nozzle temperature | ${spec.tempC} C throughout (the filament's print temperature), waited for before the first line |")
         l("| layer height | ${n(spec.layerUm / 1000.0, 2)} mm; the first layer ${n(spec.firstLayerUm / 1000.0, 2)} mm; ${spec.layers} layers, the top at z ${n(spec.topZ / 1000.0, 2)} mm |")
         l("| line width | ${n(spec.widthUm / 1000.0, 2)} mm; the first layer ${n(spec.firstWidthUm / 1000.0, 2)} mm (the first-layer line width); an ironing line declared ${n(spec.nozzleUm / 1000.0, 2)} mm (the bore) |")
         l("| flow ratio | ${n(spec.flowRatio, 3)} (the ironing lines' plastic is scaled by it too, as in a print) |")

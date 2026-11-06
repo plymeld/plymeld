@@ -71,7 +71,8 @@ object SeamInstructions {
         l("| condition | value |")
         l("|---|---|")
         l("| filament, tool | ${info.filament}, tool ${info.tool + 1} |")
-        l("| nozzle temperature | ${spec.tempC} C throughout (the filament's print temperature), waited for before the first line |")
+        l(if (spec.firstTempC != spec.tempC) "| nozzle temperature | the pieces at ${spec.tempC} C (the filament's print temperature), waited for (the head parked in front of the slab) before their first line; the slab's first layer at ${spec.firstTempC} C, the filament's first-layer temperature |"
+            else "| nozzle temperature | ${spec.tempC} C throughout (the filament's print temperature), waited for before the first line |")
         l("| layer height | ${n(spec.layerUm / 1000.0, 2)} mm; the slab's first layer ${n(spec.firstLayerUm / 1000.0, 2)} mm; ${spec.layers} layers (the slab ${g.slabLayers}, the pieces ${spec.pieceLayers}), the top at z ${n(spec.topZ / 1000.0, 2)} mm |")
         l("| line width | outer walls ${n(spec.widthUm / 1000.0, 2)} mm, inner walls ${n(spec.innerWidthUm / 1000.0, 2)} mm, the slab's first layer ${n(spec.firstWidthUm / 1000.0, 2)} mm |")
         l("| flow ratio | ${n(spec.flowRatio, 3)} |")

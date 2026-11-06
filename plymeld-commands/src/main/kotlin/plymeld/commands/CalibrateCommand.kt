@@ -1127,16 +1127,18 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
     /**
      * The ironing plate: one piece testing combinations of every ironing setting, one flat slab whose top is divided
      * into zones, each ironed with its own combination of the ironing values (flow, spacing, speed, angle, inset), a control
-     * zone per speed as laid, at the filament's print temperature; printed exactly as specified, checked, with its page.
+     * zone per speed as laid, the top and its ironing at the filament's print temperature and the first layer at its
+     * first-layer temperature; printed exactly as specified, checked, with its page.
      */
     private fun runIroning() {
         val toolN = toolOpt.toIntOrNull()?.takeIf { it >= 1 } ?: throw UsageError("--tool is a tool's index, a whole number from 1 (got '$toolOpt')")
         val plain = ConfigSetup.setup(plateConfig(toolN, null).first).setup
         val plainMt = plain.spool(plain.objects[0].spool).let { sp -> plain.materialTool[sp.material to sp.tool] }
-        // the one temperature: the filament's own print temperature (ironing is read at the temperature the filament prints at)
+        // the top's temperature: the filament's own print temperature (ironing is read at the temperature the filament prints at);
+        // the first layer at the filament's first-layer temperature, worked out from it
         val printC = (plainMt?.get("hardware.filament.temperature.print")?.value as Number?)?.toDouble()?.let { whole(it, "the filament's temperature.print") }
             ?: throw UsageError("the ironing plate prints at the filament's own temperature (temperature.print), which '${plain.spool(plain.objects[0].spool).material}' has none of")
-        val (config, slotN) = plateConfig(toolN, printC)
+        val (config, slotN) = plateConfig(toolN, printC, firstLayerToo = false)
         val result = try { ConfigSetup.setup(config) } catch (e: ConfigError) { throw UsageError("the config has ${e.problems.size} problem(s):\n" + e.problems.joinToString("\n") { "  $it" }) }
         val setup = result.setup
         val s = SliceSettings.of(setup, plymeld.model.Context(0))
@@ -1168,7 +1170,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         val level = s.levelGcode?.takeIf { !noLevel }
         fun spec(ox: Long, oy: Long) = try {
             plymeld.core.calibrate.IroningSpec(spool.tool, spool.id, speeds.toDoubleArray(), flows.toDoubleArray(), spacings.map { Math.round(it * 1000) }.toLongArray(), angles.toDoubleArray(), insets.map { Math.round(it * 1000) }.toLongArray(),
-                h, s.firstLayerHeightUm, plymeld.core.calibrate.IroningGeometry.layers, w, s.firstLayerWidthUm, s.nozzleDiameterUm, s.filamentDiameterMm, s.flowRatio, printC, s.fanMinPct,
+                h, s.firstLayerHeightUm, plymeld.core.calibrate.IroningGeometry.layers, w, s.firstLayerWidthUm, s.nozzleDiameterUm, s.filamentDiameterMm, s.flowRatio, printC, s.nozzleTempFirstC, s.fanMinPct,
                 adhesion = PathValues(firstSpeed, s.defaultAccel, s.flowRatio, s.retractMm), frame = PathValues(Math.min(s.hiddenSpeed, meltCap), s.defaultAccel, s.flowRatio, s.retractMm),
                 top = PathValues(Math.min(s.visibleSpeed, meltCap), s.visibleAccel, s.flowRatio, s.retractMm), ironAccel = s.visibleAccel, retractMm = s.retractMm, liftUm = s.zHopUm,
                 originXUm = ox, originYUm = oy, levelGcode = level)
@@ -1211,6 +1213,8 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             "the zones in reverse order" to without("order"),
             "the top fill at the frame's speed" to without("topspeed"),
             "the top fill at 45 degrees, not along the slab" to without("topangle"),
+            if (spec.firstTempC != spec.tempC) "the first layer at the top's temperature" to without("firsttemp") else null,
+            if (spec.firstTempC != spec.tempC) "no wait for the top's temperature before it" to without("topwait") else null,
             "the part fan ${if (spec.fanPct > 0) "off from the second layer" else "on at the middle layer"}" to (if (spec.fanPct > 0) alterFan(text, toOff = true) else fanOnMidway(text)),
             "a line laid outside the plate's cells" to addStrayIroningLine(text, spec),
             "a retraction shortened" to alterRetraction(text),
@@ -1233,7 +1237,8 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         java.nio.file.Files.writeString(output, withMachineHeader(text, config, setup, s, prediction))
         echo("ironing plate for filament '${spool.material}' on tool $slotN of '${Resolver.resolve(setup, "hardware.machine.model").value}', build plate '$plateName' (bed ${s.bedTempFirstC} C, constant): " +
             "one piece ${n(spec.pieceW / 1000.0)} x ${n(spec.pieceD / 1000.0)} mm with a ${n(brimMm)} mm brim: ${spec.slabs} slabs ${n(spec.slabW / 1000.0)} x ${n(spec.slabD / 1000.0)} x ${n(spec.topZ / 1000.0)} mm (${plymeld.core.calibrate.IroningGeometry.rows} per speed, a row of zones each) on a base of the first ${plymeld.core.calibrate.IroningGeometry.baseLayers} layers, the legend behind them " +
-            "(${spec.layers} layers: the first ${n(spec.firstLayerUm / 1000.0)} mm, then ${n(h / 1000.0)} mm), ${n(w / 1000.0)} mm lines (the first layer ${n(spec.firstWidthUm / 1000.0)} mm), flow ratio ${n(s.flowRatio)}, at $printC C (the filament's temperature.print), part fan ${n(spec.fanPct)} % from the second layer")
+            "(${spec.layers} layers: the first ${n(spec.firstLayerUm / 1000.0)} mm, then ${n(h / 1000.0)} mm), ${n(w / 1000.0)} mm lines (the first layer ${n(spec.firstWidthUm / 1000.0)} mm), flow ratio ${n(s.flowRatio)}, the top and its ironing at $printC C (the filament's temperature.print)" +
+            (if (spec.firstTempC != printC) ", the first layer at ${spec.firstTempC} C (its temperature.first_layer), the top's temperature waited for with the head parked before the top" else "") + ", part fan ${n(spec.fanPct)} % from the second layer")
         echo("zones: ${spec.zones.size} of ${n(plymeld.core.calibrate.IroningGeometry.zone / 1000.0)} mm, ${spec.columns} to a slab with a ${n(plymeld.core.calibrate.IroningGeometry.frame / 1000.0)} mm strip as laid between neighbors; zone 1 at the chamfered front-left corner, zone 2 behind it on the next slab, then the next column (the print order); " +
             "each zone's front edge notched with its flow (squares) and spacing (Vs), its back edge with its inset (round-bottomed) and angle (slanted), each slab's left end with its speed (bars); the legend: ${spec.legend.joinToString(" / ")}")
         echo("the plan: a block of ${spec.perBlock} zones per speed (${speeds.joinToString { n(it) }} mm/s), each its control (not ironed) then flow (${flows.joinToString { n(it * 100) + " %" }}) x spacing (${spacings.joinToString { n(it) }} mm), " +
@@ -1249,7 +1254,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             ?: Resolver.resolveOrNull(setup, "hardware.machine.pressure_advance", plymeld.model.Context(0))?.let { "the machine's, ${it.from}" }
         echo(pa[spool.tool]?.let { v -> "pressure advance: $v s ($paFrom)" }
             ?: "pressure advance: not set, so the printer's own value applies, unknown to plymeld (set the machine's, the tool's, or the filament's pressure_advance to state it)")
-        echo("check: every slab layer's height, speed, width, and filament per mm; the top fill along the slab, one bead spacing apart; each zone's speed, acceleration, plastic by the ironing rule, angle, spacing, and inset from the slab's edge, inside its cell, in order after the top; nothing over a control; the frames between zones left as laid; the base's size and chamfer, the brim, each slab in its place, the zones' labels, the slabs' speed bars, and the legend; the temperature waited for and the fan; no travel across the finished top or a finished zone at its height; and the g-code as the config says. Controls caught: ${controls.joinToString { it.first }}")
+        echo("check: every slab layer's height, speed, width, and filament per mm; the top fill along the slab, one bead spacing apart; each zone's speed, acceleration, plastic by the ironing rule, angle, spacing, and inset from the slab's edge, inside its cell, in order after the top; nothing over a control; the frames between zones left as laid; the base's size and chamfer, the brim, each slab in its place, the zones' labels, the slabs' speed bars, and the legend; the temperatures (the first layer's and the top's), each waited for, and the fan; no travel across the finished top or a finished zone at its height; and the g-code as the config says. Controls caught: ${controls.joinToString { it.first }}")
         val page = output.resolveSibling(output.fileName.toString().substringBeforeLast('.') + ".md")
         val paText = pa[spool.tool]?.let { v -> "$v s (${paFrom?.substringBefore(',')})" } ?: "not set: the printer's own, unknown to plymeld (write down what it was if you know)"
         plymeld.core.calibrate.IroningInstructions.write(page, spec, plate, plymeld.core.calibrate.PlateInstructions.Info(
@@ -1271,10 +1276,11 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         val toolN = toolOpt.toIntOrNull()?.takeIf { it >= 1 } ?: throw UsageError("--tool is a tool's index, a whole number from 1 (got '$toolOpt')")
         val plain = ConfigSetup.setup(plateConfig(toolN, null).first).setup
         val plainMt = plain.spool(plain.objects[0].spool).let { sp -> plain.materialTool[sp.material to sp.tool] }
-        // the one temperature: the filament's own print temperature (a seam is read at the temperature the filament prints at)
+        // the pieces' temperature: the filament's own print temperature (a seam is read at the temperature the filament prints at);
+        // the slab's first layer at the filament's first-layer temperature, worked out from it
         val printC = (plainMt?.get("hardware.filament.temperature.print")?.value as Number?)?.toDouble()?.let { whole(it, "the filament's temperature.print") }
             ?: throw UsageError("the seam plate prints at the filament's own temperature (temperature.print), which '${plain.spool(plain.objects[0].spool).material}' has none of")
-        val (config, slotN) = plateConfig(toolN, printC)
+        val (config, slotN) = plateConfig(toolN, printC, firstLayerToo = false)
         val result = try { ConfigSetup.setup(config) } catch (e: ConfigError) { throw UsageError("the config has ${e.problems.size} problem(s):\n" + e.problems.joinToString("\n") { "  $it" }) }
         val setup = result.setup
         val s = SliceSettings.of(setup, plymeld.model.Context(0))
@@ -1292,7 +1298,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         val firstSpeed = Math.min(s.firstLayerSpeed, meltCap(s.firstLayerWidthUm, fhm))
         val level = s.levelGcode?.takeIf { !noLevel }
         fun spec(ox: Long, oy: Long) = try {
-            plymeld.core.calibrate.SeamSpec(spool.tool, spool.id, plymeld.core.calibrate.SeamPiece.STANDARD, h, s.firstLayerHeightUm, w, wi, s.firstLayerWidthUm, s.filamentDiameterMm, s.flowRatio, printC, s.fanMinPct,
+            plymeld.core.calibrate.SeamSpec(spool.tool, spool.id, plymeld.core.calibrate.SeamPiece.STANDARD, h, s.firstLayerHeightUm, w, wi, s.firstLayerWidthUm, s.filamentDiameterMm, s.flowRatio, printC, s.nozzleTempFirstC, s.fanMinPct,
                 adhesion = PathValues(firstSpeed, s.defaultAccel, s.flowRatio, s.retractMm), frame = PathValues(Math.min(s.hiddenSpeed, meltCap(w, hm)), s.defaultAccel, s.flowRatio, s.retractMm),
                 outer = PathValues(Math.min(s.visibleSpeed, meltCap(w, hm)), s.visibleAccel, s.flowRatio, s.retractMm), inner = PathValues(Math.min(s.hiddenSpeed, meltCap(wi, hm)), s.defaultAccel, s.flowRatio, s.retractMm),
                 scarfUm = scarfUm, scarfStart = scarfStart, cornerDeg = cornerDeg, liftUm = s.zHopUm, originXUm = ox, originYUm = oy, levelGcode = level)
@@ -1327,6 +1333,8 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             "the pieces in reverse order" to without("order"),
             "each outer wall before its inner" to without("outerfirst"),
             "the slab's upper layers at the outer wall's speed" to without("slabspeed"),
+            if (spec.firstTempC != spec.tempC) "the slab's first layer at the pieces' temperature" to without("firsttemp") else null,
+            if (spec.firstTempC != spec.tempC) "no wait for the pieces' temperature before them" to without("piecewait") else null,
             "a piece's outer wall at 1.5x its speed" to alterTileSpeed(text, spec.outerLabel(2)),
             "a piece's outer wall with twice its plastic" to alterZoneFlow(text, spec.outerLabel(2)),
             "the part fan ${if (spec.fanPct > 0) "off from the second layer" else "on at the middle layer"}" to (if (spec.fanPct > 0) alterFan(text, toOff = true) else fanOnMidway(text)),
@@ -1348,7 +1356,8 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         java.nio.file.Files.writeString(output, withMachineHeader(text, config, setup, s, prediction))
         echo("seam plate for filament '${spool.material}' on tool $slotN of '${Resolver.resolve(setup, "hardware.machine.model").value}', build plate '$plateName' (bed ${s.bedTempFirstC} C, constant): " +
             "one slab ${n(plateW)} x ${n(plateD)} mm (${plymeld.core.calibrate.SeamGeometry.slabLayers} layers: the first ${n(spec.firstLayerUm / 1000.0)} mm, then ${n(h / 1000.0)} mm) with ${spec.pieces.size} pieces ${n(plymeld.core.calibrate.SeamGeometry.piece / 1000.0)} mm across and ${n(spec.pieceLayers * h / 1000.0)} mm tall (${spec.pieceLayers} layers), " +
-            "outer walls ${n(w / 1000.0)} mm, inner ${n(wi / 1000.0)} mm, flow ratio ${n(s.flowRatio)}, at $printC C (the filament's temperature.print), part fan ${n(spec.fanPct)} % from the second layer")
+            "outer walls ${n(w / 1000.0)} mm, inner ${n(wi / 1000.0)} mm, flow ratio ${n(s.flowRatio)}, the pieces at $printC C (the filament's temperature.print)" +
+            (if (spec.firstTempC != printC) ", the slab's first layer at ${spec.firstTempC} C (its temperature.first_layer), waited for with the head parked before the pieces" else "") + ", part fan ${n(spec.fanPct)} % from the second layer")
         for (p in spec.pieces) echo("  piece ${p.index + 1}: ${spec.describe(p.index)}")
         echo("values: the slab's first layer ${n(firstSpeed)} mm/s, its layers above ${n(spec.frame.speed)} mm/s and ${n(spec.frame.accel)} mm/s2; the outer walls ${n(spec.outer.speed)} mm/s and ${n(spec.outer.accel)} mm/s2 (a visible wall's, held to the maximum flow; no overhang slow-down on the leaning faces); the inner walls ${n(spec.inner.speed)} mm/s; " +
             "the scarf ${n(scarfUm / 1000.0)} mm long starting ${n(scarfStart * 100)} % of the layer thick (plan.technique.scarf_seam); a corner ${n(cornerDeg)} deg (plan.technique.corner_seam.corner_angle)")
@@ -1360,7 +1369,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             ?: Resolver.resolveOrNull(setup, "hardware.machine.pressure_advance", plymeld.model.Context(0))?.let { "the machine's, ${it.from}" }
         echo(pa[spool.tool]?.let { v -> "pressure advance: $v s ($paFrom)" }
             ?: "pressure advance: not set, so the printer's own value applies, unknown to plymeld (set the machine's, the tool's, or the filament's pressure_advance to state it)")
-        echo("check: the layers and cells; every slab layer's and wall's height, speed, width, and filament per mm; each piece's seam where specified on every layer, a point seam's loop flat and closed, a scarf's ramp from the starting thickness to the top over the scarf length and laid again; the leaning faces' step-out; the pieces in order, inner wall first; the slab's size, chamfer, and ticks; the temperature waited for and the fan; no travel across a piece at its layer's height; and the g-code as the config says. Controls caught: ${controls.joinToString { it.first }}")
+        echo("check: the layers and cells; every slab layer's and wall's height, speed, width, and filament per mm; each piece's seam where specified on every layer, a point seam's loop flat and closed, a scarf's ramp from the starting thickness to the top over the scarf length and laid again; the leaning faces' step-out; the pieces in order, inner wall first; the slab's size, chamfer, and ticks; the temperatures (the slab's first layer's and the pieces'), each waited for, and the fan; no travel across a piece at its layer's height; and the g-code as the config says. Controls caught: ${controls.joinToString { it.first }}")
         val page = output.resolveSibling(output.fileName.toString().substringBeforeLast('.') + ".md")
         val paText = pa[spool.tool]?.let { v -> "$v s (${paFrom?.substringBefore(',')})" } ?: "not set: the printer's own, unknown to plymeld (write down what it was if you know)"
         plymeld.core.calibrate.SeamInstructions.write(page, spec, plate, plymeld.core.calibrate.PlateInstructions.Info(
@@ -1568,7 +1577,8 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             add("; CALIBRATION_PLATE_START")
             add("; plate = seams (hollow pieces on one slab, each with its outer wall's seam laid one way; graded for how far away each seam shows)")
             add("; filament = $filament, tool $tool, build plate $plateName")
-            add("; temperature = ${spec.tempC} C (the filament's temperature.print) throughout, part fan ${n(spec.fanPct)} % from the second layer (off on the first)")
+            add("; temperature = " + (if (spec.firstTempC != spec.tempC) "${spec.firstTempC} C on the slab's first layer (the filament's temperature.first_layer), ${spec.tempC} C above (the filament's temperature.print), waited for before the pieces"
+                else "${spec.tempC} C (the filament's temperature.print) throughout") + "; part fan ${n(spec.fanPct)} % from the second layer (off on the first)")
             add("; slab = ${n(spec.slabW / 1000.0)} x ${n(spec.slabD / 1000.0)} mm, ${g.slabLayers} layers (the first ${n(spec.firstLayerUm / 1000.0)} mm, then ${n(spec.layerUm / 1000.0)} mm), the first layer ${n(spec.firstWidthUm / 1000.0)} mm lines at ${n(spec.adhesion.speed)} mm/s, the layers above ${n(spec.widthUm / 1000.0)} mm at ${n(spec.frame.speed)} mm/s and ${n(spec.frame.accel)} mm/s2; flow_ratio = ${n(spec.flowRatio)}")
             add("; pieces = ${spec.pieces.size} of ${n(g.piece / 1000.0)} mm, ${n(g.gap / 1000.0)} mm apart, ${n(spec.pieceLayers * spec.layerUm / 1000.0)} mm tall (${spec.pieceLayers} layers of ${n(spec.layerUm / 1000.0)} mm), piece 1 at the chamfered front-left corner; ticks ${n(g.tickW / 1000.0)} mm wide between the pieces in the front and back edges, ${n(g.tickIn / 1000.0)} mm deep, every ${g.tickLongEvery}th ${n(g.tickLongIn / 1000.0)} mm")
             add("; walls = outer ${n(spec.widthUm / 1000.0)} mm at ${n(spec.outer.speed)} mm/s and ${n(spec.outer.accel)} mm/s2 (no overhang slow-down), inner ${n(spec.innerWidthUm / 1000.0)} mm at ${n(spec.inner.speed)} mm/s and ${n(spec.inner.accel)} mm/s2, the inner seams at the back")
@@ -1600,7 +1610,8 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             add("; CALIBRATION_PLATE_START")
             add("; plate = ironing (one piece: ${g.rows} slabs per speed on one base, their tops in zones, each ironed with its own values; a control zone per speed as laid)")
             add("; filament = $filament, tool $tool, build plate $plateName")
-            add("; temperature = ${spec.tempC} C (the filament's temperature.print) throughout, part fan ${n(spec.fanPct)} % from the second layer (off on the first)")
+            add("; temperature = " + (if (spec.firstTempC != spec.tempC) "${spec.firstTempC} C on the first layer and the brim (the filament's temperature.first_layer), ${spec.tempC} C above (the filament's temperature.print), waited for before the top"
+                else "${spec.tempC} C (the filament's temperature.print) throughout") + "; part fan ${n(spec.fanPct)} % from the second layer (off on the first)")
             add("; piece = ${n(spec.pieceW / 1000.0)} x ${n(spec.pieceD / 1000.0)} mm, a ${n(g.brim / 1000.0)} mm brim; ${spec.slabs} slabs ${n(spec.slabW / 1000.0)} x ${n(spec.slabD / 1000.0)} mm (${g.rows} per speed, front to back, a row of zones each) on a base of the first ${g.baseLayers} layers, ${n(g.groove / 1000.0)} mm grooves between them, the legend behind them; " +
                 "${spec.layers} layers (the first ${n(spec.firstLayerUm / 1000.0)} mm, then ${n(spec.layerUm / 1000.0)} mm; the top at z ${n(spec.topZ / 1000.0)} mm), ${n(spec.widthUm / 1000.0)} mm lines (the first layer ${n(spec.firstWidthUm / 1000.0)} mm), flow_ratio = ${n(spec.flowRatio)}; " +
                 "the first layer ${n(spec.adhesion.speed)} mm/s, the middle layers ${n(spec.frame.speed)} mm/s and ${n(spec.frame.accel)} mm/s2, the top fill ${n(spec.top.speed)} mm/s and ${n(spec.top.accel)} mm/s2 along the slab (0 deg)")
@@ -1930,7 +1941,7 @@ class FirstLayerPlateCommand : PlateCommand("first-layer", "first-layer") {
 
 /** `plymeld calibrate ironing`, with `readings` and `values` (IroningReadings.kt). */
 class IroningPlateCommand : PlateCommand("ironing", "ironing") {
-    override fun help(context: com.github.ajalt.clikt.core.Context) = "The ironing plate: zones of flat tops, each ironed with its own combination of the ironing flow, line spacing, speed, angle, and inset (--ironing-flows, --ironing-spacings, --ironing-speeds, --ironing-angles, --ironing-insets; every value in several zones, a control zone per speed left as laid): two slabs per speed (a row of zones each) on one base with a brim, a strip as laid between neighboring zones, each zone notched with its flow and spacing (front edge) and its inset and angle (back edge), each slab with its speed, and a legend of the marks. `ironing readings` writes its sheet to grade; `ironing values` turns the graded sheet into the ironing values."
+    override fun help(context: com.github.ajalt.clikt.core.Context) = "The ironing plate: zones of flat tops, each ironed with its own combination of the ironing flow, line spacing, speed, angle, and inset (--ironing-flows, --ironing-spacings, --ironing-speeds, --ironing-angles, --ironing-insets; every value in several zones, a control zone per speed left as laid): two slabs per speed (a row of zones each) on one base with a brim, a strip as laid between neighboring zones, each zone notched with its flow and spacing (front edge) and its inset and angle (back edge), each slab with its speed, and a legend of the marks; the top and its ironing at the filament's print temperature (temperature.print), the first layer at its first-layer temperature. `ironing readings` writes its sheet to grade; `ironing values` turns the graded sheet into the ironing values."
     init { subcommands(IroningReadingsCommand(), IroningValuesCommand()) }
     override val invokeWithoutSubcommand = true
     override val ironingFlows: String? by option("--ironing-flows", metavar = "F,F,...", help = "ironing plate: the ironing flows (shares of a full line, e.g. 0.05,0.1,0.15 or 5%,10%,15%), low to high, a row of the plan each; default: the current ironing flow (plan.technique.ironing.flow) x 0.5, 1, 1.5 (a placeholder spread, not measured)")
@@ -1942,7 +1953,7 @@ class IroningPlateCommand : PlateCommand("ironing", "ironing") {
 
 /** `plymeld calibrate seams`, with `readings` and `values` (SeamReadings.kt). */
 class SeamsPlateCommand : PlateCommand("seams", "seams") {
-    override fun help(context: com.github.ajalt.clikt.core.Context) = "The seam plate: eight hollow pieces on one slab, each with its outer wall's seam laid one way on every layer (a point seam or plymeld's scarf seam; on a round wall, in the middle of a flat face, in a corner, on a face leaning 30 and 45 degrees), the pieces marked by ticks in the slab's edges and a chamfered corner. Graded piece by piece for how far away the seam shows; `seams readings` writes the sheet to grade, `seams values` turns the graded sheet into the seam measure's shares (method.quality.seam.scarf_share, .corner_share, method.quality.visibility.under), which decide where plymeld puts every seam."
+    override fun help(context: com.github.ajalt.clikt.core.Context) = "The seam plate: eight hollow pieces on one slab, each with its outer wall's seam laid one way on every layer (a point seam or plymeld's scarf seam; on a round wall, in the middle of a flat face, in a corner, on a face leaning 30 and 45 degrees), the pieces marked by ticks in the slab's edges and a chamfered corner; the pieces at the filament's print temperature (temperature.print), the slab's first layer at its first-layer temperature. Graded piece by piece for how far away the seam shows; `seams readings` writes the sheet to grade, `seams values` turns the graded sheet into the seam measure's shares (method.quality.seam.scarf_share, .corner_share, method.quality.visibility.under), which decide where plymeld puts every seam."
     init { subcommands(SeamReadingsCommand(), SeamValuesCommand()) }
     override val invokeWithoutSubcommand = true
 }

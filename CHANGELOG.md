@@ -14,6 +14,10 @@ section the release's version and date.
 - Deciding how to print a model is faster, with the same decisions and the same g-code: on 3DBenchy the pose and
   technique search takes about a fifth less time. The slicer prepares each posed model once rather than for each cut,
   and finding what an overhang stands on looks only at the faces under it.
+- `plymeld calibrate ironing` and `plymeld calibrate seams` print their first layer at the filament's first-layer
+  temperature (`temperature.first_layer`), as a print does, and the rest at its print temperature: the head waits,
+  parked in front of the plate, for the print temperature before the ironing plate's top and before the seam plate's
+  pieces. Each plate's check and page name both temperatures.
 
 ## [0.20261106.3] - 2026-11-06
 

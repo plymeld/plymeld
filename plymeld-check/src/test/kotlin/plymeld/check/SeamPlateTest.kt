@@ -27,7 +27,7 @@ import plymeld.model.SliceSettings
 class SeamPlateTest : StringSpec({
     val setup = testSetup()
     val s = SliceSettings.of(setup)
-    val sp = SeamSpec(0, "test", SeamPiece.STANDARD, 200, 200, 440, 440, 500, 1.75, 1.0, 210, 100.0,
+    val sp = SeamSpec(0, "test", SeamPiece.STANDARD, 200, 200, 440, 440, 500, 1.75, 1.0, 210, 215, 100.0,
         adhesion = PathValues(40.0, 5000.0, 1.0, 0.8), frame = PathValues(100.0, 5000.0, 1.0, 0.8), outer = PathValues(60.0, 3000.0, 1.0, 0.8), inner = PathValues(100.0, 5000.0, 1.0, 0.8),
         scarfUm = 10_000, scarfStart = 0.25, cornerDeg = 30.0, liftUm = 200, originXUm = 60_000, originYUm = 60_000)
     fun gcode(p: SeamPlate) = p.gcode(s, setup.foreignTemplateVars, "test")
@@ -66,7 +66,7 @@ class SeamPlateTest : StringSpec({
         val l = sp.loop(2, 0, false)
         l[0] shouldBe sp.seamPoint(2, 0)[0]; l[1] shouldBe sp.seamPoint(2, 0)[1]
         (plymeld.geom.Polygon(l).signedArea2() > 0) shouldBe true
-        shouldThrow<IllegalArgumentException> { SeamSpec(0, "t", SeamPiece.STANDARD, 200, 200, 440, 440, 500, 1.75, 1.0, 210, 100.0, sp.adhesion, sp.frame, sp.outer, sp.inner, scarfUm = 500, scarfStart = 0.25, cornerDeg = 30.0, liftUm = 200) }
+        shouldThrow<IllegalArgumentException> { SeamSpec(0, "t", SeamPiece.STANDARD, 200, 200, 440, 440, 500, 1.75, 1.0, 210, 215, 100.0, sp.adhesion, sp.frame, sp.outer, sp.inner, scarfUm = 500, scarfStart = 0.25, cornerDeg = 30.0, liftUm = 200) }
         SeamPiece.parse(3, "square corner scarf")!!.let { it.shape shouldBe SeamShape.SQUARE; it.at shouldBe SeamAt.CORNER; it.style shouldBe SeamStyle.SCARF }
         SeamPiece.parse(0, "oval face point") shouldBe null
     }
@@ -79,7 +79,8 @@ class SeamPlateTest : StringSpec({
     "independently of the checks: a point seam's loop is flat and closes at the seam; a scarf's first line starts at the layer's bottom plus a quarter, rises to the top over 10 mm, and the ramp is laid again" {
         val lines = text.lines()
         lines.count { it.startsWith(";LAYER_CHANGE") || it.startsWith("; CHANGE_LAYER") } shouldBe 54
-        lines.filter { it.startsWith("M109") }.distinct() shouldBe listOf("M109 S210 T0")
+        // the slab's first layer at 215 C (the first-layer temperature), the pieces at 210 C, each waited for
+        lines.filter { it.startsWith("M109") }.distinct() shouldBe listOf("M109 S215 T0", "M109 S210 T0")
         // piece 1, its first layer above the slab (top z = 0.8 + 0.2 = 1.0): 72 flat segments ending at the seam
         val p1 = firstBlock(text, "piece 1")
         p1.size shouldBe 72
@@ -119,6 +120,9 @@ class SeamPlateTest : StringSpec({
         SeamCheck.check(sp, ctl("order")).any { it.contains("printed before") } shouldBe true
         SeamCheck.check(sp, ctl("outerfirst")).any { it.contains("outer wall is printed before its inner wall") } shouldBe true
         SeamCheck.check(sp, ctl("slabspeed")).any { it.contains("'slab 2': 60.00 mm/s, not 100.00") } shouldBe true
+        // the slab's first layer at the pieces' temperature; no wait for the pieces' temperature before them
+        SeamCheck.check(sp, ctl("firsttemp")).any { it.contains("'adhesion:slab': at 210 C, not 215 C") } shouldBe true
+        SeamCheck.check(sp, ctl("piecewait")).any { it.contains("no wait (M109) for 210 C before it") } shouldBe true
         fun alter(cell: String, change: (String) -> String): String {
             val ls = text.lines().toMutableList()
             val at = ls.indexOfFirst { it == "; CELL: $cell" }; val end = (at until ls.size).first { ls[it] == "; CELL END" }
