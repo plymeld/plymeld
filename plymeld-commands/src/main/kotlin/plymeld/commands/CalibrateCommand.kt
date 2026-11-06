@@ -1917,9 +1917,10 @@ class SeamsPlateCommand : PlateCommand("seams", "seams") {
 class CalibrateCommand : com.github.ajalt.clikt.core.CliktCommand(name = "calibrate") {
     init { subcommands(MeltPlateCommand(), FlowPlateCommand(), MotionPlateCommand(), FirstLayerPlateCommand(), FilamentPlateCommand(), IroningPlateCommand(), SeamsPlateCommand()) }
     override fun help(context: com.github.ajalt.clikt.core.Context) =
-        "Make a calibration plate for one filament (--filament, --tool), printed exactly as specified, check its g-code, and write its instructions page: " +
+        "Make a calibration plate for one filament (--filament, --tool), printed exactly as specified: " +
             "one subcommand per plate, in the order to run them (each plate's results lean on the ones before it): " +
             PlateCommand.KINDS.joinToString("; ") { (k, what) -> "'$k' ($what)" } + ". " +
-            "Readings and write-backs sit under their plate: `motion readings`, `motion values`, `first-layer window`, `ironing readings`, `ironing values`, `seams readings`, `seams values`."
+            "Every plate but the melt and flow plates also checks its g-code against its specification and writes an instructions page. " +
+            "Readings and write-backs sit under their plate: `melt values`, `flow values`, `motion readings`, `motion values`, `first-layer window`, `ironing readings`, `ironing values`, `seams readings`, `seams values`."
     override fun run() = Unit
 }
