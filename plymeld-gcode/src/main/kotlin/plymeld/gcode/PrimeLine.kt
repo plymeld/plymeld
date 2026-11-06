@@ -21,7 +21,8 @@ import plymeld.program.Step
  *    one, a partial brim fills between the print and the line; the default without a prime tower;
  *  - none (`prime.enabled = false`): no separate prime line; the default with a prime tower (it primes).
  * The line follows the edge, centered on the middle of the object's front (then its back, left, right, where the front has
- * no room: off the bed, or closer than [CLEAR_UM] to another object's first layer), round corners where the side is shorter
+ * no room: off the bed, closer than [CLEAR_UM] to another object's first layer, or following the edge in between parts of
+ * the object, inside its outer hull, where an arch or a bridge spans them), round corners where the side is shorter
  * than the line. With no room on any side, none, and the note says so. A program that primes itself (a calibration plate
  * laying one per block) gets none.
  */
@@ -77,9 +78,12 @@ object PrimeLine {
         val cx = (all.minOf { it[0] } + all.maxOf { it[0] }) / 2.0; val cy = (all.minOf { it[1] } + all.maxOf { it[1] }) / 2.0
         // the prime line's center: against the brim on a tab with a brim, else plan.mechanism.adhesion.prime.gap out
         val primeOut = if (mode == "tab" && brim) w / 2 else s.primeGapUm + w / 2
+        // the print's outer hull: a side whose line dips inside it follows the edge in between parts of the print (two feet
+        // of an arch, piers under a bridge), under what spans them; that side is skipped
+        val hull = hull(all)
         for (side in Side.entries) {
             val line = along(Offset.offset(edge, primeOut).filter { it.isCcw() }, side, cx, cy, s.primeLengthUm / 2, w) ?: continue
-            if (!onBed(line, s.bedUm, w) || !clearOf(line, others, w)) continue
+            if (!onBed(line, s.bedUm, w) || !clearOf(line, others, w) || dipsIn(line, hull)) continue
             val paths = ArrayList<LongArray>()
             paths += line
             // the peel tab without a brim: partial brim lines from the line back to the print, one spacing apart, each
@@ -105,8 +109,45 @@ object PrimeLine {
                 "$what ($why): ${"%.0f".format(java.util.Locale.ROOT, length(line) / 1000.0)} mm along the first object's ${side.label}, " +
                     "${"%.1f".format(java.util.Locale.ROOT, (primeOut - w / 2) / 1000.0)} mm out")
         }
-        return Result(p, "none: no room within reach of the first object on any side (the bed's edge, or other objects within ${CLEAR_UM / 1000.0} mm)")
+        return Result(p, "none: no room within reach of the first object on any side (the bed's edge, other objects within ${CLEAR_UM / 1000.0} mm, or an edge that turns in between parts of it)")
     }
+
+    /** The convex hull of [pts] (µm), counter-clockwise, no three points in line (Andrew's monotone chain). */
+    private fun hull(pts: List<LongArray>): List<LongArray> {
+        val ps = pts.distinctBy { it[0] to it[1] }.sortedWith(compareBy({ it[0] }, { it[1] }))
+        if (ps.size < 3) return ps
+        fun cross(o: LongArray, a: LongArray, b: LongArray) = (a[0] - o[0]).toDouble() * (b[1] - o[1]) - (a[1] - o[1]).toDouble() * (b[0] - o[0])
+        val out = ArrayList<LongArray>()
+        for (pass in 0..1) {
+            val start = out.size
+            for (q in if (pass == 0) ps else ps.asReversed()) {
+                while (out.size >= start + 2 && cross(out[out.size - 2], out[out.size - 1], q) <= 0) out.removeAt(out.size - 1)
+                out += q
+            }
+            out.removeAt(out.size - 1)
+        }
+        return out
+    }
+
+    /** Whether a point of the open line [xy] lies inside the convex [hull] (counter-clockwise), more than [DIP_UM] in from its edge. */
+    private fun dipsIn(xy: LongArray, hull: List<LongArray>): Boolean {
+        val n = hull.size
+        if (n < 3) return false
+        for (i in 0 until xy.size / 2) {
+            val px = xy[2 * i].toDouble(); val py = xy[2 * i + 1].toDouble()
+            var depth = Double.POSITIVE_INFINITY
+            for (k in 0 until n) {
+                val a = hull[k]; val b = hull[(k + 1) % n]
+                val dx = (b[0] - a[0]).toDouble(); val dy = (b[1] - a[1]).toDouble()
+                depth = minOf(depth, (dx * (py - a[1]) - dy * (px - a[0])) / Math.hypot(dx, dy))
+            }
+            if (depth > DIP_UM) return true
+        }
+        return false
+    }
+
+    /** How far inside the print's hull a prime line's point may lie before its side is skipped (µm): the grid's rounding, no more. */
+    private const val DIP_UM = 1.0
 
     enum class Side(val label: String, val dx: Int, val dy: Int) { FRONT("front", 0, -1), BACK("back", 0, 1), LEFT("left", -1, 0), RIGHT("right", 1, 0) }
 

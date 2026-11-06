@@ -184,6 +184,21 @@ class PrimeLineTest : StringSpec({
         PrimeLine.insert(program("box" to listOf(wall(boxWall)), other(PrimeLine.CLEAR_UM + 100)), s).note shouldContain "front"
     }
 
+    "an edge that turns in between two feet: that side skipped, the line never under the span; control: the box takes the front" {
+        // two 10 mm feet joined at the back, the 20 x 10 mm notch between them open to the front (an arch's footprint
+        // seen from above; wider than twice the line's distance out, so the offset leaves it open): the front's middle
+        // line meets the edge at the notch's bottom first
+        val u = longArrayOf(100_000, 100_000, 110_000, 100_000, 110_000, 110_000, 130_000, 110_000, 130_000, 100_000, 140_000, 100_000, 140_000, 120_000, 100_000, 120_000)
+        val p = program("box" to listOf(wall(u)))
+        val r = PrimeLine.insert(p, near)
+        r.note shouldContain "back"
+        val line = added(p, r.program).single()
+        // nowhere in the notch, nor in front of it short of the feet's front edge
+        for ((px, py) in pts(line.xy)) withClue("($px, $py)") { (px in 110_000..130_000 && py < 110_000) shouldBe false }
+        // control: the same outline without the notch takes the front
+        PrimeLine.insert(program("box" to listOf(wall(boxWall))), near).note shouldContain "front"
+    }
+
     "no room on any side: none, and the note says why" {
         // a box with objects close on all four sides
         val lineGap = w + s.primeGapUm
