@@ -19,6 +19,11 @@ section the release's version and date.
   parked in front of the plate, for the print temperature before the ironing plate's top and before the seam plate's
   pieces. Each plate's check and page name both temperatures.
 
+### Fixed
+
+- The prime line no longer follows the first object's edge in between two of its feet (an arch's, a bridge's piers),
+  where it lay under the span: a side whose line would turn in there is skipped for the next.
+
 ## [0.20261106.3] - 2026-11-06
 
 ### Added
