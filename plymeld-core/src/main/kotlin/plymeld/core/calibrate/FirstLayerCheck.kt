@@ -308,7 +308,13 @@ object FirstLayerCheck {
             // the digits: the glyphs' strokes merged into outlines (a stroke overlapped by others holds no line of its own),
             // each outer outline a digit (or a digit's separate part, such as a decimal point)
             val digits = plymeld.geom.Offset.offset(glyphs, 10).filter { it.signedArea2() > 0 }
-            val stray = mine.firstOrNull { m -> grown.none { p -> inside(p, (m.x0 + m.x1) / 2, (m.y0 + m.y1) / 2) } }
+            // a line is the label's only if all of it is: points along it every 0.2 mm, not its middle alone (a "0" printed
+            // where a "2" goes has long sides whose middles lie on the "2"'s strokes)
+            fun along(m: Move): List<Pair<Double, Double>> {
+                val n = maxOf(1, Math.ceil(m.len / 0.2).toInt())
+                return (0..n).map { i -> (m.x0 + (m.x1 - m.x0) * i / n) to (m.y0 + (m.y1 - m.y0) * i / n) }
+            }
+            val stray = mine.firstOrNull { m -> along(m).any { (x, y) -> grown.none { p -> inside(p, x, y) } } }
             val empty = digits.indexOfFirst { p -> mine.none { m -> inside(p, (m.x0 + m.x1) / 2, (m.y0 + m.y1) / 2) } }
             if (stray != null || empty >= 0) bad("'$cell': not the label '$text' where it goes (" +
                 (if (stray != null) "a line at ${fmt(stray.x0, 2)}, ${fmt(stray.y0, 2)}-${fmt(stray.x1, 2)}, ${fmt(stray.y1, 2)} outside its digits" else "a stroke of its digits not printed") + ")")

@@ -217,6 +217,8 @@ class FirstLayerPlateTest : StringSpec({
         caught(sp, "prime", "no 'block 3 prime' cell")
         // the last column's label shows 205 (the first's), the same width as its own 215: caught by its digits
         caught(sp, "mark", "'block 3 mark 1': not the label '215' where it goes")
+        // and where the two numbers differ by one digit whose strokes the other's cover in part: a 205 where 225 goes
+        spec(intArrayOf(205, 215, 225)).let { s3 -> caught(s3, "mark", "'block 3 mark 1': not the label '225' where it goes") }
         caught(sp, "speedlabel", "no 'block 1 speed 1 1' cell")
         caught(sp, "heightlabel", "no 'block 1 height 1.1 1' cell")
         caught(sp, "chamfer", "not the 2.0 mm chamfer")

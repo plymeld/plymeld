@@ -894,8 +894,11 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             fun temp(k: String) = (plainMt?.get("hardware.filament.temperature.$k")?.value as Number?)?.toDouble()
             val lo = temp("min"); val hi = temp("max"); val print = temp("print")
             if (lo == null || hi == null) throw UsageError("which temperatures? '${sp.material}' has no range (temperature.min / temperature.max, the spool's label): give --temps LOW-HIGH, or one temperature")
-            if (print != null && print in lo..hi) whole(print, "the filament's temperature.print") to whole(hi, "the filament's temperature.max")
-            else whole(lo, "the filament's temperature.min") to whole(hi, "the filament's temperature.max")
+            val from = if (print != null && print in lo..hi) whole(print, "the filament's temperature.print") else whole(lo, "the filament's temperature.min")
+            // up by --step as far as the maximum goes: the last column the highest step at or below it (205 to 230 C at
+            // 10 C steps: 205, 215, 225)
+            val top = whole(hi, "the filament's temperature.max")
+            from to (from + (top - from) / stepC * stepC)
         }
         if (highC < lowC) throw UsageError("--temps: the range must rise, LOW-HIGH (got $lowC-$highC)")
         val tempList = try { CalibrationSpec.temperatures(lowC, highC, stepC) } catch (e: IllegalStateException) { throw UsageError(e.message ?: "--step") } catch (e: IllegalArgumentException) { throw UsageError(e.message ?: "--step") }
@@ -1919,7 +1922,7 @@ class FirstLayerPlateCommand : PlateCommand("first-layer", "first-layer") {
     override fun help(context: com.github.ajalt.clikt.core.Context) = "The first-layer plate: one layer of first-layer tiles laid out as a table, one piece: a column per temperature (--temps, --step; coolest first, heating and priming between columns), and in each column a group of rows per speed (--first-speeds), a row per nozzle height in each (--first-heights), every tile a strip of the same size; each column's temperature, each speed, and each row's height raised on a base along the plate's front and left. A tile whose flow would pass the filament's maximum flow at its column's temperature is left out; every tile touches its neighbors, and a frame of three layers over their walls, with as tall a border round the base (neither read), is the raised edge to peel the plate by. `first-layer values` writes the read plate into the filament's first-layer window: per column, the lowest good nozzle height and the fastest good speed."
     init { subcommands(FirstLayerValuesCommand()) }
     override val invokeWithoutSubcommand = true
-    override val temps: String? by option("--temps", metavar = "LOW-HIGH", help = "the temperature range, whole degrees C, e.g. 200-230, or a single temperature, e.g. 215: a column each, coolest first; default: the filament's print temperature up to its maximum (temperature.print to temperature.max: a first layer runs at or above the print temperature), or its whole range (temperature.min to temperature.max) where it has no print temperature")
+    override val temps: String? by option("--temps", metavar = "LOW-HIGH", help = "the temperature range, whole degrees C, e.g. 200-230, or a single temperature, e.g. 215: a column each, coolest first; default: the filament's print temperature up to its maximum by --step, as far as the maximum goes (temperature.print to temperature.max: a first layer runs at or above the print temperature), or its whole range (temperature.min to temperature.max) where it has no print temperature")
     override val step: String? by option("--step", metavar = "C", help = "whole degrees between columns; default: 10")
     override val firstSpeeds: String? by option("--first-speeds", metavar = "S,S,...", help = "first-layer plate: the tiles' speeds (mm/s), a group of rows each, slow to fast; default: the first layer's speed (plan.mechanism.motion.first_layer.speed) halved, as it is, and half as fast again")
     override val firstHeights: String? by option("--first-heights", metavar = "MM,MM,...", help = "first-layer plate: the tiles' nozzle heights (mm), a row each in every speed's group, low to high; default: the first layer's height (plan.mechanism.adhesion.first_layer.height) and three steps above it, a step a tenth of the nozzle's bore (hardware.tool.<key>.bore: 0.2 to 0.32 mm for a 0.2 mm first layer on a 0.4 mm nozzle)")
