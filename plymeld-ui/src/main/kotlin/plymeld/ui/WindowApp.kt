@@ -172,7 +172,7 @@ fun WindowApp(j: JobState, ui: WindowUi, onOpen: (() -> Unit)? = null, onSlice: 
                 val short = maxHeight < 700.dp
                 // the drawer: the plan decision by decision (Why), one decision (a mark on the stage), or one setting's chain (the finder); it closes, it never dialogs
                 val drawer: @Composable (Modifier) -> Unit = { m -> Drawer(j, m, page = page, focus = ui.focus, onClose = { why = false; page = null; ui.focus = null }, onDecisions = { page = null; ui.focus = null },
-                    onRan = { consoleOpen = true; ui.trayTab = TrayTab.CONSOLE }) }
+                    onRan = { consoleOpen = true; ui.trayTab = TrayTab.CONSOLE }, onCommand = { line -> page = "command:$line"; ui.focus = null; why = true }) }
                 Row(Modifier.fillMaxSize()) {
                     Steps(j, ui, Modifier.width(if (rail) 236.dp else 380.dp).fillMaxHeight(), rail, onOpen = onOpen, onSlice = onSlice, onSave = onSave, onSend = onSend, onAddConfig = onAddConfig, onAddModel = onAddModel,
                         onShowPlan = { tab = StageTab.PLAN }, onShowLayers = { tab = StageTab.LAYERS }, onWhy = { why = !why; page = null; ui.focus = null }, why = why)
@@ -281,9 +281,9 @@ private fun Bar(j: JobState, onConsole: () -> Unit, onFind: () -> Unit, onDrop: 
                 modifier = Modifier.clickable { UpdateState.installNow() }.padding(horizontal = 4.dp))
         } ?: UpdateState.status.takeIf { it.isNotEmpty() }?.let { Text(it, color = Ink.faint, fontSize = 12.sp) }
         Spacer(Modifier.weight(1f))
-        Box(Modifier.width(320.dp).height(30.dp).background(Ink.bg, RoundedCornerShape(8.dp)).border(1.dp, Ink.line, RoundedCornerShape(8.dp)).clickable { onFind() }.padding(horizontal = 12.dp), contentAlignment = Alignment.CenterStart) {
+        Box(Modifier.width(360.dp).height(30.dp).background(Ink.bg, RoundedCornerShape(8.dp)).border(1.dp, Ink.line, RoundedCornerShape(8.dp)).clickable { onFind() }.padding(horizontal = 12.dp), contentAlignment = Alignment.CenterStart) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("⌕ find a setting, a command, a part…", color = Ink.faint, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                Text("⌕ find a setting, a command, a part…", color = Ink.faint, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 Text("Ctrl K", color = Ink.faint, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
             }
         }

@@ -6,18 +6,18 @@
 
 Slice a mesh into layers and report/draw the closed loops of each.
 
-Usage: `plymeld layers [OPTIONS] MODEL`
+Usage: `plymeld layers [<options>] <model>`
 
 Arguments:
 
-- `MODEL` (required): STL file
+- `<model>`: STL file
 
 Options:
 
-- `--layer MM` (default: `0.2`): layer height, mm
-- `--first MM`: first layer height, mm (default: same as --layer)
-- `--svg DIR`: write one SVG per layer into this directory
-- `--png FILE`: write a contact-sheet PNG of up to --sheet layers
-- `--sheet N` (default: `16`): layers on the contact sheet
+- `--layer=<mm>`: layer height, mm (default: 0.2)
+- `--first=<mm>`: first layer height, mm (default: same as --layer)
+- `--svg=<dir>`: write one SVG per layer into this directory
+- `--png=<file>`: write a contact-sheet PNG of up to --sheet layers
+- `--sheet=<n>`: layers on the contact sheet (default: 16)
 - `--quiet`: no per-layer summary
-- `-h`, `--help`: show the command's help and exit
+- `-h, --help`: Show this message and exit

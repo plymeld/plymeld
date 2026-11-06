@@ -16,6 +16,7 @@ Kotlin, in the modules.
 | `bench_cli.sh <model> <settings>` | whole-process wall time, JVM launcher against the native binary, and that both write the same g-code |
 | `build-native.sh` / `.cmd`, `build-native-ui.sh` / `.cmd` | GraalVM native executables of the CLI and the window |
 | `package-velopack.cmd` | installers, portable zip, AppImage and update feed with Velopack |
+| `windows-ui-tests.ps1` | the window's tests (`WindowDriveTest`, `WindowRunsTest`) on a Windows JDK, Windows' own natives, from a WSL build (`gradlew :plymeld-ui:windowsTestLib`) with JUnit's console launcher |
 
 A version tag on `main` (`v0.YYYYMMDD.N`, the release's date in UTC) runs these in CI (`.github/workflows/release.yml`),
 built with that version (`-Pplymeld.version`; any other build is `0.0.0-dev`): the native builds on Linux and Windows

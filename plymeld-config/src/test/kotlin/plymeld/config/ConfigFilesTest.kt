@@ -132,4 +132,14 @@ class ConfigFilesTest : StringSpec({
         shouldThrow<IllegalArgumentException> { ConfigFiles.expand(listOf("setup/*.yaml"), d) }.message!! shouldContain "no file matches"
         shouldThrow<IllegalArgumentException> { ConfigFiles.expand(listOf("missing.toml"), d) }
     }
+    "a glob absolute or relative, in the top folder or below it, a pattern in a folder's name too; the glob's text is never a path (on Windows a * is none)" {
+        val d = dir("setup/a/1.toml" to "", "setup/b/2.toml" to "", "setup/b/x.json" to "", "top.toml" to "")
+        fun names(vararg g: String) = ConfigFiles.expand(g.toList(), d).map { d.relativize(it).toString().replace('\\', '/') }
+        names("*.toml") shouldBe listOf("top.toml")
+        names("setup/*/*.toml") shouldBe listOf("setup/a/1.toml", "setup/b/2.toml")
+        names(d.resolve("setup").resolve("b").toString() + java.io.File.separator + "*.toml") shouldBe listOf("setup/b/2.toml")
+        names("setup/b/*.{toml,json}") shouldBe listOf("setup/b/2.toml", "setup/b/x.json")
+        // control: a pattern matches below its own folder only, not a file of that name further down
+        shouldThrow<IllegalArgumentException> { ConfigFiles.expand(listOf("setup/*.toml"), d) }.message!! shouldContain "no file matches"
+    }
 })

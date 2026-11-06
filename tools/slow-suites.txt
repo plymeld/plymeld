@@ -18,3 +18,5 @@ plymeld.commands.CurvedIslandBenchyTest   # 37 s: the 3DBenchy sliced with an is
 plymeld.commands.IroningReadingsTest      # 33 s
 plymeld.check.CurvedRegionsModelsTest      # 10 s (the 3DBenchy survey; a development report, not a gate on the fast suites)
 plymeld.mesh.LargeMeshTest                # writes a 245 MB STL and a 1.2M-triangle 3MF to check the readers' memory budget
+plymeld.ui.WindowRunsTest                 # the window driven: a plate made and a job sliced through its controls (needs a display: CI gives it Xvfb)
+plymeld.ui.WindowDriveTest                # the window driven: every command's form opened from the finder (needs a display: CI gives it Xvfb)

@@ -28,7 +28,14 @@ dependencies {
         implementation(lib)
         runtimeOnly(variantOf(lib) { classifier(lwjglNatives) })
     }
+    // the window driven through its own controls in tests (find by text, click, type, read, capture): Compose's own UI
+    // test framework (JetBrains, Apache-2.0), test-only, never shipped
+    testImplementation(compose.desktop.uiTestJUnit4)
 }
+
+// the window's tests slice and make plates through the window (minutes); the coroutine test runner they run in stops a test
+// at one minute unless told otherwise
+tasks.withType<Test>().configureEach { systemProperty("kotlinx.coroutines.test.default_timeout", "20m") }
 
 compose.desktop {
     application {
@@ -85,6 +92,22 @@ tasks.register<Copy>("nativeLib") {
     from(configurations.runtimeClasspath)
     from(tasks.named("jar"))
     into(layout.buildDirectory.dir("native/lib"))
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+// The window's tests (WindowDriveTest, WindowRunsTest) with Windows natives, to drive the window on a Windows JDK from a build
+// made elsewhere (tools/windows-ui-tests.ps1 runs them with JUnit's console launcher)
+val windowsTestRuntime: Configuration by configurations.creating { extendsFrom(configurations.testRuntimeClasspath.get()) }
+dependencies {
+    windowsTestRuntime(compose.desktop.windows_x64)
+    for (lib in listOf<Provider<MinimalExternalModuleDependency>>(libs.lwjgl.core, libs.lwjgl.glfw, libs.lwjgl.opengl)) windowsTestRuntime(variantOf(lib) { classifier("natives-windows") })
+}
+tasks.register<Copy>("windowsTestLib") {
+    description = "the UI's test classes and jars with Windows natives into build/windows/test-lib, to run the window's tests on a Windows JDK"
+    from(windowsTestRuntime)
+    from(tasks.named("jar"))
+    from(tasks.named("testClasses").map { sourceSets.test.get().output.classesDirs }) { into("classes") }
+    from(sourceSets.test.get().output.resourcesDir!!) { into("classes") }
+    into(layout.buildDirectory.dir("windows/test-lib"))
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 tasks.register<Copy>("windowsLib") {

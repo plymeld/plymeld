@@ -2,35 +2,37 @@ package plymeld.core.calibrate
 
 /**
  * Reads a first-layer plate's g-code back ([FirstLayerPlate]) and checks it against its specification, as the printer
- * will run it. Its reference is the [FirstLayerSpec] and the
- * layout figures it works out itself from [PlateGeometry] and [FirstLayerGeometry] and from the g-code's own lines, never
- * the generator's paths:
+ * will run it. Its reference is the [FirstLayerSpec] and the layout figures it works out itself from [FirstLayerGeometry]
+ * and [PlateMarks] and from the g-code's own lines, never the generator's paths:
  *
- *  - one layer marker only (the frame prints within it, at its own heights), and nothing but the plate's cells: per
- *    block, its prime line, every tile within the block's melt limit (and none over it: those are left out), the
- *    connectors between its columns, its marker, and its frame (over each column, and across each gap the connectors
- *    cross); no other extrusion between the plate's first line and its last;
- *  - each tile at its column's height and its row's speed, the first layer's acceleration, its filament per mm the bead
- *    model's at its width and height times the flow ratio, the width declared, its lines reaching into its wall by the
- *    line-end overlap; its flow, read from the g-code, within the block's melt limit;
- *  - the frame at its column's frame height (a line across a gap: the higher column's), the frame's speed (the machine's,
- *    held to the block's melt limit), width, acceleration, and filament per mm (a frame line's bead one frame layer high),
- *    its flow within the melt limit;
- *  - each block's nozzle temperature: the target in force on every line of the block is the block's, and a wait (M109) to
- *    it came before the block's first line; the blocks in print order, coolest first; the part fan off;
- *  - the prime lines, connectors, and marker dots at the first layer's speed, width, and filament per mm; the dots at the
- *    first layer's height, the prime line at it or the lowest tile's if lower;
- *  - the geometry: each tile square with as many lines as its height's bead spacing makes, exactly that spacing apart,
- *    its first line starting at the middle of its back edge and its wall closing there; a block's columns one tile pitch
- *    apart and each column's tiles touching edge to edge; block n's marker n dots in front of its tiles; its prime line
- *    along the block's front to its left edge, then back along it to touch the first tile; each connector touching a tile
- *    on either side, inside none, at the lower one's height and printed before the higher one; each block's first layer
- *    ONE piece (its first-layer lines' footprints, sampled every 0.05 mm, connected; the frame not counted, so it cannot
- *    stand in for a missing connector); blocks left to right, then the next row behind, none overlapping;
- *  - the frame: no frame line's footprint inside a tile's wall (the part read), each frame line one frame
- *    layer above the highest tile under it as printed, every point of it over a tile or a connector (none over air),
- *    printed after its block's first layer, lowest first, and ONE piece at its own level (it joins the columns);
- *  - no travel crosses a finished tile, connector, or frame line at or below its height (the lift).
+ *  - one layer marker only (the frame, the border, the base's upper layers, and the labels print within it, at their own heights),
+ *    and nothing but the plate's cells: per column, its prime line, every tile within its melt limit (and none over it:
+ *    those are left out), the frame's rings over every tile, and its temperature label's layers; the base's layers and the
+ *    border's; each speed's and each row's height label's layers; no other extrusion between the plate's first line and
+ *    its last;
+ *  - each tile at its height and its speed, the tiles' acceleration and width, its filament per mm the bead model's times
+ *    the flow ratio; its flow, read from the g-code, within its column's melt limit; each frame ring at its layer's height
+ *    over its tile and each border layer a layer each above the base's top, at the frame's speed (the machine's, held to
+ *    the hottest column's melt limit), width, and acceleration;
+ *    the prime lines and the base's first layer at the prime height (the first layer's, or the lowest tile's if lower) in
+ *    the first layer's width, the base's upper layers and the labels a layer each above it in the ordinary width, all at
+ *    the first layer's speed;
+ *  - each column's nozzle temperature: the target in force on its every line is its own, a wait (M109) to it before its
+ *    first line, the columns coolest first; the base's upper layers, the labels, the frame, and the border at the last
+ *    column's; the part fan off;
+ *  - the geometry: each tile [FirstLayerGeometry.tileLength] long and as deep as its height's lines make it, exactly that
+ *    many lines that spacing apart, its first line starting at the middle of its back edge and its wall closing there;
+ *    the tiles in their places, the columns side by side and the rows front to back, every tile touching its neighbors;
+ *    the base along the plate's front and left, its front-left corner cut off ([PlateMarks.CHAMFER]), its upper layers
+ *    set back [FirstLayerGeometry.baseSetback]; each column's prime line along the base's front under it; each label
+ *    where it goes, its lines inside its digits, every digit printed; the plate's first layer ONE piece (its lines'
+ *    footprints, sampled every 0.05 mm, connected; nothing above it counted, so nothing can stand in for a gap);
+ *  - the order: the base's first layer before any tile; column by column, each column's prime line before its tiles and
+ *    its tiles lowest first (the nozzle never works beside a finished line above it); after all the tiles the base's upper
+ *    layers and the labels, then the frame and the border, layer by layer, each layer lowest first; the frame's rings
+ *    [FirstLayerSpec.frameInsetUm] in from each tile's edges (over its wall, not its inside), ONE piece; the border a ring
+ *    round the base's L on its upper layer, flush with its edge, its front-left corner cut as the base's is;
+ *  - no travel crosses a finished tile, frame ring, or border at or below its height (the lift).
  *
  * Returns the problems (empty = the plate prints as specified).
  */
@@ -42,279 +44,295 @@ object FirstLayerCheck {
     }
 
     /**
-     * A cell label's block (0-based) and part: "prime", "mark", "tile" with its row and column, "connector" with its first
-     * column, "frame" with its column, "bridge" (a frame line across a gap) with its first column (all 0-based), or null.
+     * A cell label's column (0-based) and part: "prime", "tile" ([r].[c]), "frame" ([r].[c], layer [n]), "base" (layer
+     * [n]), "mark" (the temperature label, layer [n]), "speed" (speed [r]'s label, layer [n]), "height" (row [r].[c]'s
+     * label, layer [n]), "border" (layer [n]), or null; [r], [c] 0-based, [n] from 1.
      */
-    private class Cell(val block: Int, val part: String, val r: Int = -1, val c: Int = -1, val back: Boolean = false)
+    private class Cell(val block: Int, val part: String, val r: Int = -1, val c: Int = -1, val n: Int = 0) {
+        /** Printed after all the tiles, at the last column's temperature: the base's upper layers, the labels, the frame, the border. */
+        val late: Boolean get() = edge || part == "mark" || part == "speed" || part == "height" || (part == "base" && n > 1)
+        /** The raised edge, printed last, layer by layer: the frame over the tiles and the border round the base. */
+        val edge: Boolean get() = part == "frame" || part == "border"
+    }
     private fun cellOf(label: String): Cell? {
-        val m = Regex("block (\\d+) (prime|mark|tile (\\d+)\\.(\\d+)|connector (\\d+)-(\\d+) (front|back)|frame (\\d+)(?:-(\\d+) (front|back))?)").matchEntire(label) ?: return null
+        val m = Regex("block (\\d+) (prime|base (\\d+)|mark (\\d+)|speed (\\d+) (\\d+)|height (\\d+)\\.(\\d+) (\\d+)|tile (\\d+)\\.(\\d+)|frame (\\d+)\\.(\\d+) (\\d+)|border (\\d+))").matchEntire(label) ?: return null
         val k = m.groupValues[1].toInt() - 1
         val g = m.groupValues
         return when {
-            g[2].startsWith("tile") -> Cell(k, "tile", g[3].toInt() - 1, g[4].toInt() - 1)
-            g[2].startsWith("connector") -> Cell(k, "connector", c = g[5].toInt() - 1, back = g[7] == "back")
-            g[2].startsWith("frame") && g[9].isNotEmpty() -> Cell(k, "bridge", c = g[8].toInt() - 1, back = g[10] == "back")
-            g[2].startsWith("frame") -> Cell(k, "frame", c = g[8].toInt() - 1)
+            g[2].startsWith("base") -> Cell(k, "base", n = g[3].toInt())
+            g[2].startsWith("mark") -> Cell(k, "mark", n = g[4].toInt())
+            g[2].startsWith("speed") -> Cell(k, "speed", g[5].toInt() - 1, n = g[6].toInt())
+            g[2].startsWith("height") -> Cell(k, "height", g[7].toInt() - 1, g[8].toInt() - 1, g[9].toInt())
+            g[2].startsWith("tile") -> Cell(k, "tile", g[10].toInt() - 1, g[11].toInt() - 1)
+            g[2].startsWith("frame") -> Cell(k, "frame", g[12].toInt() - 1, g[13].toInt() - 1, g[14].toInt())
+            g[2].startsWith("border") -> Cell(k, "border", n = g[15].toInt())
             else -> Cell(k, g[2])
         }
     }
-    private fun isFrame(part: String?) = part == "frame" || part == "bridge"
 
     fun check(spec: FirstLayerSpec, gcode: String): List<String> {
         val out = ArrayList<String>()
         fun bad(s: String) { if (out.size < 60) out += s }
         val (moves, layers) = parse(gcode, spec.tool)
         val t = spec.tiles
-        if (layers != 1) bad("$layers layers in the g-code, not 1 (a first-layer plate is one layer; its frame prints within it, at its own heights)")
+        val g = FirstLayerGeometry
+        if (layers != 1) bad("$layers layers in the g-code, not 1 (a first-layer plate is one layer; its frame, base, and labels print within it, at their own heights)")
         moves.firstOrNull { it.layer != 0 }?.let { bad("'${it.cell}' printed on layer ${it.layer}, not the first (layer 0)") }
-        // the cells: every block's prime line, tiles within its melt limit, connectors between columns that print tiles, and marker
+        // the cells
         val want = LinkedHashSet<String>()
+        for (n in 1..g.baseLayers) want += spec.baseLabel(n)
+        for (n in 1..g.frameLayers) want += spec.borderLabel(n)
         for (k in 0 until spec.blocks) {
             want += spec.primeLabel(k)
-            for (r in t.speeds.indices) for (c in t.heightsUm.indices) if (spec.printed(k, r, c)) want += spec.tileLabel(k, r, c)
-            for (c in 0 until t.heightsUm.size - 1) if (minOf(spec.rowsIn(k, c), spec.rowsIn(k, c + 1)) > 0) for (back in listOf(false, true)) want += spec.connectorLabel(k, c, back)
-            want += spec.markLabel(k)
-            // the frame: over every column that prints a tile, and across every gap the connectors cross
-            for (c in t.heightsUm.indices) if (spec.rowsIn(k, c) > 0) want += spec.frameLabel(k, c)
-            for (c in 0 until t.heightsUm.size - 1) if (minOf(spec.rowsIn(k, c), spec.rowsIn(k, c + 1)) > 0) for (back in listOf(false, true)) want += spec.bridgeLabel(k, c, back)
+            for (n in 1..g.labelLayers) want += spec.markLabel(k, n)
+            for ((r, c) in spec.rows) if (spec.printed(k, r, c)) {
+                want += spec.tileLabel(k, r, c)
+                for (n in 1..g.frameLayers) want += spec.frameLabel(k, r, c, n)
+            }
+        }
+        for (n in 1..g.labelLayers) {
+            for (r in t.speeds.indices) want += spec.speedLabelOf(r, n)
+            for ((r, c) in spec.rows) want += spec.heightLabelOf(r, c, n)
         }
         val byCell = moves.groupBy { it.cell }
         for (c in want) if (c !in byCell) bad("no '$c' cell")
         for (c in byCell.keys) if (c !in want) bad("${byCell.getValue(c).size} extrusion move(s) in '$c', which the specification does not have" +
-            (cellOf(c)?.takeIf { it.part == "tile" && it.block in 0 until spec.blocks }?.let { cl -> " (over block ${cl.block + 1}'s melt limit, ${fmt(spec.capsMm3s[cl.block], 1)} mm3/s at ${spec.tempsC[cl.block]} C: left out)" } ?: ""))
-        // print order: block by block (each block's lines together, block 1 first), each block's prime line before its tiles
-        val order = moves.mapNotNull { m -> cellOf(m.cell)?.block }
-        if (order.zipWithNext().any { (a, b) -> b < a }) bad("the blocks do not print in order (block 1, the coolest, first; each block's lines together)")
+            (cellOf(c)?.takeIf { it.part == "tile" && it.block in 0 until spec.blocks }?.let { cl -> " (over the ${spec.tempsC[cl.block]} C column's melt limit, ${fmt(spec.capsMm3s[cl.block], 1)} mm3/s: left out)" } ?: ""))
+        // the order: the columns' first-layer lines column by column; after them the base's upper layers and the labels, then
+        // the frame and the border
+        val early = moves.filter { cellOf(it.cell)?.let { c -> !c.late } == true }
+        val late = moves.filter { cellOf(it.cell)?.late == true }
+        val frameMoves = moves.filter { cellOf(it.cell)?.edge == true }
+        if (early.map { cellOf(it.cell)!!.block }.zipWithNext().any { (a, b) -> b < a }) bad("the columns do not print in order (the coolest, on the left, first; each column's lines together)")
+        early.maxOfOrNull { it.seq }?.let { lastEarly -> late.firstOrNull { it.seq < lastEarly }?.let { bad("'${it.cell}' printed before the last tile: the base's upper layers, the labels, and the frame go on after all the tiles") } }
+        late.filter { cellOf(it.cell)?.edge == false }.maxOfOrNull { it.seq }?.let { lastLabel -> frameMoves.firstOrNull { it.seq < lastLabel }?.let { bad("'${it.cell}' printed before the labels: the frame and the border go on last") } }
+        moves.firstOrNull { cellOf(it.cell)?.part == "tile" }?.let { firstTile -> moves.firstOrNull { it.cell == spec.baseLabel(1) && it.seq > firstTile.seq }?.let { bad("'${it.cell}' printed after the first tile: the base's first layer goes down first") } }
         for (k in 0 until spec.blocks) {
-            val first = moves.indexOfFirst { cellOf(it.cell)?.let { c -> c.block == k && c.part == "tile" } == true }
-            val prime = moves.indexOfFirst { it.cell == spec.primeLabel(k) }
-            if (first >= 0 && prime >= 0 && prime > first) bad("block ${k + 1}'s prime line comes after its first tile")
+            val firstTile = moves.firstOrNull { cellOf(it.cell)?.let { c -> c.block == k && c.part == "tile" } == true } ?: continue
+            moves.firstOrNull { it.cell == spec.primeLabel(k) && it.seq > firstTile.seq }?.let { bad("'${it.cell}' printed after the ${spec.tempsC[k]} C column's first tile: its prime line goes first") }
+            // its tiles lowest first
+            val heights = moves.filter { cellOf(it.cell)?.let { c -> c.block == k && c.part == "tile" } == true }.map { it.zUm }
+            heights.zipWithNext().firstOrNull { (a, b) -> b < a }?.let { (a, b) -> bad("the ${spec.tempsC[k]} C column prints a tile at z ${b / 1000.0} after one at z ${a / 1000.0}: its tiles go lowest first, so the nozzle never works beside a finished tile above it") }
         }
-        // the blocks print coolest first: the temperatures in the order the g-code reaches them
-        val printed = (0 until spec.blocks).mapNotNull { k -> moves.firstOrNull { cellOf(it.cell)?.block == k }?.tempC }
-        if (printed.zipWithNext().any { (a, b) -> b <= a }) bad("the blocks' temperatures as printed, ${printed.joinToString()} C, do not rise block by block (coolest first)")
-        // each line's values against the specification
-        val tileFirst = HashSet<String>()
-        for (m in moves) {
-            val c = cellOf(m.cell) ?: continue
-            if (c.block !in 0 until spec.blocks) continue
-            if (c.part == "tile" && (c.r !in t.speeds.indices || c.c !in t.heightsUm.indices)) continue
-            if ((c.part == "connector" || c.part == "bridge") && c.c !in 0 until t.heightsUm.size - 1) continue
-            if (c.part == "frame" && c.c !in t.heightsUm.indices) continue
-            val wantT = spec.tempsC[c.block]
-            val key = "${m.cell}/" // the first problem of each kind per cell (its lines are alike)
-            fun once(kind: String, s: String) { if (tileFirst.add(key + kind)) bad(s) }
-            if (m.tempC != wantT) once("temp", "'${m.cell}': at ${m.tempC} C, not ${wantT} C (block ${c.block + 1}'s)")
-            else if (!m.waited) once("wait", "'${m.cell}': no wait (M109) for ${wantT} C before it: it may print while the nozzle is still heating")
-            if (m.fanPct != 0.0) once("fan", "'${m.cell}': fan ${fmt(m.fanPct)} %, not off")
-            val (wantZ, wantV, wantW, accel) = when (c.part) {
-                "tile" -> listOf(t.heightsUm[c.c].toDouble(), t.speeds[c.r], t.widthUm.toDouble(), t.accel)
-                "prime" -> listOf(spec.primeUm.toDouble(), spec.prime.speed, spec.firstWidthUm.toDouble(), spec.prime.accel)
-                // a connector's height is checked against the tiles it touches (geometry); its filament at its own height
-                "connector" -> listOf(m.zUm.toDouble(), spec.prime.speed, spec.firstWidthUm.toDouble(), spec.prime.accel)
-                // the frame: one layer above its column's tiles (a line across a gap: the higher column's); also checked
-                // against the tiles as printed under it (geometry); the machine's print speed held to the block's melt limit
-                "frame" -> listOf(spec.frameUm(c.c).toDouble(), spec.frameSpeed(c.block), spec.frameWidthUm.toDouble(), spec.frame.accel)
-                "bridge" -> listOf(spec.bridgeUm(c.c).toDouble(), spec.frameSpeed(c.block), spec.frameWidthUm.toDouble(), spec.frame.accel)
-                else -> listOf(spec.layerUm.toDouble(), spec.prime.speed, spec.firstWidthUm.toDouble(), spec.prime.accel)
-            }
-            val frame = isFrame(c.part)
-            // the bead's height: a first-layer line's is its height over the bed; a frame line's the frame's layer height
-            val beadH = if (frame) spec.frameLayerUm else wantZ.toLong()
-            val flow = when { c.part == "tile" -> spec.flowRatio; frame -> spec.frame.flowRatio; else -> spec.prime.flowRatio }
-            val what = when (c.part) { "tile" -> " (its height)"; "prime" -> " (the first layer's, or the lowest tile's if lower)"; "frame" -> " (one layer above its tiles)"; "bridge" -> " (one layer above the higher column's tiles)"; else -> " (the first layer's)" }
-            if (m.zUm != wantZ.toLong()) once("z", "'${m.cell}': printed at z ${m.zUm / 1000.0}, not ${wantZ / 1000.0}$what")
-            if (Math.abs(m.fMmMin / 60 - wantV) > 1.0 / 60 + 1e-9) once("v", "'${m.cell}': ${fmt(m.fMmMin / 60, 2)} mm/s, not ${fmt(wantV, 2)}")
-            val expectE = spec.beadMm2(wantW.toLong(), beadH) / spec.filamentMm2 * flow
-            if (Math.abs(m.e / m.len - expectE) > expectE * 0.01 + 2e-5 / m.len) once("e", "'${m.cell}': ${fmt(m.e / m.len, 5)} mm of filament per mm, not ${fmt(expectE, 5)} (a ${wantW / 1000.0} mm line ${beadH / 1000.0} mm high, flow ratio $flow)")
-            if (m.widthMm.isNaN() || Math.abs(m.widthMm - wantW / 1000.0) > 5e-4) once("w", "'${m.cell}': declared ${fmt(m.widthMm, 3)} mm wide, not ${fmt(wantW / 1000.0, 3)}")
-            if (Math.abs(m.accel - accel) > 0.5) once("a", "'${m.cell}': acceleration ${fmt(m.accel)}, not ${fmt(accel)}")
-            // the melt limit, from the g-code itself: filament per mm x the filament's section x the feed
-            if (c.part == "tile" || frame) {
-                val mm3s = m.e / m.len * spec.filamentMm2 * m.fMmMin / 60
-                val cap = spec.capsMm3s[c.block]
-                if (mm3s > cap * 1.001 + 1e-6) once("cap", "'${m.cell}': ${fmt(mm3s, 1)} mm3/s, over block ${c.block + 1}'s melt limit ${fmt(cap, 1)} mm3/s at $wantT C " +
-                    if (frame) "(the frame's speed is held to it)" else "(a tile over it is left out, never printed)")
-            }
-        }
+        // the frame and the border: layer by layer, each layer lowest first
+        frameMoves.map { cellOf(it.cell)!!.n to it.zUm }.zipWithNext().firstOrNull { (a, b) -> b.first < a.first || (b.first == a.first && b.second < a.second) }
+            ?.let { bad("the frame and the border do not go down layer by layer, each layer lowest first (z ${it.first.second / 1000.0} in layer ${it.first.first}, then z ${it.second.second / 1000.0} in layer ${it.second.first})") }
+        // the columns' temperatures, in the order the g-code reaches them, rise
+        val printed = (0 until spec.blocks).mapNotNull { k -> early.firstOrNull { cellOf(it.cell)?.let { c -> c.block == k && c.part != "base" } == true }?.tempC }
+        if (printed.zipWithNext().any { (a, b) -> b <= a }) bad("the columns' temperatures as printed, ${printed.joinToString()} C, do not rise column by column (coolest first)")
+        values(spec, moves, ::bad)
         geometry(spec, moves, ::bad)
         out += travels(gcode)
         return out
     }
 
+    /** Each line's values against the specification: temperature, wait, fan, height, speed, filament per mm, width, acceleration, and (tiles and frame) flow. */
+    private fun values(spec: FirstLayerSpec, moves: List<Move>, bad: (String) -> Unit) {
+        val t = spec.tiles
+        val g = FirstLayerGeometry
+        val said = HashSet<String>()
+        for (m in moves) {
+            val c = cellOf(m.cell) ?: continue
+            if (c.block !in 0 until spec.blocks) continue
+            if ((c.part == "tile" || c.part == "frame" || c.part == "height") && (c.r !in t.speeds.indices || c.c !in t.heightsUm.indices)) continue
+            if (c.part == "speed" && c.r !in t.speeds.indices) continue
+            val maxN = when (c.part) { "frame", "border" -> g.frameLayers; "base" -> g.baseLayers; "mark", "speed", "height" -> g.labelLayers; else -> 0 }
+            if (maxN > 0 && c.n !in 1..maxN) continue
+            fun once(kind: String, s: String) { if (said.add("${m.cell}/$kind")) bad(s) }
+            // after all the tiles, at the last column's temperature: the base's upper layers, the labels, the frame
+            val wantT = if (c.late) spec.tempsC.last() else spec.tempsC[c.block]
+            if (m.tempC != wantT) once("temp", "'${m.cell}': at ${m.tempC} C, not $wantT C")
+            else if (!m.waited) once("wait", "'${m.cell}': no wait (M109) for $wantT C before it: it may print while the nozzle is still heating")
+            if (m.fanPct != 0.0) once("fan", "'${m.cell}': fan ${fmt(m.fanPct)} %, not off")
+            val wantZ: Long; val wantV: Double; val wantW: Long; val accel: Double; val beadH: Long; val flow: Double; val what: String
+            val lh = spec.frameLayerUm
+            when {
+                c.part == "tile" -> { wantZ = t.heightsUm[c.c]; wantV = t.speeds[c.r]; wantW = t.widthUm; accel = t.accel; beadH = wantZ; flow = spec.flowRatio; what = " (its height)" }
+                c.part == "frame" -> { wantZ = spec.frameUm(c.c, c.n); wantV = spec.frameSpeed; wantW = spec.frameWidthUm; accel = spec.frame.accel; beadH = lh; flow = spec.frame.flowRatio; what = " (${c.n} frame layer(s) above its tile)" }
+                c.part == "border" -> { wantZ = spec.borderUm(c.n); wantV = spec.frameSpeed; wantW = spec.frameWidthUm; accel = spec.frame.accel; beadH = lh; flow = spec.frame.flowRatio; what = " (${c.n} layer(s) above the base's top)" }
+                c.part == "base" && c.n > 1 -> { wantZ = spec.baseUm(c.n); wantV = spec.prime.speed; wantW = spec.frameWidthUm; accel = spec.prime.accel; beadH = lh; flow = spec.prime.flowRatio; what = " (the base's layer ${c.n})" }
+                c.part == "mark" || c.part == "speed" || c.part == "height" -> { wantZ = spec.labelUm(c.n); wantV = spec.prime.speed; wantW = spec.frameWidthUm; accel = spec.prime.accel; beadH = lh; flow = spec.prime.flowRatio; what = " (label layer ${c.n}, on the base)" }
+                else -> { wantZ = spec.primeUm; wantV = spec.prime.speed; wantW = spec.firstWidthUm; accel = spec.prime.accel; beadH = wantZ; flow = spec.prime.flowRatio; what = " (the prime height: the first layer's, or the lowest tile's if lower)" }
+            }
+            if (m.zUm != wantZ) once("z", "'${m.cell}': printed at z ${m.zUm / 1000.0}, not ${wantZ / 1000.0}$what")
+            if (Math.abs(m.fMmMin / 60 - wantV) > 1.0 / 60 + 1e-9) once("v", "'${m.cell}': ${fmt(m.fMmMin / 60, 2)} mm/s, not ${fmt(wantV, 2)}")
+            val expectE = spec.beadMm2(wantW, beadH) / spec.filamentMm2 * flow
+            if (Math.abs(m.e / m.len - expectE) > expectE * 0.01 + 2e-5 / m.len) once("e", "'${m.cell}': ${fmt(m.e / m.len, 5)} mm of filament per mm, not ${fmt(expectE, 5)} (a ${wantW / 1000.0} mm line ${beadH / 1000.0} mm high, flow ratio $flow)")
+            if (m.widthMm.isNaN() || Math.abs(m.widthMm - wantW / 1000.0) > 5e-4) once("w", "'${m.cell}': declared ${fmt(m.widthMm, 3)} mm wide, not ${fmt(wantW / 1000.0, 3)}")
+            if (Math.abs(m.accel - accel) > 0.5) once("a", "'${m.cell}': acceleration ${fmt(m.accel)}, not ${fmt(accel)}")
+            // the melt limit, from the g-code itself: filament per mm x the filament's section x the feed
+            if (c.part == "tile" || c.edge) {
+                val mm3s = m.e / m.len * spec.filamentMm2 * m.fMmMin / 60
+                val cap = if (c.edge) spec.capsMm3s.last() else spec.capsMm3s[c.block]
+                if (mm3s > cap * 1.001 + 1e-6) once("cap", "'${m.cell}': ${fmt(mm3s, 1)} mm3/s, over the melt limit ${fmt(cap, 1)} mm3/s at $wantT C " +
+                    if (c.edge) "(the frame's speed is held to it)" else "(a tile over it is left out, never printed)")
+            }
+        }
+    }
+
     /**
-     * The layout, from the g-code's own lines against figures this check works out itself: each tile square with its line
-     * count and spacing for its height, its first line starting at the middle of its back edge and its wall closing there;
-     * each block's columns a tile pitch ([PlateGeometry.tileAbout] + [PlateGeometry.tileGap]) apart and each column's tiles
-     * touching (each one's front edge on the back edge of the one in front); its marker dots ([FirstLayerGeometry.dot]
-     * square, as many as its number) in front of its tiles; its prime line along its front to its left edge, then back to
-     * touch the first tile; each connector touching a tile on either side, overlapping none, at the lower one's height and
-     * printed before the higher one; each block one piece; the blocks in print order left to right, then a row further
-     * back, none overlapping.
+     * The layout, from the g-code's own lines against figures this check works out itself: each tile
+     * [FirstLayerGeometry.tileLength] long and as deep as its height's lines make it (the bead model's spacing, as many lines
+     * as fit [FirstLayerGeometry.tileDepth]), exactly those lines that spacing apart, its first line starting at the middle
+     * of its back edge and its wall closing there; every tile where the layout puts it from the first one as printed (the
+     * columns side by side, the rows front to back in their order, all touching); the base; each column's prime line; the
+     * labels; the frame's rings; the plate's first layer one piece, and the frame one piece.
      */
     private fun geometry(spec: FirstLayerSpec, moves: List<Move>, bad: (String) -> Unit) {
         val t = spec.tiles
+        val g = FirstLayerGeometry
         val tw = t.widthUm / 1000.0; val fw = spec.firstWidthUm / 1000.0
         val ov = Math.round(t.wallOverlap * t.widthUm) / 1000.0
-        val pitch = (PlateGeometry.tileAbout + PlateGeometry.tileGap) / 1000.0
+        val len = g.tileLength / 1000.0
         fun box(ms: List<Move>, w: Double) = doubleArrayOf(ms.minOf { minOf(it.x0, it.x1) } - w / 2, ms.minOf { minOf(it.y0, it.y1) } - w / 2, ms.maxOf { maxOf(it.x0, it.x1) } + w / 2, ms.maxOf { maxOf(it.y0, it.y1) } + w / 2)
-        val blockBoxes = ArrayList<DoubleArray>(); val gridFronts = ArrayList<Double>()
+        // a tile's figures at height [c]: its bead spacing, its lines, its depth (mm)
+        // (the bead model's spacing on the plate's µm grid: unrounded, its fraction of a µm summed over many rows would part
+        // the check from any layout on the grid)
+        fun spacing(c: Int) = Math.round(t.widthUm - t.heightsUm[c] * (1 - Math.PI / 4)) / 1000.0
+        fun lines(c: Int) = maxOf(2, Math.floor((g.tileDepth / 1000.0 - tw - 2 * spacing(c)) / spacing(c) + 1e-9).toInt() + 1)
+        fun depth(c: Int) = (lines(c) - 1) * spacing(c) + 2 * spacing(c) + tw
+        // where every tile goes, from the first tile as printed (the first column's front row: always printed, or refused)
+        // one piece on the bed (first, so the many problems a plate in pieces has cannot crowd it out of the report): every first-layer line (prime lines, the base's first layer, tiles) joined to the rest, nothing
+        // above them counted (it must not be what joins them); and the frame one piece over the tiles
+        pieces(moves.filter { cellOf(it.cell)?.let { c -> !c.late } == true }).let { p -> if (p > 1) bad("the plate's first layer is $p separate pieces, not one (its lines' footprints sampled every ${fmt(RES, 2)} mm)") }
+        pieces(moves.filter { cellOf(it.cell)?.part == "frame" }).let { p -> if (p > 1) bad("the frame is $p separate pieces, not one: its rings do not join (its lines' footprints sampled every ${fmt(RES, 2)} mm)") }
+        val first = moves.filter { it.cell == spec.tileLabel(0, 0, 0) }
+        if (first.isEmpty()) { bad("no first tile (the first column's front row) to measure the plate from"); return }
+        val o = box(first, tw)
+        val rowY = DoubleArray(spec.rows.size + 1).also { y -> y[0] = o[1]; for ((j, rc) in spec.rows.withIndex()) y[j + 1] = y[j] + depth(rc.second) }
+        val tileBoxes = HashMap<String, DoubleArray>()
+        for (k in 0 until spec.blocks) for ((j, rc) in spec.rows.withIndex()) {
+            val (r, c) = rc
+            val l = spec.tileLabel(k, r, c)
+            val mine = moves.filter { it.cell == l }
+            if (mine.isEmpty()) continue                                // left out (or reported as a missing cell)
+            val sp = spacing(c); val n = lines(c); val want = doubleArrayOf(o[0] + k * len, rowY[j], o[0] + (k + 1) * len, rowY[j + 1])
+            val b = box(mine, tw); tileBoxes[l] = b
+            if ((0..3).any { Math.abs(b[it] - want[it]) > 0.03 }) bad("'$l' spans (${fmt(b[0], 2)}, ${fmt(b[1], 2)})-(${fmt(b[2], 2)}, ${fmt(b[3], 2)}), not (${fmt(want[0], 2)}, ${fmt(want[1], 2)})-(${fmt(want[2], 2)}, ${fmt(want[3], 2)}): " +
+                "${fmt(len, 0)} mm long, ${fmt(depth(c), 2)} mm deep at ${fmt(t.heightsUm[c] / 1000.0, 2)} mm, in its place touching its neighbors")
+            // its lines: from bead contact with the wall at each side, plus the line-end overlap into it
+            val long = mine.filter { Math.abs(it.y1 - it.y0) < 1e-6 && Math.abs(it.len - (len - tw - 2 * sp + 2 * ov)) < 0.05 }
+            val across = long.map { it.y0 }.sorted()
+            if (across.size != n) bad("'$l' has ${across.size} lines, not $n")
+            else for (i in 1 until across.size) if (Math.abs(across[i] - across[i - 1] - sp) > 0.012) { bad("'$l': lines $i and ${i + 1} are ${fmt(across[i] - across[i - 1], 3)} mm apart, not ${fmt(sp, 3)} (the bead spacing at ${fmt(t.heightsUm[c] / 1000.0, 2)} mm)"); break }
+            // its first line starts at the middle of its back edge (half a line in), and its wall closes there
+            val sx = (b[0] + b[2]) / 2; val sy = b[3] - tw / 2
+            val st = mine.first()
+            if (Math.abs(st.x0 - sx) > 0.03 || Math.abs(st.y0 - sy) > 0.03) bad("'$l' starts at x ${fmt(st.x0, 2)}, y ${fmt(st.y0, 2)}, not at the middle of its back edge (${fmt(sx, 2)}, ${fmt(sy, 2)})")
+            else if (mine.drop(1).none { Math.abs(it.x1 - sx) < 0.03 && Math.abs(it.y1 - sy) < 0.03 }) bad("'$l': its wall does not close at its start (the middle of its back edge)")
+        }
+        // the margins the labels stand on (mm): the left one as wide as a gap, the widest speed, a gap, the widest height, a
+        // gap; the front one as deep as a gap, the tallest temperature, a gap
+        val gap = g.labelGap / 1000.0
+        val speedW = t.speeds.indices.maxOf { PlateMarks.labelWidth(spec.speedText(it)) } / 1000.0
+        val heightW = t.heightsUm.indices.maxOf { PlateMarks.labelWidth(spec.heightText(it)) } / 1000.0
+        val tempH = (0 until spec.blocks).maxOf { PlateMarks.labelHeight(spec.tempText(it)) } / 1000.0
+        val x0 = o[0] - (gap + speedW + gap + heightW + gap); val y0 = o[1] - (gap + tempH + gap)
+        val right = o[0] + spec.blocks * len; val back = rowY.last()
+        // the base: its first layer from the plate's front-left corner to the tiles' right edge and back edge, the corner cut
+        // off; its upper layers set back from every edge
+        moves.filter { it.cell == spec.baseLabel(1) }.takeIf { it.isNotEmpty() }?.let { base ->
+            val b = box(base, fw)
+            if (Math.abs(b[0] - x0) > 0.05 || Math.abs(b[1] - y0) > 0.05 || Math.abs(b[2] - right) > 0.05 || Math.abs(b[3] - back) > 0.05)
+                bad("the base's first layer spans (${fmt(b[0], 2)}, ${fmt(b[1], 2)})-(${fmt(b[2], 2)}, ${fmt(b[3], 2)}), not (${fmt(x0, 2)}, ${fmt(y0, 2)})-(${fmt(right, 2)}, ${fmt(back, 2)}): the front and left margins, to the tiles")
+            val corner = base.flatMap { listOf(it.x0 - x0 + it.y0 - y0, it.x1 - x0 + it.y1 - y0) }.min()
+            val wantCorner = PlateMarks.CHAMFER / 1000.0 + fw / 2 * Math.sqrt(2.0)
+            if (Math.abs(corner - wantCorner) > 0.05) bad("the base's front-left corner is cut ${fmt(corner - fw / 2 * Math.sqrt(2.0), 2)} mm (by x + y from the corner), not the ${fmt(PlateMarks.CHAMFER / 1000.0, 1)} mm chamfer")
+        }
+        val setback = g.baseSetback / 1000.0; val fw2 = spec.frameWidthUm / 1000.0
+        for (n in 2..g.baseLayers) moves.filter { it.cell == spec.baseLabel(n) }.takeIf { it.isNotEmpty() }?.let { base ->
+            val b = box(base, fw2)
+            if (Math.abs(b[0] - x0 - setback) > 0.05 || Math.abs(b[1] - y0 - setback) > 0.05 || Math.abs(b[2] - right + setback) > 0.05 || Math.abs(b[3] - back + setback) > 0.05)
+                bad("the base's layer $n spans (${fmt(b[0], 2)}, ${fmt(b[1], 2)})-(${fmt(b[2], 2)}, ${fmt(b[3], 2)}), not set back ${fmt(setback, 2)} mm from the first layer's edges")
+        }
+        // the border: each layer a ring round the base, on its upper layer and flush with its edge (half a line in from it),
+        // its front-left corner cut off as the base's is, and its inner corner where the base meets the tiles' front-left
+        val bi = setback + fw2 / 2
+        for (n in 1..g.frameLayers) moves.filter { it.cell == spec.borderLabel(n) }.takeIf { it.isNotEmpty() }?.let { ring ->
+            val b = box(ring, 0.0)
+            if (Math.abs(b[0] - x0 - bi) > 0.03 || Math.abs(b[1] - y0 - bi) > 0.03 || Math.abs(b[2] - right + bi) > 0.03 || Math.abs(b[3] - back + bi) > 0.03)
+                bad("'${spec.borderLabel(n)}' runs (${fmt(b[0], 2)}, ${fmt(b[1], 2)})-(${fmt(b[2], 2)}, ${fmt(b[3], 2)}), not ${fmt(bi, 2)} mm in from the base's first layer's edges, on its upper layer (${fmt(x0 + bi, 2)}, ${fmt(y0 + bi, 2)})-(${fmt(right - bi, 2)}, ${fmt(back - bi, 2)})")
+            val corner = ring.flatMap { listOf(it.x0 - x0 + it.y0 - y0, it.x1 - x0 + it.y1 - y0) }.min()
+            if (Math.abs(corner - PlateMarks.CHAMFER / 1000.0 - bi * Math.sqrt(2.0)) > 0.05) bad("'${spec.borderLabel(n)}' does not follow the base's cut front-left corner")
+            if (ring.none { Math.abs(it.x1 - (o[0] - bi)) < 0.03 && Math.abs(it.y1 - (o[1] - bi)) < 0.03 }) bad("'${spec.borderLabel(n)}' does not turn at the base's inner corner (${fmt(o[0] - bi, 2)}, ${fmt(o[1] - bi, 2)}): it is not round the base's L")
+        }
+        // each column's prime line: along x (right to left) under the column, ending at its left edge, overlapping the base's front edge
         for (k in 0 until spec.blocks) {
-            var x0 = Double.NaN; var front = Double.NaN
-            val all = ArrayList<DoubleArray>()
-            // the block's tiles as printed: box, height, first move's index
-            class Tile(val label: String, val c: Int, val b: DoubleArray, val zUm: Long, val firstSeq: Int)
-            val tiles = ArrayList<Tile>()
-            for (c in t.heightsUm.indices) {
-                var behind: DoubleArray? = null              // the tile in front of this one in the column, as printed
-                for (r in t.speeds.indices) {
-                    val l = spec.tileLabel(k, r, c)
-                    val mine = moves.filter { it.cell == l }
-                    if (mine.isEmpty()) { behind = null; continue }  // left out (or reported as a missing cell)
-                    val h = t.heightsUm[c] / 1000.0
-                    val sp = tw - h * (1 - Math.PI / 4)
-                    val lines = maxOf(2, Math.floor((PlateGeometry.tileAbout / 1000.0 - tw - 2 * sp) / sp + 1e-9).toInt() + 1)
-                    val size = (lines - 1) * sp + 2 * sp + tw
-                    val b = box(mine, tw); all += b
-                    tiles += Tile(l, c, b, mine.first().zUm, mine.first().seq)
-                    if (Math.abs(b[2] - b[0] - size) > 0.03 || Math.abs(b[3] - b[1] - size) > 0.03) bad("'$l' is ${fmt(b[2] - b[0], 2)} x ${fmt(b[3] - b[1], 2)} mm, not ${fmt(size, 2)} square ($lines lines at ${fmt(sp, 3)} mm)")
-                    // its lines: from bead contact with the wall at each side, plus the line-end overlap into it
-                    val long = mine.filter { Math.abs(it.y1 - it.y0) < 1e-6 && Math.abs(it.len - (size - tw - 2 * sp + 2 * ov)) < 0.05 }
-                    val across = long.map { it.y0 }.sorted()
-                    if (across.size != lines) bad("'$l' has ${across.size} lines, not $lines")
-                    else for (i in 1 until across.size) if (Math.abs(across[i] - across[i - 1] - sp) > 0.012) { bad("'$l': lines $i and ${i + 1} are ${fmt(across[i] - across[i - 1], 3)} mm apart, not ${fmt(sp, 3)} (the bead spacing at ${fmt(h, 2)} mm)"); break }
-                    // its first line starts at the middle of its back edge (half a line in), and its wall closes there
-                    val sx = (b[0] + b[2]) / 2; val sy = b[3] - tw / 2
-                    val st = mine.first()
-                    if (Math.abs(st.x0 - sx) > 0.03 || Math.abs(st.y0 - sy) > 0.03) bad("'$l' starts at x ${fmt(st.x0, 2)}, y ${fmt(st.y0, 2)}, not at the middle of its back edge (${fmt(sx, 2)}, ${fmt(sy, 2)})")
-                    else if (mine.drop(1).none { Math.abs(it.x1 - sx) < 0.03 && Math.abs(it.y1 - sy) < 0.03 }) bad("'$l': its wall does not close at its start (the middle of its back edge)")
-                    if (r == 0 && c == 0) { x0 = b[0]; front = b[1] }
-                    else if (!x0.isNaN()) {
-                        if (Math.abs(b[0] - (x0 + c * pitch)) > 0.03) bad("'$l' starts at x ${fmt(b[0], 2)}, not ${fmt(x0 + c * pitch, 2)} (column ${c + 1} of block ${k + 1})")
-                        if (r == 0 && Math.abs(b[1] - front) > 0.03) bad("'$l''s front is at y ${fmt(b[1], 2)}, not ${fmt(front, 2)} (the block's front row)")
-                    }
-                    // a column's tiles touch: this one's front edge on the back edge of the one in front of it
-                    behind?.let { p -> if (Math.abs(b[1] - p[3]) > 0.03) bad("'$l''s front edge is ${fmt(b[1] - p[3], 2)} mm from the back of the tile in front of it, not touching it (column ${c + 1} of block ${k + 1})") }
-                    behind = b
-                }
-            }
-            if (x0.isNaN() || all.isEmpty()) { bad("block ${k + 1}: no first tile (row 1, column 1) to measure it from"); continue }
-            val grid = doubleArrayOf(all.minOf { it[0] }, all.minOf { it[1] }, all.maxOf { it[2] }, all.maxOf { it[3] })
-            // the marker: as many separate dots as the block's number, each a dot square, in front of the tiles, within the block
-            val mark = moves.filter { it.cell == spec.markLabel(k) }
-            // separate dots: the lines' footprints merged wherever they touch, until no two touch
-            var dots = mark.map { box(listOf(it), fw) }
-            while (true) {
-                val merged = ArrayList<DoubleArray>()
-                for (sb in dots) {
-                    val hit = merged.firstOrNull { d -> sb[0] <= d[2] + 1e-6 && sb[2] >= d[0] - 1e-6 && sb[1] <= d[3] + 1e-6 && sb[3] >= d[1] - 1e-6 }
-                    if (hit != null) { hit[0] = minOf(hit[0], sb[0]); hit[1] = minOf(hit[1], sb[1]); hit[2] = maxOf(hit[2], sb[2]); hit[3] = maxOf(hit[3], sb[3]) } else merged += sb.copyOf()
-                }
-                if (merged.size == dots.size) break
-                dots = merged
-            }
-            val dot = FirstLayerGeometry.dot / 1000.0
-            if (dots.size != k + 1) bad("block ${k + 1}'s marker has ${dots.size} dot(s), not ${k + 1}")
-            for (d in dots) {
-                if (Math.abs(d[2] - d[0] - dot) > 0.03 || Math.abs(d[3] - d[1] - dot) > 0.03) { bad("block ${k + 1}: a marker dot ${fmt(d[2] - d[0], 2)} x ${fmt(d[3] - d[1], 2)} mm, not ${fmt(dot, 1)} square"); break }
-                if (d[3] > grid[1] - FirstLayerGeometry.dotsFront / 1000.0 + 0.03 || d[0] < grid[0] - 0.03 || d[2] > grid[2] + 0.03) { bad("block ${k + 1}: a marker dot is not in front of its tiles, within the block (at x ${fmt(d[0], 2)}, y ${fmt(d[1], 2)})"); break }
-            }
-            // the prime line: along x (right to left) in front of the dots, ending at the block's left edge, then along y ending
-            // touching the first tile's front edge
             val prime = moves.filter { it.cell == spec.primeLabel(k) }
-            if (prime.isNotEmpty()) {
-                val pb = box(prime, fw)
-                val run = prime.filter { Math.abs(it.y1 - it.y0) < 1e-6 }; val leg = prime.filter { Math.abs(it.x1 - it.x0) < 1e-6 }
-                if (run.isEmpty() || leg.isEmpty() || run.size + leg.size != prime.size || prime.indexOf(run.last()) > prime.indexOf(leg.first()))
-                    bad("block ${k + 1}'s prime line is not a run along x then a run along y")
-                else {
-                    val last = prime.last()
-                    if (Math.abs(run.last().x1 - fw / 2 - grid[0]) > 0.03) bad("block ${k + 1}'s prime line turns at x ${fmt(run.last().x1, 2)}, not at the block's left edge (${fmt(grid[0] + fw / 2, 2)})")
-                    if (Math.abs(last.y1 + fw / 2 - front) > 0.03 || Math.abs(last.x1 - fw / 2 - grid[0]) > 0.03) bad("block ${k + 1}'s prime line ends at x ${fmt(last.x1, 2)}, y ${fmt(last.y1, 2)}, not touching its first tile's front edge (y ${fmt(front, 2)}) at its left corner")
-                    if (run.sumOf { it.len } < FirstLayerGeometry.primeLen / 1000.0 - fw - 0.03) bad("block ${k + 1}'s prime line's run is ${fmt(run.sumOf { it.len }, 2)} mm, shorter than ${fmt(FirstLayerGeometry.primeLen / 1000.0 - fw, 2)}")
-                    val runBack = run.maxOf { it.y0 } + fw / 2
-                    if (dots.any { it[1] < runBack - 0.03 }) bad("block ${k + 1}'s prime line is not in front of its marker")
-                }
-                blockBoxes += doubleArrayOf(minOf(grid[0], pb[0]), pb[1], maxOf(grid[2], pb[2]), grid[3])
-            } else blockBoxes += grid
-            gridFronts += grid[1]
-            // the connectors: each touches a tile on its left and one on its right, overlaps none, is at the lower of their
-            // heights and printed before every higher one it touches
-            for ((label, cm) in moves.filter { cellOf(it.cell)?.let { c -> c.block == k && c.part == "connector" } == true }.groupBy { it.cell }) {
-                val foot = cm.map { box(listOf(it), fw) }
-                val cb = box(cm, fw)
-                for (tl in tiles) for (f in foot) {
-                    val ox = minOf(f[2], tl.b[2]) - maxOf(f[0], tl.b[0]); val oy = minOf(f[3], tl.b[3]) - maxOf(f[1], tl.b[1])
-                    if (ox > 0.03 && oy > 0.03) { bad("'$label' crosses into '${tl.label}' (${fmt(ox, 2)} x ${fmt(oy, 2)} mm inside it): a connector stays outside every tile"); break }
-                }
-                fun touching(side: Int) = tiles.filter { tl -> (if (side < 0) Math.abs(tl.b[2] - cb[0]) else Math.abs(tl.b[0] - cb[2])) <= 0.03 && tl.b[1] < cb[3] - 0.03 && tl.b[3] > cb[1] + 0.03 }
-                val left = touching(-1); val right = touching(1)
-                if (left.isEmpty() || right.isEmpty()) { bad("'$label' does not touch a tile on ${if (left.isEmpty()) "its left" else "its right"} (x ${fmt(cb[0], 2)} to ${fmt(cb[2], 2)})"); continue }
-                val touched = left + right
-                val low = touched.minOf { it.zUm }
-                if (cm.any { it.zUm != low }) bad("'$label' printed at z ${cm.first().zUm / 1000.0}, not ${low / 1000.0} (the lower of the tiles it joins)")
-                for (tl in touched) if (tl.zUm > cm.first().zUm && tl.firstSeq < cm.first().seq) bad("'$label' printed after '${tl.label}', which is higher: the nozzle would work beside it below its top")
-            }
-            // the frame: over the tiles' walls only (no frame line's footprint reaches into a tile's inside, its box less its
-            // wall on every side), one layer above the highest tile it lies over as printed, after the block's first layer,
-            // lowest first, and one piece at its own level (it joins the columns)
-            val frameMoves = moves.filter { cellOf(it.cell)?.let { c -> c.block == k && isFrame(c.part) } == true }
-            if (frameMoves.isNotEmpty()) {
-                val fhw = spec.frameWidthUm / 1000.0 / 2
-                for ((label, fm) in frameMoves.groupBy { it.cell }) {
-                    run inside@{
-                        for (m in fm) for (tl in tiles) {
-                            val inner = doubleArrayOf(tl.b[0] + tw, tl.b[1] + tw, tl.b[2] - tw, tl.b[3] - tw)
-                            val d = segRectDist(m.x0, m.y0, m.x1, m.y1, inner)
-                            if (d < fhw - 0.01) { bad("'$label' covers '${tl.label}''s inside (the part read): its line comes ${fmt(fhw - d, 2)} mm past the wall, at x ${fmt(m.x0, 2)}, y ${fmt(m.y0, 2)} to x ${fmt(m.x1, 2)}, y ${fmt(m.y1, 2)}"); return@inside }
-                        }
-                    }
-                    val under = tiles.filter { tl -> fm.any { m -> val f = box(listOf(m), 2 * fhw); minOf(f[2], tl.b[2]) - maxOf(f[0], tl.b[0]) > 0.03 && minOf(f[3], tl.b[3]) - maxOf(f[1], tl.b[1]) > 0.03 } }
-                    if (under.isEmpty()) { bad("'$label' lies over no tile"); continue }
-                    val wantZ = under.maxOf { it.zUm } + spec.frameLayerUm
-                    fm.firstOrNull { it.zUm != wantZ }?.let { bad("'$label' printed at z ${it.zUm / 1000.0}, not ${wantZ / 1000.0}: one layer (${spec.frameLayerUm / 1000.0} mm) above the highest tile under it as printed, '${under.maxBy { u -> u.zUm }.label}' at ${under.maxOf { u -> u.zUm } / 1000.0}") }
-                }
-                // nothing of the frame over air: every point of its lines' centers (sampled every RES) over a tile as printed,
-                // or over a connector's line
-                val conn = moves.filter { cellOf(it.cell)?.let { c -> c.block == k && c.part == "connector" } == true }
-                fun segDist(px: Double, py: Double, m: Move): Double {
-                    val dx = m.x1 - m.x0; val dy = m.y1 - m.y0; val l2 = dx * dx + dy * dy
-                    val u = if (l2 == 0.0) 0.0 else (((px - m.x0) * dx + (py - m.y0) * dy) / l2).coerceIn(0.0, 1.0)
-                    return Math.hypot(m.x0 + u * dx - px, m.y0 + u * dy - py)
-                }
-                run air@{
-                    for (m in frameMoves) {
-                        val n = maxOf(1, Math.ceil(m.len / RES).toInt())
-                        for (i in 0..n) {
-                            val px = m.x0 + (m.x1 - m.x0) * i / n; val py = m.y0 + (m.y1 - m.y0) * i / n
-                            val onTile = tiles.any { px >= it.b[0] - 1e-6 && px <= it.b[2] + 1e-6 && py >= it.b[1] - 1e-6 && py <= it.b[3] + 1e-6 }
-                            if (!onTile && conn.none { c -> segDist(px, py, c) <= (if (c.widthMm.isNaN()) fw else c.widthMm) / 2 + 1e-6 }) {
-                                bad("'${m.cell}' runs over air at x ${fmt(px, 2)}, y ${fmt(py, 2)}: over no tile and no connector"); return@air
-                            }
-                        }
-                    }
-                }
-                val lastFirst = moves.filter { cellOf(it.cell)?.let { c -> c.block == k && !isFrame(c.part) } == true }.maxOfOrNull { it.seq } ?: -1
-                frameMoves.firstOrNull { it.seq < lastFirst }?.let { bad("'${it.cell}' printed before block ${k + 1}'s first layer is finished") }
-                frameMoves.zipWithNext().firstOrNull { (a, b) -> b.zUm < a.zUm }?.let { (a, b) -> bad("'${b.cell}' at z ${b.zUm / 1000.0} printed after '${a.cell}' at z ${a.zUm / 1000.0}: the frame goes down lowest first") }
-                pieces(frameMoves).let { p -> if (p > 1) bad("block ${k + 1}'s frame is $p separate pieces, not one: it does not join the columns (its lines' footprints sampled every ${fmt(RES, 2)} mm)") }
-            }
-            // one piece on the bed: every first-layer line of the block (prime, tiles, connectors, marker) joined to the rest,
-            // the frame left out (it lies on them, a layer up: it must not be what joins them, or a missing connector would
-            // pass with a frame line over bare bed)
-            val mine = moves.filter { cellOf(it.cell)?.let { c -> c.block == k && !isFrame(c.part) } == true }
-            pieces(mine).let { p -> if (p > 1) bad("block ${k + 1} is $p separate pieces, not one (its first-layer lines' footprints sampled every ${fmt(RES, 2)} mm)") }
+            if (prime.isEmpty()) continue
+            val cx = o[0] + k * len
+            if (prime.any { Math.abs(it.y1 - it.y0) > 1e-6 }) { bad("the ${spec.tempsC[k]} C column's prime line is not a run along x"); continue }
+            if (Math.abs(prime.last().x1 - fw / 2 - cx) > 0.03) bad("the ${spec.tempsC[k]} C column's prime line ends at x ${fmt(prime.last().x1, 2)}, not at its left edge (${fmt(cx + fw / 2, 2)})")
+            if (prime.sumOf { it.len } < g.primeLen / 1000.0 - fw - 0.03) bad("the ${spec.tempsC[k]} C column's prime line's run is ${fmt(prime.sumOf { it.len }, 2)} mm, shorter than ${fmt(g.primeLen / 1000.0 - fw, 2)}")
+            if (prime.first().y0 + fw / 2 < y0 + g.fuse / 1000.0 - 0.03) bad("the ${spec.tempsC[k]} C column's prime line does not overlap the base's front edge (at y ${fmt(y0, 2)})")
         }
-        // blocks in print order: left to right in a row, then the next row behind (starting at the first block's left edge)
-        for (k in 1 until blockBoxes.size) {
-            val a = blockBoxes[k - 1]; val b = blockBoxes[k]
-            val sameRow = Math.abs(gridFronts[k] - gridFronts[k - 1]) < 0.03
-            val ok = if (sameRow) b[0] > a[2] else b[1] > blockBoxes.subList(0, k).maxOf { it[3] } && Math.abs(b[0] - blockBoxes[0][0]) < 0.03
-            if (!ok) bad("block ${k + 1} is not right of block $k in its row, nor at the start of a row behind it")
+        labels(spec, moves, x0, y0, o, rowY, bad)
+        // the frame's rings: each [FirstLayerSpec.frameInsetUm] in from its tile's edges as printed
+        val inset = spec.frameInsetUm / 1000.0
+        for ((l, fm) in moves.filter { cellOf(it.cell)?.part == "frame" }.groupBy { it.cell }) {
+            val c = cellOf(l)!!
+            val tb = tileBoxes[spec.tileLabel(c.block, c.r, c.c)] ?: run { bad("'$l' lies over no printed tile"); null } ?: continue
+            val fb = box(fm, 0.0)
+            val want = doubleArrayOf(tb[0] + inset, tb[1] + inset, tb[2] - inset, tb[3] - inset)
+            if ((0..3).any { Math.abs(fb[it] - want[it]) > 0.03 }) bad("'$l' runs (${fmt(fb[0], 2)}, ${fmt(fb[1], 2)})-(${fmt(fb[2], 2)}, ${fmt(fb[3], 2)}), not ${fmt(inset, 2)} mm in from its tile's edges, over its wall (${fmt(want[0], 2)}, ${fmt(want[1], 2)})-(${fmt(want[2], 2)}, ${fmt(want[3], 2)})")
         }
-        for (i in blockBoxes.indices) for (j in i + 1 until blockBoxes.size) {
-            val a = blockBoxes[i]; val b = blockBoxes[j]
-            if (a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3]) bad("blocks ${i + 1} and ${j + 1} overlap")
+    }
+
+    /**
+     * The labels against where they go, worked out here from the plate's lines as printed: the plate's front-left corner
+     * ([x0], [y0], mm), the first tile's ([o]), the rows' front edges ([rowY]): each column's temperature
+     * ([FirstLayerSpec.tempText]) a gap behind the base's front edge, [FirstLayerGeometry.labelIn] right of the column's left
+     * edge; each speed a gap right of the plate's left edge, centered on its group's rows; each row's height right of the
+     * widest speed and a gap, centered on its row. The digits are [PlateMarks]'s glyphs for the text; every line of a
+     * label (each of its layers) must lie inside them (grown by half a line), and every digit must hold a line, so a label
+     * showing another number is caught even at the same width.
+     */
+    private fun labels(spec: FirstLayerSpec, moves: List<Move>, x0: Double, y0: Double, o: DoubleArray, rowY: DoubleArray, bad: (String) -> Unit) {
+        val t = spec.tiles
+        val g = FirstLayerGeometry
+        val fw2 = spec.frameWidthUm / 1000.0; val gap = g.labelGap / 1000.0
+        fun um(v: Double) = Math.round(v * 1000)
+        /** Whether ([x], [y]) (mm) is inside [p] (µm). */
+        fun inside(p: plymeld.geom.Polygon, x: Double, y: Double): Boolean {
+            var c = false; val px = x * 1000; val py = y * 1000
+            for (i in 0 until p.size) { val j = (i + 1) % p.size
+                val xi = p.x(i).toDouble(); val yi = p.y(i).toDouble(); val xj = p.x(j).toDouble(); val yj = p.y(j).toDouble()
+                if ((yi > py) != (yj > py) && px < (xj - xi) * (py - yi) / (yj - yi) + xi) c = !c }
+            return c
+        }
+        /** [cell]'s lines against [glyphs] (µm). */
+        fun judge(cell: String, text: String, glyphs: List<plymeld.geom.Polygon>) {
+            val mine = moves.filter { it.cell == cell }
+            if (mine.isEmpty()) return                      // reported with the cells
+            val grown = plymeld.geom.Offset.offset(glyphs, Math.round(fw2 * 500))
+            // the digits: the glyphs' strokes merged into outlines (a stroke overlapped by others holds no line of its own),
+            // each outer outline a digit (or a digit's separate part, such as a decimal point)
+            val digits = plymeld.geom.Offset.offset(glyphs, 10).filter { it.signedArea2() > 0 }
+            // a line is the label's only if all of it is: points along it every 0.2 mm, not its middle alone (a "0" printed
+            // where a "2" goes has long sides whose middles lie on the "2"'s strokes)
+            fun along(m: Move): List<Pair<Double, Double>> {
+                val n = maxOf(1, Math.ceil(m.len / 0.2).toInt())
+                return (0..n).map { i -> (m.x0 + (m.x1 - m.x0) * i / n) to (m.y0 + (m.y1 - m.y0) * i / n) }
+            }
+            val stray = mine.firstOrNull { m -> along(m).any { (x, y) -> grown.none { p -> inside(p, x, y) } } }
+            val empty = digits.indexOfFirst { p -> mine.none { m -> inside(p, (m.x0 + m.x1) / 2, (m.y0 + m.y1) / 2) } }
+            if (stray != null || empty >= 0) bad("'$cell': not the label '$text' where it goes (" +
+                (if (stray != null) "a line at ${fmt(stray.x0, 2)}, ${fmt(stray.y0, 2)}-${fmt(stray.x1, 2)}, ${fmt(stray.y1, 2)} outside its digits" else "a stroke of its digits not printed") + ")")
+        }
+        val speedW = t.speeds.indices.maxOf { PlateMarks.labelWidth(spec.speedText(it)) } / 1000.0
+        val heightX = x0 + gap + speedW + gap
+        for (n in 1..g.labelLayers) {
+            for (k in 0 until spec.blocks)
+                judge(spec.markLabel(k, n), spec.tempText(k), PlateMarks.label(spec.tempText(k), um(o[0] + k * g.tileLength / 1000.0) + g.labelIn, um(y0 + gap)))
+            for ((j, rc) in spec.rows.withIndex()) {
+                val text = spec.heightText(rc.second); val hh = PlateMarks.labelHeight(text) / 1000.0
+                judge(spec.heightLabelOf(rc.first, rc.second, n), text, PlateMarks.label(text, um(heightX), um((rowY[j] + rowY[j + 1]) / 2 - hh / 2)))
+            }
+            for (r in t.speeds.indices) {
+                val text = spec.speedText(r); val sh = PlateMarks.labelHeight(text) / 1000.0
+                val ya = rowY[r * t.heightsUm.size]; val yb = rowY[(r + 1) * t.heightsUm.size]
+                judge(spec.speedLabelOf(r, n), text, PlateMarks.label(text, um(x0 + gap), um((ya + yb) / 2 - sh / 2)))
+            }
         }
     }
 
@@ -356,10 +374,10 @@ object FirstLayerCheck {
     }
 
     /**
-     * The travels, from the g-code text: none may cross a FINISHED tile, connector, or frame cell (its last line so far
+     * The travels, from the g-code text: none may cross a FINISHED tile or frame ring (its last line so far
      * already laid) at or below its height, its whole move counted at its lower end (a travel that rises as it goes is as low as its start). A
      * travel onto a tile not yet printed, or across bare bed, needs no lift (the first-layer plate's lift
-     * rule); the travel off a tile, which starts over it, does. A tile's or connector's footprint
+     * rule); the travel off a tile, which starts over it, does. A tile's or ring's footprint
      * is its lines' extent, each line its declared width.
      */
     fun travels(gcode: String): List<String> {
@@ -383,7 +401,7 @@ object FirstLayerCheck {
             if (!x.isNaN() && (nx != x || ny != y)) {
                 val cl = cell
                 val part = cl?.let { cellOf(it)?.part }
-                if (e > 0 && cl != null && (part == "tile" || part == "connector" || isFrame(part))) {
+                if (e > 0 && cl != null && (part == "tile" || part == "frame" || part == "border")) {
                     val f = feet.getOrPut(cl) { Foot(cl, ArrayList(), nz, seq) }
                     f.boxes += doubleArrayOf(minOf(x, nx) - hw, minOf(y, ny) - hw, maxOf(x, nx) + hw, maxOf(y, ny) + hw); f.z = nz; f.lastSeq = seq
                 } else if (e <= 0) travels += Tr(seq, x, y, z, nx, ny, nz)
@@ -410,20 +428,6 @@ object FirstLayerCheck {
             else { val r = q / p; if (p < 0) { if (r > t1) return false; if (r > t0) t0 = r } else { if (r < t0) return false; if (r < t1) t1 = r } }
         }
         return t1 > t0
-    }
-
-    /** The shortest distance from the segment (ax, ay)-(bx, by) to box [r] (x0, y0, x1, y1), 0 where it touches or enters it; an empty box (x1 < x0 or y1 < y0) is infinitely far. */
-    private fun segRectDist(ax: Double, ay: Double, bx: Double, by: Double, r: DoubleArray): Double {
-        if (r[2] < r[0] || r[3] < r[1]) return Double.POSITIVE_INFINITY
-        fun inside(x: Double, y: Double) = x >= r[0] && x <= r[2] && y >= r[1] && y <= r[3]
-        if (inside(ax, ay) || inside(bx, by) || crosses(ax, ay, bx, by, doubleArrayOf(r[0] - 2e-6, r[1] - 2e-6, r[2] + 2e-6, r[3] + 2e-6))) return 0.0
-        fun pointBox(x: Double, y: Double) = Math.hypot(maxOf(r[0] - x, 0.0, x - r[2]), maxOf(r[1] - y, 0.0, y - r[3]))
-        fun pointSeg(px: Double, py: Double): Double {
-            val dx = bx - ax; val dy = by - ay; val l2 = dx * dx + dy * dy
-            val u = if (l2 == 0.0) 0.0 else (((px - ax) * dx + (py - ay) * dy) / l2).coerceIn(0.0, 1.0)
-            return Math.hypot(ax + u * dx - px, ay + u * dy - py)
-        }
-        return minOf(minOf(pointBox(ax, ay), pointBox(bx, by)), minOf(minOf(pointSeg(r[0], r[1]), pointSeg(r[2], r[1])), minOf(pointSeg(r[2], r[3]), pointSeg(r[0], r[3]))))
     }
 
     private fun widthOf(l: String) = when { l.startsWith(";WIDTH:") -> l.removePrefix(";WIDTH:"); l.startsWith("; LINE_WIDTH:") -> l.removePrefix("; LINE_WIDTH:"); else -> null }?.trim()?.toDoubleOrNull()

@@ -33,7 +33,7 @@ class PlateRenderTest : StringSpec({
         G1 X20 Y10.5 E0.03
         G1 X10 Y10.5 E0.5
         ; CELL END
-        ; CELL: block 1 mark
+        ; CELL: block 1 mark 1
         G1 X10 Y8
         G1 X10.5 Y8 E0.02
         ; CELL END
@@ -73,7 +73,7 @@ class PlateRenderTest : StringSpec({
         (img.width to img.height) shouldBe (1900 to 1150)
         pixels(out, 0x3b4cc0) shouldBeGreaterThan 0   // the tile, at the one temperature: the cool end of the ramp (59, 76, 192)
         log.joinToString("\n") shouldContain "first-layer plate, 5 extrusion moves, 1 blocks"
-        log.joinToString("\n") shouldContain "block 1: 205 C, waited (M109), 1 dot(s)"
+        log.joinToString("\n") shouldContain "block 1: 205 C, waited (M109), temperature label"
     }
     "a first-layer plate of nine framed blocks is drawn whole: the picture grows to hold every block's lines and the close-up" {
         // nine blocks, each a tile and a frame line over it: the per-block summary (six lines a block) runs past the
@@ -84,7 +84,7 @@ class PlateRenderTest : StringSpec({
                 val x = 10.0 + 30 * ((k - 1) % 3); val y = 10.0 + 30 * ((k - 1) / 3)
                 appendLine("M109 S${190 + 5 * k}")
                 appendLine("; CELL: block $k tile 1.1"); appendLine("G1 X$x Y$y Z0.2 F2400"); appendLine("G1 X${x + 10} Y$y E0.5"); appendLine("; CELL END")
-                appendLine("; CELL: block $k frame 1"); appendLine("G1 X$x Y${y + 0.5} Z0.4"); appendLine("G1 X${x + 10} Y${y + 0.5} E0.5"); appendLine("; CELL END")
+                appendLine("; CELL: block $k frame 1.1 1"); appendLine("G1 X$x Y${y + 0.5} Z0.4"); appendLine("G1 X${x + 10} Y${y + 0.5} E0.5"); appendLine("; CELL END")
             }
             appendLine("M104 S0")
         }
@@ -95,7 +95,7 @@ class PlateRenderTest : StringSpec({
         img.width shouldBe 1900
         img.height shouldBeGreaterThan 1150
         log.joinToString("\n") shouldContain "9 blocks"
-        log.joinToString("\n") shouldContain "block 9: 235 C, waited (M109), 0 dot(s)"
+        log.joinToString("\n") shouldContain "block 9: 235 C, waited (M109), NO temperature label"
     }
     "a g-code without plate cells is refused (control)" {
         val bare = write("bare.gcode", "M83\nG1 X0 Y0 F3000\nG1 X10 Y0 E1\n")

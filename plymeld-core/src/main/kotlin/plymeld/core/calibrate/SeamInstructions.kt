@@ -18,7 +18,7 @@ import java.util.Locale
 object SeamInstructions {
     /**
      * How visible a seam is, from nothing to glaring: the grade's index is its score (0..3), and a share is one seam's score
-     * over its reference's. plymeld's words: the first-layer window's good / marginal / bad grade a surface's
+     * over its reference's. plymeld's words: the ironing plate's good / marginal / bad grade a surface's
      * quality; this grades how far away a blemish can be seen, a different idea.
      */
     val GRADES = listOf("hidden", "faint", "plain", "glaring")

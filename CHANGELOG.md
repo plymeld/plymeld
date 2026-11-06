@@ -25,12 +25,46 @@ section the release's version and date.
   notches take the size every plate's tally notches have. The slab's first layer prints at the filament's first-layer
   temperature (`temperature.first_layer`, worked out from `--print-temp` when given), and the head waits, parked, for
   the print temperature before the tower.
+- `plymeld calibrate first-layer` prints a table in one piece, like the melt plate: a column per temperature and a row per
+  first-layer speed and nozzle height, every tile a 40 mm strip with its lines along it. Each column's temperature, each
+  row's height, and each speed are raised two layers on a two-layer base along the plate's front and left (its
+  front-left corner cut off, as on the other plates), where marker dots were. Every tile touches its neighbors and the
+  base, and a frame of three layers over their walls, with as tall a border round the base, is the edge to peel the
+  plate by on every side; the thin connectors between columns, which were hard to remove, are gone. The page adds a way
+  to read the tiles: once peeled, held up to a light, gaps between a tile's lines show as bright streaks and pinholes. The defaults are tighter: the filament's print temperature up to its maximum at 10 C
+  steps (210, 220, and 230 C for the bundled generic PLA), three speeds around the first layer's (half, as set, and half
+  again), and four heights from its height up (three steps above it, a step a tenth of the nozzle: 0.2 to 0.32 mm for a 0.2 mm first layer on a 0.4 mm nozzle). The plate's
+  conditions describe the new layout, so `first-layer values` reads only plates made from now on.
+- The first-layer window is two readings per temperature, the lowest good nozzle height (every lower one bad) and the
+  fastest good speed (`"210 C" = { height.min = "0.28 mm", speed.max = "120 mm/s" }`), in place of a grade per tile.
+  `plymeld calibrate first-layer values 210=0.28,120 ... --plate-gcode PLATE` writes it into the filament's file, checked
+  against the plate and recorded for `plymeld journal --undo`; it replaces `first-layer window`. A window in the old
+  grid form is refused: enter its readings again.
 - `--help` names every option's value (`-o FILE`, `--layer MM`, ...), and `plymeld --help` lists `printer credential`
   and `investigate predict`, which it left out.
+- `--help` marks a required option `(required)`, a subcommand that may be left out `[<command>]` (a plate runs without
+  its `values`), and every option with a default says it in its help (`--tool`'s 1,
+  `layers --layer`'s 0.2, ...).
+- The window shows each command as `--help` does: a form's fields are labeled with the option as `--help` writes it
+  (`-cf, --config-file=FILE|GLOB`, `--machine=<key>`) and described in its words, an argument as the usage line writes it
+  (`[<prefix>]`, `<temp=flow>...`); a group's form lists its commands, each opening its own form, and offers Run only
+  where the command runs on its own. The command reference (`docs/cli/reference/`) writes them the same way.
+- The window's console shows every command it runs as a terminal would, `$ plymeld ...`, the job's own steps included.
 
 ### Fixed
 
 - `plymeld render-plate` crashed ("negative width") on a first-layer plate of many blocks, such as the default nine.
+- On Windows, a config glob (`-cf "C:\printers\*.toml"`) was refused ("Illegal char <*>") by every command, and the
+  window could not open a job given one; a glob now reads on Windows as it does elsewhere, and the window opens the
+  files it names.
+- In the window, `--help` and `--version` printed nothing (a form's Run, or a line typed in the console).
+- The window's Slice & check wrote another file than `plymeld slice` on the same job: the same toolpaths, but its source
+  block left out the seams and the in-island retraction decided (the plan was decided twice, the second time over the
+  first one's answers) and listed the filament's color among the values the print used (the window reads it to tint the
+  view). The window and the command line now write the same file, byte for byte.
+- In the window, the bar's search box cut its hint off mid-word, and the finder cut each hit's description at a fixed
+  length mid-word; both now end in an ellipsis where they do not fit. A command's form said the job's files were filled
+  in when no job was open.
 
 ## [0.20261106.2] - 2026-11-06
 

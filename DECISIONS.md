@@ -98,3 +98,49 @@ measured, while the first-layer plate needs nothing from the motion plate.
 **Consequences.** The flow plate prints its patches at a visible surface's speed, which the motion plate measures later:
 a flow ratio read before the motion plate is read at the configured speed, not the measured one. Small for a flow
 ratio; `calibrate flow` states the speed its patches print at.
+
+## 5. The first-layer window is two readings per temperature: the lowest good height and the fastest good speed (2026-11-06)
+
+**Context.** The window recorded a grade per tile (good, marginal, or bad) in a table per temperature, and the first
+layer was worked out from the grid. Only "good" ever counted: a marginal tile was treated as a bad one, so the third
+grade was work that changed nothing. On a printed plate the grades came out alike across speeds and temperatures, and
+grading every tile took longer than reading the two values that decided the first layer.
+
+**Decision.** Per temperature, the window holds the lowest nozzle height graded good, every lower one bad, and the
+fastest speed graded good (`"210 C" = { height.min = "0.28 mm", speed.max = "120 mm/s" }`). The first layer takes that
+height, raised to the lowest the tool lays and not used when above the highest, at that speed; between two measured
+temperatures, the higher height and the slower speed. `calibrate first-layer values` takes them as arguments, as the
+melt and flow plates' readings are, checks each against the plate's g-code (a height and speed it tried, a tile it
+printed), and writes them into the filament's file, recorded for `plymeld journal --undo`.
+
+**Rejected.** The grid of grades (the form before): more to grade, a grade that counted for nothing, a sheet to fill in
+and add to a config by hand. The lowest good height alone, the speed left as configured: the plate measures the speed
+too, and a filament's first layer can need a slower one. A lowest good height per speed: more to read for a plate whose
+heights agree across speeds, as they did when printed.
+
+**Consequences.** A window in the grid form is refused; its readings are entered again with `first-layer values`. The
+window no longer records a range of good heights that narrows as speed rises. `first-layer window` (the blank grid) is
+gone.
+
+## 6. A command reads the same in the window, the reference, and --help; the window's tests drive it as a user does (2026-11-06)
+
+**Context.** The window's command forms, the command reference, and `--help` each wrote an option their own way
+(`--config-file=FILE|GLOB`, `` `-cf FILE|GLOB` ``, `-cf, --config-file=FILE|GLOB`), named arguments differently
+(`<PREFIX>`, `PREFIX`, `<prefix>`), and only two of the three said which options were required or what their defaults
+were. The window's own checks read its code, not what it shows: `--help` typed in its console printed nothing, and no test
+saw it.
+
+**Decision.** `--help` is the one rendering. The command model carries each option's term and description and each
+argument's term as Clikt's help formatter writes them, and the window's forms and the reference show those, nothing of
+their own beyond what a form needs (several values in one field). `--help` tags required options, and an option with a
+default says it in its help (a test holds every option to it). The window is tested by driving it through its own
+controls, with Compose's UI test framework (JetBrains, Apache-2.0, test-only): every command opened from the finder and
+its form read against `--help`; forms filled and Run, and the job's steps sliced, against the CLI given the same words.
+The same tests run on Windows' JDK (`tools/windows-ui-tests.ps1`).
+
+**Rejected.** Each surface rendering from the model's raw names: three renderings drift, as they had. Clikt's default
+tags appended for defaults: many helps already say their default, so it would be said twice. Testing the window by
+reading its code: it missed what a user sees.
+
+**Consequences.** A new option shows the same everywhere with no work of its own; its help must state its default.
+The window's tests take minutes (they slice), run with the UI module's tests.

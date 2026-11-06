@@ -30,12 +30,19 @@ class CommandModel(val root: Command, val paths: List<ConfigPath>) {
      * `PATH=VALUE`, `INT`, ...; null for a flag), its help, how many values it takes per use ([nvalues]: 0..0 a flag),
      * whether it may be [repeated], its [tags] (`required`, `default`, `env`), and its fixed [choices] when it has them.
      */
-    class Option(val names: List<String>, val metavar: String?, val help: String, val nvalues: IntRange, val repeated: Boolean, val tags: Map<String, String>, val choices: List<String>) {
+    class Option(val names: List<String>, val metavar: String?, val help: String, val nvalues: IntRange, val repeated: Boolean, val tags: Map<String, String>, val choices: List<String>,
+                 /** The option as `--help` writes it, its names and value (`-cf, --config-file=FILE|GLOB`, `--machine=<key>`): every place that names it, the window's form and the reference, shows this. */
+                 val term: String = names.joinToString(", ") + (metavar?.let { "=$it" } ?: ""),
+                 /** What `--help` writes beside [term]: the help, then its tags (`[required]`). */
+                 val description: String = help) {
         val flag: Boolean get() = nvalues.last == 0
         val required: Boolean get() = "required" in tags
     }
 
-    class Argument(val name: String, val help: String, val required: Boolean, val repeatable: Boolean)
+    /** An argument; [term]: as `--help` lists it (`<prefix>`), and [usage] as its usage line writes it (`[<prefix>]`, `<models>...`). */
+    class Argument(val name: String, val help: String, val required: Boolean, val repeatable: Boolean, val term: String = "<${name.lowercase()}>") {
+        val usage: String get() = (if (required) term else "[$term]") + if (repeatable) "..." else ""
+    }
 
     /** A config path from the schema: its declared form, meaning, type, and the scopes it may be set for. */
     class ConfigPath(val path: String, val meaning: String, val type: String, val scopes: List<String>)
@@ -94,6 +101,7 @@ class CommandModel(val root: Command, val paths: List<ConfigPath>) {
             // --help is the one here
             val ctx = c.resetContext(parent)
             val params = c.allHelpParams()
+            val terms = Terms(ctx)
             val options = params.filterIsInstance<HelpFormatter.ParameterHelp.Option>().filter { ctx.helpOptionNames.none { h -> h in it.names } }.map { o ->
                 val opt = c.registeredOptions().firstOrNull { it.names == o.names }
                 val choices = (opt?.completionCandidates as? com.github.ajalt.clikt.completion.CompletionCandidates.Fixed)?.candidates?.toList() ?: emptyList()
@@ -101,11 +109,31 @@ class CommandModel(val root: Command, val paths: List<ConfigPath>) {
                 // word "repeatable" (CommandModelTest holds every repeatable option to it)
                 // a flag carries an empty "default" tag in Clikt's help parameters (its false), which says nothing: dropped
                 Option(o.names.sortedBy { it.length }, o.metavar, o.help, o.nvalues, repeated = "repeatable" in o.help,
-                    tags = o.tags.filterValues { it.isNotEmpty() } + (if ("required" in o.tags) mapOf("required" to "") else emptyMap()), choices = choices)
+                    tags = o.tags.filterValues { it.isNotEmpty() } + (if ("required" in o.tags) mapOf("required" to "") else emptyMap()), choices = choices, term = terms.option(o), description = terms.description(o))
             }
-            val arguments = params.filterIsInstance<HelpFormatter.ParameterHelp.Argument>().map { Argument(it.name, it.help, it.required, it.repeatable) }
+            val arguments = params.filterIsInstance<HelpFormatter.ParameterHelp.Argument>().map { Argument(it.name, it.help, it.required, it.repeatable, terms.argument(it)) }
             val subs = c.registeredSubcommands().map { command(it, ctx, path + it.commandName) }
             return Command(path, c.help(ctx).trim(), options, arguments, subs, runsAlone = subs.isNotEmpty() && c.invokeWithoutSubcommand)
+        }
+
+        /**
+         * Clikt's own help formatter, asked how it writes an option's names and value and an argument's name, so the model's
+         * terms are `--help`'s, never a second rendering of them. Only the terms are used; the rest renders nothing.
+         */
+        private class Terms(ctx: Context) : com.github.ajalt.clikt.output.AbstractHelpFormatter<String>(ctx, "*", false, Plymeld.HELP_SHOWS_REQUIRED) {
+            fun option(o: HelpFormatter.ParameterHelp.Option): String = renderOptionDefinition(o).term
+            fun description(o: HelpFormatter.ParameterHelp.Option): String = renderOptionDefinition(o).description
+            fun argument(a: HelpFormatter.ParameterHelp.Argument): String = normalizeParameter(a.name)
+            override fun renderError(parameters: List<HelpFormatter.ParameterHelp>, error: com.github.ajalt.clikt.core.UsageError) = ""
+            override fun renderUsage(parameters: List<HelpFormatter.ParameterHelp>, programName: String) = ""
+            override fun renderProlog(prolog: String) = ""
+            override fun renderEpilog(epilog: String) = ""
+            override fun renderParameters(parameters: List<HelpFormatter.ParameterHelp>) = ""
+            override fun renderOptionGroup(help: String?, parameters: List<HelpFormatter.ParameterHelp.Option>) = ""
+            override fun renderDefinitionTerm(row: DefinitionRow) = row.term
+            override fun renderDefinitionDescription(row: DefinitionRow) = row.description
+            override fun buildParameterList(rows: List<DefinitionRow>) = ""
+            override fun formatHelp(error: com.github.ajalt.clikt.core.UsageError?, prolog: String, epilog: String, parameters: List<HelpFormatter.ParameterHelp>, programName: String) = ""
         }
     }
 }

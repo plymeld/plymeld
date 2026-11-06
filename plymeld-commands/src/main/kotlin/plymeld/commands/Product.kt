@@ -392,7 +392,16 @@ class Product(given: ConfigStack, modelFiles: List<Path>, machine: String? = nul
      * The decisions; a decided flat layer height, and the surface technique of the flat tops where the search weighed it, go into
      * each object's settings, so the slice prints what was decided (and the plan file, `plan -o`, locks them).
      */
-    fun decide(locks: Plan.Companion.Overrides = overrides()): Plan {
+    fun decide(locks: Plan.Companion.Overrides? = null): Plan {
+        // the job's own plan, decided once: deciding writes the decided values into the setup (below), so a second deciding
+        // would start from the first one's answers (a seam decision would find its own and keep it as a lock) and the window,
+        // which decides as a job opens and slices later, would write another file than `slice`, which decides once
+        if (locks == null) decidedPlan?.let { return it }
+        return decideNow(locks ?: overrides()).also { if (locks == null) decidedPlan = it }
+    }
+    private var decidedPlan: Plan? = null
+
+    private fun decideNow(locks: Plan.Companion.Overrides): Plan {
         // what the planner reads to weigh its candidates is not what the print uses: the slice that writes the file counts
         result.setup.counting.set(false)
         val p = try { Plan.makeFor(plate.map { (o, i) -> o.key to i.parts }, result.setup, locks) } finally { result.setup.counting.set(true) }

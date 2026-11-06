@@ -468,7 +468,7 @@ object ConfigSetup {
      * The first-layer window at [site] (its filament on the build plate of the machine's loadout) and what it decides there, at the first
      * layer's nozzle temperature (the filament's temperature.first_layer, else temperature.print), for the tool's bore and
      * layer range. No window for the filament: nothing, silently. A window that cannot be used (another plate only, another
-     * bore, a temperature outside the measured ones, no good tile) gives a warning instead, and the first layer falls back
+     * bore, a temperature outside the measured ones, a lowest good height above what the tool lays) gives a warning instead, and the first layer falls back
      * to the filament's, the machine's, or plymeld's values.
      */
     fun windowAt(c: Config, site: Site): WindowUse {
@@ -485,20 +485,21 @@ object ConfigSetup {
         val tE = hw("filament", f, "temperature.first_layer") ?: hw("filament", f, "temperature.print")
             ?: return WindowUse(null, "${w.key}: filament '$f' has no temperature (temperature.first_layer / .print) to read its first-layer window at: not used", w, null)
         val t = c.quantity(tE, Dimension.TEMPERATURE, site)
-        val g = FirstLayerWindow.gridAt(w, t) ?: return WindowUse(null,
-            "${w.key} (${w.source}) was measured at ${w.grids.joinToString { fmtC(it.tempC) }}; the first layer prints at ${fmtC(t)} (${tE.key}), outside that: not used", w, t)
+        val r = FirstLayerWindow.at(w, t) ?: return WindowUse(null,
+            "${w.key} (${w.source}) was measured at ${w.readings.joinToString { fmtC(it.tempC) }}; the first layer prints at ${fmtC(t)} (${tE.key}), outside that: not used", w, t)
         val (lo, hi, names) = firstLayerRange(c, site)
-        // a speed the user set for this filament on this plate: the window
-        // chooses the height at that speed instead of the fastest good row
+        val range = "${lo?.let { fmtMm(it) } ?: "any"} to ${hi?.let { fmtMm(it) } ?: "any"}, $names"
+        // a speed the user set for this filament on this plate: the window gives only the height there
         val plateSpeed = hw("filament", f, "bed.$plate.first_layer.speed")
         if (plateSpeed != null) {
             val sp = c.quantity(plateSpeed, Dimension.SPEED, site)
-            val at = FirstLayerWindow.decideAt(g, sp, lo, hi, rangeFrom = names) ?: return WindowUse(null,
-                "${w.key} (${w.source}) at ${fmtC(t)}: no height is graded good at ${FirstLayerWindow.mms(sp)} (${plateSpeed.key}) within what tool '${site.tool}' lays (${lo?.let { fmtMm(it) } ?: "any"} to ${hi?.let { fmtMm(it) } ?: "any"}, $names): the window is not used; the speed stands", w, t)
+            val at = FirstLayerWindow.decideAt(r, sp, lo, hi, rangeFrom = names) ?: return WindowUse(null,
+                if (sp > r.speedMaxMmS + 1e-9) "${w.key} (${w.source}) at ${fmtC(t)}: ${FirstLayerWindow.mms(sp)} (${plateSpeed.key}) is past its fastest good speed, ${FirstLayerWindow.mms(r.speedMaxMmS)}: the window is not used; the speed stands"
+                else "${w.key} (${w.source}) at ${fmtC(t)}: its lowest good height, ${fmtMm(r.heightMinMm)}, is above what tool '${site.tool}' lays ($range): the window is not used; the speed stands", w, t)
             return WindowUse(at, null, w, t)
         }
-        val choice = FirstLayerWindow.decide(g, lo, hi, rangeFrom = names) ?: return WindowUse(null,
-            "${w.key} (${w.source}) at ${fmtC(t)}: no good tile at a first-layer height tool '${site.tool}' lays (${lo?.let { fmtMm(it) } ?: "any"} to ${hi?.let { fmtMm(it) } ?: "any"}, $names): not used", w, t)
+        val choice = FirstLayerWindow.decide(r, lo, hi, rangeFrom = names) ?: return WindowUse(null,
+            "${w.key} (${w.source}) at ${fmtC(t)}: its lowest good height, ${fmtMm(r.heightMinMm)}, is above what tool '${site.tool}' lays as a first layer ($range): not used", w, t)
         return WindowUse(choice, null, w, t)
     }
 

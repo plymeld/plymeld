@@ -202,13 +202,19 @@ object ConfigFiles {
             require(p.isRegularFile()) { "no such file: $a0" }
             listOf(p)
         } else {
-            val abs = cwd.resolve(a).normalize().toString()
-            // walk from the deepest directory before the first glob character
-            val firstGlob = abs.indexOfFirst { it in "*?[{" }
-            val base = Path.of(abs.substring(0, abs.lastIndexOf(java.io.File.separatorChar, firstGlob).coerceAtLeast(1)))
-            val matcher = FileSystems.getDefault().getPathMatcher("glob:$abs")
+            // the deepest directory before the first glob character is a path; the rest is the pattern, matched against each
+            // file's path below that directory. The glob's own text is never made a path: on Windows a * is no path
+            // character (Path.of refuses it), and a \ there is the separator, not the glob's escape
+            val windows = java.io.File.separatorChar == '\\'
+            val seps = if (windows) charArrayOf('/', '\\') else charArrayOf('/')
+            val firstGlob = a.indexOfFirst { it in "*?[{" }
+            val cut = a.lastIndexOfAny(seps, firstGlob)
+            val baseText = if (cut < 0) "" else a.substring(0, cut).ifEmpty { a.substring(0, 1) }
+            val base = (if (baseText.isEmpty()) cwd else cwd.resolve(baseText)).normalize()
+            val pattern = a.substring(cut + 1).split(*seps).joinToString(if (windows) "\\\\" else "/")
+            val matcher = FileSystems.getDefault().getPathMatcher("glob:$pattern")
             val found = if (!Files.isDirectory(base)) emptyList() else Files.walk(base).use { s ->
-                s.filter { it.isRegularFile() && matcher.matches(it) }.toList()
+                s.filter { it.isRegularFile() && matcher.matches(base.relativize(it)) }.toList()
             }
             require(found.isNotEmpty()) { "no file matches '$a0'" }
             found.sortedWith(NATURAL)

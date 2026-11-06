@@ -7,12 +7,15 @@ import com.github.ajalt.clikt.parameters.options.multiple
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.types.choice
+import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldEndWith
+import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.string.shouldStartWith
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -30,7 +33,7 @@ class CommandModelTest : StringSpec({
     "every command of the tree is in the model, with the subcommands under their parents" {
         all.map { it.line } shouldContain "plymeld"
         all.map { it.line } shouldContain "plymeld printer loadout"
-        all.map { it.line } shouldContain "plymeld calibrate first-layer window"
+        all.map { it.line } shouldContain "plymeld calibrate first-layer values"
         all.map { it.line } shouldContain "plymeld investigate predict"
         all.map { it.line } shouldContain "plymeld commands"
         cmd("plymeld").subcommands.map { it.name } shouldContainExactly Commands.tree().registeredSubcommandNames()
@@ -100,5 +103,17 @@ class CommandModelTest : StringSpec({
     }
     "control: every option whose help says repeatable is read as repeated, and no other" {
         for (o in all.flatMap { it.options }) o.repeated shouldBe ("repeatable" in o.help)
+    }
+    "every option with a default says it in its help (--help shows no default of its own), and its term and description are --help's" {
+        val missing = all.flatMap { c -> c.options.filter { "default" in it.tags && !it.help.contains("default", ignoreCase = true) }.map { "${c.line} ${it.term}" } }
+        withClue(missing.joinToString("\n")) { missing.shouldBeEmpty() }
+        // as --help writes them: the names joined, the value attached; a required option tagged
+        val slice = all.single { it.line == "plymeld slice" }
+        slice.options.single { "-cf" in it.names }.term shouldBe "-cf, --config-file=FILE|GLOB"
+        slice.options.single { "--machine" in it.names }.term shouldBe "--machine=<key>"
+        slice.options.single { "-o" in it.names }.description shouldEndWith "(required)"
+        all.single { it.line == "plymeld config" }.arguments.single().term shouldBe "<prefix>"
+        // control: an option not required carries no tag
+        slice.options.single { "--machine" in it.names }.description shouldNotContain "(required)"
     }
 })

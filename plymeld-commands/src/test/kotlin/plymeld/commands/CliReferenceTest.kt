@@ -42,10 +42,22 @@ class CliReferenceTest : StringSpec({
         pages.getValue("calibrate.md") shouldContain "### `plymeld calibrate melt values`"
         pages.getValue("printer.md") shouldContain "`--print`"
         // a plate runs alone or with its write-back subcommand; a group needs one
-        pages.getValue("calibrate.md") shouldContain "Usage: `plymeld calibrate melt [OPTIONS] [<command>]`"
-        pages.getValue("printer.md") shouldContain "Usage: `plymeld printer [OPTIONS] <command>`"
+        pages.getValue("calibrate.md") shouldContain "Usage: `plymeld calibrate melt [<options>] [<command>] [<args>]...`"
+        pages.getValue("printer.md") shouldContain "Usage: `plymeld printer [<options>] <command> [<args>]...`"
         pages.getValue(CliReference.INDEX) shouldContain "[`plymeld printer send`](printer.md#plymeld-printer-send)"
         CommandModel.read().root.subcommands.map { CliReference.file(it) } shouldContainExactly pages.keys.drop(1)
+    }
+    "every command's usage line, and every option's line, are --help's own" {
+        val problems = ArrayList<String>()
+        val all = pages.values.joinToString("\n")
+        for (c in CommandModel.read().root.all()) {
+            val out = StringBuilder(); Commands.invoke(c.path + "--help", { out.append(it).append('\n') })
+            val help = out.toString()
+            val usage = help.lines().first { it.startsWith("Usage: ") }.removePrefix("Usage: ").trim()
+            if ("Usage: `$usage`" !in all) problems += "${c.line}: --help's usage '$usage' is on no page"
+            for (o in c.options) if ("- `${o.term}`:" !in all) problems += "${c.line}: no page lists ${o.term} as --help writes it"
+        }
+        problems.shouldBeEmpty()
     }
     "control: a page changed by one word, a missing page, and a stray page are each caught" {
         val changed = pages.toMutableMap().also { it["slice.md"] = it.getValue("slice.md").replaceFirst("g-code", "gcode") }
@@ -62,7 +74,7 @@ class CliReferenceTest : StringSpec({
         class Root : CliktCommand(name = "plymeld") { override fun run() = Unit }
         val p = CliReference.pages(CommandModel.read(Root().subcommands(Extra())))
         p.keys.toList() shouldContainExactly listOf(CliReference.INDEX, "extra.md")
-        p.getValue("extra.md") shouldContain "- `--level N`: how much"
+        p.getValue("extra.md") shouldContain "- `--level=<n>`: how much"
         p.getValue(CliReference.INDEX) shouldContain "- [`plymeld extra`](extra.md): An extra command."
     }
     "help text is escaped for Markdown, its code spans kept" {

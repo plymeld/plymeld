@@ -31,10 +31,10 @@ import java.nio.file.Files
  */
 class InvestigateSliceCommand : CliktCommand(name = "slice") {
     private val models by argument(help = "STL or 3MF, one or more (a plate of objects)").path(mustExist = true, canBeDir = false).multiple(required = true)
-    private val copies by option("--copies", help = "print each model this many times (a plate of copies)").int().default(1)
+    private val copies by option("--copies", help = "print each model this many times (a plate of copies; default: 1)").int().default(1)
     private val output by option("-o", "--output", metavar = "FILE", help = "g-code file to write").path().required()
     private val settings by option("--settings", help = InvestigateCommand.SETTINGS_HELP).required()
-    private val repeat by option("--repeat", help = "benchmark: slice N times from scratch in this process").int().default(1)
+    private val repeat by option("--repeat", help = "benchmark: slice N times from scratch in this process (default: 1)").int().default(1)
     private val pose by option("--pose", help = "derive (default): choose how the object sits; as-given: keep the model's own orientation").default("derive")
     private val technique by option("--technique", help = "derive (default: chosen with the pose), one (flat layers of one height), or follow (flat layers following the surfaces)").default("derive")
     private val placement by option("--placement", help = "center: bottom on the bed, footprint centered; as-given: keep the model's own position (default: as-given with --pose as-given, else center)")
