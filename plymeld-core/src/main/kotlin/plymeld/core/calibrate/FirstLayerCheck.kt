@@ -186,7 +186,9 @@ object FirstLayerCheck {
         val len = g.tileLength / 1000.0
         fun box(ms: List<Move>, w: Double) = doubleArrayOf(ms.minOf { minOf(it.x0, it.x1) } - w / 2, ms.minOf { minOf(it.y0, it.y1) } - w / 2, ms.maxOf { maxOf(it.x0, it.x1) } + w / 2, ms.maxOf { maxOf(it.y0, it.y1) } + w / 2)
         // a tile's figures at height [c]: its bead spacing, its lines, its depth (mm)
-        fun spacing(c: Int) = tw - t.heightsUm[c] / 1000.0 * (1 - Math.PI / 4)
+        // (the bead model's spacing on the plate's µm grid: unrounded, its fraction of a µm summed over many rows would part
+        // the check from any layout on the grid)
+        fun spacing(c: Int) = Math.round(t.widthUm - t.heightsUm[c] * (1 - Math.PI / 4)) / 1000.0
         fun lines(c: Int) = maxOf(2, Math.floor((g.tileDepth / 1000.0 - tw - 2 * spacing(c)) / spacing(c) + 1e-9).toInt() + 1)
         fun depth(c: Int) = (lines(c) - 1) * spacing(c) + 2 * spacing(c) + tw
         // where every tile goes, from the first tile as printed (the first column's front row: always printed, or refused)

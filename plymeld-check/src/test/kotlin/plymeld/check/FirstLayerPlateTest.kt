@@ -1,5 +1,6 @@
 package plymeld.check
 
+import io.kotest.assertions.withClue
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -268,6 +269,20 @@ class FirstLayerPlateTest : StringSpec({
             ss[5][1] shouldBe (ss.drop(5).maxOf { it[1] } plusOrMinus 0.002)
         }
         caught(sp, "corner", "not at the middle of its back edge")
+    }
+
+    "taller heights (0.24 .. 0.36 mm) and every tile printed: each row's place agrees with the check all the way back" {
+        // each height's bead spacing is a fraction of a µm off the grid; summed over twelve rows the layout and the check must
+        // still agree (the rows 1 mm apart stay caught)
+        val hs = listOf(0.24, 0.28, 0.32, 0.36)
+        // line widths 0.40 .. 0.60 mm, so each height's spacing falls at a different fraction of a µm
+        for (w in 400L..600L step 10) {
+            val tiles = FirstLayerTiles(speeds.toDoubleArray(), hs.map { Math.round(it * 1000) }.toLongArray(), w, 5000.0, 200, 0.25)
+            val tall = FirstLayerSpec(0, "test", intArrayOf(205, 210, 215), 200, 1.75, 1.0, tiles, DoubleArray(3) { 40.0 }, PathValues(40.0, 5000.0, 1.0, 0.8), 500, frame, 450, 200, 60_000, 60_000)
+            withClue("line width $w µm") { FirstLayerCheck.check(tall, gcode(FirstLayerPlate(tall))).shouldBeEmpty() }
+        }
+        val tall = spec(caps = DoubleArray(3) { 40.0 }, hs = hs)
+        FirstLayerCheck.check(tall, ctl(tall, "rowgap")).any { it.contains("in its place touching its neighbors") } shouldBe true
     }
 
     "one piece: rows apart, or tiles printed highest first, are caught" {
