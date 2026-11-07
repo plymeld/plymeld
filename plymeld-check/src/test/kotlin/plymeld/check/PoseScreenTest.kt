@@ -27,11 +27,11 @@ import plymeld.model.Overhang
 class PoseScreenTest : StringSpec({
     val soup = trophy()
     val range = Control(FlatLayers.LAYER_HEIGHT, "mm", Control.Range.Continuous(0.1, 0.3), "test: the tool's thinnest and thickest layer")
-    fun facts(screen: Boolean) =
+    fun facts(screen: Boolean, shortlist: Double? = null) =
         PoseFacts(0.0, 0.0, 270.0, 270.0, 256.0, Overhang.fromAngle(30.0, 0.2, 0.4), "test", Weights.parse("quality=100", "test"), null,
             layerHeightMm = 0.2, flowMaxMm3s = 18.0, minLayerTimeS = 8.0, firstLayerMm = 0.2, minLayerMm = 0.1, maxLayerMm = 0.3,
             layerHeightCandidates = FlatLayers.coarse(range, 0.2, 3), layerHeightControl = range, layerHeightBudget = 3, baselineLayerMm = 0.2, baselineWhat = "test",
-            screenPoses = screen)
+            screenPoses = screen, poseShortlistMargin = shortlist)
     val flat = listOf(PrintTechnique.FLAT_LAYERS to null)
     val screened = PoseDecision.decideWithTechnique(listOf(soup), facts(true), flat, heights = FlatLayers.Heights.ONE).pose
     val unscreened = PoseDecision.decideWithTechnique(listOf(soup), facts(false), flat, heights = FlatLayers.Heights.ONE).pose
@@ -57,6 +57,20 @@ class PoseScreenTest : StringSpec({
         }
         // the comparison is not empty: the search without the screen scored candidates in the poses ruled out
         compared shouldBeGreaterThan 0
+    }
+
+    "the first look shortlists the poses searched in full, each left out said with its score; the choice is the full search's; control: unset, every pose is searched" {
+        val shortlisted = PoseDecision.decideWithTechnique(listOf(soup), facts(true, 0.1), flat, heights = FlatLayers.Heights.ONE).pose
+        shortlisted.facts.single { it.startsWith("first look at") } shouldContain "searched (the as-given pose and those within method.search.pose.shortlist_margin 0.1 of the best)"
+        val out = shortlisted.alternatives.filter { it.rejected?.startsWith("left out by the first look") == true }
+        out.size shouldBeGreaterThan 0
+        out.all { it.score.startsWith("first look (flat layers 0.20 mm): score ") } shouldBe true
+        // the as-given pose is always searched
+        shortlisted.alternatives.none { it.label.startsWith("as given") && it.rejected?.startsWith("left out") == true } shouldBe true
+        shortlisted.why shouldBe unscreened.why
+        // control: no margin, no first look, nothing left out
+        screened.facts.none { it.startsWith("first look at") } shouldBe true
+        screened.alternatives.none { it.rejected?.startsWith("left out by the first look") == true } shouldBe true
     }
 })
 

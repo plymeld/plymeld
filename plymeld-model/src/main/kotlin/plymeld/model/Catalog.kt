@@ -125,6 +125,9 @@ object Catalog {
             "non-negative weight per goal (quality, accuracy, speed, material, strength, reliability), any total, e.g. quality=10,speed=3,strength=5,material=1; and per measure, its share of its goal relative to the goal's other measures (default 1, e.g. layer_lines=4)",
             "quality=1,accuracy=1,speed=1,material=1,strength=1,reliability=1",
             "equal weights: the earlier 5/2/0/1 were made-up values (use whatever makes sense); set per intent or object")
+        s("method.search.pose.shortlist_margin", INTENT, FRACTION,
+            "the first look at every pose (one plan each: flat layers at the baseline's height) shortlists the poses searched in full: the as-given pose and those scoring within this of the best there, PER UNIT OF WEIGHT in effect (as keep_margin); a pose left out is not searched; unset = every pose searched",
+            0.1, "placeholder: on the test models (3DBenchy, the overhang and bridge coupon, the test plate, the hole block, a 29-part trophy) under six weightings, the pose the full search chose sat at most 0.068 per unit of weight from the first look's best (the coupon), and the poses it left out of a large model 0.12 and more; 0.1 keeps every one of those choices")
         s("method.search.pose.keep_margin", INTENT, FRACTION,
             "the model's own orientation has standing: another pose must beat the as-given pose's best candidate by more than this score PER UNIT OF WEIGHT in effect (the score gap divided by the sum of the goal weights the decision measures, so the margin means the same at any total: a weight is a share) to turn the model",
             0.1, "placeholder: a tenth of a point per unit of weight, about a 10 % difference on one fully weighted measure")

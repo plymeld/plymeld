@@ -192,3 +192,27 @@ a simplified copy of the mesh: faster still on large models, but its measures wo
 **Consequences.** Where the search runs to completion it decides as before: the bound is a lower bound
 (PoseScreenTest checks every ruled-out pose against the search without the screen). Where the time limit cuts it short,
 the time goes to poses that can still win. The explanation lists the poses ruled out and why.
+
+## 9. A first look at every pose shortlists the poses the search measures in full (2026-11-07)
+
+**Context.** Choosing a pose took minutes on a large model: every pose was measured under every plan, and the screen
+(decision 8) cannot rule out a pose whose sound bound is weak, which on a 4.7-million-triangle trophy left two tilted
+poses to be detailed at half a minute each. Slicers that choose a pose by the faces alone do it in seconds; plymeld's
+search weighs far more, but most of it is wasted on poses that are plainly worse.
+
+**Decision.** Before the search, every pose is measured under ONE plan (flat layers at the baseline's height, no
+support chosen, no overhang survey) and scored against the baseline. The search measures in full only the as-given pose
+and the poses scoring within `method.search.pose.shortlist_margin` of the best there, per unit of the weight in effect,
+as `keep_margin` is read. The pose decision says how many poses the first look shortlisted and each one's score there,
+and lists the poses left out with theirs. Unset, every pose is searched.
+
+**Rejected.** A shortlist of a fixed count of poses: on the trophy every usable pose would have been in it (the rest have
+no flat face on the bed), so it saved nothing where it was most needed; a margin follows the scores. Scoring support's
+droop and scars as one area, so the screen's bound grows strong enough to rule the tilted poses out soundly: it changed
+the support chosen under quality-heavy weights (13 support spots on a 3DBenchy where none were chosen), a change to
+what the search prefers, not only to its speed.
+
+**Consequences.** A heuristic, unlike the screen: a pose that looks poor under one plan but would win with its own plans
+and support is not searched. The placeholder 0.1 was set from the test models under six weightings: the chosen pose sat
+at most 0.068 from the first look's best (the coupon), and every choice is kept. Where the first look measures nothing a
+weighting cares about (speed and strength: no time or bond estimate yet), every pose ties there and all are searched.
