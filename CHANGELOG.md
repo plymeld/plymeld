@@ -11,6 +11,11 @@ section the release's version and date.
 
 ### Added
 
+- A purge tower stands steadier: a brim around its first layer by default (`plan.mechanism.purge.tower.brim.*`, as wide
+  as the object's brim would be, whether or not the object has one), and each side at least half its height
+  (`plan.mechanism.purge.tower.side_share.min`): a tower its purge would leave narrower is widened and deepened, its
+  bands' lines beyond the purge laid at the sparse spacing. Both are placeholders, not tested on a print. The tower's
+  bed and overlap checks count its brim.
 - A config may spell a setting's name or a chosen value the British way: `colour` names `color`, and `centre` is read
   as `center` (`plan.placement`, a machine's `build.origin`, `--placement`), wherever the American spelling is what
   the setting takes. A key of your own (a filament called `grey`) is never respelled.

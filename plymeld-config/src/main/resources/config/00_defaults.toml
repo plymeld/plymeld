@@ -196,6 +196,12 @@ tower.enabled = "true"
 into = "tower"
 tower.x = "= machine.build.x * 0.7"
 tower.y = "= machine.build.y * 0.7"
+# a brim around the tower's first layer whatever the object's (a tower standing on its own footprint came loose), as wide
+# as the object's brim would be; each side at least half the tower's height (a tall, thin tower sways). PLACEHOLDERS:
+# neither tested on a print
+tower.brim.enabled = "true"
+tower.brim.width = "= plan.mechanism.adhesion.brim.width"
+tower.side_share.min = "0.5"
 
 # ---- seams (the lock in the job, each seam style's values under plan.technique). plan.seam is NOT set here:
 # unset, the seam is DECIDED per object by the job's weights (SeamDecision: the placement, back or corners, and

@@ -5072,6 +5072,50 @@
                         "string",
                         "number"
                       ]
+                    },
+                    "brim": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "enabled": {
+                          "description": "INHERITED: a brim around the purge tower's first layer, for its hold on the bed (whatever the object's brim) — true or false; or a formula (= ...)",
+                          "anyOf": [
+                            {
+                              "type": "boolean"
+                            },
+                            {
+                              "enum": [
+                                "true",
+                                "false"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "pattern": "^\\s*="
+                            }
+                          ]
+                        },
+                        "width": {
+                          "description": "INHERITED: the purge tower's brim width — a length (mm); or a formula (= ...)",
+                          "type": [
+                            "string",
+                            "number"
+                          ]
+                        }
+                      }
+                    },
+                    "side_share": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "min": {
+                          "description": "INHERITED: each side of the purge tower at least this share of its height (a tall, thin tower sways): a tower its purge would leave narrower is widened and deepened; 0 = no minimum — a multiplier (0.15 or 15%); or a formula (= ...)",
+                          "type": [
+                            "string",
+                            "number"
+                          ]
+                        }
+                      }
                     }
                   }
                 },
