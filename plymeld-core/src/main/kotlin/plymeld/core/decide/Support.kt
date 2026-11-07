@@ -349,13 +349,10 @@ object Overhangs {
         val todo = ArrayList<Int>()
         synchronized(baseCache) { for (i in regions.indices) { val k = keys[i] ?: continue; val c = baseCache[k]; if (c != null) out[i] = c else todo += i } }
         if (todo.isEmpty()) return out
-        val zs = todo.map { b[2] + regions[it].second!! - 0.02 }.distinct().sorted()
-        val cut = plymeld.mesh.Slicer.slice(p, zs.toDoubleArray())
-        val loopsAt = zs.indices.associate { zs[it] to cut[it].loops }
-        val areaAt = HashMap<Double, Cantilever.Area>()
+        val areaAt = Cantilever.areas(p, todo.map { b[2] + regions[it].second!! - 0.02 })
         for (i in todo) {
             val (region, so) = regions[i]
-            val a = areaAt.getOrPut(b[2] + so!! - 0.02) { Cantilever.Area(loopsAt.getValue(b[2] + so - 0.02)) }
+            val a = areaAt.getValue(b[2] + so!! - 0.02)
             val x0 = b[0] + region.x0; val x1 = b[0] + region.x1; val y0 = b[1] + region.y0; val y1 = b[1] + region.y1
             val nx = maxOf(1, minOf(MAX_BASE_SAMPLES, Math.ceil((x1 - x0) / BASE_SAMPLE_MM).toInt())); val ny = maxOf(1, minOf(MAX_BASE_SAMPLES, Math.ceil((y1 - y0) / BASE_SAMPLE_MM).toInt()))
             var hits = 0

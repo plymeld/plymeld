@@ -9,6 +9,12 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Changed
+
+- A model of many parts slices faster, with the same g-code: the parts' outlines are merged layer by layer side by
+  side, and the pose search merges each cross-section it reads once, not once per candidate plan. On a 29-part,
+  4.7-million-triangle model the slice took half the time (54 s to 28 s) and the seam decision less than half.
+
 ## [0.20261107.0] - 2026-11-07
 
 ### Added

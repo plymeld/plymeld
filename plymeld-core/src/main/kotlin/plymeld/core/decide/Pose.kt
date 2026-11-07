@@ -1295,12 +1295,10 @@ object PoseDecision {
             val cuttable = todo.filter { layerMm > 0 && it.region.fromMm >= layerMm - 1e-9 }
             for (r in todo - cuttable.toSet()) reachOf[reachKey(pose, r, layerMm)] = null
             if (cuttable.isEmpty()) return
-            val zs = cuttable.flatMap { listOf(Cantilever.belowZ(b, it.region, layerMm), Cantilever.layerZ(b, it.region, layerMm)) }.distinct().sorted()
-            val cut = plymeld.mesh.Slicer.slice(posed, zs.toDoubleArray())
-            val loopsAt = zs.indices.associate { zs[it] to cut[it].loops }
-            // the areas (edges on a grid) are built two at a time and dropped: a Benchy pose cuts hundreds of planes
+            // the areas by height, shared with the survey's and held within a bound (Cantilever.areas)
+            val areaAt = Cantilever.areas(posed, cuttable.flatMap { listOf(Cantilever.belowZ(b, it.region, layerMm), Cantilever.layerZ(b, it.region, layerMm)) })
             for (r in cuttable) reachOf[reachKey(pose, r, layerMm)] =
-                Cantilever.reach(Cantilever.Area(loopsAt.getValue(Cantilever.layerZ(b, r.region, layerMm))), Cantilever.Area(loopsAt.getValue(Cantilever.belowZ(b, r.region, layerMm))), b, r.region)
+                Cantilever.reach(areaAt.getValue(Cantilever.layerZ(b, r.region, layerMm)), areaAt.getValue(Cantilever.belowZ(b, r.region, layerMm)), b, r.region)
         }
         fun cantileverReach(pose: Pose, r: OverhangRegion, layerMm: Double): Cantilever.Reach? {
             reachAll(pose, listOf(r), layerMm)
@@ -2042,11 +2040,9 @@ object PoseDecision {
         for ((h, rs) in regions.groupBy { layerOf(it) }) {
             val cuttable = rs.filter { it.region.fromMm >= h - 1e-9 }
             if (cuttable.isEmpty()) continue
-            val zs = cuttable.flatMap { listOf(Cantilever.belowZ(b, it.region, h), Cantilever.layerZ(b, it.region, h)) }.distinct().sorted()
-            val cut = plymeld.mesh.Slicer.slice(posed, zs.toDoubleArray())
-            val loopsAt = zs.indices.associate { zs[it] to cut[it].loops }
+            val areaAt = Cantilever.areas(posed, cuttable.flatMap { listOf(Cantilever.belowZ(b, it.region, h), Cantilever.layerZ(b, it.region, h)) })
             for (r in cuttable) {
-                val reach = Cantilever.reach(Cantilever.Area(loopsAt.getValue(Cantilever.layerZ(b, r.region, h))), Cantilever.Area(loopsAt.getValue(Cantilever.belowZ(b, r.region, h))), b, r.region) ?: continue
+                val reach = Cantilever.reach(areaAt.getValue(Cantilever.layerZ(b, r.region, h)), areaAt.getValue(Cantilever.belowZ(b, r.region, h)), b, r.region) ?: continue
                 val bridgeLimit = f.bridgeMaxSpanMm
                 if (reach.reachMm <= f.overhang.widthMm + 1e-9 || (reach.bridged && (bridgeLimit == null || 2 * reach.reachMm <= bridgeLimit + 1e-9))) continue
                 out += "support is off (plan.support.enabled = false), and ${r.id} (${r.region.words}) has nothing under it: " +
