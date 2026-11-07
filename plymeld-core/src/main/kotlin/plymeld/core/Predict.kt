@@ -24,11 +24,20 @@ object Predict {
                      /** The seam measure of the planned layers the g-code was written from (SeamScar); null = not measured (a file from elsewhere, a multi-filament object). */
                      val seamScar: SeamScar.Result? = null,
                      /** The stringing and restart measures of the program as written (StringRisk); null = not measured (a file from elsewhere). */
-                     val strings: plymeld.gcode.StringRisk.Result? = null) {
+                     val strings: plymeld.gcode.StringRisk.Result? = null,
+                     /** The moves' time by the feature they print ("travel" for moves that print nothing; s); the tool changes' own time is not in it. */
+                     val featureS: Map<String, Double> = emptyMap()) {
         override fun toString() = (timeS?.let { "%.1f min".format(Locale.ROOT, it / 60) } ?: "time not predicted") +
             ", filament %.0f mm".format(Locale.ROOT, filamentMm) + " ($why)"
-        fun withSeamScar(r: SeamScar.Result?) = Prediction(timeS, filamentMm, why, layerS, filamentByToolMm, r, strings)
-        fun withStrings(r: plymeld.gcode.StringRisk.Result?) = Prediction(timeS, filamentMm, why, layerS, filamentByToolMm, seamScar, r)
+        fun withSeamScar(r: SeamScar.Result?) = Prediction(timeS, filamentMm, why, layerS, filamentByToolMm, r, strings, featureS)
+        fun withStrings(r: plymeld.gcode.StringRisk.Result?) = Prediction(timeS, filamentMm, why, layerS, filamentByToolMm, seamScar, r, featureS)
+
+        /** The time by feature, longest first (minutes, each a share of the moves' time), or null when none was predicted. */
+        fun byFeature(): String? {
+            val total = featureS.values.sum().takeIf { it > 0 } ?: return null
+            return featureS.entries.filter { it.value > 0 }.sortedByDescending { it.value }.joinToString { (f, s) ->
+                "%s %.1f min (%.0f %%)".format(Locale.ROOT, f.ifEmpty { "unnamed" }, s / 60, 100 * s / total) }
+        }
 
         /**
          * Layers predicted to take less than [minS] (the material's minimum layer time), as ranges
@@ -79,7 +88,8 @@ object Predict {
             else -> "; $changes tool changes x %.1f s (hardware.machine.<key>.tool_change.time)".format(Locale.ROOT, toolChangeS)
         }
         return Prediction(t.totalS + changes * (toolChangeS ?: 0.0), filament,
-            "motion limits: " + NEEDED.joinToString { k -> "$k ${v(k)} (${if (k in limits) "config" else "${machine.name}: ${m.getValue(k)!!.evidence.kind}"})" } + changeNote, t.perLayerS, byTool)
+            "motion limits: " + NEEDED.joinToString { k -> "$k ${v(k)} (${if (k in limits) "config" else "${machine.name}: ${m.getValue(k)!!.evidence.kind}"})" } + changeNote, t.perLayerS, byTool,
+            featureS = t.perFeatureS)
     }
 
     /**
