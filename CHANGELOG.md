@@ -28,6 +28,9 @@ section the release's version and date.
 
 ### Changed
 
+- A concentric top or bottom (outside-in or inside-out) is laid as one path where its rings lie side by side: each ring
+  starts at its point nearest where the last ended and joins onto it, so the surface has one start and one end, not
+  a radial line of starts and stops, one per ring. A ring cut by a hole is still its own piece.
 - `plan.bridge_order = "one_at_a_time"` lays the bridges from the side the head reaches least (the tools' head size and
   nozzle position, else their machine model's), as objects printed one at a time are placed, so the head never passes
   over a finished bridge. It always went from +X, which suited only a head reaching least towards +X.

@@ -1139,11 +1139,19 @@ object Planner {
                 when (pattern) {
                     in SurfaceFill.LINE_PATTERNS -> hatch(region, feature, width, spacing, angles)
                     // the ring patterns are laid as generated, ring after ring in one direction ([ToolPath.sequence])
-                    "concentric-outside-in" -> for (pc in SurfaceFill.concentricCut(grown(), spacing, 2 * width))
-                        paths.add(ToolPath(feature, if (pc.closed) seamAtBack(Polygon(pc.xy)).xy else pc.xy, pc.closed, width, h, sequence = ringSeq++))
+                    // the rings joined into one path where they lie side by side (SurfaceFill.joined: one start, not one per ring);
+                    // the first starts at the back
+                    "concentric-outside-in" -> for (pc in SurfaceFill.joined(SurfaceFill.concentricCut(grown(), spacing, 2 * width)
+                            .map { if (it.closed) SurfaceFill.Piece(seamAtBack(Polygon(it.xy)).xy, true) else it }, 2 * spacing))
+                        paths.add(ToolPath(feature, pc.xy, pc.closed, width, h, sequence = ringSeq++))
                     "archimedeanchords" -> for (pl in SurfaceFill.archimedeanChords(clipped(), spacing, 2 * width)) paths.add(ToolPath(feature, pl, false, width, h))
                     // circles around the piece's middle, arcs where they do not fit (contact placement, as the chords; SurfaceFill.circles)
-                    "concentric-inside-out" -> for (pl in SurfaceFill.circles(clipped(), spacing, 2 * width)) paths.add(ToolPath(feature, pl, false, width, h, sequence = ringSeq++))
+                    // a whole circle (its last point its first) joins the circles beside it, as the outside-in rings do
+                    "concentric-inside-out" -> for (pc in SurfaceFill.joined(SurfaceFill.circles(clipped(), spacing, 2 * width).map { pl ->
+                            val n = pl.size / 2
+                            if (n > 3 && pl[0] == pl[2 * n - 2] && pl[1] == pl[2 * n - 1]) SurfaceFill.Piece(pl.copyOf(2 * n - 2), true) else SurfaceFill.Piece(pl, false) }, 2 * spacing))
+                        paths.add(ToolPath(feature, pc.xy, if (pc.closed) false else pc.closed, width, h, sequence = ringSeq++).let { tp ->
+                            if (pc.closed) ToolPath(feature, pc.xy + longArrayOf(pc.xy[0], pc.xy[1]), false, width, h, sequence = tp.sequence) else tp })
                     else -> error("${feature.label} pattern '$pattern' is not implemented yet (line patterns, concentric-outside-in, concentric-inside-out, archimedeanchords)")
                 }
             }

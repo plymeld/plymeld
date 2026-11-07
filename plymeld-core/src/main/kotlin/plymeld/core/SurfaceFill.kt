@@ -55,6 +55,39 @@ object SurfaceFill {
     class Piece(val xy: LongArray, val closed: Boolean)
 
     /**
+     * Rings in the order laid ([pieces]), each closed ring after the first started at its point nearest where the path
+     * so far ended and joined onto it when that is at most [maxStepUm] away (the rings beside it: one spacing apart), so a
+     * run of rings is ONE path, one start and one end, the steps between rings laid as they go: a radial line of starts
+     * and stops (each ring's own start at the back) was the mark a concentric top left. A run of one ring stays a closed
+     * loop ([Piece.closed]); an open piece (cut by a hole) and a ring further away start a path of their own.
+     */
+    fun joined(pieces: List<Piece>, maxStepUm: Long): List<Piece> {
+        val out = ArrayList<Piece>()
+        var run = ArrayList<Long>(); var rings = 0; var first: LongArray? = null
+        fun flush() {
+            if (rings == 1) out += Piece(first!!, true) else if (rings > 1) out += Piece(run.toLongArray(), false)
+            run = ArrayList(); rings = 0; first = null
+        }
+        for (p in pieces) {
+            if (!p.closed) { flush(); out += p; continue }
+            val n = p.xy.size / 2
+            var start = 0
+            if (rings > 0) {
+                val ex = run[run.size - 2]; val ey = run[run.size - 1]
+                var best = Double.MAX_VALUE
+                for (i in 0 until n) { val d = Math.hypot((p.xy[2 * i] - ex).toDouble(), (p.xy[2 * i + 1] - ey).toDouble()); if (d < best) { best = d; start = i } }
+                if (best > maxStepUm) { flush(); start = 0 }
+            }
+            // the ring from its start round to it again
+            for (k in 0..n) { val i = (start + k) % n; run += p.xy[2 * i]; run += p.xy[2 * i + 1] }
+            if (rings == 0) first = p.xy
+            rings++
+        }
+        flush()
+        return out
+    }
+
+    /**
      * Concentric rings centered on each connected piece (around its center, not the nearest hole): rings from the piece's OUTER edge only ([concentric]), cut
      * where they cross a hole grown by half a spacing, so a line's edge meets a hole's edge as it
      * meets the outer one. Rings that cross no hole stay closed; the rest are open pieces, each
