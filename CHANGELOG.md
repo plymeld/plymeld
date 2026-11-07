@@ -20,7 +20,9 @@ section the release's version and date.
 
 - A model of many parts slices faster, with the same g-code: the parts' outlines are merged layer by layer side by
   side, and the pose search merges each cross-section it reads once, not once per candidate plan. On a 29-part,
-  4.7-million-triangle model the slice took half the time (54 s to 28 s) and the seam decision less than half.
+  4.7-million-triangle model the slice took half the time (54 s to 28 s) and the seam decision less than half. The
+  search reuses one placed copy of the model per pose across its measures, and the retraction decision routes its two
+  sides at once (on that model the pose search 154 s to 129 s, the retraction decision 27 s to 20 s).
 - The pose search spends its time where a pose can still win: the overhangs of a pose are surveyed only when the pose
   is looked at in detail, and a pose whose best possible score cannot reach the best candidates (lying on its side,
   needing support under most of the model) is ruled out without its strength and time estimates. `plan` says which

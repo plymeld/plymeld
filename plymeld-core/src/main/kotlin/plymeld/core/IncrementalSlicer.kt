@@ -1315,8 +1315,9 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         val weights = Resolver.resolve(setup, "job.priorities", ctx).let { plymeld.core.decide.Weights.parse(it.value as String, it.from) }
         val off = planned.map { l -> LayerPlanOut(l.index, l.topZUm, l.heightUm, l.paths.map { if (it.islandHidden) it.withRetract(true) else it }) }
         val margin = st.detourMarginUm ?: plymeld.gcode.TravelRouter.MARGIN_UM
-        fun measured(pl: List<LayerPlanOut>): plymeld.gcode.StringRisk.Result {
-            val p = program(pl, setup)
+        // each side's program made here, one after the other; its routing and measure (the slow part, the program not
+        // changed by them) both sides at once
+        fun measured(p: plymeld.program.PrintProgram): plymeld.gcode.StringRisk.Result {
             val routed = if (st.avoidCrossing) plymeld.gcode.TravelRouter.route(p, margin, st.detourMaxRatio ?: plymeld.gcode.TravelRouter.MAX_DETOUR_RATIO, st.detourMaxExtraUm ?: plymeld.gcode.TravelRouter.MAX_DETOUR_EXTRA_UM, st.detourInsetUm,
                 st.detourSpeckMaxRatio ?: plymeld.gcode.TravelRouter.SPECK_MAX_RATIO, st.detourSpeckMaxExtraUm ?: plymeld.gcode.TravelRouter.SPECK_MAX_EXTRA_UM) else p
             return plymeld.gcode.StringRisk.measure(routed, st.retractMinTravelMm, st.restartLagMm, margin)
@@ -1332,8 +1333,11 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
             if (v > 0) timeS += lenMm / v
         }
         val d = if (lockE != null) locked(lockE, weights, retractS)
-            else timed("retraction") { plymeld.core.decide.RetractionDecision.decide(objectName, measured(planned), measured(off), retractS, timeS,
-                "a quick estimate from the paths' lengths and speeds", weights, null, null) }
+            else timed("retraction") {
+                val programs = listOf(program(planned, setup), program(off, setup))
+                val (kept, retracting) = Parallel.map(2) { measured(programs[it]) }
+                plymeld.core.decide.RetractionDecision.decide(objectName, kept, retracting, retractS, timeS,
+                    "a quick estimate from the paths' lengths and speeds", weights, null, null) }
         retractionDecision = d
         if (d.value) return planned
         // the alternative is new layer objects: the lifted bridges' bookkeeping keys on the layer (bandOf, bridgeTops), so it
