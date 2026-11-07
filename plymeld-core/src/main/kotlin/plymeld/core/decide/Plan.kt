@@ -79,8 +79,8 @@ class Plan(/** Every decision, in the order made: each object's pose and techniq
                          val supportSpots: List<SupportPlan.Spot>? = null,
                          /** Planned inserts (plan.insert.<key>): sockets the print pauses at; requirements. */
                          val inserts: List<Insert> = emptyList(),
-                         /** The seam style the job locks (plan.seam: its value and source) and, with scarf seams, their plain style (plan.technique.scarf_seam.plain_style); null = decided. */
-                         val seam: Pair<String, String>? = null, val plainStyle: String? = null,
+                         /** Where the loops start, as the job locks it (plan.seam), and scarf seams (plan.technique.scarf_seam.enabled: their where, "none" off); null = decided. */
+                         val seam: SeamDecision.Lock? = null, val scarf: SeamDecision.Lock? = null,
                          /** Bond-first cooling locked on or off (plan.bond_cooling: the value and source); null = decided. */
                          val bondCooling: Pair<Boolean, String>? = null,
                          /** Curved islands a plan locks (plan.object.<key>.island.<key>): each cap's island in its own layers; locked only, for now. */
@@ -401,8 +401,8 @@ class Plan(/** Every decision, in the order made: each object's pose and techniq
                         var s = withObjectValue(withLayerHeights(setup, only(plan.layerHeightMm), "decided: the finalist's flat layer height"), "plan.layer.infill.angle", only(angle), "decided: 45 deg to the object's long axis as posed")
                         s = withObjectValue(s, "plan.technique.ironing.type", only(iron), "decided: the finalist's surface technique of the flat tops, weighed against as laid")
                         // the seams are decided after the plan (SeamDecision): a finalist's slice takes the plainest provisionally
-                        if (Resolver.resolveOrNull(setup, "plan.seam_start", plymeld.model.Context(k)) == null) {
-                            s = withObjectValue(s, "plan.seam_start", only("back"), "provisional for a finalist's slice: the seam decision follows the plan")
+                        if (Resolver.resolveOrNull(setup, "plan.seam", plymeld.model.Context(k)) == null) {
+                            s = withObjectValue(s, "plan.seam", only("back"), "provisional for a finalist's slice: the seam decision follows the plan")
                             s = withObjectValue(s, "plan.technique.scarf_seam.where", only("none"), "provisional for a finalist's slice: the seam decision follows the plan")
                         }
                         // the in-island retraction is decided when sliced (RetractionDecision): a finalist's slice keeps the hidden travels provisionally
@@ -542,9 +542,9 @@ class Plan(/** Every decision, in the order made: each object's pose and techniq
                     "plan.technique.ironing.type", ironingDecided, "decided: the surface technique of the flat tops, weighed against as laid")
                 // the seams and the in-island retraction are decided after the plan: a layout's slice takes the plainest
                 // provisionally, as a finalist's does (without it no layout could be predicted at all)
-                val noSeam = objects.indices.map { k -> Resolver.resolveOrNull(s0, "plan.seam_start", plymeld.model.Context(k)) == null }
+                val noSeam = objects.indices.map { k -> Resolver.resolveOrNull(s0, "plan.seam", plymeld.model.Context(k)) == null }
                 if (noSeam.any { it }) {
-                    s = withObjectValue(s, "plan.seam_start", noSeam.map { if (it) "back" else null }, "provisional for a layout's slice: the seam decision follows the plan")
+                    s = withObjectValue(s, "plan.seam", noSeam.map { if (it) "back" else null }, "provisional for a layout's slice: the seam decision follows the plan")
                     s = withObjectValue(s, "plan.technique.scarf_seam.where", noSeam.map { if (it) "none" else null }, "provisional for a layout's slice: the seam decision follows the plan")
                 }
                 val noRetract = objects.indices.map { k -> Resolver.resolveOrNull(s0, "plan.mechanism.motion.no_retract_in_island", plymeld.model.Context(k)) == null }
@@ -580,10 +580,11 @@ class Plan(/** Every decision, in the order made: each object's pose and techniq
             val slicers = objects.indices.map { k -> plymeld.core.IncrementalSlicer(placedParts(k), "plan", objects[k].first, k, techniques[k].value) }
             @Suppress("UNCHECKED_CAST")
             val seams = objects.indices.map { k -> timed { ObjectDecisions.seams(sDecided, k, objects[k].first, slicers[k],
-                explains[k].decision.finalists?.baseline?.firstOrNull { it.metric == Metric.TIME }?.value, o.objects.getOrNull(k)?.seam, o.objects.getOrNull(k)?.plainStyle) } as Decision<SeamDecision.Choice>? }
-            val seamWhy = "decided: the seams, weighed by the job's weights (seam_scar against the scarf's extra pass; no plan.seam lock)"
-            val sSeamed = withObjectValue(withObjectValue(sDecided, "plan.seam_start", seams.map { d -> d?.takeIf { !it.overridden }?.value?.placement?.start }, seamWhy),
-                "plan.technique.scarf_seam.where", seams.map { d -> d?.takeIf { !it.overridden }?.value?.scarf }, seamWhy)
+                explains[k].decision.finalists?.baseline?.firstOrNull { it.metric == Metric.TIME }?.value, o.objects.getOrNull(k)?.seam, o.objects.getOrNull(k)?.scarf) } as Decision<SeamDecision.Choice>? }
+            val seamWhy = "decided: the seams, weighed by the job's weights (seam_scar against the scarf's extra pass)"
+            // what the weights decided (a lock's half is the config's already)
+            val sSeamed = withObjectValue(withObjectValue(sDecided, "plan.seam", seams.map { d -> d?.takeIf { !it.overridden && !it.value.placementLocked }?.value?.placement?.start }, seamWhy),
+                "plan.technique.scarf_seam.where", seams.map { d -> d?.takeIf { !it.overridden && !it.value.scarfLocked }?.value?.scarf }, seamWhy)
             @Suppress("UNCHECKED_CAST")
             val retractions = objects.indices.map { k -> timed { ObjectDecisions.retraction(sSeamed, slicers[k]) } as Decision<Boolean>? }
             // the surface techniques and seams over each object's final volume portions: locked by the job's locks, or, where

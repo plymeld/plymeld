@@ -128,17 +128,16 @@ class ConfigSetupTest : StringSpec({
     // a switch is a boolean beside its choice; the pipeline's setting still holds the choice, "none" when off
     "switches: enabled and the choice beside it give the pipeline's choice, off its none; controls: each switch off, and on" {
         fun v(id: String, vararg kv: Pair<String, Any>) = Resolver.resolveOrNull(setup(*kv).setup, id, Context(0))?.value
-        // the seam unset is decided per object: nothing set up front; locked: scarf seams, smooth, placed at corners
+        // the seams unset are decided per object: nothing set up front; plan.seam is read as it is, and scarf seams'
+        // switch gives their where ("none" off)
         v("plan.technique.scarf_seam.where") shouldBe null
-        v("plan.seam_start") shouldBe null
-        v("plan.technique.scarf_seam.where", "plan.seam" to "scarf_seam") shouldBe "smooth"
-        v("plan.seam_start", "plan.seam" to "scarf_seam") shouldBe "corners"
-        v("plan.technique.scarf_seam.where", "plan.seam" to "corner_seam") shouldBe "none"
-        v("plan.technique.scarf_seam.where", "plan.seam" to "back_seam") shouldBe "none"
-        v("plan.seam_start", "plan.seam" to "back_seam") shouldBe "back"
-        v("plan.seam_start", "plan.seam" to "scarf_seam", "plan.technique.scarf_seam.plain_style" to "back_seam") shouldBe "back"   // scarf seams placed at the back
-        v("plan.technique.scarf_seam.where", "plan.seam" to "scarf_seam", "plan.object.benchy.technique.scarf_seam.where" to "all") shouldBe "all"   // per object
-        v("plan.technique.scarf_seam.where", "plan.object.benchy.seam" to "corner_seam") shouldBe "none"               // a lock per object
+        v("plan.seam") shouldBe null
+        v("plan.technique.scarf_seam.where", "plan.technique.scarf_seam.enabled" to true) shouldBe "smooth"
+        v("plan.technique.scarf_seam.where", "plan.technique.scarf_seam.enabled" to false) shouldBe "none"
+        v("plan.seam", "plan.seam" to "back") shouldBe "back"
+        v("plan.technique.scarf_seam.where", "plan.seam" to "back") shouldBe null                                   // the placement alone: the scarf still decided
+        v("plan.technique.scarf_seam.where", "plan.technique.scarf_seam.enabled" to true, "plan.object.benchy.technique.scarf_seam.where" to "all") shouldBe "all"   // per object
+        v("plan.technique.scarf_seam.where", "plan.object.benchy.technique.scarf_seam.enabled" to false) shouldBe "none"   // a lock per object
         // the surface techniques locked: each locks its technique; as laid, none
         v("plan.faces.sloped_top.z_antialiasing", "plan.faces.sloped_top.technique" to "z_antialiasing") shouldBe true
         v("plan.faces.sloped_top.z_antialiasing", "plan.faces.sloped_top.technique" to "as_laid") shouldBe false

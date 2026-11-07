@@ -65,11 +65,11 @@ object ObjectDecisions {
     /**
      * The seams of object [k]: its walls as the slice's walls stage lays them ([slicer], shared with the
      * retraction decision and the slice's own cache), each candidate placed and measured (SeamDecision), weighed by the
-     * object's weights; or locked by plan.seam ([lock]: value and source; [plainStyle] the scarf's plain style). [timeS]:
+     * object's weights; or locked ([placementLock]: plan.seam; [scarfLock]: plan.technique.scarf_seam.enabled, its where or "none"; a half locked, the other weighed). [timeS]:
      * the baseline's predicted print time, the scale the scarf's extra pass is scored against (null: not scored). Null when
      * the object cannot be sliced here (no layer height): then plan.seam must be set, and the slice says so.
      */
-    fun seams(setup: Setup, k: Int, name: String, slicer: IncrementalSlicer, timeS: Double?, lock: Pair<String, String>?, plainStyle: String?): Decision<SeamDecision.Choice>? {
+    fun seams(setup: Setup, k: Int, name: String, slicer: IncrementalSlicer, timeS: Double?, placementLock: SeamDecision.Lock?, scarfLock: SeamDecision.Lock?): Decision<SeamDecision.Choice>? {
         val ctx = Context(k)
         val weights = Resolver.resolve(setup, "job.priorities", ctx).let { Weights.parse(it.value as String, it.from) }
         val s = try { SliceSettings.of(setup, ctx) } catch (e: IllegalStateException) { return null } catch (e: IllegalArgumentException) { return null }
@@ -78,23 +78,21 @@ object ObjectDecisions {
         val noWalls = SeamDecision.Walls(emptyList(), emptyList(), LongArray(0), s.outerWallWidthUm, s.innerWallWidthUm, s.firstLayerWidthUm)
         val params = SeamDecision.Params(s.seamCornerDeg, s.scarfLengthUm, s.scarfStart, s.visibleSpeed, visibility, shares, timeS,
             "the baseline's predicted time from the technique decision's finalists")
-        if (lock != null) return SeamDecision.decide(name, noWalls, params, weights, lock.first, plainStyle, lock.second)
-        // decided already (a plan file from `plan -o`, or `slice` after `plan` in one run carries plan.seam_start with its provenance):
+        if (placementLock != null && scarfLock != null) return SeamDecision.decide(name, noWalls, params, weights, placementLock, scarfLock)
+        // decided already (`slice` after `plan` in one run carries plan.seam and the scarf's where with their provenance):
         // kept as it is, not weighed again (the slice re-ran the decision, 8 minutes on a 30-part model)
-        val already = Resolver.resolveOrNull(setup, "plan.seam_start", ctx)
-        if (already != null) {
-            val where = Resolver.resolveOrNull(setup, "plan.technique.scarf_seam.where", ctx)?.value as String? ?: "none"
-            val plain = SeamDecision.Placement.entries.firstOrNull { it.start == already.value }?.style ?: "corner_seam"
-            val style = if (where != "none") "scarf_seam" else plain
-            return SeamDecision.decide(name, noWalls, params, weights, style, plain, "${already.from} (decided earlier, kept)")
-        }
+        val already = Resolver.resolveOrNull(setup, "plan.seam", ctx)
+        val alreadyScarf = Resolver.resolveOrNull(setup, "plan.technique.scarf_seam.where", ctx)
+        if (already != null && alreadyScarf != null)
+            return SeamDecision.decide(name, noWalls, params, weights, SeamDecision.Lock(already.value as String, "${already.from} (decided earlier, kept)"),
+                SeamDecision.Lock(alreadyScarf.value as String, "${alreadyScarf.from} (decided earlier, kept)"))
         val tPrep = System.nanoTime()
         val (outlines, w, topsUm) = try { slicer.wallsForDecision(setup) } catch (e: IllegalStateException) { return null } catch (e: IllegalArgumentException) { return null }
         if (topsUm.isEmpty()) return null
         val prepS = (System.nanoTime() - tPrep) / 1e9
         val printed = w.effOutlines.mapIndexed { i, e -> if (i == 0) outlines[0] else e }
         val walls = SeamDecision.Walls(w.walls.map { it.walls }, printed, topsUm, s.outerWallWidthUm, s.innerWallWidthUm, s.firstLayerWidthUm)
-        return SeamDecision.decide(name, walls, params, weights, null, plainStyle, null, prepS)
+        return SeamDecision.decide(name, walls, params, weights, placementLock, scarfLock, prepS)
     }
 
     /**

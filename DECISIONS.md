@@ -216,3 +216,24 @@ what the search prefers, not only to its speed.
 and support is not searched. The placeholder 0.1 was set from the test models under six weightings: the chosen pose sat
 at most 0.068 from the first look's best (the coupon), and every choice is kept. Where the first look measures nothing a
 weighting cares about (speed and strength: no time or bond estimate yet), every pose ties there and all are searched.
+
+## 10. One seam vocabulary: `plan.seam` says where loops start, scarf seams are a switch beside it (2026-11-07)
+
+**Context.** Where wall loops start was said three ways: the lock `plan.seam` took styles (`corner_seam`, `back_seam`,
+`least_visible_seam`, `scarf_seam`), scarf seams' plain style (`plain_style`) took the same styles, and the
+pipeline read a third setting (`seam_start`), with yet other words (`corners`, `back`, `least_visible`). Scarf seams
+were one of the styles, so locking them also locked a placement (through the plain style), and locking a placement
+locked scarf seams off: neither could be locked while the other was weighed.
+
+**Decision.** One word per placement, `corners`, `back`, `least_visible`, used alike by the lock, the plan file and the
+pipeline: `plan.seam` holds it, locked or decided. Scarf seams are a switch, `plan.technique.scarf_seam.enabled`, beside
+their `where`, as the other techniques' switches are. Each is a lock of its own: unset, it is decided per object, and the
+seam decision weighs only what is not locked, against the same baseline (the back, no scarf). `plain_style` and
+`seam_start` are gone: a scarf seam starts where `plan.seam` starts the loop.
+
+**Rejected.** Keeping scarf seams as a style of `plan.seam`: it ties two independent choices into one lock. Old names
+kept as aliases: plymeld has no users to migrate yet, and two names for one value is the inconsistency being removed.
+
+**Consequences.** `plan.seam = "corners"` alone no longer means "no scarf seams": scarf seams are then decided; set
+`plan.technique.scarf_seam.enabled = "false"` for none. Configs and plan files in the old words are refused as unknown
+values or keys.

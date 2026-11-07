@@ -24,16 +24,16 @@ import kotlin.math.hypot
  * Sample toolpaths of the seam styles (curve techniques), drawn into docs/renders/technique_*.png. Each test first
  * asserts from the g-code what its picture shows:
  *  - corner seams against back seams on an L-shaped prism (20 x 20 mm, an 8 mm wide arm each way, 5 mm high): with
- *    `plan.seam = "corner_seam"` every layer's outer wall starts within 0.6 mm of the L's inside corner; with `"back_seam"`
+ *    `plan.seam = "corners"` (scarf seams off) every layer's outer wall starts within 0.6 mm of the L's inside corner; with `"back"`
  *    within 0.3 mm of the back (the largest Y the outer wall reaches);
  *  - scarf seams against a plain seam on a round post (radius 10 mm, 5 mm high, no corner): with the bundled
- *    `plan.seam = "scarf_seam"` each layer above the first has outer wall moves that change Z (the ramp), 7 to 13 mm of them
+ *    scarf seams on (`plan.technique.scarf_seam.enabled = "true"`, `plan.seam = "corners"`) each layer above the first has outer wall moves that change Z (the ramp), 7 to 13 mm of them
  *    for the bundled 10 mm scarf length, and its loop's last move feeds under half the layer's median plastic per mm (the
- *    end re-printed thinning); with `"corner_seam"` no outer wall move changes Z, and the plain seams lie in the window
+ *    end re-printed thinning); with them off no outer wall move changes Z, and the plain seams lie in the window
  *    the picture draws round the scarf seams;
  *  - least-visible seams against back seams on a round post (radius 10 mm, 5 mm high, no corner) looked at from its left
- *    (`plan.view_from = "left"`, the model's small-x side): with `plan.seam = "least_visible_seam"` every layer's outer wall
- *    starts on the right, turned away from the viewer (within 45 degrees of +X round the post's axis); with `"back_seam"` at
+ *    (`plan.view_from = "left"`, the model's small-x side): with `plan.seam = "least_visible"` every layer's outer wall
+ *    starts on the right, turned away from the viewer (within 45 degrees of +X round the post's axis); with `"back"` at
  *    the back.
  * The models' sizes are the tests' own (plymeld's choice).
  */
@@ -42,8 +42,8 @@ class SeamSampleTest : StringSpec({
 
     "corner seams against back seams: where each layer's outer wall starts on an L" {
         Files.writeString(d.resolve("ell.stl"), stl(prism(listOf(0.0 to 0.0, 20.0 to 0.0, 20.0 to 8.0, 8.0 to 8.0, 8.0 to 20.0, 0.0 to 20.0), 0.0, 5.0)))
-        val corner = slice(d, listOf("ell.stl"), "[plan]\nseam = \"corner_seam\"\n", "seam_corner.gcode")
-        val back = slice(d, listOf("ell.stl"), "[plan]\nseam = \"back_seam\"\n", "seam_back.gcode")
+        val corner = slice(d, listOf("ell.stl"), "[plan]\nseam = \"corners\"\ntechnique.scarf_seam.enabled = \"false\"\n", "seam_corner.gcode")
+        val back = slice(d, listOf("ell.stl"), "[plan]\nseam = \"back\"\ntechnique.scarf_seam.enabled = \"false\"\n", "seam_back.gcode")
         fun starts(p: TechniqueRender.Toolpath) = runStarts(p, "Outer wall").filter { it.layer >= 1 }
         // the inside corner from the outer wall's own box (its center line lies inset; the inside corner's center line sits at the box's corner + 8 each way)
         fun box(p: TechniqueRender.Toolpath): DoubleArray { val w = p.moves.filter { it.feature == "Outer wall" && it.layer >= 1 }
@@ -59,16 +59,16 @@ class SeamSampleTest : StringSpec({
         val kc = corner.nearestLayer(2.5); val kb = back.nearestLayer(2.5)
         fun marks(ss: List<TechniqueRender.Move>) = ss.map { Mark(it.x0, it.y0, it.z0) }
         TechniqueRender.render("Seam placement: an L-shaped prism, its layer 2.5 mm up and every layer's seam", View.TOP, listOf(
-            Panel(listOf("corner seam", "plan.seam = \"corner_seam\" (also the bundled scarf seams' plain style)",
+            Panel(listOf("corner seam", "plan.seam = \"corners\", scarf seams off",
                 "${cs.size} layers' outer walls start at the inside corner (ringed)"), corner, { it.layer == kc }, marks = marks(cs)),
-            Panel(listOf("back seam", "plan.seam = \"back_seam\"", "${bs.size} layers' outer walls start at the back (ringed)"), back, { it.layer == kb }, marks = marks(bs)),
+            Panel(listOf("back seam", "plan.seam = \"back\", scarf seams off", "${bs.size} layers' outer walls start at the back (ringed)"), back, { it.layer == kb }, marks = marks(bs)),
         ), reviewRender("technique_corner_seam.png"))
     }
 
     "scarf seams against a plain seam: a round post's outer wall unrolled" {
         Files.writeString(d.resolve("post.stl"), stl(cylinder(0.0, 0.0, 10.0, 5.0)))
-        val plain = slice(d, listOf("post.stl"), "[plan]\nseam = \"corner_seam\"\n", "scarf_plain.gcode")
-        val scarf = slice(d, listOf("post.stl"), "[plan]\nseam = \"scarf_seam\"\n", "scarf_on.gcode")
+        val plain = slice(d, listOf("post.stl"), "[plan]\nseam = \"corners\"\ntechnique.scarf_seam.enabled = \"false\"\n", "scarf_plain.gcode")
+        val scarf = slice(d, listOf("post.stl"), "[plan]\nseam = \"corners\"\ntechnique.scarf_seam.enabled = \"true\"\n", "scarf_on.gcode")
         fun ramps(p: TechniqueRender.Toolpath) = p.moves.filter { it.feature == "Outer wall" && it.layer >= 1 && abs(it.z1 - it.z0) > 1e-4 }
         val perLayer = ramps(scarf).groupBy { it.layer }.mapValues { (_, ms) -> ms.sumOf { it.length } }
         withClue("a ramp on every layer above the first: $perLayer") { perLayer.size shouldBe scarf.layerZs.size - 1 }
@@ -95,9 +95,9 @@ class SeamSampleTest : StringSpec({
         val plainSeams = runStarts(plain, "Outer wall").filter { inBand(it) }
         withClue("the plain seams in the window, where the scarf seams start") { plainSeams.all { near(it) } shouldBe true }
         TechniqueRender.render("Scarf seam: a round post's outer wall near the seam, layers z 2.0 to 2.8, by plastic per mm", View.UNROLLED, listOf(
-            Panel(listOf("plain seam", "plan.seam = \"corner_seam\" (no corner: aligned with the layer below)",
+            Panel(listOf("plain seam", "plan.seam = \"corners\", scarf seams off (no corner: aligned with the layer below)",
                 "each loop's ends butted where it starts (ringed); no move changes Z"), plain, { inBand(it) && near(it) }, marks = plainSeams.map { Mark(it.x0, it.y0, it.z0) }, coloring = TechniqueRender.Coloring.FLOW, plasticHeight = true),
-            Panel(listOf("scarf seam (bundled)", "plan.seam = \"scarf_seam\" (where = smooth, length 10 mm, start 0.25)",
+            Panel(listOf("scarf seam (bundled)", "plan.seam = \"corners\", scarf_seam.enabled = \"true\" (where = smooth, length 10 mm, start 0.25)",
                 "a ramp of " + perLayer.values.take(1).joinToString { "%.1f mm".format(Locale.ROOT, it) } + " a layer from a quarter of the layer up, re-printed thinning at the loop's end"),
                 scarf, { inBand(it) && near(it) }, TechniqueRender.Coloring.FLOW, plasticHeight = true),
         ), reviewRender("technique_scarf_seam.png"), zScale = 10.0, center = ax, facing = facing)
@@ -106,8 +106,8 @@ class SeamSampleTest : StringSpec({
     "least-visible seams against back seams: a round post looked at from its left" {
         Files.writeString(d.resolve("post_view.stl"), stl(cylinder(0.0, 0.0, 10.0, 5.0)))
         val view = "[plan]\nview_from = \"left\"\n"
-        val back = slice(d, listOf("post_view.stl"), view + "seam = \"back_seam\"\n", "seam_view_back.gcode")
-        val least = slice(d, listOf("post_view.stl"), view + "seam = \"least_visible_seam\"\n", "seam_view_least.gcode")
+        val back = slice(d, listOf("post_view.stl"), view + "seam = \"back\"\ntechnique.scarf_seam.enabled = \"false\"\n", "seam_view_back.gcode")
+        val least = slice(d, listOf("post_view.stl"), view + "seam = \"least_visible\"\ntechnique.scarf_seam.enabled = \"false\"\n", "seam_view_least.gcode")
         fun starts(p: TechniqueRender.Toolpath) = runStarts(p, "Outer wall").filter { it.layer >= 1 }
         fun box(p: TechniqueRender.Toolpath): DoubleArray { val w = p.moves.filter { it.feature == "Outer wall" && it.layer >= 1 }
             return doubleArrayOf(w.minOf { minOf(it.x0, it.x1) }, w.minOf { minOf(it.y0, it.y1) }, w.maxOf { maxOf(it.x0, it.x1) }, w.maxOf { maxOf(it.y0, it.y1) }) }
@@ -124,8 +124,8 @@ class SeamSampleTest : StringSpec({
         val kl = least.nearestLayer(2.5); val kb = back.nearestLayer(2.5)
         fun marks(ss: List<TechniqueRender.Move>) = ss.map { Mark(it.x0, it.y0, it.z0) }
         TechniqueRender.render("Least-visible seam: a round post looked at from its left (plan.view_from = \"left\"), its layer 2.5 mm up and every layer's seam", View.TOP, listOf(
-            Panel(listOf("back seam", "plan.seam = \"back_seam\"", "${bs.size} layers' outer walls start at the back (ringed)"), back, { it.layer == kb }, marks = marks(bs)),
-            Panel(listOf("least-visible seam", "plan.seam = \"least_visible_seam\", plan.view_from = \"left\"",
+            Panel(listOf("back seam", "plan.seam = \"back\", scarf seams off", "${bs.size} layers' outer walls start at the back (ringed)"), back, { it.layer == kb }, marks = marks(bs)),
+            Panel(listOf("least-visible seam", "plan.seam = \"least_visible\", scarf seams off, plan.view_from = \"left\"",
                 "${ls.size} layers' outer walls start on the back right, turned away from the viewer (ringed)"), least, { it.layer == kl }, marks = marks(ls)),
         ), reviewRender("technique_least_visible_seam.png"))
     }

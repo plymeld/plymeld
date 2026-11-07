@@ -3173,12 +3173,11 @@
           }
         },
         "seam": {
-          "description": "the seam style locked for the wall loops: scarf_seam = scarf seams on the outer walls above the first layer that plan.technique.scarf_seam.where names (never on a fuzzed wall, nor a loop Z anti-aliasing lowers), placed and its other loops seamed as its plain_style; corner_seam = every loop starts at a corner when it has one (inside corners first), each layer's seam nearest the one below (with none below: the sharpest corner, else the back-most point); back_seam = every loop starts at its back-most point; least_visible_seam = every loop starts at the held-up point the seam measure counts least (its visibility, turned away from plan.view_from's viewer or an underside, times method.quality.seam.corner_share in a corner), ties to the point the viewer sees least first (a turned-away face before a front corner), then to a corner, then to the seam below, then the back. Either way, a point on an edge of the layer that hangs over the layer below (where the overhang slow-down starts) only when the loop has no other. Unset = decided per object by the job's weights (seam_scar against the scarf's extra pass in time)",
+          "description": "where every wall loop starts (its seam), a scarf seam's too: corners = every loop starts at a corner when it has one (inside corners first), each layer's seam nearest the one below (with none below: the sharpest corner, else the back-most point); back = every loop starts at its back-most point; least_visible = every loop starts at the held-up point the seam measure counts least (its visibility, turned away from plan.view_from's viewer or an underside, times method.quality.seam.corner_share in a corner), ties to the point the viewer sees least first (a turned-away face before a front corner), then to a corner, then to the seam below, then the back. Either way, a point on an edge of the layer that hangs over the layer below (where the overhang slow-down starts) only when the loop has no other. Unset = decided per object by the job's weights (seam_scar, with whether scarf seams are on where plan.technique.scarf_seam.enabled is unset)",
           "enum": [
-            "scarf_seam",
-            "corner_seam",
-            "back_seam",
-            "least_visible_seam"
+            "corners",
+            "back",
+            "least_visible"
           ]
         },
         "pause": {
@@ -4306,8 +4305,26 @@
               "type": "object",
               "additionalProperties": false,
               "properties": {
+                "enabled": {
+                  "description": "scarf seams on the outer walls above the first layer that scarf_seam.where names (never on a fuzzed wall, nor a loop Z anti-aliasing lowers), each starting where plan.seam starts the loop; false = none. Unset = decided per object by the job's weights (seam_scar against the scarf's extra pass in time), with the placement where plan.seam is unset — true or false; or a formula (= ...)",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "true",
+                        "false"
+                      ]
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\s*="
+                    }
+                  ]
+                },
                 "where": {
-                  "description": "which outer walls get a scarf seam: smooth = only loops whose seam does not land on a corner (with the plain style corner_seam, the loops with no corner; with back_seam, most loops), all = every outer wall. A scarf seam starts the loop thin and low, rising to the layer over scarf_seam.length, and ends re-printing that stretch thinning to nothing (the two wedges make one layer)",
+                  "description": "which outer walls get a scarf seam when they are on: smooth = only loops whose seam does not land on a corner (with plan.seam = corners, the loops with no corner; with back, most loops), all = every outer wall. A scarf seam starts the loop thin and low, rising to the layer over scarf_seam.length, and ends re-printing that stretch thinning to nothing (the two wedges make one layer)",
                   "enum": [
                     "smooth",
                     "all"
@@ -4325,14 +4342,6 @@
                   "type": [
                     "string",
                     "number"
-                  ]
-                },
-                "plain_style": {
-                  "description": "the plain seam style beside scarf seams: a scarf seam starts where it would start the loop, and it seams every loop the scarf seams do not take",
-                  "enum": [
-                    "corner_seam",
-                    "back_seam",
-                    "least_visible_seam"
                   ]
                 }
               }
@@ -5242,12 +5251,11 @@
           }
         },
         "seam": {
-          "description": "the seam style locked for the wall loops: scarf_seam = scarf seams on the outer walls above the first layer that plan.technique.scarf_seam.where names (never on a fuzzed wall, nor a loop Z anti-aliasing lowers), placed and its other loops seamed as its plain_style; corner_seam = every loop starts at a corner when it has one (inside corners first), each layer's seam nearest the one below (with none below: the sharpest corner, else the back-most point); back_seam = every loop starts at its back-most point; least_visible_seam = every loop starts at the held-up point the seam measure counts least (its visibility, turned away from plan.view_from's viewer or an underside, times method.quality.seam.corner_share in a corner), ties to the point the viewer sees least first (a turned-away face before a front corner), then to a corner, then to the seam below, then the back. Either way, a point on an edge of the layer that hangs over the layer below (where the overhang slow-down starts) only when the loop has no other. Unset = decided per object by the job's weights (seam_scar against the scarf's extra pass in time)",
+          "description": "where every wall loop starts (its seam), a scarf seam's too: corners = every loop starts at a corner when it has one (inside corners first), each layer's seam nearest the one below (with none below: the sharpest corner, else the back-most point); back = every loop starts at its back-most point; least_visible = every loop starts at the held-up point the seam measure counts least (its visibility, turned away from plan.view_from's viewer or an underside, times method.quality.seam.corner_share in a corner), ties to the point the viewer sees least first (a turned-away face before a front corner), then to a corner, then to the seam below, then the back. Either way, a point on an edge of the layer that hangs over the layer below (where the overhang slow-down starts) only when the loop has no other. Unset = decided per object by the job's weights (seam_scar, with whether scarf seams are on where plan.technique.scarf_seam.enabled is unset)",
           "enum": [
-            "scarf_seam",
-            "corner_seam",
-            "back_seam",
-            "least_visible_seam"
+            "corners",
+            "back",
+            "least_visible"
           ]
         },
         "support": {
@@ -6335,8 +6343,26 @@
               "type": "object",
               "additionalProperties": false,
               "properties": {
+                "enabled": {
+                  "description": "scarf seams on the outer walls above the first layer that scarf_seam.where names (never on a fuzzed wall, nor a loop Z anti-aliasing lowers), each starting where plan.seam starts the loop; false = none. Unset = decided per object by the job's weights (seam_scar against the scarf's extra pass in time), with the placement where plan.seam is unset — true or false; or a formula (= ...)",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "true",
+                        "false"
+                      ]
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\s*="
+                    }
+                  ]
+                },
                 "where": {
-                  "description": "which outer walls get a scarf seam: smooth = only loops whose seam does not land on a corner (with the plain style corner_seam, the loops with no corner; with back_seam, most loops), all = every outer wall. A scarf seam starts the loop thin and low, rising to the layer over scarf_seam.length, and ends re-printing that stretch thinning to nothing (the two wedges make one layer)",
+                  "description": "which outer walls get a scarf seam when they are on: smooth = only loops whose seam does not land on a corner (with plan.seam = corners, the loops with no corner; with back, most loops), all = every outer wall. A scarf seam starts the loop thin and low, rising to the layer over scarf_seam.length, and ends re-printing that stretch thinning to nothing (the two wedges make one layer)",
                   "enum": [
                     "smooth",
                     "all"
@@ -6354,14 +6380,6 @@
                   "type": [
                     "string",
                     "number"
-                  ]
-                },
-                "plain_style": {
-                  "description": "the plain seam style beside scarf seams: a scarf seam starts where it would start the loop, and it seams every loop the scarf seams do not take",
-                  "enum": [
-                    "corner_seam",
-                    "back_seam",
-                    "least_visible_seam"
                   ]
                 }
               }
@@ -7311,12 +7329,11 @@
           }
         },
         "seam": {
-          "description": "the seam style locked for the wall loops: scarf_seam = scarf seams on the outer walls above the first layer that plan.technique.scarf_seam.where names (never on a fuzzed wall, nor a loop Z anti-aliasing lowers), placed and its other loops seamed as its plain_style; corner_seam = every loop starts at a corner when it has one (inside corners first), each layer's seam nearest the one below (with none below: the sharpest corner, else the back-most point); back_seam = every loop starts at its back-most point; least_visible_seam = every loop starts at the held-up point the seam measure counts least (its visibility, turned away from plan.view_from's viewer or an underside, times method.quality.seam.corner_share in a corner), ties to the point the viewer sees least first (a turned-away face before a front corner), then to a corner, then to the seam below, then the back. Either way, a point on an edge of the layer that hangs over the layer below (where the overhang slow-down starts) only when the loop has no other. Unset = decided per object by the job's weights (seam_scar against the scarf's extra pass in time)",
+          "description": "where every wall loop starts (its seam), a scarf seam's too: corners = every loop starts at a corner when it has one (inside corners first), each layer's seam nearest the one below (with none below: the sharpest corner, else the back-most point); back = every loop starts at its back-most point; least_visible = every loop starts at the held-up point the seam measure counts least (its visibility, turned away from plan.view_from's viewer or an underside, times method.quality.seam.corner_share in a corner), ties to the point the viewer sees least first (a turned-away face before a front corner), then to a corner, then to the seam below, then the back. Either way, a point on an edge of the layer that hangs over the layer below (where the overhang slow-down starts) only when the loop has no other. Unset = decided per object by the job's weights (seam_scar, with whether scarf seams are on where plan.technique.scarf_seam.enabled is unset)",
           "enum": [
-            "scarf_seam",
-            "corner_seam",
-            "back_seam",
-            "least_visible_seam"
+            "corners",
+            "back",
+            "least_visible"
           ]
         },
         "technique": {
@@ -8074,8 +8091,26 @@
               "type": "object",
               "additionalProperties": false,
               "properties": {
+                "enabled": {
+                  "description": "scarf seams on the outer walls above the first layer that scarf_seam.where names (never on a fuzzed wall, nor a loop Z anti-aliasing lowers), each starting where plan.seam starts the loop; false = none. Unset = decided per object by the job's weights (seam_scar against the scarf's extra pass in time), with the placement where plan.seam is unset — true or false; or a formula (= ...)",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "true",
+                        "false"
+                      ]
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\s*="
+                    }
+                  ]
+                },
                 "where": {
-                  "description": "which outer walls get a scarf seam: smooth = only loops whose seam does not land on a corner (with the plain style corner_seam, the loops with no corner; with back_seam, most loops), all = every outer wall. A scarf seam starts the loop thin and low, rising to the layer over scarf_seam.length, and ends re-printing that stretch thinning to nothing (the two wedges make one layer)",
+                  "description": "which outer walls get a scarf seam when they are on: smooth = only loops whose seam does not land on a corner (with plan.seam = corners, the loops with no corner; with back, most loops), all = every outer wall. A scarf seam starts the loop thin and low, rising to the layer over scarf_seam.length, and ends re-printing that stretch thinning to nothing (the two wedges make one layer)",
                   "enum": [
                     "smooth",
                     "all"
@@ -8093,14 +8128,6 @@
                   "type": [
                     "string",
                     "number"
-                  ]
-                },
-                "plain_style": {
-                  "description": "the plain seam style beside scarf seams: a scarf seam starts where it would start the loop, and it seams every loop the scarf seams do not take",
-                  "enum": [
-                    "corner_seam",
-                    "back_seam",
-                    "least_visible_seam"
                   ]
                 }
               }

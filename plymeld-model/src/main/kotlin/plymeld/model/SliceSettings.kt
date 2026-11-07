@@ -68,13 +68,12 @@ class SliceSettings private constructor(r: (String) -> Any, opt: (String) -> Any
     val elephantFootUm by setting { um("hardware.plate.first_layer.squish") }
     val innerWallsFirst by setting { bool("plan.layer.walls.inner_first") }
     /**
-     * Where wall loops start (plan.seam_start, from plan.seam or decided): "corners", at corners in line with the layer below (every value but
-     * "back", so another slicer's aligned / nearest / random read as corners, the seams kept aligned), or at the
-     * back. Null = not decided yet (plan.seam unset and the seam decision not run: `plymeld plan` decides it); the stages
-     * that place seams refuse then, the ones before them (walls) do not need it.
+     * Where wall loops start (plan.seam, locked or decided): "corners", at corners in line with the layer below, "back", or
+     * "least_visible". Null = not decided yet (plan.seam unset and the seam decision not run: `plymeld plan` decides it); the
+     * stages that place seams refuse then, the ones before them (walls) do not need it.
      */
-    val seamStart: String? by setting { opt("plan.seam_start") as String? }
-    private val seamStartSet: String get() = seamStart ?: error("plan.seam_start is not set: the seam placement was not decided (plymeld plan decides it when plan.seam is unset) nor locked (plan.seam)")
+    val seamStart: String? by setting { opt("plan.seam") as String? }
+    private val seamStartSet: String get() = seamStart ?: error("plan.seam is not set: where the wall loops start was neither locked (plan.seam) nor decided (plymeld plan decides it when plan.seam is unset)")
     val seamCorners: Boolean get() = seamStartSet == "corners"
     val seamBack: Boolean get() = seamStartSet == "back"
     val seamLeastVisible: Boolean get() = seamStartSet == "least_visible"

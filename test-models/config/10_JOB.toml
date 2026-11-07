@@ -17,7 +17,8 @@ flat_top.technique = "as_laid"
 side.technique = "as_laid"
 
 [plan]
-seam = "scarf_seam"
+seam = "corners"
+technique.scarf_seam.enabled = "true"
 
 [plan.pause.insert-ballast]
 at = "12.4 mm"

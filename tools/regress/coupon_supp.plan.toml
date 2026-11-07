@@ -25,7 +25,8 @@ faces.flat_top.technique = "as_laid"
 # bond-first cooling, weighed (no plan.bond_cooling lock): bond-first won; bond-first cooling: part fan 50 %, nozzle 215 C, minimum layer time 3 s
 bond_cooling = "on"
 # the seams, weighed (no plan.seam lock): no scarf seams; the loops' seams at the held-up point seen least (its viewing directions weighed by the quadrant they look from, hidden by nearby geometry, on an underside), in line with the layer below; else the back
-seam = "least_visible_seam"
+seam = "least_visible"
+technique.scarf_seam.enabled = "false"
 # the in-island retraction, weighed (plan.mechanism.motion.no_retract_in_island unset): hidden travels kept unretracted
 mechanism.motion.no_retract_in_island = "true"
 
