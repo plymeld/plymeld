@@ -15,6 +15,8 @@ section the release's version and date.
   to it, their height a whole number of steps (the nearest) and every top on a step. A layer height between two
   multiples otherwise prints alternating between them, in bands. Unset, layers are as planned; curved bands, layers
   that follow the underside, and lifted bridges keep heights of their own.
+- `plymeld slice` says where the predicted time goes: a `predicted by feature:` line, each feature's minutes and share,
+  longest first, travel among them.
 - A purge tower stands steadier: a brim around its first layer by default (`plan.mechanism.purge.tower.brim.*`, as wide
   as the object's brim would be, whether or not the object has one), and each side at least half its height
   (`plan.mechanism.purge.tower.side_share.min`): a tower its purge would leave narrower is widened and deepened, its

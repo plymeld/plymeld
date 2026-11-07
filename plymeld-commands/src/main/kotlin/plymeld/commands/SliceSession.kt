@@ -100,6 +100,8 @@ class SliceSession {
         val text = SourceBlock.append(withMachineHeader(pictured, pr.config, setup, s, prediction), PlymeldVersion.value, pr.usedStack, pr.modelPaths, pr.planFile(plan), pr.config.machine, pr.usedKeys)
         Files.writeString(output, text)
         echo("predicted: $prediction")
+        // where the time goes, by feature (a gyroid's infill traced finer than the machine runs it showed only in the total)
+        prediction.byFeature()?.let { echo("predicted by feature: $it") }
         echo(seamScar?.let { "seams: ${it.words()} (seam_scar)" } ?: "seams: not measured (a multi-filament object: its outer walls are laid per filament)")
         echo(strings?.let { "${it.words()} (string_risk, restart_starved; the restart lag hardware.filament.retract.restart_lag is a placeholder)" } ?: "strings: not measured (an exact program)")
         return Written(pr, plan, setup, output, text, partTools, prediction, reused)
