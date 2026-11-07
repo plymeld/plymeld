@@ -263,3 +263,7 @@ measure.layer_lines = "4"
 # difference on one fully weighted measure.
 [method.search.pose]
 keep_margin = "0.1"
+# the first look's shortlist: the poses searched in full are the as-given pose and those within this of the best under
+# one plan (flat layers at the baseline's height). A placeholder: on the test models the chosen pose sat at most 0.068
+# from the first look's best, a large model's poses left out 0.12 and more.
+shortlist_margin = "0.1"

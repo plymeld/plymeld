@@ -2004,6 +2004,13 @@
               "type": "object",
               "additionalProperties": false,
               "properties": {
+                "shortlist_margin": {
+                  "description": "the first look at every pose (one plan each: flat layers at the baseline's height, no support chosen) shortlists the poses searched in full: the as-given pose and those scoring within this of the best there, per unit of weight in effect (as keep_margin); a pose left out is not searched, so a pose that looks poor under one plan but would win with its own is missed for the time saved; unset = every pose searched — a multiplier (0.15 or 15%); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                },
                 "keep_margin": {
                   "description": "the model's own orientation has standing: another pose must beat the as-given pose's best candidate by more than this score per unit of weight in effect (the gap divided by the sum of the goal weights the decision measures: the same margin at any total) to turn the model; 0 = the best score wins outright — a multiplier (0.15 or 15%); or a formula (= ...)",
                   "type": [

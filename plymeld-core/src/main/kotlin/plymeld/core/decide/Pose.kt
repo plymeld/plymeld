@@ -70,6 +70,12 @@ class PoseFacts(
      */
     val screenPoses: Boolean = true,
     /**
+     * method.search.pose.shortlist_margin: the search takes the as-given pose and the poses whose first look (one plan:
+     * flat layers at the baseline's height) scores within this of the best, per unit of the weight in effect; null = every
+     * pose.
+     */
+    val poseShortlistMargin: Double? = null,
+    /**
      * Density (g/cm³) of the filament that prints the support, with where it came from: support's plastic is compared by
      * mass (support.mass). Null: compared by volume (support.volume), and [supportDensitySource] says why.
      */
@@ -1381,8 +1387,72 @@ object PoseDecision {
         // The choice is made among the candidates with every estimate, so like is compared with like.
         val t0 = System.nanoTime()
         fun late() = deadlineNanos != null && System.nanoTime() > deadlineNanos
-        val all = if (override != null) listOf(override) else candidates(soup)
         val partTriangles = parts.map { it.count }.toIntArray()
+        // support decided per overhang: the first round's candidates hold no chosen support, so their scores do not read the
+        // overhang regions; a pose is surveyed when it is detailed (most of a large model's first round was surveys of
+        // poses never detailed)
+        val lazySurvey = f.supportSearched && f.supportEnabled == null && override == null
+        fun rejected(p: Pose, m: Measure): String? = when {
+            m.sizeX > f.bedMaxX - f.bedMinX || m.sizeY > f.bedMaxY - f.bedMinY -> "footprint %.1f x %.1f mm exceeds the bed".format(Locale.ROOT, m.sizeX, m.sizeY)
+            m.heightMm > f.maxZ -> "height %.1f mm exceeds %.0f".format(Locale.ROOT, m.heightMm, f.maxZ)
+            m.contactMm2 <= 0.0 -> "no flat face on the bed: nothing to adhere"
+            // a locked spot is a requirement: a pose in which it holds nothing to support cannot meet it
+            m.lockedStats.orEmpty().any { it.areaMm2 <= 0 } -> m.lockedStats!!.filter { it.areaMm2 <= 0 }.joinToString("; ") { st ->
+                "locked support spot '${st.spot.key}' (${st.spot.words}; ${st.spot.source}) holds no downward face of the model above the first layer in this pose (there it is ${st.region.words}): nothing to support, so support cannot be generated there" }
+            else -> null
+        }
+        // weighted, normalized metrics; an estimate counts only when every candidate being compared has it
+        fun valuesFor(set: List<Pair<Pose, Measure>>): Map<Metric, (Pair<Pose, Measure>) -> Double> {
+            val has = set.map { valuesOf(it.second, f).keys }.reduce { a, b -> a intersect b }
+            return poseMetrics(f).filter { it in has }.associateWith { k -> { p: Pair<Pose, Measure> -> valuesOf(p.second, f).getValue(k) } }
+        }
+        val zero = zeroScales(soup, f)
+        // The baseline: flat layers at method.search.baseline.layer.height_share, measured like any candidate. ONE per
+        // decision, so every candidate is scored on the same scale: where poses compete, in the model's as-given pose
+        // (plymeld's choice); where the pose is locked, in that pose.
+        val basePose = override ?: candidates()[0]
+        // the baseline carries the requirements too (the locked and locked spots), so their cost is common to every candidate
+        val baseline: Pair<Pose, Measure>? = f.baselineLayerMm?.let { h ->
+            basePose to measureAll(soup, basePose, f.overhang, cavity, covered, f, withSections = true,
+                plansFor = { posed, _ -> listOf(FlatLayers.plan(h).withSupport(baseSupport(basePose, posed.bounds()))) }, partTriangles = partTriangles, surveyNow = !lazySurvey).single()
+        }
+        /** The baseline's value of each metric in [vals] it has (a metric it lacks is scored from 0, as a zero baseline). */
+        fun baselineOf(vals: Map<Metric, (Pair<Pose, Measure>) -> Double>): Map<Metric, Double>? = baseline?.let { b ->
+            val has = valuesFor(listOf(b)).keys
+            vals.filterKeys { it in has }.mapValues { it.value(b) }
+        }
+        // The first look (method.search.pose.shortlist_margin): every pose under ONE plan, flat layers at the baseline's
+        // height (no support chosen, no overhang survey; a tenth of the first round's plans), scored against the baseline;
+        // the search then takes the as-given pose and those within the margin of the best (per unit of the weight in
+        // effect, as the keep margin). A pose that looks poor here but would win with its own plans is not searched: the
+        // margin is that trade, made for time.
+        val candidatesAll = if (override != null) listOf(override) else candidates(soup)
+        val firstLookOut = LinkedHashMap<Pose, Alternative>()
+        var firstLookFact: String? = null
+        val all = run {
+            val margin = f.poseShortlistMargin
+            val h = f.baselineLayerMm
+            if (override != null || margin == null || h == null || baseline == null || candidatesAll.size <= 1) return@run candidatesAll
+            val tl = System.nanoTime()
+            val looks = inOrder(candidatesAll.size, soup.count.toLong() * 36) { i ->
+                val p = candidatesAll[i]
+                measureAll(soup, p, f.overhang, cavity, covered, f, withSections = false, plansFor = { posed, _ -> listOf(FlatLayers.plan(h).withSupport(baseSupport(p, posed.bounds()))) },
+                    partTriangles = partTriangles, surveyNow = false).single()
+            }
+            val usable = candidatesAll.indices.filter { rejected(candidatesAll[it], looks[it]) == null }.map { candidatesAll[it] to looks[it] }
+            if (usable.isEmpty()) return@run candidatesAll
+            val vals = valuesFor(usable)
+            val ranked = Scoring.rank(usable, vals, f.weights, zero, baselineOf(vals))
+            val best = ranked.first().total
+            val bar = best + margin * weightInEffect(f)
+            val kept = ranked.filter { it.total <= bar + 1e-9 || it.item.first.label.startsWith("as given") }.map { it.item.first }.toSet()
+            for (s in ranked) if (s.item.first !in kept) firstLookOut[s.item.first] = Alternative(s.item.first.label, "first look (flat layers %.2f mm): ".format(Locale.ROOT, h) + Scoring.explain(s),
+                "left out by the first look: its score there, %.3f, is more than method.search.pose.shortlist_margin ${Control.fmt(margin)} (per unit of weight) from the best, %.3f".format(Locale.ROOT, s.total, best))
+            firstLookFact = "first look at %d poses (flat layers %.2f mm, one plan each) in %.1f s: %d searched (the as-given pose and those within method.search.pose.shortlist_margin ${Control.fmt(margin)} of the best), %d left out, %d unusable"
+                .format(Locale.ROOT, candidatesAll.size, h, (System.nanoTime() - tl) / 1e9, kept.size, ranked.size - kept.size, candidatesAll.size - usable.size) +
+                "; their scores there: " + ranked.joinToString { "%s %.3f".format(Locale.ROOT, it.item.first.label.substringBefore(" ("), it.total) }
+            candidatesAll.filter { it in kept }
+        }
         val scored = ArrayList<Pair<Pose, Measure>>()
         /** The layer heights sampled in each pose, in order (null = the settings'): the search's own record. */
         val heightsTried = LinkedHashMap<Pose, MutableList<Double?>>()
@@ -1392,10 +1462,6 @@ object PoseDecision {
         // search's parallel budget allows ([Units]; each pose's plans then take what is left), in batches on the shared pool (a
         // pool of its own per search, sized to the cores, oversubscribed the machine wherever searches already ran side by
         // side); kept in their order up to the first the deadline skipped, as one after another (the first is always measured)
-        // support decided per overhang: the first round's candidates hold no chosen support, so their scores do not read the
-        // overhang regions; a pose is surveyed when it is detailed (most of a large model's first round was surveys of
-        // poses never detailed)
-        val lazySurvey = f.supportSearched && f.supportEnabled == null && override == null
         val roundOne = inOrder(all.size, soup.count.toLong() * 36) { i ->
             if (i > 0 && late()) null
             else measureAll(soup, all[i], f.overhang, cavity, covered, f, withSections = false, plansFor = plansFor(all[i], coarseHeights), partTriangles = partTriangles, surveyNow = !lazySurvey)
@@ -1447,39 +1513,10 @@ object PoseDecision {
             }
             return null
         }
-        fun rejected(p: Pose, m: Measure): String? = when {
-            m.sizeX > f.bedMaxX - f.bedMinX || m.sizeY > f.bedMaxY - f.bedMinY -> "footprint %.1f x %.1f mm exceeds the bed".format(Locale.ROOT, m.sizeX, m.sizeY)
-            m.heightMm > f.maxZ -> "height %.1f mm exceeds %.0f".format(Locale.ROOT, m.heightMm, f.maxZ)
-            m.contactMm2 <= 0.0 -> "no flat face on the bed: nothing to adhere"
-            // a locked spot is a requirement: a pose in which it holds nothing to support cannot meet it
-            m.lockedStats.orEmpty().any { it.areaMm2 <= 0 } -> m.lockedStats!!.filter { it.areaMm2 <= 0 }.joinToString("; ") { st ->
-                "locked support spot '${st.spot.key}' (${st.spot.words}; ${st.spot.source}) holds no downward face of the model above the first layer in this pose (there it is ${st.region.words}): nothing to support, so support cannot be generated there" }
-            else -> null
-        }
         fun rejectedFinal(p: Pose, m: Measure): String? = rejected(p, m) ?: cantilever(p, m)
         val ok = scored.filter { rejected(it.first, it.second) == null }
         if (ok.isEmpty()) error("no candidate pose can be used: " + scored.distinctBy { it.first }.joinToString("; ") { "${it.first.label}: ${rejected(it.first, it.second)}" } +
             (if (f.lockedSpots.isNotEmpty()) "; move or remove the locked spot" else ""))
-        // weighted, normalized metrics; an estimate counts only when every candidate being compared has it
-        fun valuesFor(set: List<Pair<Pose, Measure>>): Map<Metric, (Pair<Pose, Measure>) -> Double> {
-            val has = set.map { valuesOf(it.second, f).keys }.reduce { a, b -> a intersect b }
-            return poseMetrics(f).filter { it in has }.associateWith { k -> { p: Pair<Pose, Measure> -> valuesOf(p.second, f).getValue(k) } }
-        }
-        val zero = zeroScales(soup, f)
-        // The baseline: flat layers at method.search.baseline.layer.height_share, measured like any candidate. ONE per
-        // decision, so every candidate is scored on the same scale: where poses compete, in the model's as-given pose
-        // (plymeld's choice); where the pose is locked, in that pose.
-        val basePose = override ?: candidates()[0]
-        // the baseline carries the requirements too (the locked and locked spots), so their cost is common to every candidate
-        val baseline: Pair<Pose, Measure>? = f.baselineLayerMm?.let { h ->
-            basePose to measureAll(soup, basePose, f.overhang, cavity, covered, f, withSections = true,
-                plansFor = { posed, _ -> listOf(FlatLayers.plan(h).withSupport(baseSupport(basePose, posed.bounds()))) }, partTriangles = partTriangles, surveyNow = !lazySurvey).single()
-        }
-        /** The baseline's value of each metric in [vals] it has (a metric it lacks is scored from 0, as a zero baseline). */
-        fun baselineOf(vals: Map<Metric, (Pair<Pose, Measure>) -> Double>): Map<Metric, Double>? = baseline?.let { b ->
-            val has = valuesFor(listOf(b)).keys
-            vals.filterKeys { it in has }.mapValues { it.value(b) }
-        }
         val firstPass = Scoring.rank(ok, valuesFor(ok), f.weights, zero, baselineOf(valuesFor(ok)))
         val baseAll: Map<Metric, Double>? = baseline?.let { valuesOf(it.second, f) }
         val measuredMetrics = poseMetrics(f)
@@ -1833,7 +1870,7 @@ object PoseDecision {
                     (scoreOf[Triple(p, m.plan, m.surfaceTechniques)]?.let { "; " + Scoring.explain(it) } ?: ""),
                     rejectedFinal(p, m) ?: if (partial && rejected(p, m) == null) (ruledOut[p] ?: "strength and time estimates not reached within the time limit (method.search.time.max)") else null, chosen = isBest(p, m))
             }
-        } + notReached.map { Alternative(it.label, "not measured", "not reached within the time limit (method.search.time.max)", chosen = false) }
+        } + notReached.map { Alternative(it.label, "not measured", "not reached within the time limit (method.search.time.max)", chosen = false) } + firstLookOut.values
         val unmeasured = f.weights.unmeasured(values.keys - ranked.first().unscored.keys)
         val m = best.second
         val search = "search: geometry of %d of %d poses%s in %.1f s; strength and time estimates for %d (best first)%s in %.1f s; %d round(s) in %.1f s, stopped: %s (%s)%s".format(Locale.ROOT,
@@ -1850,7 +1887,7 @@ object PoseDecision {
                         null -> "%.1f mm² of it gets support, decided per overhang".format(Locale.ROOT, m.heldMm2) }, m.contactMm2,
                     if (m.stable) "over the contact" else "%.1f mm beyond it (held by adhesion)".format(Locale.ROOT, m.tipOffsetMm)) +
                     est(m).let { if (it.isEmpty()) "" else "; $it" } + predictedWords(),
-                facts + unmeasured.map { "goal '${it.id}' has weight but nothing this decision measures counts toward it" } + search + cut + listOfNotNull(finalistFact, marginNote, coolingNote(m), seenFact(m, f)) + baselineFact + zeroFact(zero, f) + listOfNotNull(Scoring.unscoredFact(ranked)),
+                facts + unmeasured.map { "goal '${it.id}' has weight but nothing this decision measures counts toward it" } + listOfNotNull(firstLookFact) + search + cut + listOfNotNull(finalistFact, marginNote, coolingNote(m), seenFact(m, f)) + baselineFact + zeroFact(zero, f) + listOfNotNull(Scoring.unscoredFact(ranked)),
                 alts, standIns)
         // the technique decision: the surveys' proposals in the chosen pose, every plan measured there,
         // and the techniques that could not take part

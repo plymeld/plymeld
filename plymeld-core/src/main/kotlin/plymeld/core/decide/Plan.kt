@@ -378,7 +378,7 @@ class Plan(/** Every decision, in the order made: each object's pose and techniq
                     supportColumnWidthMm = numOrNull("plan.support.column.width", k),
                     nozzleHeightMm = (nozzleHeight?.value as Number?)?.toDouble(), nozzleHeightSource = nozzleHeight?.let { "hardware.tool.<key>.head.nozzle.height: ${it.from}" } ?: "hardware.tool.<key>.head.nozzle.height not set",
                     travelSpeedMmS = numOrNull("hardware.machine.motion.travel.speed", k),
-                    poseKeepMargin = numOrNull("method.search.pose.keep_margin", k), bridgeMaxSpanMm = numOrNull("hardware.filament.bridge.span.max", k),
+                    poseKeepMargin = numOrNull("method.search.pose.keep_margin", k), poseShortlistMargin = numOrNull("method.search.pose.shortlist_margin", k), bridgeMaxSpanMm = numOrNull("hardware.filament.bridge.span.max", k),
                     visibility = visibility, outerLineWidthMm = numOrNull("plan.layer.walls.outer.line.width", k),
                     stairStepPower = (stepPower?.value as Number?)?.toDouble() ?: 2.0, stairStepPowerSource = stepPower?.from ?: "unset: 2")
                 // every tool printing the object, each head read for the part it prints (the object's first part's

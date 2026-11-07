@@ -66,7 +66,8 @@ class CantileverCheckTest : StringSpec({
     val models = listOf(d.resolve("cubes.stl"))
 
     "with equal weights the model stays upright (as given): support priced from one pad outweighs the side poses' layer bond, and the as-given pose has standing; every candidate leaving the small cube over air is rejected as a cantilever" {
-        val plan = Product(ConfigStack.load(listOf("hw.toml"), emptyList(), d), models, null) { }.decide()
+        // every pose searched in full (the first look would leave the side poses out before their cantilevers are read)
+        val plan = Product(ConfigStack.load(listOf("hw.toml"), listOf("method.search.pose.shortlist_margin=1000"), d), models, null) { }.decide()
         val pose = plan.decisions.first { it.step.startsWith("pose") }
         pose.why shouldContain "pose 'as given"
         pose.why shouldContain "0.0 mm² unsupported"

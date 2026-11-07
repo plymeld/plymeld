@@ -11,6 +11,13 @@ section the release's version and date.
 
 ### Changed
 
+- Choosing a pose takes a first look at every pose under one plan (flat layers at the baseline's layer height) and
+  searches in full only the as-given pose and those scoring within `method.search.pose.shortlist_margin` (0.1 per unit
+  of weight, a placeholder) of the best there. `plan` lists each pose left out with its first-look score; unset the
+  margin to search every pose. On the test models every choice is the same as before.
+
+### Changed
+
 - A model of many parts slices faster, with the same g-code: the parts' outlines are merged layer by layer side by
   side, and the pose search merges each cross-section it reads once, not once per candidate plan. On a 29-part,
   4.7-million-triangle model the slice took half the time (54 s to 28 s) and the seam decision less than half.
