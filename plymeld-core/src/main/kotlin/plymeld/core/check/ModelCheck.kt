@@ -20,8 +20,8 @@ import java.util.Locale
  *  - Z anti-aliasing (a [ZaaRule]): a layer's outline also takes in its cut at the tool's thinnest layer above its bottom
  *    (the layer reaches out over a slope to there), and a point of a line below its layer, on the model's top within the
  *    layer, is not outside;
- *  - over air (a layer with wave beads): the layer's cross-section where the model has none under it (its cut at the
- *    middle of the layer below) laid all over: no point of it, where a line's center could go, more than a line's width
+ *  - over air (a layer with wave beads): each piece of the layer's cross-section where the model has none under it (its
+ *    cut at the middle of the layer below) that has a wave bead in it, laid all over: no point of it, where a line's center could go, more than a line's width
  *    from every line of the layer (a gap wider than a line between beads). Refused over [AIR_MM2] unlaid; wave beads are
  *    laid a spacing apart, and what no front reaches is bridged, so the planner leaves none;
  *  - tool (when the config's part tools are given): the model's lines printed by the tool (the T command in force) the
@@ -75,7 +75,8 @@ object ModelCheck {
     private const val AIR_MM2 = 0.25
 
     /**
-     * The over-air rule: on a layer with wave beads, the area over air with no line within a line's width ([AIR_MM2]).
+     * The over-air rule: on a layer with wave beads, the area over air with no line within a line's width ([AIR_MM2]), in
+     * the pieces of it the beads were laid for (a wave bead's middle in them).
      * Over air: the layer's cut at its middle less the model's cut at the middle of the layer below (one layer height
      * down); the first layer stands on the bed. Points are sampled a quarter line apart where a line's center could go
      * (half a line inside the cross-section); a point is unlaid when no line of the layer, of any feature, has its center
@@ -85,10 +86,14 @@ object ModelCheck {
         val layer = sf.layerLines[k]
         val waves = layer.segs.filter { it.wave }
         if (waves.isEmpty() || layer.z - layer.h < 1e-6) return emptyList()
-        val air = plymeld.geom.Booleans.difference(sf.loops(k), sf.below(k))
+        // the pieces of the area over air the beads were laid for: those with a wave bead in them (a narrow hole closing
+        // within the layer, walled as still open, is over air by the cut at the middle but no wave's)
+        fun gridOf(ps: List<Polygon>) = Grid(ps.flatMap { p -> (0 until p.size).map { i -> doubleArrayOf(p.x(i) / 1000.0, p.y(i) / 1000.0, p.x((i + 1) % p.size) / 1000.0, p.y((i + 1) % p.size) / 1000.0) } })
+        val air = plymeld.geom.Polygons.group(plymeld.geom.Booleans.difference(sf.loops(k), sf.below(k))).map { (o, hs) -> listOf(o) + hs }
+            .filter { piece -> val g = gridOf(piece); waves.any { g.inside((it.x0 + it.x1) / 2, (it.y0 + it.y1) / 2) } }.flatten()
         if (air.isEmpty()) return emptyList()
         val w = waves.maxOf { it.w }
-        val airGrid = Grid(air.flatMap { p -> (0 until p.size).map { i -> doubleArrayOf(p.x(i) / 1000.0, p.y(i) / 1000.0, p.x((i + 1) % p.size) / 1000.0, p.y((i + 1) % p.size) / 1000.0) } })
+        val airGrid = gridOf(air)
         val edges = sf.grid(k)
         val lines = Grid(layer.segs.map { doubleArrayOf(it.x0, it.y0, it.x1, it.y1) })
         val step = w / 4
