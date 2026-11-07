@@ -867,12 +867,13 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
     }
 
     /**
-     * Speeds: the first layer at its own (adhesion); visible lines
+     * Speeds: the first layer at its own (adhesion), the purge tower's first layer no faster; visible lines
      * at the visible cap; bridges at the bridge speed (sag); everything else, hidden, at the
      * machine's fastest move. [pathSpeed] then caps each by the filament's melt rate.
      */
     private fun speedFor(s: SliceSettings, feature: String, first: Boolean): Double = when {
-        feature == "Prime tower" -> s.towerSpeed
+        // the tower's first layer holds to the bed like the model's (a tower laid at the hidden speed there came loose)
+        feature == "Prime tower" -> if (first) Math.min(s.towerSpeed, s.firstLayerSpeed) else s.towerSpeed
         feature == "Ironing" -> s.ironingSpeed
         // a bridge on the first layer (layers that follow an arch's underside: its first layer over the hollow is in the
         // air) prints as a bridge, not at the first layer's adhesion speed

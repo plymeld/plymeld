@@ -19,6 +19,9 @@ section the release's version and date.
 
 ### Fixed
 
+- A purge tower's first layer is laid at the first layer's speed, no faster than the model's own first layer. It was laid
+  at the tower's own speed (the hidden lines', about 250 mm/s on a Creator 5 where the model's first layer went at
+  100-120), and a tower came loose during a print.
 - Wave overhangs: where the fronts close in from two sides (the roof over a narrow slot), the strip they leave between
   them gets a bead along its middle. It was left unlaid and not bridged: on the 3DBenchy, a strip 0.6 mm wide and 6 mm
   long over the stern's slot.
