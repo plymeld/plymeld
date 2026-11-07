@@ -33,7 +33,9 @@ temperature.print = "210 C"
 temperature.first_layer = "= filament.temperature.print + 5 C"
 temperature.min = "190 C"
 temperature.max = "230 C"
-temperature.idle = "= filament.temperature.print - 40 C"
+# a parked nozzle (multi-nozzle machines only) held far below where PLA flows, against ooze while it waits;
+# the rise back to print temperature is the next tool's wait (or its pre-heat, hardware.tool.heat.time)
+temperature.idle = "120 C"
 melt.flow.max = "15 mm3/s"
 overhang.share = "50%"
 overhang.fan = "= filament.cooling.fan"
