@@ -175,10 +175,11 @@ class WaveBridgeSampleTest : StringSpec({
         }
     }
 
-    "two waved layers: one, and two" {
+    "two waved layers: one, two, and the second only Xs" {
         val sides = "wave.sides = \"alternate\"\n"
         val one = slice(d, listOf("span.3mf"), lock(sides), "wave_layers_one.gcode")
         val two = slice(d, listOf("span.3mf"), lock(sides + "wave.layers = \"2\"\n"), "wave_layers_two.gcode")
+        val xs = slice(d, listOf("span.3mf"), lock(sides + "wave.layers = \"2\"\nwave.second_layer = \"x\"\nwave.x_length = \"4 mm\"\n"), "wave_layers_x.gcode")
         // the second waved layer is laid with the first, front by front: its beads ("Wave overhang, layer above") one layer up
         val above: (TechniqueRender.Move) -> Boolean = { it.feature == "Wave overhang, layer above" }
         val up = two.moves.filter(above); val firstZ = two.moves.filter(wave).map { it.z0 }.average()
@@ -198,6 +199,8 @@ class WaveBridgeSampleTest : StringSpec({
                 { both(it) }, Coloring.ORDER, slab = slab(one)),
             Panel(listOf("two waved layers", "wave.layers = \"2\"", "two rows, laid together: each front, then the same front one layer up"), two,
                 { both(it) }, Coloring.ORDER, slab = slab(two)),
+            Panel(listOf("the second only Xs", "wave.layers = \"2\", wave.second_layer = \"x\", wave.x_length = \"4 mm\"", "the second row only where an X crosses the cut"), xs,
+                { both(it) }, Coloring.ORDER, slab = slab(xs)),
         ), reviewRender("technique_wave_bridge_layers.png"), zScale = 8.0, window = side)
     }
 
