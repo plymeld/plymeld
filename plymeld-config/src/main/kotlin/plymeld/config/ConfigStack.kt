@@ -8,13 +8,13 @@ import java.nio.file.Path
  * files of one numbered group may not set the same path ([ConfigFiles.readFiles]). A value
  * set for an object or part wins over the general one whatever the order — see [Config.scoped].
  */
-class ConfigStack(entries: List<ConfigFiles.Entry>) {
-    /** Every entry as given, in order (for a stack built from this one with some left out). */
-    val all: List<ConfigFiles.Entry> = entries
+class ConfigStack(given: List<ConfigFiles.Entry>) {
+    /** Every entry as given, in order (for a stack built from this one with some left out), a chosen value spelled the British way read the American way ([Spelling]). */
+    val all: List<ConfigFiles.Entry> = given.map(Spelling::entry)
     /** Each path's value from the last source that set it, in first-seen path order. */
-    val effective: Map<String, ConfigFiles.Entry> = LinkedHashMap<String, ConfigFiles.Entry>().also { m -> for (e in entries) { m.remove(e.key); m[e.key] = e } }
+    val effective: Map<String, ConfigFiles.Entry> = LinkedHashMap<String, ConfigFiles.Entry>().also { m -> for (e in all) { m.remove(e.key); m[e.key] = e } }
     /** Every entry that was overridden by a later source at the same path (for `config explain`). */
-    val overridden: List<ConfigFiles.Entry> = entries.filter { effective[it.key] !== it }
+    val overridden: List<ConfigFiles.Entry> = all.filter { effective[it.key] !== it }
 
     fun entry(path: List<String>): ConfigFiles.Entry? = effective[ConfigFiles.pathText(path)]
 
