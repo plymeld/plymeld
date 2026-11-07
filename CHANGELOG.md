@@ -9,6 +9,8 @@ section the release's version and date.
 
 ## [Unreleased]
 
+## [0.20261107.0] - 2026-11-07
+
 ### Added
 
 - A multi-color model printed with the filaments you have, without editing it: `model.slots` maps the filament numbers
