@@ -94,7 +94,7 @@ class Plan(/** Every decision, in the order made: each object's pose and techniq
         private fun quickUnits(setup: Setup, k: Int, partCount: Int): QuickUnits? = runCatching {
             fun speeds(ctx: plymeld.model.Context): QuickSpeeds {
                 val s = plymeld.model.SliceSettings.of(setup, ctx)
-                return QuickSpeeds(s.wallLoops, s.visibleSpeed, s.hiddenSpeed, s.innerWallWidthUm / 1000.0, s.hiddenSpeed, s.sparseDensity,
+                return QuickSpeeds(s.wallLoops, s.visibleSpeed, if (s.innerWallsAsVisible) s.visibleSpeed else s.hiddenSpeed, s.innerWallWidthUm / 1000.0, s.hiddenSpeed, s.sparseDensity,
                     s.sparseWidthUm / 1000.0,
                     s.topShellThicknessUm / 1000.0, s.bottomShellThicknessUm / 1000.0, s.hiddenSpeed, s.solidWidthUm / 1000.0)
             }

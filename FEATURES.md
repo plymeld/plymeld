@@ -85,8 +85,8 @@ Plans change. An item can move between labels or drop off as experiments come ba
   weighs too.
 - **Planned — Z anti-aliasing weighed whenever it could help**, against thinner layers, instead of opt-in only.
 - **Planned — Visible-surface speed and acceleration decided by the job's priorities**, from the motion plate's measured
-  limits, and the inner walls behind a visible wall slowed when that shows.
-- **Planned — Layer heights the Z axis can make**: a machine's Z step as a setting, layer heights held to its multiples.
+  limits, and the inner walls behind a visible wall slowed when that shows (today a switch:
+  `plan.mechanism.motion.inner_walls.as_visible` holds them to the visible lines' speed and acceleration, off by default).
 - **Planned — One surface made of several sub-surfaces**, each with its own surface technique and pattern, with no
   walls where they meet.
 - **Planned — Hard requirements in the job** (no support on a face, a tolerance on a hole), and measures for the

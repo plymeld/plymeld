@@ -277,6 +277,7 @@ object Catalog {
         // speeds: visible lines are capped by a speed of their own,
         // hidden ones print at the machine's fastest move; every move is capped by the melt rate
         s("plan.mechanism.motion.visible.speed", INTENT, SPEED, "speed of visible lines: outer walls, top and bottom surfaces")
+        s("plan.mechanism.motion.inner_walls.as_visible", INTENT, BOOL, "inner walls at the visible lines' speed and acceleration (plan.mechanism.motion.visible.*), so their ripple does not show through the outer wall in front of them; off: at the hidden lines'")
         s("plan.mechanism.cooling.slowdown.style", INTENT, CHOICE, "how a layer is slowed to its minimum layer time: hidden_first (the hidden lines first, the visible only for the rest) or even (every line by one factor)",
             "hidden_first", "plymeld's rule (a gap found reviewing a slice): a visible line's speed changing layer to layer shows as bands; a hidden line's does not")
         s("plan.mechanism.cooling.dwell.enabled", INTENT, BOOL, "a layer still short of its minimum layer time at the minimum speed: the head waits out the rest (true) or not",

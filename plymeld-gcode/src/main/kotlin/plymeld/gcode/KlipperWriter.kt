@@ -895,11 +895,13 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
         feature == "Wave overhang, span layer" -> s.bridgeWaveSpanLayerSpeed ?: s.waveSpeed
         first || feature == "Brim" -> s.firstLayerSpeed
         feature in VISIBLE -> s.visibleSpeed
+        // inner walls held to the visible lines' (plan.mechanism.motion.inner_walls.as_visible): their ripple shows through
+        feature == "Inner wall" && s.innerWallsAsVisible -> s.visibleSpeed
         feature in HIDDEN -> s.hiddenSpeed
         else -> error("no speed rule for feature '$feature'")
     }
 
-    private fun accelFor(feature: String): Double = if (feature in VISIBLE) s.visibleAccel else s.defaultAccel
+    private fun accelFor(feature: String): Double = if (feature in VISIBLE || (feature == "Inner wall" && s.innerWallsAsVisible)) s.visibleAccel else s.defaultAccel
 
     /**
      * Template variables: plymeld's own names (for templates in plymeld config: nozzle_temperature,

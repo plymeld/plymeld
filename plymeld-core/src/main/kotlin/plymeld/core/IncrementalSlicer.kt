@@ -1367,7 +1367,7 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         var timeS = 0.0
         for (l in planned) for (p in l.paths) {
             val lenMm = (Planner.polylineLength(p.xy) + if (p.closed && p.xy.size >= 4) Math.hypot((p.xy[0] - p.xy[p.xy.size - 2]).toDouble(), (p.xy[1] - p.xy[p.xy.size - 1]).toDouble()) else 0.0) / 1000.0
-            val v = if (p.feature in visible) st.visibleSpeed else st.hiddenSpeed
+            val v = if (p.feature in visible || (p.feature == Feature.INNER_WALL && st.innerWallsAsVisible)) st.visibleSpeed else st.hiddenSpeed
             if (v > 0) timeS += lenMm / v
         }
         val d = if (lockE != null) locked(lockE, weights, retractS)
