@@ -62,6 +62,13 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                     /** Each layer written is reported here, and a cancel seen between layers stops the file (plymeld.program.Progress). */
                     private val progress: plymeld.program.Progress = plymeld.program.Progress.NONE) {
     companion object {
+        /** A travel's length (mm) from ([x0], [y0]) to ([x1], [y1]) through [via] (x, y, x, y ... µm; null = straight). */
+        fun travelMm(x0: Double, y0: Double, via: LongArray?, x1: Double, y1: Double): Double {
+            var len = 0.0; var ax = x0; var ay = y0
+            if (via != null) { var k = 0; while (k + 1 < via.size) { val vx = via[k] / 1000.0; val vy = via[k + 1] / 1000.0; len += Math.hypot(vx - ax, vy - ay); ax = vx; ay = vy; k += 2 } }
+            return len + Math.hypot(x1 - ax, y1 - ay)
+        }
+
         /**
          * The comment that opens and closes every object's block of a layer (the name follows), whatever the firmware
          * (Klipper's exclude-object markers are written only when it has them): the pre-print check of objects printed
@@ -178,7 +185,8 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 var px = Double.NaN; var py = 0.0
                 for ((i, p) in ps.withIndex()) {
                     val sx = p.xy[0] / 1000.0; val sy = p.xy[1] / 1000.0
-                    if (!px.isNaN()) tr[i] = Math.hypot(sx - px, sy - py) / s.travelSpeed
+                    // the travel as the head goes: through its detour's points where it has one (TravelRouter), else straight
+                    if (!px.isNaN()) tr[i] = travelMm(px, py, p.via, sx, sy) / s.travelSpeed
                     var len = 0.0; val m = p.xy.size / 2; val count = if (p.closed) m else m - 1
                     var x = sx; var y = sy
                     for (k in 1..count) { val idx = k % m; val nx = p.xy[2 * idx] / 1000.0; val ny = p.xy[2 * idx + 1] / 1000.0; len += Math.hypot(nx - x, ny - y); x = nx; y = ny }

@@ -33,6 +33,9 @@ section the release's version and date.
 
 ### Changed
 
+- The minimum layer time counts a travel's detour (round the layer's other islands, or inside its own) as the head goes,
+  not as the straight line it replaces, so a layer is slowed only by what it still falls short. On the 3DBenchy, 25
+  slowed layers each run up to 0.04 s faster.
 - A concentric top or bottom (outside-in or inside-out) is laid as one path where its rings lie side by side: each ring
   starts at its point nearest where the last ended and joins onto it, so the surface has one start and one end, not
   a radial line of starts and stops, one per ring. A ring cut by a hole is still its own piece.
