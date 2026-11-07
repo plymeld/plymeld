@@ -17,6 +17,12 @@ section the release's version and date.
 - The pre-print check refuses a layer with wave beads that leaves part of its area over air unlaid (a gap wider than a
   line between beads), saying how much, where, and with the layer's picture.
 
+### Changed
+
+- The bundled filaments' idle temperature (a parked nozzle on a machine with several) is 100 C below printing, was
+  40 C below (170 C for the bundled PLA), where a parked nozzle may ooze onto the print and the bed. The rise back to
+  printing is the next tool's pre-heat (`hardware.tool.heat.time`) or its wait.
+
 ### Fixed
 
 - Wave overhangs: where the fronts close in from two sides (the roof over a narrow slot), the strip they leave between
