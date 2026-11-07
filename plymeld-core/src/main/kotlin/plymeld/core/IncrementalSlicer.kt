@@ -665,8 +665,10 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
     }
 
     /**
-     * Each part's settings group: its spool, or, for a part with settings of its own, its spool plus
-     * the first part with those same settings (parts with identical overrides share a group).
+     * Each part's settings group: its spool, or, for a part with settings of its own that change what it is laid with, its
+     * spool plus the first part laid with those same values. A part's own value equal to the one it would have anyway (the
+     * object's, its filament's) changes nothing, so parts whose settings agree share a group: touching, they are one area,
+     * with no walls or seams where they meet.
      */
     private fun partUnits(): List<String> {
         val o = setup!!.objects[objectId]
@@ -674,8 +676,10 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         if (o.parts.size != parts.size) return spools
         val firstWith = HashMap<String, String>()
         return o.parts.mapIndexed { k, p ->
-            if (p.overrides.ids.isEmpty()) spools[k] else {
-                val sig = spools[k] + "|" + p.overrides.ids.sorted().joinToString(";") { "$it=${p.overrides[it]?.value}" }
+            val ctxK = plymeld.model.Context(objectId, k, record = false)
+            val differ = p.overrides.ids.sorted().filter { id -> Resolver.inherited(setup!!, id, ctxK)?.value != p.overrides[id]?.value }
+            if (differ.isEmpty()) spools[k] else {
+                val sig = spools[k] + "|" + differ.joinToString(";") { "$it=${p.overrides[it]?.value}" }
                 spools[k] + " / " + firstWith.getOrPut(sig) { "part '${p.name}' settings" }
             }
         }
@@ -692,7 +696,7 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
 
     /**
      * Whether this object is planned part group by part group: its parts are on more than one spool
-     * (multi-color), or some part has settings of its own.
+     * (multi-color), or some part has settings of its own that change what it is laid with ([partUnits]).
      */
     val multiFilament: Boolean get() = partUnits().distinct().size > 1 ||
         supportSpools().toList().any { it != null && it != setup!!.objects[objectId].spool }

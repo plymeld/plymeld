@@ -117,35 +117,50 @@ class MissingValue(message: String) : IllegalStateException(message)
 object Resolver {
     /** The value of an OPTIONAL setting, or null when nothing (and no default) gives it one. */
     fun resolveOrNull(setup: Setup, id: String, ctx: Context = Context()): Resolved? =
-        if (hasValue(setup, id, ctx)) resolve(setup, id, ctx) else null
+        if (hasValue(setup, id, ctx, true)) resolve(setup, id, ctx) else null
 
-    private fun hasValue(setup: Setup, id: String, ctx: Context): Boolean {
+    /**
+     * The value [ctx]'s part would have without settings of its own (its own set aside: the object's, its intent's, its
+     * filament's entities', the default), or null when nothing gives it one: whether the part's own values differ from what
+     * it would be laid with anyway. Not counted as used by the print.
+     */
+    fun inherited(setup: Setup, id: String, ctx: Context): Resolved? {
+        val c = Context(ctx.obj, ctx.part, record = false)
+        return if (hasValue(setup, id, c, false)) resolveIn(setup, id, c, false) else null
+    }
+
+    private fun hasValue(setup: Setup, id: String, ctx: Context, partOwn: Boolean): Boolean {
         val s = Catalog[id]
         if (s.default != null) return true
         val obj = setup.objects.getOrNull(ctx.obj) ?: error("no object ${ctx.obj}")
         val part = ctx.part?.let { obj.parts.getOrNull(it) ?: error("object '${obj.name}' has no part $it") }
         val spool = setup.spool(part?.spool ?: obj.spool)
-        if (part?.overrides?.get(id) != null || obj.overrides[id] != null || setup.intents[obj.intent]?.get(id) != null) return true
+        val partValue = partOwn && part?.overrides?.get(id) != null
+        if (partValue || obj.overrides[id] != null || setup.intents[obj.intent]?.get(id) != null) return true
         return when (s.entity) {
             Entity.MACHINE -> setup.machine[id] != null
             Entity.TOOL -> setup.tools.getOrNull(spool.tool)?.get(id) != null
             Entity.MATERIAL -> setup.materials[spool.material]?.get(id) != null
             Entity.SPOOL -> spool.values[id] != null
             Entity.MATERIAL_TOOL -> setup.materialTool[spool.material to spool.tool]?.get(id) != null
-            Entity.INTENT -> part?.overrides?.get(id) != null || obj.overrides[id] != null || setup.intents[obj.intent]?.get(id) != null
+            Entity.INTENT -> false
         }
     }
 
-    fun resolve(setup: Setup, id: String, ctx: Context = Context()): Resolved {
+    fun resolve(setup: Setup, id: String, ctx: Context = Context()): Resolved = resolveIn(setup, id, ctx, true)
+
+    /** [resolve], with the part's own values ([partOwn]) or without them ([inherited]). */
+    private fun resolveIn(setup: Setup, id: String, ctx: Context, partOwn: Boolean): Resolved {
         val s = Catalog[id]
         val obj = setup.objects.getOrNull(ctx.obj) ?: error("no object ${ctx.obj}")
         val part = ctx.part?.let { obj.parts.getOrNull(it) ?: error("object '${obj.name}' has no part $it") }
         val spool = setup.spool(part?.spool ?: obj.spool)
         fun from(v: Values): Resolved? = v[id]?.let { if (ctx.record && setup.counting.get()) setup.used.addAll(it.keys); Resolved(s, it.value, v.name, it.from) }
+        val partOwnValue = if (partOwn) part?.let { from(it.overrides) } else null
         // a part's or object's own value wins whatever entity the setting lives on (no reason a value such as
         // the nozzle temperature cannot differ per object), then the entity's own
         val own = if (s.entity == Entity.INTENT) null
-            else part?.let { from(it.overrides) } ?: from(obj.overrides) ?: setup.intents[obj.intent]?.let { from(it) }
+            else partOwnValue ?: from(obj.overrides) ?: setup.intents[obj.intent]?.let { from(it) }
         val found = own ?: when (s.entity) {
             Entity.MACHINE -> from(setup.machine)
             Entity.TOOL -> from(setup.tools.getOrNull(spool.tool) ?: error("spool '${spool.id}' is in tool ${spool.tool}, which the machine does not have"))
@@ -153,7 +168,7 @@ object Resolver {
             Entity.SPOOL -> from(spool.values)
             Entity.MATERIAL_TOOL -> from(setup.materialTool[spool.material to spool.tool]
                 ?: error("no material x tool values for '${spool.material}' in tool ${spool.tool}"))
-            Entity.INTENT -> part?.let { from(it.overrides) } ?: from(obj.overrides)
+            Entity.INTENT -> partOwnValue ?: from(obj.overrides)
                 ?: from(setup.intents[obj.intent] ?: error("no intent '${obj.intent}'"))
         }
         return found ?: s.default?.let { Resolved(s, it, "catalog", "plymeld default: ${s.defaultReason}") }
