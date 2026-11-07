@@ -226,7 +226,33 @@ class Product(given: ConfigStack, modelFiles: List<Path>, machine: String? = nul
             plymeld.core.decide.SeamDecision.Lock(where, "${e.key} (${e.source})") }
         val bondLock = config.scoped("plan", listOf("bond_cooling"), Site(obj = o))?.let { e -> when (e.value) { "on" -> true; "off" -> false; else -> null }?.let { it to "${e.key} (${e.source})" } }
         return Plan.Companion.ObjectLocks(pose, techniques?.first?.at(h), h, flatHeights(o), if (planSpots != null) emptyList() else lockedSpots(o), planSpots, inserts(o),
-            seam = seamLock, scarf = scarfLock, bondCooling = bondLock, islands = islands(o))
+            seam = seamLock, scarf = scarfLock, bondCooling = bondLock, islands = islands(o), regions = regions(o))
+    }
+
+    /**
+     * The regions of [o] (`plan.object.<key>.region.<key>`, its copy's or its own; a region keyed alike under both is the copy's):
+     * each its box (min, max), height range (from, to), and faces (facing), and the values set for the lines in it
+     * (Schema.REGION_VALUES; the config refuses any other value under a region).
+     */
+    private fun regions(o: plymeld.config.PlateObject): List<plymeld.core.decide.Region> {
+        val site = Site(obj = o)
+        return listOf(o.key, o.base).distinct().flatMap { k ->
+            val head = listOf("plan", "object", k, "region")
+            config.values.values.filter { it.path.size > head.size + 1 && it.path.subList(0, head.size) == head }.groupBy { it.path[head.size] }.map { (n, es) ->
+                val at = head + n
+                fun e(vararg rest: String) = config.entry(at + rest.toList())
+                val box = if (e("min") == null && e("max") == null) null else box(at, es.filter { it.path.size == at.size + 1 && (it.path.last() == "min" || it.path.last() == "max") })
+                // in plan.faces's words: side and under are the walls' and the undersides' faces
+                val facing = e("facing")?.let { f -> (f.value as List<*>).map { id -> when (id) {
+                    "side" -> plymeld.core.decide.Coordination.Facing.WALL; "under" -> plymeld.core.decide.Coordination.Facing.UNDERSIDE
+                    else -> plymeld.core.decide.Coordination.Facing.entries.first { it.id == id } } }.toSet() }
+                fun motion(leaf: String, dim: Dimension) = e("mechanism", "motion", leaf, "max")?.let { config.quantity(it, dim, site) }
+                try {
+                    plymeld.core.decide.Region(n, box, e("from")?.let { config.quantity(it, Dimension.LENGTH, site) }, e("to")?.let { config.quantity(it, Dimension.LENGTH, site) },
+                        facing, motion("speed", Dimension.SPEED), motion("acceleration", Dimension.ACCEL), ConfigFiles.pathText(at) + " (${es.first().source})")
+                } catch (x: IllegalArgumentException) { throw UsageError(x.message ?: "bad region") }
+            }
+        }.distinctBy { it.key }
     }
 
     /** The curved islands a plan locks for [o] (`plan.object.<key>.island.<key>`: x and y required, start and layer.height optional). */

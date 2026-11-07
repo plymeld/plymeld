@@ -56,10 +56,19 @@ class Extrude(
      * reached from its own wall, whose last hop crosses that wall; a retraction and prime for a dot left a blob.
      */
     val hopOnly: Boolean = false,
+    /**
+     * Each segment's fastest speed (mm/s), segment k from vertex k, over its own: a region's cap
+     * (plan.mechanism.motion.speed.max, MotionRegions); NaN = none. null = no segment has one.
+     */
+    val speedMax: DoubleArray? = null,
+    /** Each segment's most acceleration (mm/s²), a region's cap (plan.mechanism.motion.acceleration.max); NaN = none; null = no segment has one. */
+    val accelMax: DoubleArray? = null,
 ) : Step {
     init {
         val m = xy.size / 2
         require(segmentSpeeds == null || segmentSpeeds.size == (if (closed) m else m - 1)) { "segmentSpeeds has ${segmentSpeeds!!.size} values for ${if (closed) m else m - 1} segments" }
+        require(speedMax == null || speedMax.size == (if (closed) m else m - 1)) { "speedMax has ${speedMax!!.size} values for ${if (closed) m else m - 1} segments" }
+        require(accelMax == null || accelMax.size == (if (closed) m else m - 1)) { "accelMax has ${accelMax!!.size} values for ${if (closed) m else m - 1} segments" }
         require(zs == null || zs.size == m) { "zs has ${zs!!.size} values for $m vertices" }
         require(heights == null || heights.size == m) { "heights has ${heights!!.size} values for $m vertices" }
         require(zs == null || zs.max() == zUm) { "zUm must be the highest of zs (lifts clear the whole path)" }
@@ -77,12 +86,12 @@ class Extrude(
     val curved: Boolean get() = zs != null || heights != null
 
     /** The same path with the travel into it going through [via] (null = straight). */
-    fun withVia(via: LongArray?) = Extrude(feature, xy, closed, zUm, widthUm, heightUm, tool, overhangShare, ePerMmOverride, retractBefore, widths, exact, zs, heights, via, segmentSpeeds, hopOnly)
+    fun withVia(via: LongArray?) = Extrude(feature, xy, closed, zUm, widthUm, heightUm, tool, overhangShare, ePerMmOverride, retractBefore, widths, exact, zs, heights, via, segmentSpeeds, hopOnly, speedMax, accelMax)
     /** The same path with [hopOnly] set: false where the travel into it is not a hop after all (routed along the wall, TravelRouter.alongWall). */
-    fun withHopOnly(hop: Boolean) = Extrude(feature, xy, closed, zUm, widthUm, heightUm, tool, overhangShare, ePerMmOverride, retractBefore, widths, exact, zs, heights, via, segmentSpeeds, hop)
+    fun withHopOnly(hop: Boolean) = Extrude(feature, xy, closed, zUm, widthUm, heightUm, tool, overhangShare, ePerMmOverride, retractBefore, widths, exact, zs, heights, via, segmentSpeeds, hop, speedMax, accelMax)
     /** The same path with [retractBefore] set (the retraction decision clearing the planner's hidden travels). */
-    fun withRetract(retract: Boolean) = Extrude(feature, xy, closed, zUm, widthUm, heightUm, tool, overhangShare, ePerMmOverride, retract, widths, exact, zs, heights, via, segmentSpeeds, hopOnly)
-    fun withSegmentSpeeds(speeds: DoubleArray?) = Extrude(feature, xy, closed, zUm, widthUm, heightUm, tool, overhangShare, ePerMmOverride, retractBefore, widths, exact, zs, heights, via, speeds, hopOnly)
+    fun withRetract(retract: Boolean) = Extrude(feature, xy, closed, zUm, widthUm, heightUm, tool, overhangShare, ePerMmOverride, retract, widths, exact, zs, heights, via, segmentSpeeds, hopOnly, speedMax, accelMax)
+    fun withSegmentSpeeds(speeds: DoubleArray?) = Extrude(feature, xy, closed, zUm, widthUm, heightUm, tool, overhangShare, ePerMmOverride, retractBefore, widths, exact, zs, heights, via, speeds, hopOnly, speedMax, accelMax)
 }
 
 /** A speck's hop ([Extrude.hops]) reaches at most this many of its line widths when not combed. */

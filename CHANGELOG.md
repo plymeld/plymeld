@@ -11,6 +11,12 @@ section the release's version and date.
 
 ### Added
 
+- Regions of an object, chosen by geometry: `plan.object.<key>.region.<key>` with a box in the model's own coordinates
+  (`min`, `max`, turned with the pose), a height range as printed (`from`, `to`), the faces its lines lay (`facing`:
+  walls, tops, undersides), or several together. A region's values apply to the lines in it; the first are the new motion
+  caps, `mechanism.motion.speed.max` and `.acceleration.max` (also for the plate, an object, or a part): the lines in a
+  region print no faster and accelerate no more, segment by segment, and the object stays one, with no walls where the
+  region ends. A region outside the object, or a value plymeld does not read per region, is refused.
 - `plan.mechanism.motion.inner_walls.as_visible`: inner walls at the visible lines' speed and acceleration, so a wall
   laid fast right behind the outer wall does not ripple through it. Off by default (whether it shows is not measured
   yet); the plan's time estimates follow it.

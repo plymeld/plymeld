@@ -897,6 +897,24 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
      * head's last XY (mm), read and updated.
      */
     fun layerSteps(l: LayerPlanOut, tool: Int, last: DoubleArray): Pair<Long, List<Step>> {
+        val (z, steps) = layerStepsAsPlanned(l, tool, last)
+        return z to MotionRegions.apply(steps, regionBoxes)
+    }
+
+    /**
+     * The object's regions (TechniquePlan.regions) in the frame its paths are in: x and y placed, z from the object's bottom,
+     * µm; the lines each holds by their feature, and its caps.
+     */
+    private val regionBoxes: List<MotionRegions.Box> by lazy {
+        val b = soup.bounds()
+        technique.regions.map { r -> val g = r.region
+            MotionRegions.Box(r.key, (b[0] + g.x0) * 1000, (b[0] + g.x1) * 1000, (b[1] + g.y0) * 1000, (b[1] + g.y1) * 1000, g.fromMm * 1000, g.toMm * 1000,
+                r.facing?.let { MotionRegions.features(it) }, r.speedMax, r.accelMax)
+        }
+    }
+
+    /** [layerSteps] before the regions' values: the layer's steps as planned. */
+    private fun layerStepsAsPlanned(l: LayerPlanOut, tool: Int, last: DoubleArray): Pair<Long, List<Step>> {
         val out = ArrayList<Step>()
         fun endOf(xy: LongArray, closed: Boolean) { val m = xy.size / 2; val i = if (closed) 0 else m - 1; last[0] = xy[2 * i] / 1000.0; last[1] = xy[2 * i + 1] / 1000.0 }
         val warp = warpOf(l)

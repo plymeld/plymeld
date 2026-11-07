@@ -39,15 +39,21 @@ object Schema {
         val scopes: Set<Scope> = scopesOf(segments)
     }
 
-    /** Where a value is set: for the whole plate, for one object (`plan.object.<key>.…`, `job.object.<key>.…`), or for one part of it. */
-    enum class Scope(val words: String) { PLATE("the plate"), OBJECT("an object"), PART("a part") }
+    /**
+     * Where a value is set: for the whole plate, for one object (`plan.object.<key>.…`, `job.object.<key>.…`), for one part of
+     * it, or for a region of it (`plan.object.<key>.region.<key>.…`: the lines within a box, a height range, or by the faces they lay).
+     */
+    enum class Scope(val words: String) { PLATE("the plate"), OBJECT("an object"), PART("a part"), REGION("a region") }
+
+    /** The values the code reads per region (Regions): the motion caps. Any other value under a region is refused. */
+    val REGION_VALUES = listOf("plan.mechanism.motion.speed.max", "plan.mechanism.motion.acceleration.max")
 
     /**
      * The scopes a declared path may be set at. `plan.*` values are read per object and
      * per part (the resolver's context) unless the code reads them once for the plate: the pauses, the object order,
      * the placement and the pose switch, the purge tower, the plan's fingerprints; a locked support spot and an insert
      * belong to an object, not a part; `job.*` values are read per object at most (the weights, the techniques allowed).
-     * Everything else (`hardware.*`, `model.*`, `method.*`) is the plate's.
+     * Everything else (`hardware.*`, `model.*`, `method.*`) is the plate's. A region's values are only [REGION_VALUES].
      */
     fun scopesOf(segments: List<String>): Set<Scope> {
         val p = segments.joinToString(".")
@@ -55,6 +61,7 @@ object Schema {
         return when {
             under("plan.pause", "plan.objects.printing", "plan.objects.order", "plan.bridge_order", "plan.placement", "plan.pose", "plan.source_fingerprint", "plan.mechanism.purge.tower") -> setOf(Scope.PLATE)
             under("plan.insert", "plan.support.locked") -> setOf(Scope.PLATE, Scope.OBJECT)
+            p in REGION_VALUES -> setOf(Scope.PLATE, Scope.OBJECT, Scope.PART, Scope.REGION)
             segments[0] == "plan" -> setOf(Scope.PLATE, Scope.OBJECT, Scope.PART)
             under("job.machine") -> setOf(Scope.PLATE)
             segments[0] == "job" -> setOf(Scope.PLATE, Scope.OBJECT)
@@ -62,9 +69,13 @@ object Schema {
         }
     }
 
-    /** The scope [path] is set at, by its shape: `job.object.K.x` / `plan.object.K.x` an object's, `plan.object.K.part.P.x` a part's. */
+    /**
+     * The scope [path] is set at, by its shape: `job.object.K.x` / `plan.object.K.x` an object's, `plan.object.K.part.P.x` a part's,
+     * `plan.object.K.region.R.x` a region's.
+     */
     fun scopeOf(path: List<String>): Scope = when {
         path.size > 5 && (path[0] == "job" || path[0] == "plan") && path[1] == "object" && path[3] == "part" -> Scope.PART
+        path.size > 5 && path[0] == "plan" && path[1] == "object" && path[3] == "region" -> Scope.REGION
         path.size > 3 && (path[0] == "job" || path[0] == "plan") && path[1] == "object" -> Scope.OBJECT
         else -> Scope.PLATE
     }
@@ -338,6 +349,14 @@ object Schema {
         val fs = "plan.support.locked.<key>"
         d("$fs.min", Type.Point(Dimension.LENGTH), "a spot support is locked on (a requirement the search never weighs away: every downward face in the box gets support, whether or not it needs it; plymeld refuses when nothing in the box can be supported): the box's least corner, in the model's own coordinates as its file gives them")
         d("$fs.max", Type.Point(Dimension.LENGTH), "the locked spot's greatest corner (above min on every axis), in the model's own coordinates")
+        // a region of an object, by geometry, never by index: a box, a height range, the faces it holds, or several of these
+        // together (a line is in the region when every one given holds); the values under it apply to the lines in it
+        val rg = "plan.object.<key>.region.<key>"
+        d("$rg.min", Type.Point(Dimension.LENGTH), "a region of the object: the least corner of its box, in the model's own coordinates as its file gives them (turned with the model's pose: the region is the turned box's bounding box); with max. Unset (both) = no box: the height range and the faces alone")
+        d("$rg.max", Type.Point(Dimension.LENGTH), "the region's box's greatest corner (above min on every axis), in the model's own coordinates")
+        q("$rg.from", Dimension.LENGTH, "the region's bottom as printed: lines at or above this height from the object's bottom; unset = from the bottom")
+        q("$rg.to", Dimension.LENGTH, "the region's top as printed: lines at or below this height from the object's bottom; unset = to the top")
+        d("$rg.facing", Type.Choices(listOf("flat_top", "sloped_top", "side", "under")), "the lines in the region by the faces they lay, in plan.faces's words: side = wall lines, flat_top and sloped_top = top surface lines and their ironing (a line does not say whether its top is flat or sloped: either selects both), under = bottom surfaces, bridges, and wave overhangs; unset = every line")
         // a planned insert: a socket the print pauses at so an object (a steel ball, a magnet, a nut) is placed
         // in it, the next layer planned onto the object's top; a box in the model's own coordinates, as a locked spot
         val ins = "plan.insert.<key>"
@@ -427,6 +446,8 @@ object Schema {
         // first-layer window ([made], ConfigSetup.derived)
         q("$mo.first_layer.speed", Dimension.SPEED, "speed of everything on the first layer (adhesion): a value in a config locks it over the filament's first-layer window (hardware.filament.<key>.first_layer.window.<plate>), its motion.first_layer.speed, and the machine's (hardware.machine.<key>.motion.first_layer.speed); plymeld's bundled value is only the stand-in for a machine and filament that set none")
         q("$mo.bridge.speed", Dimension.SPEED, "bridge speed; a wall line slows toward it as more of it hangs over air", feeds = true)
+        q("$mo.speed.max", Dimension.SPEED, "the fastest any line prints, whatever its own speed; set on a region (plan.object.<key>.region.<key>.mechanism.motion.speed.max) for the lines in it only, without laying the object in pieces; unset = no cap", feeds = true)
+        q("$mo.acceleration.max", Dimension.ACCEL, "the most any line accelerates, whatever its own acceleration; set on a region for the lines in it only; unset = no cap", feeds = true)
         q("$mo.melt.buffer", Dimension.RATIO, "the share of the filament's maximum flow (melt.flow.max) kept unused: every move's flow is capped at the maximum flow less this share (10 % = capped at 90 % of it); the calibration tests that probe the limit itself (the melt plate's rows) are not; 0 % = no buffer; bundled 10 %", feeds = true)
         q("$mo.detour.margin", Dimension.LENGTH, "avoid_crossing: how far outside an island's outer wall a detour runs (beyond the wall's center line plus half its width); bundled 1 mm, a placeholder", feeds = true)
         q("$mo.detour.ratio.max", Dimension.RATIO, "avoid_crossing: a detour longer than this many times the straight travel plus detour.extra.max is not taken (the straight travel with its lift is); bundled 2, a placeholder", feeds = true)
@@ -806,10 +827,10 @@ object Schema {
 
     private fun match(p: List<String>): Decl? = all.firstOrNull { d -> d.segments.size == p.size && d.segments.indices.all { d.segments[it] == "<key>" || d.segments[it] == p[it] } }
 
-    /** [path] without an object / part scope: `job.object.K.x` -> `job.x`, `plan.object.K.part.P.x` -> `plan.x`. */
+    /** [path] without an object / part / region scope: `job.object.K.x` -> `job.x`, `plan.object.K.part.P.x` -> `plan.x`. */
     fun unscoped(path: List<String>): List<String> {
         if (path.size > 3 && (path[0] == "job" || path[0] == "plan") && path[1] == "object") {
-            val rest = if (path.size > 5 && path[3] == "part") path.drop(5) else path.drop(3)
+            val rest = if (path.size > 5 && (path[3] == "part" || path[0] == "plan" && path[3] == "region")) path.drop(5) else path.drop(3)
             return listOf(path[0]) + rest
         }
         return path

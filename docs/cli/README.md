@@ -67,6 +67,29 @@ among your config files. `plymeld slice --explain` prints how each object's tech
 A g-code file that `plymeld slice` wrote records the config and plan it was made from: `plymeld slice --from
 OLD.gcode -m bracket.stl -o NEW.gcode` slices again from them, with any `-cf` and `-cv` added.
 
+## Settings for one object, part, or region
+
+A setting under `plan` applies to every object unless a narrower scope sets it: `plan.object.<key>.…` for one object
+(`"bracket.stl"`; one copy as `"bracket.stl#2"`), and `plan.object.<key>.part.<part>.…` for one part of a 3MF by its
+name. A part with settings of its own that change how it is laid is laid as its own unit, walled on its own.
+
+A region is part of an object chosen by its geometry: a box in the model's own coordinates, a height range as printed,
+the faces its lines lay, or several of these together. Its values apply to the lines in it, and the object stays one:
+
+```toml
+[plan.object."bracket.stl".region.slot]
+min = "10 0 0 mm"                       # the box's corners, in the model file's own coordinates
+max = "25 12 30 mm"
+from = "5 mm"                           # only lines printed at least 5 mm above the object's bottom
+facing = ["side"]                       # only wall lines (also flat_top, sloped_top, under, as plan.faces names them)
+mechanism.motion.speed.max = "40 mm/s"
+mechanism.motion.acceleration.max = "2000 mm/s2"
+```
+
+The values a region takes today are the motion caps, `mechanism.motion.speed.max` and `.acceleration.max`. plymeld
+refuses any other value under a region, and a region that lies outside the object. `plymeld plan` lists each region and
+what it sets.
+
 ## Talk to the printer
 
 The machine's connection is in the config (`hardware.machine.<key>.connection`); its credentials come from the

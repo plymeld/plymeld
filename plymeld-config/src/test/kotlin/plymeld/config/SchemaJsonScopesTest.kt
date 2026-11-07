@@ -53,6 +53,7 @@ class SchemaJsonScopesTest : StringSpec({
             Schema.Scope.PLATE -> "${s[0]}.$rest"
             Schema.Scope.OBJECT -> "${s[0]}.object.cube.$rest"
             Schema.Scope.PART -> if (s[0] == "plan") "plan.object.cube.part.body.$rest" else null
+            Schema.Scope.REGION -> if (s[0] == "plan") "plan.object.cube.region.slot.$rest" else null
         }
     }
 
@@ -76,12 +77,15 @@ class SchemaJsonScopesTest : StringSpec({
         accepts("plan.object.cube.pose.turn") shouldBe true
         accepts("plan.object.cube.band.1.technique") shouldBe true
         accepts("plan.object.cube.support.spot.a.min") shouldBe true
+        accepts("plan.object.cube.region.slot.min") shouldBe true
+        accepts("plan.object.cube.region.slot.mechanism.motion.speed.max") shouldBe true
     }
 
     "control: plate-only values, a part's pose, and an undeclared key are refused" {
         accepts("plan.object.cube.objects.order") shouldBe false
         accepts("plan.object.cube.part.body.pose.turn") shouldBe false
         accepts("plan.object.cube.layer.walls.nonsense") shouldBe false
+        accepts("plan.object.cube.region.slot.layer.infill.density") shouldBe false   // not read per region
         accepts("plan.object.cube.part.body.layer.walls.count") shouldBe false      // retired (the thickness now)
         accepts("plan.pose") shouldBe true
         accepts("plan.object.cube.pose") shouldBe false

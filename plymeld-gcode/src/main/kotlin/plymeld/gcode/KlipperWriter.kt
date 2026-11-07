@@ -591,7 +591,10 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 val w = wiped; val cl = combNow
                 val via = if (w == null || cl == null) p.via else replanAfterWipe(cl, combBelow, firstInLayer, w, sx, sy, p, lastPath, detourRatio, detourExtraUm)
                 firstInLayer = false
-                Math.round(p.exact?.accel ?: accelFor(p.feature)).let { a -> if (a != accelWritten) { out.write(dialect.accel(a)); accelWritten = a } }
+                // the most it may accelerate: its object's cap (plan.mechanism.motion.acceleration.max), and its first segment's
+                // region's (Extrude.accelMax; the rest per segment, below)
+                val accelBase = listOfNotNull(accelFor(p.feature), (pathSettings[p] ?: s).accelMax).min()
+                Math.round(p.exact?.accel ?: minOf(accelBase, p.accelMax?.get(0)?.takeIf { !it.isNaN() } ?: Double.POSITIVE_INFINITY)).let { a -> if (a != accelWritten) { out.write(dialect.accel(a)); accelWritten = a } }
                 val zHop = s.zHopUm / 1000.0
                 val hop = pz + zHop
                 // after a tool change the head's place is unknown: rise where it is, clear of everything printed so far
@@ -672,9 +675,12 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 // bridge's layers at its print speed, as before
                 val segFixed = p.segmentSpeeds
                 // wave beads on a waved bridge's first layer keep their own speed (plan.technique.wave_overhang.speed)
-                val fixedSpeed = if (!bridgeLayer || segFixed != null || p.feature == "Wave overhang" || p.feature == "Wave overhang, layer above") null else s.bridgePrintSpeed?.let { v -> Math.min(v, meltCap) }
-                /** Segment [k]'s own speed (mm/s), the melt cap applied; null = the usual. */
-                fun ownSpeed(k: Int): Double? = segFixed?.get(k)?.takeIf { !it.isNaN() }?.let { Math.min(it, meltCap) }
+                // the fastest it may print: its object's cap (plan.mechanism.motion.speed.max), over every speed below (a region's,
+                // per segment: Extrude.speedMax)
+                val cap = minOf(meltCap, (pathSettings[p] ?: s).speedMax ?: Double.POSITIVE_INFINITY)
+                val fixedSpeed = if (!bridgeLayer || segFixed != null || p.feature == "Wave overhang" || p.feature == "Wave overhang, layer above") null else s.bridgePrintSpeed?.let { v -> Math.min(v, cap) }
+                /** Segment [k]'s own speed (mm/s), the melt cap and the caps applied; null = the usual. */
+                fun ownSpeed(k: Int): Double? = segFixed?.get(k)?.takeIf { !it.isNaN() }?.let { Math.min(it, cap) }
                 val slowF = slowLayer?.get(pathObject[p])?.let { if (p.feature in VISIBLE) it[1] else it[0] } ?: 1.0
                 val baseSpeed = fixedSpeed ?: Math.max(Math.min(s.slowDownMinSpeed, pathSpeed(p, first)), pathSpeed(p, first) * slowF)
                 val m = p.xy.size / 2
@@ -720,7 +726,9 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 // the object's own (plan.mechanism.cooling.fan over its filament's), not the plate's
                 val layerFan = if (fanOn) s.fanMinPct else 0.0
                 if (p.overhangShare == null) fanTo(layerFan)
-                if (s.arcFitting && !ownEnds && p.overhangShare == null && segE == null && !p.curved && count >= 3) {
+                // a region's caps per segment (MotionRegions): laid segment by segment, not fitted to arcs
+                val segCaps = p.speedMax != null || p.accelMax != null
+                if (s.arcFitting && !ownEnds && !segCaps && p.overhangShare == null && segE == null && !p.curved && count >= 3) {
                     // Arc fitting (enable_arc_fitting): tolerance = resolution. The path's own points,
                     // closed back to the start for loops; arcs as G2/G3 with I/J relative to here.
                     val pts = DoubleArray(2 * (count + 1))
@@ -747,12 +755,12 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                     val share = p.overhangShare!![k]
                     val over = share / 1000.0 > from
                     val graded = OverhangSpeed.graded(share / 1000.0, baseSpeed, s.bridgeSpeed, from)
-                    val fk = (ownSpeed(k) ?: fixedSpeed)?.let { f(it) } ?: f(if (over && ps.overhangSpeed != null) Math.min(graded, ps.overhangSpeed!!) else graded)
+                    val fk = (ownSpeed(k) ?: fixedSpeed)?.let { f(it) } ?: f(Math.min(cap, if (over && ps.overhangSpeed != null) Math.min(graded, ps.overhangSpeed!!) else graded))
                     // the overhang fan over air, on the first layer too, where the fan is otherwise off: a first layer
                     // has over-air shares only where layers follow an arch's underside (its first layer over the hollow)
                     return fk to (if (over && (fanOn || first)) Math.max(layerFan, ps.overhangFanPct) else layerFan)
                 }
-                if (s.arcFitting && !ownEnds && p.overhangShare != null && segE == null && !p.curved && count >= 3) {
+                if (s.arcFitting && !ownEnds && !segCaps && p.overhangShare != null && segE == null && !p.curved && count >= 3) {
                     // Arc fitting on a wall with overhang shares (every outer wall above the first layer has them,
                     // so none was ever fitted): the wall in runs of segments that print at one speed and fan, each run
                     // fitted on its own, the speed and fan changed between runs as segment by segment
@@ -782,18 +790,19 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                     val idx = k % m
                     val share = p.overhangShare?.get(k - 1)
                     val own = ownSpeed(k - 1)
-                    if (share != null) {
+                    // the segment's region cap (MotionRegions), over whatever speed it prints at
+                    val segCap = p.speedMax?.get(k - 1)?.takeIf { !it.isNaN() } ?: Double.POSITIVE_INFINITY
+                    val speedK: Double? = if (share != null) {
                         val over = share / 1000.0 > from
                         val graded = OverhangSpeed.graded(share / 1000.0, baseSpeed, s.bridgeSpeed, from)
-                        val fk = (own ?: fixedSpeed)?.let { f(it) } ?: f(if (over && ps.overhangSpeed != null) Math.min(graded, ps.overhangSpeed!!) else graded)
                         // the overhang fan over air, on the first layer too, where the fan is otherwise off: a first layer
                         // has over-air shares only where layers follow an arch's underside (its first layer over the hollow)
                         fanTo(if (over && (fanOn || first)) Math.max(layerFan, ps.overhangFanPct) else layerFan)
-                        if (fk != curF) { out.write("G1 F$fk\n"); curF = fk }
-                    } else if (segFixed != null) {
-                        val fk = f(own ?: baseSpeed)
-                        if (fk != curF) { out.write("G1 F$fk\n"); curF = fk }
-                    }
+                        own ?: fixedSpeed ?: Math.min(cap, if (over && ps.overhangSpeed != null) Math.min(graded, ps.overhangSpeed!!) else graded)
+                    } else if (segFixed != null) own ?: baseSpeed
+                    else if (p.speedMax != null) baseSpeed else null
+                    if (speedK != null) { val fk = f(Math.min(speedK, segCap)); if (fk != curF) { out.write("G1 F$fk\n"); curF = fk } }
+                    p.accelMax?.let { am -> Math.round(minOf(accelBase, am[k - 1].takeIf { !it.isNaN() } ?: Double.POSITIVE_INFINITY)).let { a -> if (a != accelWritten) { out.write(dialect.accel(a)); accelWritten = a } } }
                     val nx = p.xy[2 * idx] / 1000.0; val ny = p.xy[2 * idx + 1] / 1000.0
                     val len = Math.hypot(nx - x, ny - y)
                     // One rule: the filament for a move is its whole length, in X, Y, and Z, times its bead's
@@ -850,7 +859,7 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
     private fun pathSpeed(p: Extrude, first: Boolean): Double {
         val ps = pathSettings[p] ?: s
         val area = p.heightUm / 1000.0 * (p.widthUm / 1000.0 - p.heightUm / 1000.0 * (1 - Math.PI / 4))   // mm²
-        return Math.min(speedFor(ps, p.feature, first), ps.maxVolumetric / area)
+        return minOf(speedFor(ps, p.feature, first), ps.maxVolumetric / area, ps.speedMax ?: Double.POSITIVE_INFINITY)
     }
 
     /**
