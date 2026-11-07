@@ -9,6 +9,11 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Fixed
+
+- Several lifted bridges in one object: the flat layers above a strip's end are laid onto the strip as onto a printed
+  surface. They were planned as if over air, so wave beads or bridge lines were laid onto solid strip.
+
 ## [0.20261107.1] - 2026-11-07
 
 ### Changed
