@@ -4,6 +4,7 @@ import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.Locale
@@ -192,5 +193,33 @@ class WaveOverhangSliceTest : StringSpec({
         features("below.toml").let { (("Wave overhang" in it) to ("Bridge" in it)) shouldBe (true to false) }
         features("upto.toml").let { (("Wave overhang" in it) to ("Bridge" in it)) shouldBe (false to true) }
         features("past.toml").let { (("Wave overhang" in it) to ("Bridge" in it)) shouldBe (true to false) }
+    }
+
+    "the pre-print check refuses a waved layer that leaves part of its span unlaid, saying where; control: as sliced, and with one bead row taken out, it passes" {
+        val d = dir("hw.toml" to hardware, "ledge.stl" to ledge)
+        val g = slice(d, listOf("hw.toml"), "wave.gcode")
+        val product = Product(plymeld.config.ConfigStack.load(listOf(d.resolve("hw.toml").toString()), emptyList(), d), listOf(d.resolve("ledge.stl")), null) { }
+        val plan = product.decide()
+        val zBase = plan.parts.minOf { it.bounds()[2] }
+        val rows = moves(g).filter { it.feature == "Wave overhang" }.map { Math.round(it.y * 100) / 100.0 }.distinct().sorted()
+        val mid = rows[rows.size / 2]
+        /** [g] with the wave beads whose y is in [band] laid as travels (no extrusion). */
+        fun without(band: ClosedFloatingPointRange<Double>): String {
+            var feature = ""
+            return g.lines().joinToString("\n") { line ->
+                if (line.startsWith(";TYPE:") || line.startsWith("; FEATURE:")) feature = line.substringAfter(':').trim()
+                val y = Regex(" Y(-?[0-9.]+)").find(line)?.groupValues?.get(1)?.toDouble()
+                if (feature == "Wave overhang" && line.startsWith("G1 ") && y != null && Math.round(y * 100) / 100.0 in band) line.replace(Regex(" E[0-9.]+"), "") else line
+            }
+        }
+        fun air(text: String) = plymeld.core.check.ModelCheck.check(text, plan.parts, zBase).filter { "over air" in it }
+        air(g).shouldBeEmpty()
+        air(without(mid..mid)).shouldBeEmpty()
+        val pictures = d.resolve("gap.check")
+        val gap = plymeld.core.check.ModelCheck.check(without(mid - 0.8..mid + 0.8), plan.parts, zBase, imagesDir = pictures).filter { "over air" in it }
+        println(gap)
+        gap.single() shouldContain "mm2 of the area over air laid by no line"
+        // the layer's picture
+        Files.exists(pictures.resolve("z" + gap.single().substringAfter("layer at z ").substringBefore(':').padStart(7, '0') + ".png")) shouldBe true
     }
 })

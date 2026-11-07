@@ -93,7 +93,7 @@ Choices are weighed by what you care about for this print. The order in which pl
 3. where only a print can settle it, a test print with its outcomes written down in advance (3.4).
 
 - **[Built]** The pre-print check judges the g-code against the model: lines outside it, outlines left without
-  walls.
+  walls, the area over air of a layer with wave beads left unlaid.
 - **[Built]** Examples of plymeld's own rules: overhang speed graded smoothly as more of a line hangs over air,
   rather than in steps; every print ending exactly on the model's top, with no setting needed; vertical shells
   by the least plastic that meets every stated thickness in every direction.
@@ -138,7 +138,7 @@ chosen per region of an object together with its pose.
 
 - **[Built]** `plymeld slice` and `plymeld calibrate` read their own g-code back and check it against the config
   (machine limits, retraction, travels over visible lines, tools, start, and end) and against the model (lines
-  outside it, outlines left without walls). A layer that fails gets a picture; a file that fails is reported as
+  outside it, outlines left without walls, a waved layer's area over air left unlaid). A layer that fails gets a picture; a file that fails is reported as
   not to be printed until the problems are understood.
 - **[Built]** The g-code writer checks every line against the commands the machine is known to accept, and
   refuses a command with no evidence behind it.

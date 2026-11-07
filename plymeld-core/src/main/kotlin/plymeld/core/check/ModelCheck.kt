@@ -20,6 +20,10 @@ import java.util.Locale
  *  - Z anti-aliasing (a [ZaaRule]): a layer's outline also takes in its cut at the tool's thinnest layer above its bottom
  *    (the layer reaches out over a slope to there), and a point of a line below its layer, on the model's top within the
  *    layer, is not outside;
+ *  - over air (a layer with wave beads): each piece of the layer's cross-section where the model has none under it (its
+ *    cut at the middle of the layer below) that has a wave bead in it, laid all over: no point of it, where a line's center could go, more than a line's width
+ *    from every line of the layer (a gap wider than a line between beads). Refused over [AIR_MM2] unlaid; wave beads are
+ *    laid a spacing apart, and what no front reaches is bridged, so the planner leaves none;
  *  - tool (when the config's part tools are given): the model's lines printed by the tool (the T command in force) the
  *    config's loadout assigns the part whose own cross-section holds them.
  *
@@ -36,7 +40,9 @@ object ModelCheck {
     private const val ABOVE = "Wave overhang, layer above"
 
     internal class Seg(val x0: Double, val y0: Double, val x1: Double, val y1: Double, val w: Double, val wall: Boolean, val tool: Int = 0,
-                       val z0: Double = Double.NaN, val z1: Double = Double.NaN)
+                       val z0: Double = Double.NaN, val z1: Double = Double.NaN, val wave: Boolean = false)
+    /** A wave bead (laid in its own layer or carried into the one above): a layer with one lays the area over air ([airProblems]). */
+    private val WAVES = setOf("Wave overhang", ABOVE)
 
     /**
      * [parts]: the placed meshes in bed coordinates; [zBaseMm]: the height of the bed in their frame
@@ -61,7 +67,63 @@ object ModelCheck {
         val tol = tolUm / 1000.0
         if (imagesDir != null) System.setProperty("java.awt.headless", "true")
         // every layer on its own, in parallel; the problems in layer order
-        return plymeld.core.Parallel.map(layers.size, progress.Counter("model check", layers.size)) { k -> layerProblems(sf, k, tol, imagesDir, zaa) + toolProblems(sf, k, tol, partTools) }.flatten().take(maxProblems)
+        return plymeld.core.Parallel.map(layers.size, progress.Counter("model check", layers.size)) { k ->
+            layerProblems(sf, k, tol, imagesDir, zaa) + airProblems(sf, k, tol, imagesDir) + toolProblems(sf, k, tol, partTools) }.flatten().take(maxProblems)
+    }
+
+    /** The unlaid area over air a waved layer may leave (mm2): a few sampling cells, so a corner's rounding is not one. */
+    private const val AIR_MM2 = 0.25
+
+    /**
+     * The over-air rule: on a layer with wave beads, the area over air with no line within a line's width ([AIR_MM2]), in
+     * the pieces of it the beads were laid for (a wave bead's middle in them).
+     * Over air: the layer's cut at its middle less the model's cut at the middle of the layer below (one layer height
+     * down); the first layer stands on the bed. Points are sampled a quarter line apart where a line's center could go
+     * (half a line inside the cross-section); a point is unlaid when no line of the layer, of any feature, has its center
+     * within a line's width (the beads' widest) and the tolerance of it.
+     */
+    private fun airProblems(sf: Surface, k: Int, tol: Double, imagesDir: java.nio.file.Path?): List<String> {
+        val layer = sf.layerLines[k]
+        val waves = layer.segs.filter { it.wave }
+        if (waves.isEmpty() || layer.z - layer.h < 1e-6) return emptyList()
+        // the pieces of the area over air the beads were laid for: those with a wave bead in them (a narrow hole closing
+        // within the layer, walled as still open, is over air by the cut at the middle but no wave's)
+        fun gridOf(ps: List<Polygon>) = Grid(ps.flatMap { p -> (0 until p.size).map { i -> doubleArrayOf(p.x(i) / 1000.0, p.y(i) / 1000.0, p.x((i + 1) % p.size) / 1000.0, p.y((i + 1) % p.size) / 1000.0) } })
+        val air = plymeld.geom.Polygons.group(plymeld.geom.Booleans.difference(sf.loops(k), sf.below(k))).map { (o, hs) -> listOf(o) + hs }
+            .filter { piece -> val g = gridOf(piece); waves.any { g.inside((it.x0 + it.x1) / 2, (it.y0 + it.y1) / 2) } }.flatten()
+        if (air.isEmpty()) return emptyList()
+        val w = waves.maxOf { it.w }
+        val airGrid = gridOf(air)
+        val edges = sf.grid(k)
+        val lines = Grid(layer.segs.map { doubleArrayOf(it.x0, it.y0, it.x1, it.y1) })
+        val step = w / 4
+        var x0 = Double.MAX_VALUE; var y0 = Double.MAX_VALUE; var x1 = -Double.MAX_VALUE; var y1 = -Double.MAX_VALUE
+        for (p in air) for (i in 0 until p.size) { val x = p.x(i) / 1000.0; val y = p.y(i) / 1000.0; x0 = minOf(x0, x); x1 = maxOf(x1, x); y0 = minOf(y0, y); y1 = maxOf(y1, y) }
+        var unlaid = 0.0; var far = 0.0; var fx = 0.0; var fy = 0.0
+        val pts = ArrayList<DoubleArray>()
+        var y = y0 + step / 2
+        while (y < y1) {
+            var x = x0 + step / 2
+            while (x < x1) {
+                if (airGrid.inside(x, y) && edges.nearest(x, y, w) >= w / 2) {
+                    if (lines.nearest(x, y, w + tol) > w + tol) {
+                        unlaid += step * step; pts += doubleArrayOf(x, y)
+                        val d = lines.nearest(x, y, 5.0)
+                        if (d > far) { far = d; fx = x; fy = y }
+                    }
+                }
+                x += step
+            }
+            y += step
+        }
+        if (unlaid <= AIR_MM2) return emptyList()
+        val problem = "layer at z ${f(layer.z, 3)}: ${f(unlaid, 1)} mm2 of the area over air laid by no line (a gap wider than a line, " +
+            "up to ${if (far >= 5.0) "5+" else f(far - w / 2, 2)} mm from the nearest line's edge, at ${f(fx, 2)}, ${f(fy, 2)})"
+        // the layer's picture, unless the layer's other rules drew one: the area over air as the outline, the unlaid points marked
+        val file = imagesDir?.resolve("z%07.3f.png".format(Locale.ROOT, layer.z))
+        if (file != null && !java.nio.file.Files.exists(file))
+            ModelCheckPlot.write(file, problem, sf.loops(k) + air, layer.segs.map { doubleArrayOf(it.x0, it.y0, it.x1, it.y1, it.w, if (it.wall) 1.0 else 0.0) }, emptyList(), pts, fx, fy, "over air, no line within a line")
+        return listOf(problem)
     }
 
     /**
@@ -199,7 +261,7 @@ object ModelCheck {
      * GcodeCheck's travel rule ([at]: is a point on the model's outer surface, within [withinMm] of the
      * outline, so a part's "outer wall" inside another part, a hidden surface, is not taken for a visible one).
      */
-    class Surface(parts: List<TriangleSoup>, zBaseMm: Double, text: String, private val withinMm: Double = 0.6,
+    class Surface(private val parts: List<TriangleSoup>, private val zBaseMm: Double, text: String, private val withinMm: Double = 0.6,
                   /**
                    * Z anti-aliasing (plan.faces.sloped_top.technique = "z_antialiasing"): the tool's thinnest layer (mm). A layer above the bed then reaches out
                    * to where the model's top is that far above its bottom: its outline, which its walls must cover, is also cut
@@ -249,6 +311,13 @@ object ModelCheck {
             val k = byZ[Math.round(layerZ * 1000)] ?: return true
             return grid(k).nearest(x, y, withinMm) <= withinMm
         }
+        private val belows = arrayOfNulls<List<Polygon>>(layerLines.size)
+        /** The model's cross-section under layer [k]: its cut one layer height below the layer's middle (the over-air rule), made when first asked for. */
+        internal fun below(k: Int): List<Polygon> = belows[k] ?: run {
+            val z = cutZ[k] - layerLines[k].h
+            val loops = parts.flatMap { p -> Slicer.slice(p, doubleArrayOf(z))[0].loops }.let { if (it.size > 1) plymeld.geom.Booleans.unionPositive(it) else it }
+            (if (clip == null) loops else clip.invoke(z, loops)).also { belows[k] = it }
+        }
         /** Whether this g-code has a layer at [layerZ]. */
         fun has(layerZ: Double): Boolean = byZ.containsKey(Math.round(layerZ * 1000))
     }
@@ -292,8 +361,8 @@ object ModelCheck {
             fun num(ch: Char) = ws.drop(1).firstOrNull { it.isNotEmpty() && it[0] == ch }?.substring(1)?.toDoubleOrNull()
             val nx = num('X') ?: x; val ny = num('Y') ?: y; val nz = num('Z') ?: zc; val e = num('E') ?: 0.0
             if (started && e > 0 && !x.isNaN() && (nx != x || ny != y || arc) && feature in MODEL) {
-                if (arc) arcChords(x, y, nx, ny, x + (num('I') ?: 0.0), y + (num('J') ?: 0.0), ws[0] == "G2") { ax, ay, bx, by -> segs += Seg(ax, ay, bx, by, w, feature in WALLS, tool, nz, nz) }
-                else (if (feature == ABOVE) above else segs) += Seg(x, y, nx, ny, w, feature in WALLS, tool, zc, nz)
+                if (arc) arcChords(x, y, nx, ny, x + (num('I') ?: 0.0), y + (num('J') ?: 0.0), ws[0] == "G2") { ax, ay, bx, by -> segs += Seg(ax, ay, bx, by, w, feature in WALLS, tool, nz, nz, feature in WAVES) }
+                else (if (feature == ABOVE) above else segs) += Seg(x, y, nx, ny, w, feature in WALLS, tool, zc, nz, feature in WAVES)
             }
             x = nx; y = ny; zc = nz
         }

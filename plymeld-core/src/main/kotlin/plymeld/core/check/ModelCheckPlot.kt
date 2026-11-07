@@ -12,7 +12,7 @@ import java.awt.image.BufferedImage
 /**
  * A picture of one layer ModelCheck found a problem on, around the problem (24 x 24 mm): the model's
  * cross-section outline (black), its walls (red) and other lines (gray) at their widths, the outline with
- * no wall near it (blue), lines outside the model (magenta). Java 2D only, headless.
+ * no wall near it or the area over air no line lays ([uncoveredIs], blue), lines outside the model (magenta). Java 2D only, headless.
  */
 object ModelCheckPlot {
     private const val SPAN_MM = 24.0
@@ -20,7 +20,8 @@ object ModelCheckPlot {
 
     /** [lines]: x0, y0, x1, y1, width, wall (1/0). [cx], [cy]: the center of the view (mm). */
     fun write(file: java.nio.file.Path, title: String, loops: List<Polygon>, lines: List<DoubleArray>,
-              outside: List<DoubleArray>, uncovered: List<DoubleArray>, cx: Double, cy: Double) {
+              outside: List<DoubleArray>, uncovered: List<DoubleArray>, cx: Double, cy: Double,
+              uncoveredIs: String = "outline with no wall within a line") {
         System.setProperty("java.awt.headless", "true")
         java.nio.file.Files.createDirectories(file.parent)
         val img = BufferedImage(SIZE, SIZE + 60, BufferedImage.TYPE_INT_RGB)
@@ -50,7 +51,7 @@ object ModelCheckPlot {
         g.font = Font("SansSerif", Font.PLAIN, 15); g.drawString("5 mm", 20, SIZE + 32)
         g.font = Font("SansSerif", Font.BOLD, 15); g.drawString(title.take(140), 10, 22)
         g.font = Font("SansSerif", Font.PLAIN, 13)
-        g.drawString("black: the model's cross-section (mesh slicer)   red: walls   gray: other lines   blue: outline with no wall within a line   magenta: lines outside the model", 10, 44)
+        g.drawString("black: the model's cross-section (mesh slicer)   red: walls   gray: other lines   blue: $uncoveredIs   magenta: lines outside the model", 10, 44)
         g.dispose()
         javax.imageio.ImageIO.write(img, "png", file.toFile())
     }
