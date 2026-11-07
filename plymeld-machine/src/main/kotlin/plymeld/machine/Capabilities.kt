@@ -22,6 +22,8 @@ data class MachineDescription(
     /** Motion limits (Klipper names: max_velocity, max_accel, max_z_velocity, max_z_accel, square_corner_velocity), each with evidence. */
     val motion: Map<String, MotionLimit> = emptyMap(),
     val notes: List<String> = emptyList(),
+    /** How long (s) a tool of this model is heated before its change (a pre-heat), with its evidence: for a tool that sets none (hardware.tool.<key>.heat.time). */
+    val toolHeat: MotionLimit? = null,
 ) {
     private val byWord = commands.associateBy { it.word.uppercase() }
 

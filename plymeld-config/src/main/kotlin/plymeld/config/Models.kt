@@ -88,6 +88,10 @@ object Models {
             toolheads = toolheads,
             motion = motion,
             notes = text("notes")?.lines()?.filter { it.isNotBlank() } ?: emptyList(),
+            toolHeat = c.entry(base + listOf("tool", "heat", "time"))?.let { e ->
+                val ev = c.entry(base + listOf("evidence", "tool", "heat", "time"))?.takeIf { origin(it) == origin(e) }
+                MotionLimit(qty(e, Dimension.TIME), evidence(ev?.value as? String, e).first())
+            },
         )
     }
 
