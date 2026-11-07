@@ -51,4 +51,20 @@ class CantileverTest : StringSpec({
         val s = soup(box(0.0, 20.0, 0.0, 20.0, 0.0, 20.0))
         Cantilever.reach(s, origin, region(0.1, 0.1, 0.0, 20.0, 0.0, 20.0), 0.2) shouldBe null
     }
+
+    "areas by height: each the cut's own area, cut once and then shared; control: another model is cut afresh" {
+        // two overlapping boxes, so each area is a merge of two shells
+        val s = soup(box(0.0, 20.0, 0.0, 20.0, 0.0, 20.0), box(10.0, 30.0, 5.0, 15.0, 0.0, 10.0))
+        val zs = listOf(2.0, 7.5, 15.0)
+        val first = Cantilever.areas(s, zs)
+        val fresh = plymeld.mesh.Slicer.slice(s, zs.toDoubleArray())
+        for ((i, z) in zs.withIndex()) first.getValue(z).loops.map { it.xy.toList() } shouldBe Cantilever.Area(fresh[i].loops).loops.map { it.xy.toList() }
+        // asked again (a subset, out of order): the same areas, not cut again
+        val again = Cantilever.areas(s, listOf(15.0, 2.0))
+        (again.getValue(15.0) === first.getValue(15.0)) shouldBe true
+        (again.getValue(2.0) === first.getValue(2.0)) shouldBe true
+        // control: the same boxes as another model: its own areas
+        val twin = soup(box(0.0, 20.0, 0.0, 20.0, 0.0, 20.0), box(10.0, 30.0, 5.0, 15.0, 0.0, 10.0))
+        (Cantilever.areas(twin, listOf(2.0)).getValue(2.0) === first.getValue(2.0)) shouldBe false
+    }
 })

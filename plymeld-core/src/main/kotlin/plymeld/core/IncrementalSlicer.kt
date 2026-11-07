@@ -245,7 +245,8 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
             // loops are unioned per layer so overlapping or touching parts print as one object.
             val layers: List<Layer> = if (sliced.size == 1) Slicer.slice(sliced[0], plan.slices) else {
                 val perPart = sliced.map { Slicer.slice(it, plan.slices) }
-                plan.slices.indices.map { li ->
+                // the layers' unions side by side (one after another, a 29-part model's union was a seventh of its plan)
+                Parallel.map(plan.slices.size) { li ->
                     val loops = perPart.flatMap { it[li].loops }
                     Layer(plan.slices[li], plymeld.geom.Booleans.normalize(loops), perPart.flatMap { it[li].openChains })
                 }

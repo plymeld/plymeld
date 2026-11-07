@@ -39,6 +39,24 @@ object Cantilever {
         return reach(Area(cut[1].loops), Area(cut[0].loops), b, r)
     }
 
+    /**
+     * The cross-sections of the posed model [p] at heights [zs] as [Area]s, kept by model and height
+     * ([plymeld.mesh.SoupCache]): the survey asks for the same heights under every candidate plan of a pose, and merging a
+     * large model's section was most of it. Only the heights not held are cut, in one sweep.
+     */
+    fun areas(p: TriangleSoup, zs: Collection<Double>): Map<Double, Area> {
+        val out = HashMap<Double, Area>()
+        val todo = ArrayList<Double>()
+        for (z in zs.distinct()) { val a = areaCache.peek(p, z); if (a != null) out[z] = a else todo += z }
+        if (todo.isNotEmpty()) {
+            todo.sort()                                                          // ascending, as the slicer sweeps
+            val cut = Slicer.slice(p, todo.toDoubleArray())
+            for ((i, z) in todo.withIndex()) out[z] = areaCache.get(p, z) { Area(cut[i].loops) }
+        }
+        return out
+    }
+    private val areaCache = plymeld.mesh.SoupCache<Area>(plymeld.mesh.SoupCache.heapShare()) { it.bytes }
+
     /** The height the region's lowest layer is cut at, and the height just below it (the posed model's frame). */
     fun layerZ(b: DoubleArray, r: Coordination.Volume.Region, layerMm: Double) = b[2] + r.fromMm + layerMm / 2
     fun belowZ(b: DoubleArray, r: Coordination.Volume.Region, layerMm: Double) = b[2] + r.fromMm - layerMm / 2
@@ -50,6 +68,8 @@ object Cantilever {
      */
     class Area(loops: List<Polygon>) {
         val loops: List<Polygon> = if (loops.size > 1) Booleans.unionPositive(loops) else loops
+        /** Its size, roughly (the loops' coordinates and the grid's edges), for [areas]' bound. */
+        val bytes: Long get() = this.loops.sumOf { it.size.toLong() } * 64
         private val s = Units.PER_MM.toDouble()
         private val grid = plymeld.core.check.ModelCheck.Grid(this.loops.flatMap { l -> (0 until l.size).map { i -> val j = (i + 1) % l.size; doubleArrayOf(l.x(i) / s, l.y(i) / s, l.x(j) / s, l.y(j) / s) } })
         val isEmpty: Boolean get() = loops.isEmpty()

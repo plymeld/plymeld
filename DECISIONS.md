@@ -164,3 +164,31 @@ it guesses which color matters, where a refusal that names the fix lets the user
 
 **Consequences.** Like `-cv`, `--slot` is not written into a plan file: a plan made with it is sliced with it again, or
 with `model.slots` in a config file. Parts mapped onto one filament are sliced as one body where their settings agree.
+
+## 8. The pose search surveys a pose's overhangs only when it details it, and screens poses by their best possible score (2026-11-07)
+
+**Context.** On a 29-part, 4.7-million-triangle trophy with one large flat bottom, the pose search took 220 s of a
+5-minute plan. Its first round surveyed support's overhang regions in every pose under every plan, though its candidates
+hold no chosen support and their scores do not read the regions; only the poses it details use them, and it detailed
+one of the 14 it measured. Then it detailed poses best first until the time limit, with no test of whether a pose could
+still win: poses lying on their side, needing support under most of the model, were detailed like the upright one.
+
+**Decision.** The first round leaves the survey for later where support is decided per overhang; a pose is measured
+again with it when it is detailed, the same plans giving the same values. Before a pose is detailed, its best possible
+score is worked out: its own measures as they are (bed contact, tip, slenderness, height, the first layer's islands);
+every measure a plan or support changes at its best (stair-step, height error, border, rough top, support's plastic at
+0; layer lines at the thinnest layer; time at one minimum layer time per layer at the thickest; the weakest bond at most
+the footprint's box); and what needs support at the thinnest layer costs at least the smaller of droop's and scars'
+weights times ln(1 + area / unit), since each face droops or scars, its droop counting at least its scar, and the unit
+log is subadditive. A pose whose best possible score is not below the third candidate's among those detailed (the
+finalists' full slices reorder the top three) is ruled out, with the bound and the bar in its reason. The as-given pose
+is never ruled out (it has standing under method.search.pose.keep_margin).
+
+**Rejected.** Comparing with the best candidate only: a pose that could be second or third would miss the finalists'
+slices that reorder them. The first round's best value of each plan-dependent measure as its bound: a mix of techniques
+can do better than any single plan the first round measured, so that bound could rule out a pose that wins. A search on
+a simplified copy of the mesh: faster still on large models, but its measures would no longer be the model's.
+
+**Consequences.** Where the search runs to completion it decides as before: the bound is a lower bound
+(PoseScreenTest checks every ruled-out pose against the search without the screen). Where the time limit cuts it short,
+the time goes to poses that can still win. The explanation lists the poses ruled out and why.
