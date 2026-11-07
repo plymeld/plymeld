@@ -14,6 +14,8 @@ section the release's version and date.
 - A config may spell a setting's name or a chosen value the British way: `colour` names `color`, and `centre` is read
   as `center` (`plan.placement`, a machine's `build.origin`, `--placement`), wherever the American spelling is what
   the setting takes. A key of your own (a filament called `grey`) is never respelled.
+- The pre-print check refuses a layer with wave beads that leaves part of its area over air unlaid (a gap wider than a
+  line between beads), saying how much, where, and with the layer's picture.
 
 ### Fixed
 
