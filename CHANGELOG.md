@@ -17,6 +17,9 @@ section the release's version and date.
 
 ### Fixed
 
+- Wave overhangs: where the fronts close in from two sides (the roof over a narrow slot), the strip they leave between
+  them gets a bead along its middle. It was left unlaid and not bridged: on the 3DBenchy, a strip 0.6 mm wide and 6 mm
+  long over the stern's slot.
 - Several lifted bridges in one object: the flat layers above a strip's end are laid onto the strip as onto a printed
   surface. They were planned as if over air, so wave beads or bridge lines were laid onto solid strip.
 

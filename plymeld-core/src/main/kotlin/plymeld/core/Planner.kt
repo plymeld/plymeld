@@ -659,7 +659,9 @@ object Planner {
                         else WaveFronts.grow(firstRegion, growFrom, wp)
                     lastCovered = fronts.lastOrNull()?.loops ?: emptyList()
                     // chevron fronts close in on themselves where the sides meet (the diamond): given the span, those rings are laid
-                    WaveFronts.beads(fronts, growFrom, s.nozzleDiameterUm, overhang = if (chevron) overAirAll else null)
+                    WaveFronts.beads(fronts, growFrom, s.nozzleDiameterUm, overhang = if (chevron) overAirAll else null,
+                        // where fronts close in on themselves, a bead along the middle (a wave overhang's; a waved bridge orders its own beads by side)
+                        meetMinAreaMm2 = if (waveBridge) null else wp.minAreaMm2)
                 }
                 if (perFront.isEmpty()) return@run emptyList()
                 val fd = s.filamentDiameterMm

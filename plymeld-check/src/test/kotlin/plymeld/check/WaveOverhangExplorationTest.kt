@@ -226,4 +226,36 @@ class WaveOverhangExplorationTest : StringSpec({
         outIn.first().none(::centered) shouldBe true
         outIn.first().all { r -> r.xy[1] == bead / 2 || r.xy[1] == 12_000 - bead / 2 } shouldBe true
     }
+    // fronts closing in on themselves: a slot 1.2 mm wide over air between two anchors along its long sides (a narrow
+    // opening roofed over). The first front from each side (0.34 mm) leaves 0.52 mm in the middle, which the next front
+    // fills from both sides at once, so no front's new edge runs along it;
+    // with meetMinAreaMm2 it gets one bead along its middle and every point of the slot lies under a bead. Control: without,
+    // a strip down the middle more than half a bead from every bead
+    "fronts meeting from two sides: a bead along the middle of what they leave; control: without, the middle unlaid" {
+        val slot = listOf(rect(0, 0, 10_000, 1_200))
+        val anchor = listOf(rect(0, -3_000, 10_000, 0), rect(0, 1_200, 10_000, 4_200))
+        val wp = WaveFronts.Params(spacingUm = spacing, overlapUm = 100, minNeckUm = 700, beadUm = bead)
+        val fronts = WaveFronts.grow(slot, anchor, wp)
+        fun unlaid(beads: List<WaveFronts.Bead>): Int {
+            var n = 0
+            for (x in 500L until 9_500L step 100) for (y in 50L until 1_200L step 50) {
+                val near = beads.any { b -> (0 until b.xy.size / 2 - 1).any { k ->
+                    val ax = b.xy[2 * k].toDouble(); val ay = b.xy[2 * k + 1].toDouble(); val bx = b.xy[2 * k + 2].toDouble(); val by = b.xy[2 * k + 3].toDouble()
+                    val vx = bx - ax; val vy = by - ay; val l2 = vx * vx + vy * vy
+                    val t = if (l2 == 0.0) 0.0 else (((x - ax) * vx + (y - ay) * vy) / l2).coerceIn(0.0, 1.0)
+                    Math.hypot(x - ax - t * vx, y - ay - t * vy) <= bead / 2.0 + WaveFronts.TOL_UM } }
+                if (!near) n++
+            }
+            return n
+        }
+        val with = WaveFronts.beads(fronts, anchor, bead, meetMinAreaMm2 = wp.minAreaMm2).flatten()
+        val without = WaveFronts.beads(fronts, anchor, bead).flatten()
+        // the middle bead: along the slot, on its center line
+        val middle = with.filter { b -> (0 until b.xy.size / 2).all { k -> b.xy[2 * k + 1] in 500L..700L } }
+        withClue("beads ${with.size} against ${without.size}") { middle.size shouldBe 1 }
+        val m = middle.single().xy
+        (Math.abs(m[m.size - 2] - m[0]) > 8_000) shouldBe true
+        unlaid(with) shouldBe 0
+        withClue("control") { (unlaid(without) > 100) shouldBe true }
+    }
 })
