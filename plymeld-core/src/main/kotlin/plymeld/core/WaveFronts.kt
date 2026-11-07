@@ -94,7 +94,12 @@ object WaveFronts {
                * inward, except where it runs along the overhang's own boundary (a hole in the part). Null: every hole is the
                * overhang's (the fronts grow out from one side).
                */
-              overhang: List<Polygon>? = null): List<List<Bead>> {
+              overhang: List<Polygon>? = null,
+              /**
+               * Where fronts close in on themselves, the most of a piece left unlaid without a bead along its middle (mm²): the
+               * fronts' own least area (Params.minAreaMm2). Null: no such beads.
+               */
+              meetMinAreaMm2: Double? = null): List<List<Bead>> {
         val out = ArrayList<List<Bead>>(fronts.size)
         // with the overhang given, a bead must lie on it or on the anchor: a front narrower than a bead (a chevron's first
         // fronts, slivers in the corners) moved half a bead in pokes past the overhang's edge, where it has no surface under
@@ -128,11 +133,84 @@ object WaveFronts {
                     e = k
                 }
             }
-            out += beads.filter(::inside)
+            val kept = beads.filter(::inside)
+            // where fronts close in on themselves (a slot between two sides of the anchor, fronts from both meeting), the
+            // front filling the middle has no new edge there: its boundary lies on the front before and the outline. What
+            // no bead lays there gets one bead along its middle (beadUm known)
+            val meet = if (beadUm > 0 && meetMinAreaMm2 != null)
+                meeting(Booleans.difference(f.loops, prev), kept + (out.lastOrNull() ?: emptyList()), beadUm, meetMinAreaMm2).filter(::inside) else emptyList()
+            out += kept + meet
             prev = f.loops
         }
         return out
     }
+
+    /**
+     * Beads along the middle of the pieces of [added] (what a front adds) that [laid] (the beads of this front and the one
+     * before) leaves unlaid: a piece wider than a bead (a front's band is a step wide, under a bead), with more than
+     * [minAreaMm2] of it farther than half a bead (and [TOL_UM]) from every bead's line. The middle: the piece shrunk until one more step would leave
+     * nothing, read between its two points farthest apart. A piece too round to have a middle line (shorter than a bead)
+     * gets none.
+     */
+    private fun meeting(added: List<Polygon>, laid: List<Bead>, beadUm: Long, minAreaMm2: Double): List<Bead> {
+        if (added.isEmpty()) return emptyList()
+        val out = ArrayList<Bead>()
+        val segs = laid.flatMap { b -> val n = b.xy.size / 2
+            (0 until (if (b.closed) n else n - 1)).map { k -> val j = (k + 1) % n; longArrayOf(b.xy[2 * k], b.xy[2 * k + 1], b.xy[2 * j], b.xy[2 * j + 1]) } }
+        val far = beadUm / 2.0 + TOL_UM
+        for ((o, hs) in Polygons.group(added)) {
+            val area = o.signedAreaMm2() + hs.sumOf { it.signedAreaMm2() }
+            val perimeterMm = (listOf(o) + hs).sumOf { p -> (0 until p.size).sumOf { i -> val j = (i + 1) % p.size; Math.hypot((p.x(j) - p.x(i)).toDouble(), (p.y(j) - p.y(i)).toDouble()) } } / 1000.0
+            // a band a front adds is about a step wide (area over half the perimeter); only a wider piece can hold a gap
+            if (area <= minAreaMm2 || area / (perimeterMm / 2) < beadUm / 1000.0) continue
+            val b = o.bounds()
+            val step = beadUm / 4
+            val near = segs.filter { s -> maxOf(s[0], s[2]) >= b[0] - beadUm && minOf(s[0], s[2]) <= b[2] + beadUm && maxOf(s[1], s[3]) >= b[1] - beadUm && minOf(s[1], s[3]) <= b[3] + beadUm }
+            var unlaid = 0
+            var y = b[1] + step / 2
+            while (y < b[3]) {
+                var x = b[0] + step / 2
+                while (x < b[2]) {
+                    if (Polygons.contains(o, x, y) && hs.none { Polygons.contains(it, x, y) } && near.none { s -> segDist(x, y, s) <= far }) unlaid++
+                    x += step
+                }
+                y += step
+            }
+            if (unlaid * step.toDouble() * step / 1e6 <= minAreaMm2) continue
+            middle(listOf(o) + hs, beadUm)?.let { out += it }
+        }
+        return out
+    }
+
+    /** The middle line of a narrow piece: shrunk in steps of a sixteenth of a bead (a resolution) while something is left, then read between its farthest points. */
+    private fun middle(piece: List<Polygon>, beadUm: Long): Bead? {
+        var last = piece
+        var d = beadUm / 16
+        while (true) {
+            val s = Offset.offset(piece, -d, Offset.Join.ROUND).filter { it.signedArea() > 0 }
+            if (s.isEmpty()) break
+            last = s; d += beadUm / 16
+        }
+        val loop = last.maxBy { it.signedArea() }
+        val n = loop.size
+        if (n < 2) return null
+        var bi = 0; var bj = 0; var best = -1.0
+        for (i in 0 until n) for (j in i + 1 until n) {
+            val dd = Math.hypot((loop.x(i) - loop.x(j)).toDouble(), (loop.y(i) - loop.y(j)).toDouble())
+            if (dd > best) { best = dd; bi = i; bj = j }
+        }
+        if (best < beadUm) return null
+        val xy = LongArray(2 * (bj - bi + 1))
+        for (k in bi..bj) { xy[2 * (k - bi)] = loop.x(k); xy[2 * (k - bi) + 1] = loop.y(k) }
+        return Bead(xy, false)
+    }
+
+    private fun segDist(x: Long, y: Long, s: LongArray): Double {
+        val vx = (s[2] - s[0]).toDouble(); val vy = (s[3] - s[1]).toDouble(); val l2 = vx * vx + vy * vy
+        val t = if (l2 == 0.0) 0.0 else (((x - s[0]) * vx + (y - s[1]) * vy) / l2).coerceIn(0.0, 1.0)
+        return Math.hypot(x - s[0] - t * vx, y - s[1] - t * vy)
+    }
+
 
     /**
      * The polyline of [count] edges of [loop] from edge [from] (a closed loop when [closed]: all of it), each vertex moved
