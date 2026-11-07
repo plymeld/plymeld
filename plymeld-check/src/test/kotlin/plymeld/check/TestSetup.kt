@@ -10,7 +10,7 @@ import plymeld.model.Setup
 /**
  * The machine, tool and filaments the slicing tests print with, on plymeld's bundled files: a machine of the bundled
  * `qidi-q2` model, one 0.4 mm tool, and a filament per slot `like` the bundled PLA. The plan values are TEST VALUES, stated
- * so the tests' geometry (layer heights, line widths, walls, shells, infill, the purge tower's place) is fixed by the
+ * so the tests' geometry (layer heights, line widths, walls, shells, infill, the purge tower's place and size) is fixed by the
  * test and not by plymeld's defaults as they change: they are not plymeld's defaults and not for printing.
  */
 val TEST_MACHINE: List<Pair<String, Any>> = listOf(
@@ -43,6 +43,7 @@ val TEST_PLAN: List<Pair<String, Any>> = listOf(
     "plan.mechanism.motion.first_layer.speed" to "50 mm/s", "plan.mechanism.motion.bridge.speed" to "50 mm/s",
     "plan.support.enabled" to false, "plan.faces.under.technique" to "as_laid",
     "plan.mechanism.purge.tower.enabled" to true, "plan.mechanism.purge.tower.x" to "165 mm", "plan.mechanism.purge.tower.y" to "232 mm",
+    "plan.mechanism.purge.tower.brim.enabled" to false, "plan.mechanism.purge.tower.side_share.min" to "0",
     "plan.mechanism.adhesion.brim.where" to "outer", "plan.mechanism.adhesion.brim.width" to "5 mm",
     "plan.mechanism.adhesion.brim.gap" to "0.1 mm",
 )
