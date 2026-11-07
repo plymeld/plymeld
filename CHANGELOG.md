@@ -17,6 +17,13 @@ section the release's version and date.
 - The pre-print check refuses a layer with wave beads that leaves part of its area over air unlaid (a gap wider than a
   line between beads), saying how much, where, and with the layer's picture.
 
+### Changed
+
+- The bundled PLA's idle temperature (a parked nozzle on a machine with several) is 120 C, was 40 C below printing
+  (170 C), where a parked PLA nozzle may ooze onto the print and the bed. The rise back to printing is the next
+  tool's wait, or its pre-heat where `hardware.tool.heat.time` is set. The other bundled kinds keep 40 C below
+  printing.
+
 ### Fixed
 
 - A purge tower's first layer is laid at the first layer's speed, no faster than the model's own first layer. It was laid
