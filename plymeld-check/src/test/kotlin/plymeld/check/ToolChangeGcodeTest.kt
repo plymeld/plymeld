@@ -59,5 +59,21 @@ class ToolChangeGcodeTest : StringSpec({
         // the tower's share, counted from the text (extruded filament under "Prime tower")
         val byFeature = plymeld.core.Predict.filamentByFeature(out.toString())
         println("  purge tower %.0f mm of %.0f mm filament".format(java.util.Locale.ROOT, byFeature["Prime tower"] ?: 0.0, byFeature.values.sum()))
+        // the tower's first layer at the first layer's speed, no faster than the model's lines there (it holds to the bed
+        // like them); control: on a later layer it goes faster than that, at its own speed
+        val feeds = HashMap<Pair<Int, String>, MutableSet<Double>>()
+        var layer = -1; var feature = ""; var f = 0.0
+        for (l in lines) {
+            if (l.startsWith(";LAYER_CHANGE") || l.startsWith("; CHANGE_LAYER")) layer++
+            if (l.startsWith(";TYPE:")) feature = l.substringAfter(':').trim()
+            if (!l.startsWith("G1 ")) continue
+            Regex(" F([0-9.]+)").find(l)?.let { f = it.groupValues[1].toDouble() }
+            val e = Regex(" E(-?[0-9.]+)").find(l)?.groupValues?.get(1)?.toDouble() ?: 0.0
+            if (layer >= 0 && e > 0 && (" X" in l || " Y" in l)) feeds.getOrPut(layer to feature) { HashSet() } += f
+        }
+        val towerLayers = feeds.keys.filter { it.second == "Prime tower" }.map { it.first }.sorted()
+        val modelFirst = feeds.filterKeys { it.first == 0 && it.second != "Prime tower" }.values.flatten().max()
+        feeds.getValue(0 to "Prime tower").max() shouldBe (feeds.getValue(0 to "Prime tower").max().coerceAtMost(modelFirst))
+        (feeds.getValue(towerLayers.first { it > 1 } to "Prime tower").max() > modelFirst) shouldBe true
     }
 })
