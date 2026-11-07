@@ -418,6 +418,26 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
             out.write("; cooling dwell: the layer ${"%.1f".format(java.util.Locale.ROOT, shortS)} s short of its minimum time at the minimum speed\n")
             park(spot.first, spot.second, shortS)
         }
+        /**
+         * Whether the head retracts after step [i], a path ending at ([ex], [ey]) mm: the next step that moves is a travel that
+         * retracts, a layer change, a tool change, or a park. False where that is not known (custom g-code, a pause, a lift, a
+         * filament swap) and after the last path (the end template's moves follow it): coasting ([SliceSettings.coastMm]) lays a
+         * path's end with no filament only before a retraction.
+         */
+        fun retractsAfter(i: Int, ex: Double, ey: Double): Boolean {
+            for (j in i + 1 until program.steps.size) when (val st = program.steps[j]) {
+                is ObjectEnd, is ObjectStart, is plymeld.program.SetFan -> {}
+                is plymeld.program.SetTemp -> if (st.wait) return true
+                is Extrude -> {
+                    if (st.exact != null) return false
+                    val d = Math.hypot(st.xy[0] / 1000.0 - ex, st.xy[1] / 1000.0 - ey)
+                    return (d > minTravelMm || st.via != null) && st.retractBefore && !st.hops(d)
+                }
+                is LayerStart, is plymeld.program.ToolChange, is plymeld.program.Park -> return true
+                else -> return false
+            }
+            return false
+        }
         var lastLayerStart: LayerStart? = null
         var combNow: Lazy<TravelRouter.CombLayer>? = null; var combBelow: Lazy<TravelRouter.CombLayer>? = null; var firstInLayer = false
         for ((stepIndex, step) in program.steps.withIndex()) { preheatBefore[stepIndex]?.let { out.write(it) }
@@ -606,7 +626,11 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 // the drop to the path's start: at the travel's speed, or, on a lifted bridge's layer with its own, at that
                 val dropF = if (bridgeLayer && s.bridgeMoveSpeed != null) " F${f(moveF(s.travelSpeed))}" else ""
                 if (z != startZ) { out.write("G1 Z${n(startZ)}$dropF\n"); z = startZ }
-                if (retracted) { out.write("G1 E${n(retractedMm)} F${f(s.deretractSpeed)}\n"); retracted = false }
+                // the push back: an exact path's standing still here; any other path's below, once its plastic per mm is known
+                // (part of it may be spread over the path's first mm: hardware.filament.retract.return.distance)
+                val toReturn = if (retracted) retractedMm else 0.0
+                if (retracted && p.exact != null) out.write("G1 E${n(retractedMm)} F${f(s.deretractSpeed)}\n")
+                retracted = false
                 nextRetract = null
                 x = sx; y = sy
                 // printed from here on: every later travel clears it
@@ -653,7 +677,6 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 fun ownSpeed(k: Int): Double? = segFixed?.get(k)?.takeIf { !it.isNaN() }?.let { Math.min(it, meltCap) }
                 val slowF = slowLayer?.get(pathObject[p])?.let { if (p.feature in VISIBLE) it[1] else it[0] } ?: 1.0
                 val baseSpeed = fixedSpeed ?: Math.max(Math.min(s.slowDownMinSpeed, pathSpeed(p, first)), pathSpeed(p, first) * slowF)
-                out.write("G1 F${f(baseSpeed)}\n")
                 val m = p.xy.size / 2
                 val count = if (p.closed) m else m - 1
                 // variable width (arachne center lines) or a curved layer's varying thickness: each segment's
@@ -670,11 +693,34 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                         h * (w - h * (1 - Math.PI / 4)) / filamentArea * fl
                     }
                 }
+                // the path's length seen from above, for the restore spread over its start and the coasting at its end
+                val pathMm = if (s.returnDistanceMm == null && s.coastMm == null) 0.0 else (1..count).sumOf { k ->
+                    val a = k - 1; val b = k % m
+                    Math.hypot((p.xy[2 * b] - p.xy[2 * a]) / 1000.0, (p.xy[2 * b + 1] - p.xy[2 * a + 1]) / 1000.0)
+                }
+                // coasting (hardware.filament.retract.coast.distance): the path's last mm with no filament pushed, before a
+                // retraction only; a path no longer than it is laid whole
+                val coastMm = s.coastMm?.takeIf { it > 0 && pathMm > it && run {
+                    val e = if (p.closed) 0 else m - 1
+                    retractsAfter(stepIndex, p.xy[2 * e] / 1000.0, p.xy[2 * e + 1] / 1000.0)
+                } } ?: 0.0
+                // the restore spread over the path's first mm (hardware.filament.retract.return.distance; never into the coasting),
+                // as much as the tool's limit on a move's extruded cross-section (hardware.tool.extrude.section.max) leaves over
+                // the line's own plastic; the rest standing still first (all of it with either unset)
+                val returnOverMm = s.returnDistanceMm?.let { Math.min(it, pathMm - coastMm) } ?: 0.0
+                val returnOnPath = s.extrudeSectionMaxMm2?.takeIf { toReturn > 0 && returnOverMm > 0 }?.let { maxA ->
+                    val lineE = segE?.max() ?: ePerMm
+                    Math.min(toReturn, returnOverMm * Math.max(0.0, maxA / filamentArea - lineE))
+                } ?: 0.0
+                if (toReturn - returnOnPath > 1e-9) out.write("G1 E${n(toReturn - returnOnPath)} F${f(s.deretractSpeed)}\n")
+                // either laid segment by segment, not fitted to arcs
+                val ownEnds = returnOnPath > 0 || coastMm > 0
+                out.write("G1 F${f(baseSpeed)}\n")
                 // the part fan back to the layer's after a raised overhang fan (a path with overhangs sets its own per segment):
                 // the object's own (plan.mechanism.cooling.fan over its filament's), not the plate's
                 val layerFan = if (fanOn) s.fanMinPct else 0.0
                 if (p.overhangShare == null) fanTo(layerFan)
-                if (s.arcFitting && p.overhangShare == null && segE == null && !p.curved && count >= 3) {
+                if (s.arcFitting && !ownEnds && p.overhangShare == null && segE == null && !p.curved && count >= 3) {
                     // Arc fitting (enable_arc_fitting): tolerance = resolution. The path's own points,
                     // closed back to the start for loops; arcs as G2/G3 with I/J relative to here.
                     val pts = DoubleArray(2 * (count + 1))
@@ -706,7 +752,7 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                     // has over-air shares only where layers follow an arch's underside (its first layer over the hollow)
                     return fk to (if (over && (fanOn || first)) Math.max(layerFan, ps.overhangFanPct) else layerFan)
                 }
-                if (s.arcFitting && p.overhangShare != null && segE == null && !p.curved && count >= 3) {
+                if (s.arcFitting && !ownEnds && p.overhangShare != null && segE == null && !p.curved && count >= 3) {
                     // Arc fitting on a wall with overhang shares (every outer wall above the first layer has them,
                     // so none was ever fitted): the wall in runs of segments that print at one speed and fan, each run
                     // fitted on its own, the speed and fan changed between runs as segment by segment
@@ -731,6 +777,7 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                     lastPath = p
                     continue
                 }
+                var walked = 0.0
                 for (k in 1..count) {
                     val idx = k % m
                     val share = p.overhangShare?.get(k - 1)
@@ -761,7 +808,27 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                     // 1, or cos θ on a supported slope; nothing for a move straight up or down (a step of a curved layer's surface,
                     // where the top meets a face rising from it: it lays no line, and plastic there reads as a restore)
                     val section = if (len == 0.0) 0.0 else if (strand || length == 0.0) 1.0 else len / length
-                    if (len > 0 || nz != z) out.write("G1 X${n(nx)} Y${n(ny)}" + (if (nz != z) " Z${n(nz)}" else "") + " E${e(length * section * (segE?.get(k - 1) ?: ePerMm))}\n")
+                    val eSeg = length * section * (segE?.get(k - 1) ?: ePerMm)
+                    if (!ownEnds) {
+                        if (len > 0 || nz != z) out.write("G1 X${n(nx)} Y${n(ny)}" + (if (nz != z) " Z${n(nz)}" else "") + " E${e(eSeg)}\n")
+                    } else {
+                        // the restore's share over this segment (the part of it within the first returnOverMm), and coasting from cut
+                        val back = if (returnOverMm > 0) returnOnPath * (Math.min(walked + len, returnOverMm) - Math.min(walked, returnOverMm)) / returnOverMm else 0.0
+                        val cut = pathMm - coastMm
+                        fun zPart(zz: Double) = if (zz != z) " Z${n(zz)}" else ""
+                        when {
+                            coastMm == 0.0 || walked + len <= cut -> if (len > 0 || nz != z) out.write("G1 X${n(nx)} Y${n(ny)}${zPart(nz)} E${e(eSeg + back)}\n")
+                            walked >= cut -> if (len > 0 || nz != z) out.write("G1 X${n(nx)} Y${n(ny)}${zPart(nz)}\n")
+                            else -> {
+                                // the segment the coasting starts in: laid to the cut, then on with no filament pushed
+                                val t = (cut - walked) / len
+                                val cx = x + t * (nx - x); val cy = y + t * (ny - y); val cz = z + t * (nz - z)
+                                out.write("G1 X${n(cx)} Y${n(cy)}${zPart(cz)} E${e(eSeg * t + back)}\n")
+                                out.write("G1 X${n(nx)} Y${n(ny)}" + (if (nz != cz) " Z${n(nz)}" else "") + "\n")
+                            }
+                        }
+                        walked += len
+                    }
                     x = nx; y = ny; z = nz
                 }
                 lastPath = p

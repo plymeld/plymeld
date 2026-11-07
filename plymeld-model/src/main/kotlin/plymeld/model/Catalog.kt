@@ -82,6 +82,7 @@ object Catalog {
         s("hardware.tool.head.nozzle.x", TOOL, LENGTH, "the nozzle's position within the head along X: its distance from the head's edge on the machine's -X side")
         s("hardware.tool.head.nozzle.y", TOOL, LENGTH, "the nozzle's position within the head along Y: its distance from the head's edge on the machine's -Y side")
         s("hardware.tool.temperature.max", TOOL, TEMP, "hottest this tool's nozzle may be set (the machine maker's figure); above it plymeld warns")
+        s("hardware.tool.extrude.section.max", TOOL, AREA, "the largest cross-section a move may extrude, filament pushed per mm of head motion times the filament's cross-section, as the firmware checks it (Klipper's max_extrude_cross_section): a restore spread over a path stays within it; unset = not known, and every restore stands still")
         s("hardware.tool.pressure_advance", TOOL, TIME, "pressure advance this tool prints with (Klipper's, seconds) unless its filament overrides it (hardware.filament.pressure_advance); unset = the machine's (hardware.machine.pressure_advance)")
         // ---- material: the plastic
         s("hardware.filament.diameter", MATERIAL, LENGTH, "filament diameter")
@@ -110,6 +111,8 @@ object Catalog {
         s("hardware.filament.retract.length", MATERIAL_TOOL, LENGTH, "filament pulled back before a travel")
         s("hardware.filament.retract.speed", MATERIAL_TOOL, SPEED, "retraction speed")
         s("hardware.filament.retract.return.speed", MATERIAL_TOOL, SPEED, "speed pushing filament back after a travel")
+        s("hardware.filament.retract.return.distance", MATERIAL_TOOL, LENGTH, "the push back after a travel spread over the path's first this many mm, as the head moves, not standing still at its start; as much as the tool's extrude.section.max allows over them, the rest standing still first; unset = all standing still")
+        s("hardware.filament.retract.coast.distance", MATERIAL_TOOL, LENGTH, "the last this many mm of a path before a retraction laid with no filament pushed, the pressure in the nozzle laying them; a path no longer than this is laid whole; unset = none")
         s("hardware.filament.retract.travel.min", MATERIAL_TOOL, LENGTH, "travels shorter than this do not retract")
         // the lift goes with the retraction (it was the plan's hardware.filament.retract.z_hop, a tool setting)
         s("hardware.filament.retract.z_hop", MATERIAL_TOOL, LENGTH, "lift the nozzle this much for a travel that retracts")

@@ -29,10 +29,20 @@ object Expectations {
             val mode = Resolver.resolveOrNull(setup, "plan.technique.scarf_seam.where", Context(o))?.value as String?
             if (mode == null || mode == "none") null else (Resolver.resolveOrNull(setup, "plan.technique.scarf_seam.start", Context(o))?.value as Number?)?.toDouble()
         }.minOrNull()
+        // a restore spread over a path's start (hardware.filament.retract.return.distance, with the tool's extrude.section.max):
+        // the longest any object or part spreads, and the tightest limit
+        val contexts = setup.objects.indices.flatMap { o -> listOf(Context(o)) + setup.objects[o].parts.indices.map { Context(o, it) } }
+        val sections = contexts.mapNotNull { c -> (Resolver.resolveOrNull(setup, "hardware.tool.extrude.section.max", c)?.value as Number?)?.toDouble() }
+        val spreads = contexts.mapNotNull { c ->
+            if (Resolver.resolveOrNull(setup, "hardware.tool.extrude.section.max", c) == null) null
+            else (Resolver.resolveOrNull(setup, "hardware.filament.retract.return.distance", c)?.value as Number?)?.toDouble()?.takeIf { it > 0 }
+        }
         return GcodeCheck.Expect(bed("left"), bed("front"), bed("right"), bed("back"), s.maxPrintHeightMm,
             maxPrintSpeed = s.hiddenSpeed, maxTravelSpeed = s.travelSpeed, maxAccel = maxOf(s.defaultAccel, s.travelAccel),
             retractLengths = lengths, startTemplate = s.startGcode, endTemplate = s.endGcode, onSurface = onSurface,
-            partTools = partTools, allowedTools = allowedTools, scarfStart = scarfStartOverride ?: scarfStart, tacksAllowed = liftedBridge, zaa = zaa)
+            partTools = partTools, allowedTools = allowedTools, scarfStart = scarfStartOverride ?: scarfStart, tacksAllowed = liftedBridge, zaa = zaa,
+            returnSpreadMm = spreads.maxOrNull(), extrudeSectionMaxMm2 = sections.minOrNull(),
+            filamentAreaMm2 = Math.PI * s.filamentDiameterMm * s.filamentDiameterMm / 4)
     }
 
     /**

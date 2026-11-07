@@ -14,6 +14,13 @@ section the release's version and date.
 - `plan.mechanism.motion.inner_walls.as_visible`: inner walls at the visible lines' speed and acceleration, so a wall
   laid fast right behind the outer wall does not ripple through it. Off by default (whether it shows is not measured
   yet); the plan's time estimates follow it.
+- Coasting and a restore made while moving, both off until set. `hardware.filament.<key>.retract.coast.distance`
+  lays the last mm of a path before a retraction with no filament pushed, the pressure in the nozzle laying them.
+  `retract.return.distance` spreads the push back after a travel over the path's first mm, rather than standing still at
+  its start, as much of it as the tool allows (`hardware.tool.<key>.extrude.section.max`, the firmware's limit on a
+  move's extruded cross-section, Klipper's `max_extrude_cross_section`); the rest is pushed back standing still first.
+  Without that limit every restore stands still, since a move past it stops a Klipper print. The pre-print check refuses
+  a move past the limit.
 - A machine's Z step (`hardware.machine.<key>.motion.z.step`, its Z motor's step as configured): flat layers are held
   to it, their height a whole number of steps (the nearest) and every top on a step. A layer height between two
   multiples otherwise prints alternating between them, in bands. Unset, layers are as planned; curved bands, layers

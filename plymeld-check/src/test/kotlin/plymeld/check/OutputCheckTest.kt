@@ -61,6 +61,18 @@ class OutputCheckTest : StringSpec({
         GcodeCheck.check(file().replaceFirst("G1 E0.8 F2400\n; FEATURE: Outer wall", "G1 E0.5 F2400\n; FEATURE: Outer wall"), expect).any { it.contains("restores") } shouldBe true
     }
 
+    // A restore spread over the path's start (hardware.filament.retract.return.distance): 0.5 of the 0.8 mm standing still,
+    // the rest with the wall's first side (0.6 mm of filament over 9.56 mm, 0.151 mm² of cross-section). With the spread
+    // configured and the tool's limit at 0.64 mm², it passes; control: a limit of 0.1 mm² refuses that side.
+    "a restore spread over the path's start passes within the tool's limit; control: past the limit, refused" {
+        val f = file().replaceFirst("G1 E0.8 F2400\n; FEATURE: Outer wall\n; LINE_WIDTH: 0.44\nG1 F3000\nG1 X109.78 Y100.22 E0.3\n",
+            "G1 E0.5 F2400\n; FEATURE: Outer wall\n; LINE_WIDTH: 0.44\nG1 F3000\nG1 X109.78 Y100.22 E0.6\n")
+        fun spread(maxA: Double) = GcodeCheck.Expect(0.0, 0.0, 256.0, 256.0, 256.0, maxPrintSpeed = 300.0, maxTravelSpeed = 500.0, maxAccel = 10000.0,
+            retractLengths = setOf(0.8), startTemplate = start, endTemplate = end, returnSpreadMm = 3.0, extrudeSectionMaxMm2 = maxA)
+        GcodeCheck.check(f, spread(0.64)).shouldBeEmpty()
+        GcodeCheck.check(f, spread(0.1)).any { it.contains("past the tool's 0.100 mm²") } shouldBe true
+    }
+
     "control: a retraction of another length" {
         val f = file().replace("G1 E-0.8 F2400\nG1 Z0.6", "G1 E-0.5 F2400\nG1 Z0.6").replace("G1 E0.8 F2400\n; FEATURE: Outer wall\n; LINE_WIDTH: 0.44\nG1 F3000\nG1 X109.78 Y100.22 E0.3\nG1 X109.78 Y109.78 E0.3\nG1 X100.22 Y109.78 E0.3\nG1 X100.22 Y100.22 E0.3\n; FEATURE: Sparse infill\nG1 X101 Y105 F18000\nG1 X109.0 Y105 E0.25 F6000\nG1 E-0.8",
             "G1 E0.5 F2400\n; FEATURE: Outer wall\n; LINE_WIDTH: 0.44\nG1 F3000\nG1 X109.78 Y100.22 E0.3\nG1 X109.78 Y109.78 E0.3\nG1 X100.22 Y109.78 E0.3\nG1 X100.22 Y100.22 E0.3\n; FEATURE: Sparse infill\nG1 X101 Y105 F18000\nG1 X109.0 Y105 E0.25 F6000\nG1 E-0.8")
