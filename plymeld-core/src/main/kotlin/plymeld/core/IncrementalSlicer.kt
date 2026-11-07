@@ -1440,7 +1440,8 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         ran.clear(); stageMs.clear()
         if (multiFilament) {
             val program = withPauses(multiProgram(setup))
-            val preheat = (Resolver.resolveOrNull(setup, "hardware.tool.heat.time", ctx)?.value as Number?)?.toDouble()
+            // the tool's own pre-heat, else its machine model's (hardware.model.<key>.tool.heat.time)
+            val preheat = (Resolver.resolveOrNull(setup, "hardware.tool.heat.time", ctx)?.value as Number?)?.toDouble() ?: s!!.machineDescription.toolHeat?.value
             timed("gcode") { val w = KlipperWriter(s!!, setup.foreignTemplateVars, version, preheatS = preheat, pressureAdvance = setup.pressureAdvanceByTool(), progress = progress,
                 perObjectTool = toolSettings(setup, objectId, printObject.name)); w.write(program, out); out.flush(); lastStrings = w.strings }
             return ran.toList()

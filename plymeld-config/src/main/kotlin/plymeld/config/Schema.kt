@@ -176,6 +176,8 @@ object Schema {
         q("$md.motion.corner.speed", Dimension.SPEED, "the speed the firmware keeps through a square corner (Klipper's [printer] square_corner_velocity), for time predictions")
         for (limit in listOf("speed.max", "acceleration.max", "z.speed.max", "z.acceleration.max", "corner.speed"))
             d("$md.evidence.motion.$limit", Type.Text, "the evidence of motion.$limit, \"kind: detail\"")
+        q("$md.tool.heat.time", Dimension.TIME, "on a machine of this model with several tools, how long the next tool is heated before its change: hardware.tool.<key>.heat.time for a tool that sets none")
+        d("$md.evidence.tool.heat.time", Type.Text, "the evidence of tool.heat.time, \"kind: detail\"")
         q("$md.motion.print.speed", Dimension.SPEED, "the maker's top print speed, which may be below motion.speed.max (the axes' top speed, travel's): the first-use setup's default for hardware.machine.<key>.motion.print.speed; unset = motion.speed.max")
         d("$md.evidence.motion.print.speed", Type.Text, "the evidence of motion.print.speed, \"kind: detail\"")
         // what a machine of this model starts from in the first-use setup (plymeld init offers them as its defaults)

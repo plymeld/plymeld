@@ -688,6 +688,22 @@
                       }
                     }
                   },
+                  "tool": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "heat": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "time": {
+                            "description": "the evidence of tool.heat.time, \"kind: detail\"",
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  },
                   "build": {
                     "description": "the evidence of build.x / .y / .z, \"kind: detail\"",
                     "type": "string"
@@ -695,6 +711,25 @@
                   "gcode": {
                     "description": "the evidence of gcode.start / .end / .pause / .pictures, \"kind: detail\" (one line each)",
                     "type": "string"
+                  }
+                }
+              },
+              "tool": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "heat": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "time": {
+                        "description": "on a machine of this model with several tools, how long the next tool is heated before its change: hardware.tool.<key>.heat.time for a tool that sets none — a time (s); or a formula (= ...)",
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      }
+                    }
                   }
                 }
               },

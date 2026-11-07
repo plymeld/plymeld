@@ -11,6 +11,9 @@ section the release's version and date.
 
 ### Added
 
+- A machine model can give its tools' pre-heat (`hardware.model.<key>.tool.heat.time`, with its evidence), used for a
+  tool that sets none (`hardware.tool.<key>.heat.time`). The bundled Creator 5 heats the next tool 15 s before its
+  change, a stand-in until measured. Its two-tool prints waited at every change for the tool to heat from idle.
 - A config may spell a setting's name or a chosen value the British way: `colour` names `color`, and `centre` is read
   as `center` (`plan.placement`, a machine's `build.origin`, `--placement`), wherever the American spelling is what
   the setting takes. A key of your own (a filament called `grey`) is never respelled.

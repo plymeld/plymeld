@@ -472,6 +472,8 @@ build.z = "256 mm"
 evidence.build = "manufacturer_profile: Flashforge's slicer profile printable_area 256 x 256 mm, printable_height 256 mm"
 motion.print.speed = "300 mm/s"
 evidence.motion.print.speed = "documented: Flashforge's Creator 5 specifications: print speed max. 300 mm/s, travel speed max. 600 mm/s (motion.speed.max)"
+tool.heat.time = "15 s"
+evidence.tool.heat.time = "stand_in: not measured: a pre-heat long enough to bring a parked tool back from its idle temperature for most of a change's wait, to be measured on the machine"
 gcode.start = """M140 S{first_layer_bed_temperature}
 M106 P101 S0 ; side fans (left and right) off
 M106 P2 S0 ; center fresh-air fan off

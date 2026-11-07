@@ -404,7 +404,7 @@ object Catalog {
         s("plan.mechanism.purge.tower.y", INTENT, LENGTH, "purge tower position: Y of its lower-left corner")
         s("plan.mechanism.purge.tower.width", INTENT, LENGTH, "purge tower width (along X): another slicer's (investigation); unset = plymeld's rule, a square tower sized by the purge (PurgeTower.square)")
         s("hardware.filament.purge.volume", MATERIAL_TOOL, Kind.VOLUME, "plastic purged into the tower after a change to this filament in this nozzle (hardware-owned)")
-        s("hardware.tool.heat.time", INTENT, TIME, "on a multi-nozzle machine, heat the next nozzle this long (print time) before its change")
+        s("hardware.tool.heat.time", INTENT, TIME, "on a multi-nozzle machine, heat the next nozzle this long (print time) before its change; unset: the machine model's (hardware.model.<key>.tool.heat.time), else no pre-heat")
         s("hardware.filament.temperature.idle_drop", INTENT, TEMP, "how far below printing temperature an idle nozzle is held on a multi-nozzle machine (0 = keep it at printing temperature)")
         s("plan.faces.under.wave_overhang", INTENT, BOOL, "the undersides over air are wave overhangs (plan.faces.under.technique = \"wave_overhang\"): each flat layer's bottom over air hanging off one side grown outward from the supported material beside it, bead by bead, each leaning on the last; a span (every bridge line landing on what is printed at both ends) stays a bridge, an area with support under it is the support's; what no front reaches is bridged",
             false, "off without the bundled config (an imported profile alone has no wave_overhang values to lay beads with); the bundled config turns it on (wave overhang, support, or nothing for an underside hanging off one side)")

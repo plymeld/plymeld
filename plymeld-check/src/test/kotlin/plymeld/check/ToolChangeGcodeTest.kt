@@ -7,7 +7,8 @@ import plymeld.model.withObjectSetups
 
 /**
  * Multi-color step 5 end to end: the two-color Benchy on a machine of the bundled `flashforge-c5` model with two tools
- * (a filament each, 20 s preheat, idle 100 C below print: test values) written as g-code, and the tool-change sequence
+ * (a filament each, the model's own pre-heat (hardware.model.flashforge-c5.tool.heat.time: no tool sets one), idle 100 C
+ * below print: a test value) written as g-code, and the tool-change sequence
  * read back from the TEXT.
  */
 class ToolChangeGcodeTest : StringSpec({
@@ -18,7 +19,6 @@ class ToolChangeGcodeTest : StringSpec({
             "hardware.tool.t2.machine" to "tm", "hardware.tool.t2.index" to 2L, "hardware.tool.t2.bore" to "0.4 mm",
             "hardware.tool.t2.layer.height.min" to "0.08 mm", "hardware.tool.t2.layer.height.max" to "0.28 mm",
             "hardware.machine.tm.loadout.tool.t2.filament" to "test-pla-2",
-            "hardware.tool.t1.heat.time" to "20 s", "hardware.tool.t2.heat.time" to "20 s",
             "hardware.filament.test-pla.temperature.idle" to "= filament.temperature.print - 100 C", "hardware.filament.test-pla-2.temperature.idle" to "= filament.temperature.print - 100 C",
             models = listOf(plymeld.config.ModelObject("test", listOf("A", "B"), listOf(1, 2), "benchy-dual.3mf")))
         val o = base.objects[0]
@@ -42,7 +42,7 @@ class ToolChangeGcodeTest : StringSpec({
         var prevChange = firstLayer
         for (k in tIdx) {
             val newT = lines[k].trim().substring(1).toInt()
-            // preheat (hardware.tool.heat.time 20 s): heated since the previous change
+            // preheat (the model's tool.heat.time, the tools setting none): heated since the previous change
             (prevChange + 1 until k).any { lines[it].startsWith("M104 S") && lines[it].contains(" T$newT ; preheat") } shouldBe true
             prevChange = k
             // idle the old tool (print temperature - 100, hardware.filament.temperature.idle_drop), then T, then wait
