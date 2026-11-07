@@ -335,6 +335,11 @@ object Planner {
                */
               covers: List<Supports.Box> = emptyList(), progress: Progress = Progress.NONE,
               /**
+               * By layer, what else it is laid onto, as [covers]: printed material that is not one of these layers (several
+               * lifted bridges' strips, printed in their own bands, under the flat layers above their ends).
+               */
+              standsOn: Map<Int, List<Polygon>> = emptyMap(),
+              /**
                * A curved band's top surface: the model's height (mm) at (x, y) in mm, to lay its top uphill
                * (plan.technique.curved.top_order = "uphill"); null without a curved band.
                */
@@ -394,9 +399,10 @@ object Planner {
         // insert's cover: what that layer stands on there (its bottom a surface, not a bridge; no overhang for support). Not
         // merged into the printed layers: the cover is under the roof, not material of the layer below (which would then
         // overhang the socket itself)
-        val coverAt: Map<Int, List<Polygon>> = if (covers.isEmpty()) emptyMap() else {
+        val coverAt: Map<Int, List<Polygon>> = if (covers.isEmpty() && standsOn.isEmpty()) emptyMap() else {
             val hs0 = heights(layerTopsUm)
-            covers.mapNotNull { c -> (0 until n).firstOrNull { i -> layerTopsUm[i] - hs0[i] >= c.z0 - 1 }?.let { it to c.polygon() } }
+            (covers.mapNotNull { c -> (0 until n).firstOrNull { i -> layerTopsUm[i] - hs0[i] >= c.z0 - 1 }?.let { it to c.polygon() } } +
+                standsOn.entries.flatMap { (i, ps) -> ps.map { i to it } })
                 .groupBy({ it.first }, { it.second }).mapValues { (_, ps) -> Booleans.union(ps, emptyList()) }
         }
         // the object as a whole: what is below / above (== this object's own layers with one filament)

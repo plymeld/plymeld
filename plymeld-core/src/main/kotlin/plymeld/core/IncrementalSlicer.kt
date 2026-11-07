@@ -348,7 +348,7 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         } ?: emptyMap()
         supportArea = anchors.values.firstOrNull() ?: emptyList()
         progress.check()
-        timed("paths") { Planner.paths(s!!, layers.map { it.loops }, w, r, tops, onBed = onBed, bridgeAnchors = anchors, alongBridge = s!!.bridgeFillAlong, support = supportRegions(), covers = coverBoxes(), progress = progress, settingsKey = key(*PATH_KEYS),
+        timed("paths") { Planner.paths(s!!, layers.map { it.loops }, w, r, tops, onBed = onBed, bridgeAnchors = anchors, alongBridge = s!!.bridgeFillAlong, support = supportRegions(), covers = coverBoxes(), standsOn = stripCovers(tops), progress = progress, settingsKey = key(*PATH_KEYS),
             omit = islandOmit(layers, tops),
             // a curved band's top surface height (plan.technique.curved.top_order): the warp's own surface, in mm
             surfaceTop = (warpFor(s!!) as? plymeld.mesh.Warp)?.let { wp -> { x: Double, y: Double -> wp.unwarp(x, y, wp.zTop) } },
@@ -377,6 +377,26 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
      * The plan's inserts as the boxes the Planner lays the layer above onto: x and y from the posed object's corner
      * become the placed frame, z0 is the insert's top from the object's bottom, z1 the socket's top; µm.
      */
+    /**
+     * Several lifted bridges ([banded]): by flat layer, the strips' material under it, which it is laid onto. The flat
+     * layers are sliced without the strips (each is printed in its own band, after them), so a pillar's layer over a
+     * strip's end would read as over air (an underside technique laid onto solid strip). A strip printed along its own
+     * underside fills its part's volume, so the strip under a layer is the bridge parts' cut at the middle of the layer
+     * below. Empty otherwise.
+     */
+    private fun stripCovers(tops: LongArray): Map<Int, List<plymeld.geom.Polygon>> {
+        if (!banded || tops.size < 2) return emptyMap()
+        val z0 = soup.bounds()[2]
+        val zs = DoubleArray(tops.size - 1) { k -> z0 + (tops[k] - (tops[k] - (if (k == 0) 0L else tops[k - 1])) / 2.0) / 1000.0 }
+        val cuts = parts.indices.filter { bridgePart[it] }.map { Slicer.slice(parts[it], zs) }
+        val out = HashMap<Int, List<plymeld.geom.Polygon>>()
+        for (k in zs.indices) {
+            val loops = cuts.flatMap { it[k].loops }
+            if (loops.isNotEmpty()) out[k + 1] = plymeld.geom.Booleans.normalize(loops)
+        }
+        return out
+    }
+
     private fun coverBoxes(): List<Supports.Box> {
         val b = soup.bounds()
         return technique.inserts.map { ins -> val r = ins.region
@@ -716,7 +736,7 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
             val firstLayers = partLayers.map { layers -> layers.indexOfFirst { it.isNotEmpty() } }
             // the islands' loops of every part, per flat layer: their paths left out (islandOmit)
             val omit = islandOmit(partLayers[0].indices.map { li -> Layer(0.0, partLayers.flatMap { it[li] }, emptyList()) }, tops)
-            MultiFilament.plan(s!!, partLayers, spools, FilamentAreas.precedence(rule, slots, firstLayers), tops, setup!!.objects[objectId].spool, units, unitSettings(units), varyingLayers = adaptive, supportSpots = supportRegions(), covers = coverBoxes(), progress = progress, omit = omit)
+            MultiFilament.plan(s!!, partLayers, spools, FilamentAreas.precedence(rule, slots, firstLayers), tops, setup!!.objects[objectId].spool, units, unitSettings(units), varyingLayers = adaptive, supportSpots = supportRegions(), covers = coverBoxes(), standsOn = stripCovers(tops), progress = progress, omit = omit)
                 .also { res -> res.timingMs.forEach { (k, v) -> stageMs["filaments/$k"] = v } } to tops
         }
     }

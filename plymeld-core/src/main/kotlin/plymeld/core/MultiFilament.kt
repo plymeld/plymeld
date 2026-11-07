@@ -66,6 +66,8 @@ object MultiFilament {
              supportSpots: Supports.Regions? = null,
              /** Planned inserts as Planner.paths takes them: the layer over each laid onto it. */
              covers: List<Supports.Box> = emptyList(), progress: Progress = Progress.NONE,
+             /** By layer, what else it is laid onto (Planner.paths' standsOn). */
+             standsOn: Map<Int, List<plymeld.geom.Polygon>> = emptyMap(),
              /** Per layer, areas whose paths are left out (Planner.paths' omit: curved islands, laid in their own layers); null = none. */
              omit: List<List<Polygon>>? = null): Result {
         val n = layerTopsUm.size
@@ -128,7 +130,7 @@ object MultiFilament {
         val support = MutableList<List<ToolPath>>(n) { emptyList() }
         val supportInterface = MutableList<List<ToolPath>>(n) { emptyList() }
         val plans = mids.map { m ->
-            var layers = timed("paths") { Planner.paths(m.st, m.areas, m.w, m.r, layerTopsUm, whole, objectWide = m.u == objectSpool, support = supportSpots, covers = covers, progress = progress, omit = omit) }
+            var layers = timed("paths") { Planner.paths(m.st, m.areas, m.w, m.r, layerTopsUm, whole, objectWide = m.u == objectSpool, support = supportSpots, covers = covers, standsOn = standsOn, progress = progress, omit = omit) }
             if (m.u == objectSpool) layers = layers.mapIndexed { i, l ->
                 // supports leave the object-wide unit: the filament that prints them is chosen per layer
                 support[i] = l.paths.filter { it.feature == Feature.SUPPORT }
