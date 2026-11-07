@@ -76,7 +76,9 @@ below).
 `tools/regress.sh` slices a fixed set of cases with your tree and compares the g-code byte for byte with a
 baseline, apart from the version that wrote it and, in the source block, the line each value sits at in its file and
 the config fingerprint over them (so a version change alone, or a bundled file gaining lines, is no difference; a value
-changed, added or removed still is):
+changed, added or removed still is). A case whose g-code differs only in its source block (a bundled default added or
+changed, which every g-code records, with nothing the printer runs changed) is reported as `config` with the block's
+changed lines, to be read, and does not fail:
 
 ```
 tools/regress.sh check                    # this tree vs the baseline of its merge-base with origin/main
