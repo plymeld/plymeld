@@ -203,18 +203,16 @@ tower.brim.enabled = "true"
 tower.brim.width = "= plan.mechanism.adhesion.brim.width"
 tower.side_share.min = "0.5"
 
-# ---- seams (the lock in the job, each seam style's values under plan.technique). plan.seam is NOT set here:
-# unset, the seam is DECIDED per object by the job's weights (SeamDecision: the placement, back or corners, and
-# scarf seams on none, the smooth loops or all, scored by seam_scar against the scarf's extra pass in time). Earlier
-# it was locked to scarf seams on the smooth loops with corner seams elsewhere (what the decision picks under
-# equal weights for a part with corners). Set plan.seam to lock a style. The numbers are placeholders,
-# not tested on a print; when scarf seams are locked, scarf_seam.where and .plain_style say which loops and the plain style.
+# ---- seams (the locks in the job, the seams' values under plan.technique). plan.seam and scarf_seam.enabled are NOT set
+# here: unset, the seams are DECIDED per object by the job's weights (SeamDecision: where the loops start, corners, back
+# or least_visible, and scarf seams on none, the smooth loops or all, scored by seam_scar against the scarf's extra pass
+# in time). Set plan.seam to lock where the loops start, plan.technique.scarf_seam.enabled to lock scarf seams on or
+# off (where = which loops when on). The numbers are placeholders, not tested on a print.
 
 [plan.technique.scarf_seam]
 where = "smooth"
 length = "10 mm"
 start = "0.25"
-plain_style = "corner_seam"
 
 [plan.technique.corner_seam]
 corner_angle = "30 deg"

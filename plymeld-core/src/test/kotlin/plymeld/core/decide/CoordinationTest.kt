@@ -56,7 +56,7 @@ class CoordinationTest : StringSpec({
         SurfaceTechnique.entries.all { it.kind == TechniqueKind.SURFACE } shouldBe true
         SurfaceTechnique.entries.associate { it.short to it.serves } shouldBe mapOf("ironing" to setOf(Coordination.Facing.FLAT_TOP),
             "z_antialiasing" to setOf(Coordination.Facing.SLOPED_TOP), "fuzzy_skin" to setOf(Coordination.Facing.WALL), "wave_overhang" to setOf(Coordination.Facing.UNDERSIDE))
-        SeamStyle.entries.map { it.short } shouldBe listOf("corner_seam", "back_seam", "least_visible_seam", "scarf_seam")
+        SeamStyle.entries.map { it.short } shouldBe listOf("corners", "back", "least_visible", "scarf_seam")
         SeamStyle.entries.all { it.kind == TechniqueKind.CURVE } shouldBe true
     }
 

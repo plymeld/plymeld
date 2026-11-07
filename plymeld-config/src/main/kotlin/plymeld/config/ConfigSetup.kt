@@ -345,18 +345,14 @@ object ConfigSetup {
                     set("plan.layer.walls.count", maxOf(1.0, 1.0 + Math.round((t - a) / b)), "from ${side.key} (${side.source}) and the line widths", side, ow, iw)
                 }
                 // switches and the choices beside them: the pipeline's setting holds the choice, "none" when off
-                // the seam locked: scarf seams on the outer walls their where names, placed (and the other loops seamed)
-                // as their plain style; a plain style seams every loop
-                pb("seam")?.let { e ->
-                    val scarf = e.value == "scarf_seam"
-                    val where = pl("technique.scarf_seam.where"); val plain = pl("technique.scarf_seam.plain_style")
-                    if (scarf && where == null) throw ConfigError(listOf("${e.key} (${e.source}): scarf seams locked, but on which outer walls? set plan.technique.scarf_seam.where (smooth or all)"))
-                    if (scarf && plain == null) throw ConfigError(listOf("${e.key} (${e.source}): scarf seams locked, but where do they start, and how are the other loops seamed? set plan.technique.scarf_seam.plain_style (corner_seam or back_seam)"))
-                    set("plan.technique.scarf_seam.where", if (scarf) where!!.value as String else "none",
-                        if (scarf) listOf(e.source, where!!.source).distinct().joinToString(", ") else e.source, e, if (scarf) where else null)
-                    val style = if (scarf) plain!!.value as String else e.value as String
-                    set("plan.seam_start", when (style) { "back_seam" -> "back"; "least_visible_seam" -> "least_visible"; else -> "corners" },
-                        if (scarf) listOf(e.source, plain!!.source).distinct().joinToString(", ") else e.source, e, if (scarf) plain else null)
+                // scarf seams locked on or off: on the outer walls their where names, "none" off (where the loops start is
+                // plan.seam's, read as it is)
+                pl("technique.scarf_seam.enabled")?.let { e ->
+                    val on = c.boolean(e, site)
+                    val where = pl("technique.scarf_seam.where")
+                    if (on && where == null) throw ConfigError(listOf("${e.key} (${e.source}): scarf seams on, but on which outer walls? set plan.technique.scarf_seam.where (smooth or all)"))
+                    set("plan.technique.scarf_seam.where", if (on) where!!.value as String else "none",
+                        if (on) listOf(e.source, where!!.source).distinct().joinToString(", ") else e.source, e, if (on) where else null)
                 }
                 pl("mechanism.adhesion.brim.enabled")?.let { e ->
                     val on = c.boolean(e, site)

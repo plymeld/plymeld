@@ -83,21 +83,21 @@ enum class SurfaceTechnique(val short: String, val label: String, val character:
  * for it: today's placements ([CORNERS], [BACK]: a plain seam, the ends butted where the loop starts) and [SCARF] seams.
  * Scarf seams have a contract on the surface technique of the wall the seam crosses ([SurfaceTechniques.seams]). Locked by the job's lock
  * (`plan.seam`); unlocked, the seam decision ([SeamDecision]) weighs them by the job's weights (seam_scar against the
- * scarf's extra pass).
+ * scarf's extra pass). A placement's [short] is plan.seam's value.
  */
 enum class SeamStyle(val short: String, val label: String, val needs: String, val start: String?) {
-    /** Planner: plan.seam_start = "corners". */
-    CORNERS("corner_seam", "a plain seam at a corner when the loop has one (inside corners first), each layer's nearest the one below",
+    /** Planner: plan.seam = "corners". */
+    CORNERS("corners", "a plain seam at a corner when the loop has one (inside corners first), each layer's nearest the one below",
         "any wall loop; never on an edge hanging over the layer below when the loop has another place", "corners"),
-    /** Planner: plan.seam_start = "back". */
-    BACK("back_seam", "a plain seam at the loop's back-most point", "any wall loop; never on an edge hanging over the layer below when the loop has another place", "back"),
-    /** Planner: plan.seam_start = "least_visible". */
-    LEAST_VISIBLE("least_visible_seam", "a plain seam at the held-up point the visibility map counts least (turned away from plan.view_from's viewer, an underside)",
+    /** Planner: plan.seam = "back". */
+    BACK("back", "a plain seam at the loop's back-most point", "any wall loop; never on an edge hanging over the layer below when the loop has another place", "back"),
+    /** Planner: plan.seam = "least_visible". */
+    LEAST_VISIBLE("least_visible", "a plain seam at the held-up point the visibility map counts least (turned away from plan.view_from's viewer, an underside)",
         "any wall loop; never on an edge hanging over the layer below when the loop has another place", "least_visible"),
-    /** Planner: outer walls above the first layer, not a fuzzed loop; ZAntiAlias: not a loop it lowers. Placed where its plain style starts the loop. */
+    /** Planner: outer walls above the first layer, not a fuzzed loop; ZAntiAlias: not a loop it lowers. Placed where plan.seam starts the loop. */
     SCARF("scarf_seam", "a scarf seam: an outer wall loop started thin and low, ended re-printing that stretch thinning to nothing",
         "an outer wall loop above the first layer, on a flat top (its two wedge passes assume one), on a wall with no fuzzy skin (it hides the seam already), " +
-            "not lowered by Z anti-aliasing; placed where its plain style (plan.technique.scarf_seam.plain_style) starts the loop", null);
+            "not lowered by Z anti-aliasing; placed where plan.seam starts the loop", null);
 
     val kind: TechniqueKind get() = TechniqueKind.CURVE
 }
@@ -122,7 +122,7 @@ object SurfaceTechniques {
         val words: String get() = (if (weighed) "weighed (no lock): " else if (on) "locked on: " else "locked off: ") + source
     }
 
-    /** Today's switches for one object: each surface technique's, the seam placement's (the plain style locked), and scarf seams'. */
+    /** Today's switches for one object: each surface technique's, the seam placement's (plan.seam), and scarf seams'. */
     class Switches(val surfaceTechniques: Map<SurfaceTechnique, Lock>, val placement: Lock, val scarf: Lock)
 
     /** The lock that locks each surface technique (its config key), and the setting it is made into. */
@@ -131,10 +131,10 @@ object SurfaceTechniques {
         SurfaceTechnique.Z_ANTIALIASING to ("plan.faces.sloped_top.technique" to "plan.faces.sloped_top.z_antialiasing"),
         SurfaceTechnique.FUZZY_SKIN to ("plan.faces.side.technique" to "plan.technique.fuzzy_skin.where"),
         SurfaceTechnique.WAVE_OVERHANG to ("plan.faces.under.technique" to "plan.faces.under.wave_overhang"))
-    private const val SEAM = "plan.seam"
+    private const val SEAM = "plan.technique.scarf_seam.enabled"
     private const val SCARF_ID = "plan.technique.scarf_seam.where"
-    private const val PLACEMENT = "plan.seam / plan.technique.scarf_seam.plain_style"
-    private const val PLACEMENT_ID = "plan.seam_start"
+    private const val PLACEMENT = "plan.seam"
+    private const val PLACEMENT_ID = "plan.seam"
 
     /**
      * One lock of object [k] read as the slice reads it (the object's settings, and each part's where a part sets its
@@ -227,7 +227,7 @@ object SurfaceTechniques {
      */
     fun seams(portions: List<Coordination.Portion>, sw: Switches, surfaceTechniques: List<Coordination.RegionChoice>): List<Coordination.SeamChoice> {
         val plain = SeamStyle.entries.firstOrNull { it.start != null && it.start == sw.placement.value }
-        // smooth = the seam lands off a corner (the Planner's rule): with corner seams as the plain style that is the loops
+        // smooth = the seam lands off a corner (the Planner's rule): with plan.seam = corners that is the loops
         // with no corner; with another placement (back-most point) most loops
         val cornerPlain = plain == SeamStyle.CORNERS
         val scarfLoops = when (sw.scarf.value) {

@@ -23,17 +23,18 @@ import java.util.Locale
  * scarf, layers following the surfaces (measured on flat layers of the plan's height; every candidate alike).
  */
 object SeamDecision {
-    enum class Placement(val start: String, val style: String, val label: String) {
-        BACK("back", "back_seam", "at the loop's back-most point, in line with the layer below"),
-        CORNERS("corners", "corner_seam", "at a corner when the loop has one (inside corners first), in line with the layer below; else the back"),
+    /** Where the loops start: [start] is plan.seam's value. */
+    enum class Placement(val start: String, val label: String) {
+        BACK("back", "at the loop's back-most point, in line with the layer below"),
+        CORNERS("corners", "at a corner when the loop has one (inside corners first), in line with the layer below; else the back"),
         /** the held-up point the visibility map counts least (seen from the less-weighted quadrants, hidden nearby, an underside), ties to the seam below, then the back. */
-        LEAST_VISIBLE("least_visible", "least_visible_seam", "at the held-up point seen least (its viewing directions weighed by the quadrant they look from, hidden by nearby geometry, on an underside), in line with the layer below; else the back");
+        LEAST_VISIBLE("least_visible", "at the held-up point seen least (its viewing directions weighed by the quadrant they look from, hidden by nearby geometry, on an underside), in line with the layer below; else the back");
     }
 
     /** One candidate: the placement, and scarf seams on "none", "smooth" (loops whose seam lands off a corner), or "all" outer walls. */
-    class Choice(val placement: Placement, val scarf: String) {
-        /** The plan.seam style this is. */
-        val seam: String get() = if (scarf == "none") placement.style else "scarf_seam"
+    class Choice(val placement: Placement, val scarf: String,
+                 /** Whether the job locked the placement (plan.seam) and scarf seams (plan.technique.scarf_seam.enabled): what was not locked was weighed. */
+                 val placementLocked: Boolean = false, val scarfLocked: Boolean = false) {
         fun words(): String = (if (scarf == "none") "no scarf seams" else "scarf seams on ${if (scarf == "all") "every outer wall" else "the outer walls whose seam lands off a corner"}") +
             "; the loops' seams ${placement.label}"
         override fun toString() = "${placement.start}/$scarf"
@@ -120,11 +121,15 @@ object SeamDecision {
         return Measured(c, SeamScar.measure(layers, p.visibility, p.shares, belows, ex), extraS)
     }
 
+    /** A lock: its value (plan.seam's placement, or scarf seams' where: "none" when off) and where it comes from. */
+    class Lock(val value: String, val source: String)
+
     /**
-     * The decision for object [name]. [lock]: the plan.seam value when locked (with [lockPlainStyle] for scarf seams and
-     * [lockSource]); null = weighed.
+     * The decision for object [name]. [placementLock]: where the loops start when locked (plan.seam); [scarfLock]: scarf
+     * seams when locked (plan.technique.scarf_seam.enabled: their where, "none" when off). What is locked is kept, the rest
+     * weighed among the candidates the locks leave; both locked, nothing is weighed.
      */
-    fun decide(name: String, w: Walls, p: Params, weights: Weights, lock: String?, lockPlainStyle: String?, lockSource: String?,
+    fun decide(name: String, w: Walls, p: Params, weights: Weights, placementLock: Lock?, scarfLock: Lock?,
                /** Seconds the caller spent slicing and walling the object for this decision (said in a fact beside the decision's own times). */
                prepS: Double? = null): Decision<Choice> {
         val step = "seams ($name)"
@@ -133,13 +138,15 @@ object SeamDecision {
             "measured on flat layers of the plan's height (a plan following the surfaces has more or fewer layers: every candidate alike); fuzzy skin's veto of a scarf not applied here",
             if (p.timeScaleS == null) "the scarf's extra pass is not scored: no print time to score it against" else null,
             p.visibility?.sample?.let { "least_visible weighs what hides a point nearby (the object's own geometry) from ${it.words()}: placeholders" })
-        if (lock != null) {
-            val pl = if (lock == "scarf_seam") Placement.entries.firstOrNull { it.style == lockPlainStyle } ?: Placement.CORNERS else Placement.entries.firstOrNull { it.style == lock } ?: Placement.CORNERS
-            val c = Choice(pl, if (lock == "scarf_seam") "locked" else "none")
-            return Decision(step, c, "locked by $lockSource: plan.seam = $lock" + (if (lock == "scarf_seam") " (plain style ${lockPlainStyle ?: "unset"})" else ""),
-                listOf("the seam style is a lock here; nothing weighed"), standIns = standIns, overridden = true)
+        val lockedPlacement = placementLock?.let { l -> Placement.entries.firstOrNull { it.start == l.value } ?: Placement.CORNERS }
+        val lockWords = listOfNotNull(placementLock?.let { "plan.seam = ${it.value} (${it.source})" },
+            scarfLock?.let { "scarf seams ${if (it.value == "none") "off" else "on ${it.value}"} (${it.source})" }).joinToString("; ")
+        val cands = candidates(p).filter { c -> (lockedPlacement == null || c.placement == lockedPlacement) && (scarfLock == null || c.scarf == scarfLock.value) }
+        if ((placementLock != null && scarfLock != null) || cands.isEmpty()) {
+            // locked whole (or nothing left to weigh: the locks name a candidate these values cannot make, kept as locked)
+            val c = Choice(lockedPlacement ?: Placement.CORNERS, scarfLock?.value ?: "none", placementLock != null, scarfLock != null)
+            return Decision(step, c, "locked: $lockWords", listOf("the seams are locked here; nothing weighed"), standIns = standIns, overridden = true)
         }
-        val cands = candidates(p)
         // where the time goes (a 30-part model's plan spent 500 s here with nothing saying so): the overhangs, the layer
         // preparation, each candidate's measure
         val t0 = System.nanoTime()
@@ -149,18 +156,20 @@ object SeamDecision {
         val ex = exposure(w, p)
         val t2 = System.nanoTime()
         val candS = ArrayList<String>()
-        val measured = cands.associateWith { c -> val tc = System.nanoTime(); measure(w, p, c, over, bel, ex).also { candS += "%s %.1f s".format(Locale.ROOT, c, (System.nanoTime() - tc) / 1e9) } }
+        // the baseline (back, no scarf) is measured whatever the locks leave: the scores are against it
+        val base = candidates(p).first()
+        val measured = (cands + base).distinct().associateWith { c -> val tc = System.nanoTime(); measure(w, p, c, over, bel, ex).also { candS += "%s %.1f s".format(Locale.ROOT, c, (System.nanoTime() - tc) / 1e9) } }
         val timeFact = "time: %sthe overhangs %.1f s, the layers below prepared %.1f s, %d candidates measured %.1f s (%s)".format(Locale.ROOT,
             prepS?.let { "the object sliced and walled %.1f s, ".format(Locale.ROOT, it) } ?: "", (t1 - t0) / 1e9, (t2 - t1) / 1e9, cands.size, (System.nanoTime() - t2) / 1e9, candS.joinToString())
         val values = LinkedHashMap<Metric, (Choice) -> Double>()
         values[Metric.SEAM_SCAR] = { c -> Math.round(measured.getValue(c).scar.scarMm2 * 1000) / 1000.0 }
         if (p.timeScaleS != null) values[Metric.TIME_ESTIMATE] = { c -> Math.round(p.timeScaleS + measured.getValue(c).scarfExtraS).toDouble() }
-        val base = cands.first()
         val baseline = values.mapValues { (_, f) -> f(base) }
         // a baseline with no seams at all (no closed outer wall): one point seam per layer as the scale
         val zero = mapOf(Metric.SEAM_SCAR to (w.outerWidthUm / 1000.0).let { it * it } * maxOf(1, w.loops.size))
         val ranked = Scoring.rank(cands, values, weights, zero, baseline)
-        val win = ranked.first()
+        val win = ranked.first().let { s -> s.item.let { Choice(it.placement, it.scarf, placementLock != null, scarfLock != null) } }
+        val winScored = ranked.first()
         val facts = listOf(
             "${w.loops.size} layers; the baseline (back, no scarf): ${measured.getValue(base).scar.words()}",
             "visibility: " + (p.visibility?.words() ?: "not known, every seam counts alike"),
@@ -170,10 +179,11 @@ object SeamDecision {
             "weights: $weights", timeFact)
         val alts = ranked.map { s -> val m = measured.getValue(s.item)
             Alternative(s.item.toString(), "%.4f: %s%s".format(Locale.ROOT, s.total, Scoring.explain(s).removePrefix("score ").substringAfter(" ", "").ifEmpty { "" },
-                " [seam scar %.2f mm², %d point + %d scarf seams, jogs %.1f mm, scarf pass +%.0f s]".format(Locale.ROOT, m.scar.scarMm2, m.scar.pointSeams, m.scar.scarfSeams, m.scar.jogMm, m.scarfExtraS)), chosen = s === win) }
+                " [seam scar %.2f mm², %d point + %d scarf seams, jogs %.1f mm, scarf pass +%.0f s]".format(Locale.ROOT, m.scar.scarMm2, m.scar.pointSeams, m.scar.scarfSeams, m.scar.jogMm, m.scarfExtraS)), chosen = s === winScored) }
         val unmeasured = weights.unmeasured(values.keys).takeIf { it.isNotEmpty() }?.let { "; weights with no measure here: " + it.joinToString { g -> g.id } } ?: ""
-        return Decision(step, win.item, "weighed (no plan.seam lock): ${win.item.words()} scored best by the job's weights (seam_scar %.2f mm² against the baseline's %.2f%s)$unmeasured"
-            .format(Locale.ROOT, measured.getValue(win.item).scar.scarMm2, measured.getValue(base).scar.scarMm2, if (p.timeScaleS != null) ", the scarf's pass +%.0f s".format(Locale.ROOT, measured.getValue(win.item).scarfExtraS) else ""),
+        val wm = measured.getValue(winScored.item)
+        return Decision(step, win, "weighed (${if (lockWords.isEmpty()) "no seam lock" else "locked: $lockWords; the rest"}): ${win.words()} scored best by the job's weights (seam_scar %.2f mm² against the baseline's %.2f%s)$unmeasured"
+            .format(Locale.ROOT, wm.scar.scarMm2, measured.getValue(base).scar.scarMm2, if (p.timeScaleS != null) ", the scarf's pass +%.0f s".format(Locale.ROOT, wm.scarfExtraS) else ""),
             facts, alts, standIns)
     }
 

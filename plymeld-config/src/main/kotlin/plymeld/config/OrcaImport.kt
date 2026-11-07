@@ -129,7 +129,7 @@ object OrcaImport {
         intent("plan.layer.walls.outer.line.width", "outer_wall_line_width", ::num)
         intent("plan.layer.walls.inner.line.width", "inner_wall_line_width", ::num)
         intent("plan.layer.walls.inner_first", "wall_sequence") { it == "inner wall/outer wall" }
-        intent("plan.seam_start", "seam_position") { it }
+        intent("plan.seam", "seam_position") { if (it == "back") "back" else "corners" }   // aligned / nearest / random: kept aligned, at corners
         intent("plan.mechanism.adhesion.first_layer.line.width", "initial_layer_line_width", ::num)
         // plymeld's shells are a thickness; the other slicer's layer count, at its layer height, is
         // the thickness it means (the larger of the two, as it prints them)

@@ -3,7 +3,7 @@ package plymeld.core
 import plymeld.geom.Polygon
 
 /**
- * Where a wall loop starts (plan.seam = "corner_seam"): at a corner or other sharp edge where there is one, the seams
+ * Where a wall loop starts (plan.seam = "corners"): at a corner or other sharp edge where there is one, the seams
  * aligned. A corner is a turn of the loop of at least plan.technique.corner_seam.corner_angle,
  * measured between the loop's direction a span back and a span ahead of the point (two line widths: a finely faceted
  * curve turns a little at every vertex and is no corner; a rounded inside corner, the wall's offset of a sharp one,
@@ -12,7 +12,7 @@ import plymeld.geom.Polygon
  *
  * First of all, a seam goes where the layer below holds the loop up: points on an edge of the layer that hangs over the
  * layer below (the overhang slow-down's measure, [Overhangs.seamOverhangs]) are candidates only when the loop has no other
- * (plan.seam = "back_seam" too: the back-most held-up point). Among the rest:
+ * (plan.seam = "back" too: the back-most held-up point). Among the rest:
  * the candidates: the loop's inside corners if it has any, else its outside corners, else every point of it. Seams are
  * aligned layer to layer: the candidate nearest a seam of the same wall on the layer below. With none below (the first
  * layer, a new island), the sharpest corner (turns within [TIE_DEG] counting as equal), ties to the back-most; a loop
@@ -66,7 +66,7 @@ object Seams {
      */
     fun place(p: Polygon, cornerDeg: Double?, spanUm: Double, below: LongArray = LongArray(0), overhangs: BooleanArray? = null, back: Boolean = false,
               /**
-               * plan.seam_start = least_visible: the held-up point the seam measure counts least: its visibility by
+               * plan.seam = least_visible: the held-up point the seam measure counts least: its visibility by
                * the map [vis] times [cornerShare] where it is a corner (a turn of at least [cornerDeg] across [spanUm]: seam_scar's corner
                * credit, so the placement and the measure agree; a 30-part model's QR cells, small squares on one face,
                * took mid-edge seams by visibility alone and the smooth rule then scarfed 917 of them); ties (within TIE_V) to the point
@@ -136,7 +136,7 @@ object Seams {
             return Placed(rotated(p, best), false)
         }
         if (back) {
-            // plan.seam_start = back (back_seam): the back-most point, in line with the layer below (a gap found
+            // plan.seam = back: the back-most point, in line with the layer below (a gap found
             // reviewing a slice: placed loop by loop, a gently curved back's seams scattered over ~150 mm): the held-up points
             // within [spanUm] (two line widths) of the loop's back-most one, the one nearest a seam below; none below: the
             // back-most (ties to the left, as Planner.seamAtBack)

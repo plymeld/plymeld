@@ -81,12 +81,13 @@ class ConfigTest : StringSpec({
     // their switches the job's locks. Old keys are not refused by name (there are no earlier users to migrate)
     "the surface techniques' and seam styles' keys moved under plan.technique, their switches to the job's locks; an old key is an unknown key; controls: the new keys are read" {
         for ((k, v) in listOf("job.requests.ironing.speed" to "20 mm/s", "job.requests.ironing.enabled" to true, "job.object.benchy.requests.fuzzy.thickness" to "0.3 mm",
-                "plan.layer.walls.scarf.enabled" to false, "plan.layer.walls.seam" to "back", "plan.object.benchy.layer.faces.sloped_top.z_antialiasing" to true))
+                "plan.layer.walls.scarf.enabled" to false, "plan.layer.walls.seam" to "back", "plan.object.benchy.layer.faces.sloped_top.z_antialiasing" to true,
+                "plan.technique.scarf_seam.plain_style" to "back_seam", "plan.seam_start" to "back"))
             shouldThrow<ConfigError> { cfg(*base, k to v, models = listOf(benchy)) }.message!! shouldContain "$k (test): not a setting plymeld knows"
         // controls: the new keys are read, at their scopes
         for ((k, v) in listOf("plan.faces.flat_top.technique" to "ironing", "plan.object.benchy.faces.side.technique" to "fuzzy_skin", "plan.faces.sloped_top.technique" to "as_laid",
-                "plan.seam" to "back_seam", "plan.technique.ironing.speed" to "20 mm/s", "plan.object.benchy.technique.fuzzy_skin.thickness" to "0.3 mm",
-                "plan.technique.scarf_seam.plain_style" to "back_seam", "plan.technique.corner_seam.corner_angle" to "40 deg"))
+                "plan.seam" to "back", "plan.technique.scarf_seam.enabled" to false, "plan.technique.ironing.speed" to "20 mm/s", "plan.object.benchy.technique.fuzzy_skin.thickness" to "0.3 mm",
+                "plan.technique.corner_seam.corner_angle" to "40 deg"))
             cfg(*base, k to v, models = listOf(benchy)).entry(k.split('.'))!!.value shouldBe v
         // a lock names a technique that serves it, nothing else
         shouldThrow<ConfigError> { cfg(*base, "plan.faces.flat_top.technique" to "fuzzy_skin") }

@@ -47,9 +47,9 @@ layer.infill.angle = "44.996 deg"
 # bond-first cooling, weighed (no plan.bond_cooling lock): the filament's cooling won; the filament's cooling: part fan 100 %, nozzle 205 C, minimum layer time 6 s
 bond_cooling = "off"
 # the seams, weighed (no plan.seam lock): scarf seams on the outer walls whose seam lands off a corner; the loops' seams at the held-up point seen least (its viewing directions weighed by the quadrant they look from, hidden by nearby geometry, on an underside), in line with the layer below; else the back
-seam = "scarf_seam"
+seam = "least_visible"
+technique.scarf_seam.enabled = "true"
 technique.scarf_seam.where = "smooth"
-technique.scarf_seam.plain_style = "least_visible_seam"
 # the in-island retraction, weighed (plan.mechanism.motion.no_retract_in_island unset): hidden travels kept unretracted
 mechanism.motion.no_retract_in_island = "true"
 

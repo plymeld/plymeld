@@ -77,7 +77,7 @@ class PlateHeightsTest : StringSpec({
         // time off the order's prediction (with speck travels routed along the wall, 20.3 against 20.4 min; the
         // decided retraction, every travel retracting on the steep object, was the same before); this test is about the
         // decided layer heights
-        Files.writeString(d.resolve("quality.toml"), "[job.priorities]\nquality = \"10\"\nspeed = \"1\"\n[plan]\nseam = \"back_seam\"\nmechanism.motion.no_retract_in_island = \"true\"\n")
+        Files.writeString(d.resolve("quality.toml"), "[job.priorities]\nquality = \"10\"\nspeed = \"1\"\n[plan]\nseam = \"back\"\ntechnique.scarf_seam.enabled = \"false\"\nmechanism.motion.no_retract_in_island = \"true\"\n")
         // the coarse sample only (the range's ends, the baseline, two midpoints): no refinement, so two shapes whose optimum
         // lies on the same flat stretch land on the same point rather than on neighboring microns of it
         Files.writeString(d.resolve("coarse.toml"), "[method.search]\nlayer.heights = \"5\"\n")

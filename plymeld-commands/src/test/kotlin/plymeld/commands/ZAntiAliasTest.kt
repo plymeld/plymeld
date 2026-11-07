@@ -66,7 +66,8 @@ class ZAntiAliasTest : StringSpec({
         # no scarf seams: their rule lets an outer wall line sit anywhere down to the ramp's start, which would hide the
         # controls below (with scarf seams on, an outer wall line in that band is the scarf rule's, as before ZAA)
         [plan]
-        seam = "corner_seam"
+        seam = "corners"
+        technique.scarf_seam.enabled = "false"
         [plan.object."wedge10.stl"]
         pose.label = "as given"
         pose.turn = "1 0 0 0 1 0 0 0 1"

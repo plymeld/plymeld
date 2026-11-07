@@ -75,7 +75,7 @@ class DocsConsistencyTest : StringSpec({
     }
     "control: a path no one declares is caught, and real ones in the same shapes are not" {
         unknownPaths("t", "`plan.layer.walls.no_such_thing` and `hardware.tool.<key>.made.up`").size shouldBe 2
-        unknownPaths("t", "`plan.seam = \"back_seam\"`, `hardware.filament.<key>.melt.flow.max`, `plan.technique.ironing.*`, " +
+        unknownPaths("t", "`plan.seam = \"back\"`, `hardware.filament.<key>.melt.flow.max`, `plan.technique.ironing.*`, " +
             "`plan.object.<key>.layer.walls.thickness`, `job.object.<key>`, `plan.layer`, `plan.toml`").shouldBeEmpty()
     }
 

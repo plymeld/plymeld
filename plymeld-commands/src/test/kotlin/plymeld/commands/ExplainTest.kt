@@ -107,7 +107,7 @@ class ExplainTest : StringSpec({
     val d: Path = Files.createTempDirectory("plymeld-explain")
     // the seam locked as the bundled defaults locked it earlier (scarf seams on the smooth loops): these cases read the
     // seam styles as locks; unset, the seam is decided after the plan and explain does not yet carry the decision
-    Files.writeString(d.resolve("q2.toml"), q2 + "\n[plan]\nseam = \"scarf_seam\"\n")
+    Files.writeString(d.resolve("q2.toml"), q2 + "\n[plan]\nseam = \"corners\"\ntechnique.scarf_seam.enabled = \"true\"\n")
     Files.writeString(d.resolve("headed.toml"), headed)
     Files.writeString(d.resolve("box.stl"), stl(boxTris(0.0, 0.0, 0.0, 20.0, 20.0, 10.0)))
     val ramp = d.resolve("ramp.3mf")
@@ -232,9 +232,9 @@ class ExplainTest : StringSpec({
         // each loop's seam curve with its technique: the bundled scarf seams (where = "smooth") on the outer loops with no
         // corner that Z anti-aliasing does not lower, the bundled placement on the rest
         both.list("seam_styles").map { it.jsonObject.str("kind") }.distinct() shouldBe listOf("curve")
-        owners(seamCurve(both, "outer_outside")) shouldBe listOf("scarf_seam", "corner_seam")
+        owners(seamCurve(both, "outer_outside")) shouldBe listOf("scarf_seam", "corners")
         seamCurve(both, "outer_outside").list("owners")[0].str("loops")!! shouldContain "not lowered by Z anti-aliasing"
-        owners(seamCurve(both, "inner")) shouldBe listOf("corner_seam")
+        owners(seamCurve(both, "inner")) shouldBe listOf("corners")
         // control: Z anti-aliasing alone (the flat tops locked as laid): ironing locked off, the flat tops as laid, nothing laid beyond the surface techniques
         Files.writeString(d.resolve("laid.toml"), "[plan.faces]\nflat_top.technique = \"as_laid\"\n")
         val zaa = explained(listOf("q2.toml", "zaa.toml", "laid.toml"), p("box.stl"), "zaa.json")
@@ -250,15 +250,15 @@ class ExplainTest : StringSpec({
         surfaceTechnique(e, "fuzzy_skin").let { s -> s.str("kind") shouldBe "surface"; s.str("lock") shouldBe "on"; s.str("fate") shouldBe "chosen" }
         region(e, "wall", "outside").str("surface_technique") shouldBe "fuzzy_skin"
         region(e, "wall", "holes").str("surface_technique") shouldBe "none"
-        // the bundled plan.seam = "scarf_seam" (where = "smooth"): locked on, kept off the fuzzed walls
+        // plan.seam = "corners" with scarf seams on (where = "smooth"): locked on, kept off the fuzzed walls
         e.list("seam_styles").map { it.jsonObject }.single { it.str("technique") == "scarf_seam" }.str("lock") shouldBe "on"
-        owners(seamCurve(e, "outer_outside")) shouldBe listOf("corner_seam")
+        owners(seamCurve(e, "outer_outside")) shouldBe listOf("corners")
         seamCurve(e, "outer_outside").str("why")!! shouldContain "no scarf on a fuzzed wall"
-        owners(seamCurve(e, "outer_holes")) shouldBe listOf("scarf_seam", "corner_seam")
+        owners(seamCurve(e, "outer_holes")) shouldBe listOf("scarf_seam", "corners")
         // control: no fuzzy skin: locked off, scarf seams on the outside loops with no corner
         val plain = explained(listOf("q2.toml"), p("box.stl"), "nofuzzy.json")
         surfaceTechnique(plain, "fuzzy_skin").str("fate") shouldBe "rejected"
-        owners(seamCurve(plain, "outer_outside")) shouldBe listOf("scarf_seam", "corner_seam")
+        owners(seamCurve(plain, "outer_outside")) shouldBe listOf("scarf_seam", "corners")
     }
 
     "a locked lifted bridge: its proposal chosen, no cut across its span, anchors first; nothing measured (locked); control: unlocked, no bridge proposal" {

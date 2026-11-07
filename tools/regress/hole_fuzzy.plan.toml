@@ -27,9 +27,9 @@ faces.flat_top.technique = "as_laid"
 # bond-first cooling, weighed (no plan.bond_cooling lock): the filament's cooling won; the filament's cooling: part fan 100 %, nozzle 205 C, minimum layer time 6 s
 bond_cooling = "off"
 # the seams, weighed (no plan.seam lock): scarf seams on the outer walls whose seam lands off a corner; the loops' seams at a corner when the loop has one (inside corners first), in line with the layer below; else the back
-seam = "scarf_seam"
+seam = "corners"
+technique.scarf_seam.enabled = "true"
 technique.scarf_seam.where = "smooth"
-technique.scarf_seam.plain_style = "corner_seam"
 # the in-island retraction, weighed (plan.mechanism.motion.no_retract_in_island unset): every travel retracts
 mechanism.motion.no_retract_in_island = "false"
 

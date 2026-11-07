@@ -487,7 +487,7 @@ object Planner {
         // (Overhangs.seamOverhangs); layers are independent here
         val seamOver: List<List<List<BooleanArray>>?> = Parallel.map(n, progress.Counter("seams", n)) { i ->
             if (i == 0) null else Overhangs.seamOverhangs(walls[i].walls, allPrinted[i - 1], s.outerWallWidthUm, hs[i]) }
-        // seams at corners, or at the back (plan.seam_start = back), in line with the layer below (Seams): placed in layer order,
+        // seams at corners, or at the back (plan.seam = back), in line with the layer below (Seams): placed in layer order,
         // each from the layer below, before the layers' paths are built in parallel
         val seamVis = if (!s.seamLeastVisible) null else plymeld.core.decide.Visibility.of(s)
         // the shelf a seam sits on (SeamScar.shelfMm), from the layer below's outer walls as seam_scar reads it: for the

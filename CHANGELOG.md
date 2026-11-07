@@ -35,6 +35,11 @@ section the release's version and date.
   where the head already is (a scarf seam's ramp, loop and down pass each wrote all three). The motion is unchanged:
   every move runs with the same width, acceleration and feed rate as before. On the 3DBenchy, 1,570 width lines,
   2,590 acceleration lines and 1,055 zero-length travels fewer.
+- One seam vocabulary. `plan.seam` says where wall loops start, in the same words everywhere: `corners`, `back`,
+  `least_visible` (were `corner_seam`, `back_seam`, `least_visible_seam`). Scarf seams are a switch beside it,
+  `plan.technique.scarf_seam.enabled` (was `plan.seam = "scarf_seam"` with `scarf_seam.plain_style`, now gone).
+  Each is locked on its own, or decided when unset: `plan.seam = "corners"` alone leaves scarf seams decided (set
+  `scarf_seam.enabled = "false"` for none). Configs and plan files in the old words are refused; `plan -o` writes the new.
 - The bundled filaments' idle temperature (a parked nozzle on a machine with several) is 100 C below printing, was
   40 C below (170 C for the bundled PLA), where a parked nozzle may ooze onto the print and the bed. The rise back to
   printing is the next tool's pre-heat (`hardware.tool.heat.time`) or its wait.

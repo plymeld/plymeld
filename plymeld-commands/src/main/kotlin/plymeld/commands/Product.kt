@@ -218,11 +218,15 @@ class Product(given: ConfigStack, modelFiles: List<Path>, machine: String? = nul
         // a plan file's spots carry the config's locked spots already (planText writes them first): with them given, the config's are
         // not added again (they would double)
         val planSpots = lockedSupportSpots(o)
-        val seamLock = config.scoped("plan", listOf("seam"), Site(obj = o))?.let { (it.value as String) to "${it.key} (${it.source})" }
-        val plainStyle = config.scoped("plan", listOf("technique", "scarf_seam", "plain_style"), Site(obj = o))?.value as String?
+        val seamLock = config.scoped("plan", listOf("seam"), Site(obj = o))?.let { plymeld.core.decide.SeamDecision.Lock(it.value as String, "${it.key} (${it.source})") }
+        // scarf seams locked on (their where) or off ("none"); the where itself is a value beside the lock
+        val scarfLock = config.scoped("plan", listOf("technique", "scarf_seam", "enabled"), Site(obj = o))?.let { e ->
+            val on = config.boolean(e, Site(obj = o))
+            val where = if (on) config.scoped("plan", listOf("technique", "scarf_seam", "where"), Site(obj = o))?.value as String? ?: "smooth" else "none"
+            plymeld.core.decide.SeamDecision.Lock(where, "${e.key} (${e.source})") }
         val bondLock = config.scoped("plan", listOf("bond_cooling"), Site(obj = o))?.let { e -> when (e.value) { "on" -> true; "off" -> false; else -> null }?.let { it to "${e.key} (${e.source})" } }
         return Plan.Companion.ObjectLocks(pose, techniques?.first?.at(h), h, flatHeights(o), if (planSpots != null) emptyList() else lockedSpots(o), planSpots, inserts(o),
-            seam = seamLock, plainStyle = plainStyle, bondCooling = bondLock, islands = islands(o))
+            seam = seamLock, scarf = scarfLock, bondCooling = bondLock, islands = islands(o))
     }
 
     /** The curved islands a plan locks for [o] (`plan.object.<key>.island.<key>`: x and y required, start and layer.height optional). */
@@ -442,10 +446,10 @@ class Product(given: ConfigStack, modelFiles: List<Path>, machine: String? = nul
         }
         for ((k, d) in p.seams.withIndex()) if (d != null && !d.overridden) {
             val v = result.setup.intents.getValue(plate[k].first.key)
-            val why = "decided: the seams, weighed by the job's weights (seam_scar against the scarf's extra pass; no plan.seam lock): ${d.value.words()}"
-            // the pipeline's two seam settings (the lock plan.seam and scarf_seam.plain_style are what ConfigSetup makes these from)
-            v["plan.seam_start"] = plymeld.model.Sourced(d.value.placement.start, why)
-            v["plan.technique.scarf_seam.where"] = plymeld.model.Sourced(d.value.scarf, why)
+            val why = "decided: the seams, weighed by the job's weights (seam_scar against the scarf's extra pass): ${d.value.words()}"
+            // the pipeline's two seam settings, the halves the weights decided (a locked half is the config's already)
+            if (!d.value.placementLocked) v["plan.seam"] = plymeld.model.Sourced(d.value.placement.start, why)
+            if (!d.value.scarfLocked) v["plan.technique.scarf_seam.where"] = plymeld.model.Sourced(d.value.scarf, why)
         }
         for ((k, d) in p.retractions.withIndex()) if (d != null && !d.overridden)
             result.setup.intents.getValue(plate[k].first.key)["plan.mechanism.motion.no_retract_in_island"] = plymeld.model.Sourced(d.value,
@@ -582,13 +586,16 @@ class Product(given: ConfigStack, modelFiles: List<Path>, machine: String? = nul
                 append(comment("bond-first cooling, weighed (no plan.bond_cooling lock): " + (if (d.value.on) "bond-first won" else "the filament's cooling won") + "; ${d.value}") + "\n")
                 append("bond_cooling = \"${if (d.value.on) "on" else "off"}\"\n")
             }
-            // the seams, weighed: the lock that locks what was chosen (the style; with scarf seams, their loops and the plain
-            // style beside them), so `slice` places them so and decides nothing again (a plan file carried none and the
-            // slice decided the seams a second time)
+            // the seams, weighed: the locks that lock what was chosen (where the loops start; scarf seams on, with their
+            // loops, or off), the halves the weights decided, so `slice` places them so and decides nothing again (a plan
+            // file carried none and the slice decided the seams a second time)
             p.seams.getOrNull(k)?.takeIf { !it.overridden }?.let { d ->
-                append(comment("the seams, weighed (no plan.seam lock): ${d.value.words()}") + "\n")
-                if (d.value.scarf == "none") append("seam = \"${d.value.placement.style}\"\n")
-                else append("seam = \"scarf_seam\"\ntechnique.scarf_seam.where = \"${d.value.scarf}\"\ntechnique.scarf_seam.plain_style = \"${d.value.placement.style}\"\n")
+                append(comment("the seams, weighed: ${d.value.words()}") + "\n")
+                if (!d.value.placementLocked) append("seam = \"${d.value.placement.start}\"\n")
+                if (!d.value.scarfLocked) {
+                    if (d.value.scarf == "none") append("technique.scarf_seam.enabled = \"false\"\n")
+                    else append("technique.scarf_seam.enabled = \"true\"\ntechnique.scarf_seam.where = \"${d.value.scarf}\"\n")
+                }
             }
             // the in-island retraction, weighed on the object's own program: the lock that locks what was chosen, so a
             // slice with this plan does not decide it again

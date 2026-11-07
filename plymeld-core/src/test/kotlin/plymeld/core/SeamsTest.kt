@@ -5,7 +5,7 @@ import io.kotest.matchers.shouldBe
 import plymeld.geom.Polygon
 
 /**
- * Seams at corners (plan.seam = "corner_seam"). Loops in µm, counter-clockwise outlines (material on the
+ * Seams at corners (plan.seam = "corners"). Loops in µm, counter-clockwise outlines (material on the
  * left). Expected seams worked by hand from the rule: inside corners first, the sharpest, ties to the back-most
  * (largest y, then smallest x); a loop with no corner at its back.
  */
@@ -75,7 +75,7 @@ class SeamsTest : StringSpec({
         for ((k, loop) in listOf(outerLoop, innerLoop).withIndex()) {
             val f = flags[k][0]
             overhangingEnd(Seams.place(loop, 30.0, span, overhangs = f)) shouldBe false
-            overhangingEnd(Seams.place(loop, null, 0.0, overhangs = f)) shouldBe false                        // plan.seam = "back_seam"
+            overhangingEnd(Seams.place(loop, null, 0.0, overhangs = f)) shouldBe false                        // plan.seam = "back"
             overhangingEnd(Seams.place(loop, 30.0, span, longArrayOf(1_780, 7_930), f)) shouldBe false         // a seam below at that end
             Seams.place(loop, 30.0, span, overhangs = f).atCorner shouldBe true                                  // still at a corner
         }

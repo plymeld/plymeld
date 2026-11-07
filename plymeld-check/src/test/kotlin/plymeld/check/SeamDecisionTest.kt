@@ -46,10 +46,21 @@ class SeamDecisionTest : StringSpec({
     }
 
     "a lock is kept, nothing weighed" {
-        val d = SeamDecision.decide("cyl", walls(ring(64, 8.0), 5), params, Weights.parse("quality=1", "test"), "scarf_seam", "corner_seam", "plan.seam (test)")
+        val d = SeamDecision.decide("cyl", walls(ring(64, 8.0), 5), params, Weights.parse("quality=1", "test"), SeamDecision.Lock("corners", "plan.seam (test)"), SeamDecision.Lock("smooth", "plan.technique.scarf_seam.enabled (test)"))
         d.overridden shouldBe true
-        d.value.scarf shouldBe "locked"
+        d.value.scarf shouldBe "smooth"
         d.value.placement shouldBe SeamDecision.Placement.CORNERS
+    }
+
+    "half a lock: the placement locked, scarf seams weighed among its candidates only; control: unlocked, every placement weighed" {
+        val half = SeamDecision.decide("box", walls(square(20.0), 20), params, Weights.parse("quality=1,speed=1", "test"), SeamDecision.Lock("back", "plan.seam (test)"), null)
+        half.overridden shouldBe false
+        half.value.placement shouldBe SeamDecision.Placement.BACK
+        (half.value.placementLocked to half.value.scarfLocked) shouldBe (true to false)
+        half.alternatives.map { it.label.substringBefore('/') }.toSet() shouldBe setOf("back")
+        half.alternatives.size shouldBe 3                                       // back with none, smooth, all
+        val free = SeamDecision.decide("box", walls(square(20.0), 20), params, Weights.parse("quality=1,speed=1", "test"), null, null)
+        free.alternatives.map { it.label.substringBefore('/') }.toSet() shouldBe setOf("back", "corners", "least_visible")
     }
 
     "the candidates follow what the settings allow" {
