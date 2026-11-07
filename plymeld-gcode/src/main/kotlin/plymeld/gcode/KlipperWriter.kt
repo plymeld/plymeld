@@ -741,7 +741,7 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                     // closed back to the start for loops; arcs as G2/G3 with I/J relative to here.
                     val pts = DoubleArray(2 * (count + 1))
                     for (k in 0..count) { val idx = k % m; pts[2 * k] = p.xy[2 * idx] / 1000.0; pts[2 * k + 1] = p.xy[2 * idx + 1] / 1000.0 }
-                    for (mv in ArcFit.fit(pts, s.resolutionUm / 1000.0)) {
+                    for (mv in ArcFit.fit(pts, s.resolutionUm / 1000.0, minLengthMm = s.arcSegmentMm ?: 0.0)) {
                         when (mv) {
                             is ArcFit.Line -> { val len = Math.hypot(mv.x - x, mv.y - y); if (len > 0) out.write("G1 X${n(mv.x)} Y${n(mv.y)} E${e(len * ePerMm)}\n") }
                             is ArcFit.Arc -> out.write("${if (mv.cw) "G2" else "G3"} X${n(mv.x)} Y${n(mv.y)} I${n(mv.cx - x)} J${n(mv.cy - y)} E${e(mv.length * ePerMm)}\n")
@@ -781,7 +781,7 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                         if (sf.first != curF) { out.write("G1 F${sf.first}\n"); curF = sf.first }
                         val pts = DoubleArray(2 * (b - a + 2))
                         for (k in a..b + 1) { val idx = k % m; pts[2 * (k - a)] = p.xy[2 * idx] / 1000.0; pts[2 * (k - a) + 1] = p.xy[2 * idx + 1] / 1000.0 }
-                        for (mv in ArcFit.fit(pts, s.resolutionUm / 1000.0)) {
+                        for (mv in ArcFit.fit(pts, s.resolutionUm / 1000.0, minLengthMm = s.arcSegmentMm ?: 0.0)) {
                             when (mv) {
                                 is ArcFit.Line -> { val len = Math.hypot(mv.x - x, mv.y - y); if (len > 0) out.write("G1 X${n(mv.x)} Y${n(mv.y)} E${e(len * ePerMm)}\n") }
                                 is ArcFit.Arc -> out.write("${if (mv.cw) "G2" else "G3"} X${n(mv.x)} Y${n(mv.y)} I${n(mv.cx - x)} J${n(mv.cy - y)} E${e(mv.length * ePerMm)}\n")

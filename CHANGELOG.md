@@ -17,6 +17,10 @@ section the release's version and date.
   caps, `mechanism.motion.speed.max` and `.acceleration.max` (also for the plate, an object, or a part): the lines in a
   region print no faster and accelerate no more, segment by segment, and the object stays one, with no walls where the
   region ends. A region outside the object, or a value plymeld does not read per region, is refused.
+- `hardware.machine.<key>.firmware.arc_segment`: the length of the pieces the firmware cuts an arc into (Klipper's
+  `[gcode_arcs]` resolution). No arc shorter than one piece is written: the firmware would run it as a single chord
+  across it, so the stretch keeps its own lines. Unset, every arc that fits is written, as before. On the 3DBenchy at
+  1 mm: 3,616 arcs where there were 4,428 (857 of them shorter than 1 mm), the filament unchanged.
 - `plan.mechanism.motion.inner_walls.as_visible`: inner walls at the visible lines' speed and acceleration, so a wall
   laid fast right behind the outer wall does not ripple through it. Off by default (whether it shows is not measured
   yet); the plan's time estimates follow it.

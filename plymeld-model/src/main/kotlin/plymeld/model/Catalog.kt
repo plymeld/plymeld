@@ -62,6 +62,7 @@ object Catalog {
         s("hardware.machine.gcode.pictures", MACHINE, TEXT, "the preview pictures the machine's screen reads from the g-code file, as pixel sizes WIDTHxHEIGHT separated by commas (e.g. 96x96, 300x300); each is written as a PNG in a `; thumbnail begin` comment block; empty = none", "", "optional: only some machines' screens show a picture of the file")
         s("hardware.machine.firmware.exclude_object", MACHINE, BOOL, "firmware can cancel single objects mid-print; emit object markers")
         s("hardware.machine.firmware.arcs", MACHINE, BOOL, "firmware accepts G2/G3 arcs; fit arcs to curved paths")
+        s("hardware.machine.firmware.arc_segment", MACHINE, LENGTH, "the length of the pieces the firmware cuts an arc into: no arc shorter than it is written; unset = not known")
         s("hardware.plate.first_layer.squish", MACHINE, LENGTH, "shrink the first layer's outline by this (the bed squashes it outward)")
         s("hardware.machine.motion.travel.speed", MACHINE, SPEED, "speed of non-printing moves")
         s("hardware.machine.motion.print.speed", MACHINE, SPEED, "the machine's fastest printing move (travel: hardware.machine.motion.travel.speed): hidden lines (inner walls, infill, solid, support) print at it unless the filament's melt rate caps them first")

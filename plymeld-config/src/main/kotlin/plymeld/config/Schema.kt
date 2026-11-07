@@ -141,6 +141,7 @@ object Schema {
         d("$m.firmware.flavor", Type.Choice(listOf("klipper")), "the firmware family its g-code is written for", feeds = true)
         d("$m.firmware.dialect", Type.Choice(plymeld.machine.Dialect.entries.map { it.id }), "the comments and acceleration command its files are written with, as the maker's own files for its printers have them (flashforge: `;LAYER_CHANGE`, `;TYPE:`, SET_VELOCITY_LIMIT, and the file header the maker's own slicer writes; qidi: `; CHANGE_LAYER`, `; FEATURE:`, M204; klipper: the flashforge comments and SET_VELOCITY_LIMIT with no maker's header), so its screen and previewers read them; unset = its model's default (model)", feeds = true)
         d("$m.firmware.arcs", Type.Bool, "the firmware takes arcs (G2/G3)", feeds = true)
+        q("$m.firmware.arc_segment", Dimension.LENGTH, "the length of the straight pieces the firmware cuts an arc into (Klipper's [gcode_arcs] resolution): an arc shorter than one piece would be run as a single chord across it, so such a stretch is written as the path's own lines; unset = not known, every arc that fits is written", feeds = true)
         d("$m.firmware.exclude_object", Type.Bool, "the firmware can cancel one object mid-print", feeds = true)
         d("$m.tool_change.kind", Type.Choice(listOf("none", "swap_filament", "swap_tool")), "how it changes filament (not yet used)")
         q("$m.tool_change.time", Dimension.TIME, "the machine's own time for one change, beyond the g-code's moves", feeds = true)
