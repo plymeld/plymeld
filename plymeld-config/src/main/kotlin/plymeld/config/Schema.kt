@@ -117,6 +117,7 @@ object Schema {
         q("$m.motion.acceleration.max", Dimension.ACCEL, "highest acceleration: what formulas read (the first-use setup writes the print and travel accelerations as formulas of it); nothing else reads it directly: time predictions take the print and travel accelerations from the config, the rest from the machine description")
         q("$m.motion.z.speed.max", Dimension.SPEED, "fastest Z move (Klipper's [printer] max_z_velocity), for time predictions; unset = its model's", feeds = true)
         q("$m.motion.z.acceleration.max", Dimension.ACCEL, "highest Z acceleration (Klipper's [printer] max_z_accel), for time predictions; unset = its model's", feeds = true)
+        q("$m.motion.z.step", Dimension.LENGTH, "the smallest Z move the machine makes (its Z motor's step as configured: Klipper's rotation_distance / (full_steps_per_rotation x microsteps), with the Z axis's own gearing): flat layers' tops are held to its whole multiples above the object's bottom, so no layer alternates between two thicknesses where its height is not a multiple (bands); unset = layers as planned", feeds = true)
         q("$m.motion.corner.speed", Dimension.SPEED, "speed kept through a square corner (Klipper's [printer] square_corner_velocity), for time predictions; unset = its model's", feeds = true)
         q("$m.motion.travel.speed", Dimension.SPEED, "speed of moves that do not print", feeds = true)
         q("$m.motion.print.acceleration", Dimension.ACCEL, "acceleration of printing moves", feeds = true)

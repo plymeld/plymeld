@@ -127,6 +127,13 @@
                             ]
                           }
                         }
+                      },
+                      "step": {
+                        "description": "the smallest Z move the machine makes (its Z motor's step as configured: Klipper's rotation_distance / (full_steps_per_rotation x microsteps), with the Z axis's own gearing): flat layers' tops are held to its whole multiples above the object's bottom, so no layer alternates between two thicknesses where its height is not a multiple (bands); unset = layers as planned — a length (mm); or a formula (= ...)",
+                        "type": [
+                          "string",
+                          "number"
+                        ]
                       }
                     }
                   },

@@ -69,6 +69,7 @@ object Catalog {
         s("hardware.machine.motion.travel.acceleration", MACHINE, ACCEL, "acceleration of non-printing moves")
         s("hardware.machine.motion.z.speed.max", MACHINE, SPEED, "fastest Z move, for time predictions; unset = the machine's model's")
         s("hardware.machine.motion.z.acceleration.max", MACHINE, ACCEL, "highest Z acceleration, for time predictions; unset = the machine's model's")
+        s("hardware.machine.motion.z.step", MACHINE, LENGTH, "the smallest Z move the machine makes (its Z motor's step as configured: Klipper's rotation_distance / (full_steps_per_rotation x microsteps)): flat layers' tops are held to its multiples; unset = layers as planned")
         s("hardware.machine.motion.corner.speed", MACHINE, SPEED, "speed kept through a square corner, for time predictions; unset = the machine's model's")
         // ---- tool: one hotend
         s("hardware.tool.bore", TOOL, LENGTH, "nozzle bore")

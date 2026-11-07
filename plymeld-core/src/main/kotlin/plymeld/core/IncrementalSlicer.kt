@@ -155,6 +155,18 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
 
     /** Where the layers go: the techniques' layer heights (stage "slice" / "slice parts"). */
     private fun layerPlan(st: SliceSettings): LayerPlan {
+        // flat layers held to the machine's Z step (hardware.machine.motion.z.step): their height a whole number of steps
+        // (the nearest, at least one), so every layer is the same thickness (a height between two multiples would print
+        // alternating between them, in bands), and every top on a step (a remainder at the top, layers following the
+        // surfaces). A curved band, layers that follow the underside, and lifted bridges print at heights of their own and
+        // keep them
+        val step = st.zStepMm?.takeIf { curvedFrom == null && !underside && !lifted && !banded }
+        val onStep = { h: Double -> if (step == null) h else maxOf(1L, Math.round(h / step)) * step }
+        val plan = plannedLayers(st, onStep)
+        return if (step == null) plan else plan.snapped(soup.bounds()[2], step)
+    }
+
+    private fun plannedLayers(st: SliceSettings, onStep: (Double) -> Double = { it }): LayerPlan {
         val b = soup.bounds()
         fun mm(id: String) = (Resolver.resolveOrNull(setup!!, id, ctx)?.value as Number?)?.toDouble()
         val min = mm("hardware.tool.layer.height.min") ?: error("layers need hardware.tool.<key>.layer.height.min (flat layers of one height land their last layer on the top within it; flat layers following the surfaces stay above it)")
@@ -165,12 +177,12 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
             else if (lifted) warpFor(st)!!.let { w -> parts.indices.maxOf { i -> (if (bridgePart[i]) w.warpSoup(parts[i]) else parts[i]).bounds()[5] } }
             else b[5]
         if (!adaptive) {
-            val plan = LayerPlan.uniform(b[2], top, st.firstLayerHeightUm / 1000.0, st.layerHeightUm / 1000.0, min)
+            val plan = LayerPlan.uniform(b[2], top, onStep(st.firstLayerHeightUm / 1000.0), onStep(st.layerHeightUm / 1000.0), min)
             // a curved top band: its layers all one thickness (no thin remainder at the top, squeezed further where the top is low)
             return curvedFrom?.let { plan.evenAbove(b[2] + maxOf(it, st.firstLayerHeightUm / 1000.0), st.layerHeightUm / 1000.0) } ?: plan
         }
         val max = mm("hardware.tool.layer.height.max") ?: error("flat layers following the surfaces need hardware.tool.<key>.layer.height.max")
-        return LayerPlan.composite(soup, st.firstLayerHeightUm / 1000.0, technique.absolute(b[2], b[5]), st.layerHeightUm / 1000.0, min, max,
+        return LayerPlan.composite(soup, onStep(st.firstLayerHeightUm / 1000.0), technique.absolute(b[2], b[5]), onStep(st.layerHeightUm / 1000.0), min, max,
             mm("plan.technique.flat.step.max") ?: st.layerHeightUm / 1000.0, landingsMm().map { b[2] + it }, heightRatio = mm("plan.technique.flat.height_ratio") ?: 0.0)
     }
 
@@ -1597,7 +1609,7 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
             TriangleSoup(c, ps.sumOf { it.count })
         }
         val SLICE_KEYS = arrayOf("plan.technique.flat.layer.height", "plan.mechanism.adhesion.first_layer.height", "method.slicing.tolerance", "method.slicing.close_gaps",
-            "hardware.tool.layer.height.min", "hardware.tool.layer.height.max", "plan.technique.flat.step.max", "plan.technique.flat.height_ratio", "plan.faces.sloped_top.z_antialiasing")
+            "hardware.tool.layer.height.min", "hardware.tool.layer.height.max", "plan.technique.flat.step.max", "plan.technique.flat.height_ratio", "plan.faces.sloped_top.z_antialiasing", "hardware.machine.motion.z.step")
         val WALL_KEYS = arrayOf("hardware.plate.first_layer.squish", "plan.layer.walls.count", "plan.layer.walls.outer.line.width", "plan.layer.walls.inner.line.width", "plan.mechanism.adhesion.first_layer.line.width",
             "plan.layer.walls.style", "plan.layer.walls.line.width.min", "plan.layer.walls.feature.min", "plan.layer.walls.length_factor.min", "plan.layer.walls.transition_length")
         val REGION_KEYS = arrayOf("plan.layer.top.thickness", "plan.layer.bottom.thickness",

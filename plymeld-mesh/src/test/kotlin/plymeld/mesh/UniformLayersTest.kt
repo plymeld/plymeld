@@ -64,4 +64,11 @@ class UniformLayersTest : StringSpec({
         hs.last() shouldBe (0.11 plusOrMinus 1e-9)
         hs.forEach { (it >= 0.08 - 1e-9) shouldBe true }
     }
+    "snapped to a Z step: every top on the nearest step, a layer the snap leaves without height joined to the next; control: unsnapped, off the steps" {
+        val p = LayerPlan(doubleArrayOf(0.21, 0.42, 0.43, 0.63), doubleArrayOf(0.105, 0.315, 0.425, 0.53))
+        val s = p.snapped(0.0, 0.04)
+        s.tops.toList().map { Math.round(it * 1000) } shouldBe listOf(200L, 440L, 640L)       // 0.43 snaps to 0.44 too: joined
+        s.slices.toList().map { Math.round(it * 1000) } shouldBe listOf(100L, 320L, 540L)
+        p.tops.any { Math.abs(it / 0.04 - Math.round(it / 0.04)) > 1e-6 } shouldBe true
+    }
 })

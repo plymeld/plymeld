@@ -26,6 +26,24 @@ class LayerPlan(val tops: DoubleArray, val slices: DoubleArray) {
         return LayerPlan(t, DoubleArray(t.size) { i -> if (i <= keep) slices[i] else t[i] - (t[i] - t[i - 1]) / 2 })
     }
 
+    /**
+     * This plan with every top held to a whole multiple of the Z axis's step [stepMm] above [zMin] (its nearest), each layer
+     * cut at its new middle: a layer height that is not a multiple would otherwise come out alternating between the two
+     * multiples around it, a band the eye picks out. A top the snap would leave at or below the one before is dropped, its
+     * layer joined to the next.
+     */
+    fun snapped(zMin: Double, stepMm: Double): LayerPlan {
+        require(stepMm > 0) { "the Z step must be positive" }
+        val t = ArrayList<Double>(tops.size)
+        for (top in tops) {
+            val z = zMin + Math.round((top - zMin) / stepMm) * stepMm
+            if (z > (t.lastOrNull() ?: zMin) + stepMm / 2) t += z
+        }
+        if (t.isEmpty()) return this
+        val a = t.toDoubleArray()
+        return LayerPlan(a, DoubleArray(a.size) { i -> a[i] - (a[i] - (if (i == 0) zMin else a[i - 1])) / 2 })
+    }
+
     /** A height band [lo, hi] (absolute mm) printed with flat layers following the surfaces ([adaptive]) or of one height. */
     class Band(val lo: Double, val hi: Double, val adaptive: Boolean)
 
