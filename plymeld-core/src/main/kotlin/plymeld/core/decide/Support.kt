@@ -463,8 +463,13 @@ object Overhangs {
     private val footprintsOf = plymeld.mesh.SoupCache<Footprints>(plymeld.mesh.SoupCache.heapShare()) { it.bytes }
     private fun footprints(p: TriangleSoup): Footprints = footprintsOf.get(p) { Footprints(p) }
 
-    /** Each triangle's three vertex ids, positions within a micron sharing an id: how the survey joins faces into regions. */
-    fun vertexIds(p: TriangleSoup): IntArray {
+    /**
+     * Each triangle's three vertex ids, positions within a micron sharing an id: how the survey joins faces into regions.
+     * Kept by the soup's identity ([plymeld.mesh.SoupCache]): a posed model is surveyed under each plan measured in it.
+     */
+    fun vertexIds(p: TriangleSoup): IntArray = vertexIdsOf.get(p) { vertexIdsOf(p) }
+    private val vertexIdsOf = plymeld.mesh.SoupCache<IntArray>(plymeld.mesh.SoupCache.heapShare()) { 4L * it.size }
+    private fun vertexIdsOf(p: TriangleSoup): IntArray {
         val ids = IntArray(p.count * 3)
         val seen = HashMap<Long, Int>(p.count * 2)
         val c = p.coords
