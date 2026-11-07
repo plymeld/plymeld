@@ -17,7 +17,9 @@ import java.util.Locale
  *
  * Emits the same comment markers QIDIStudio does (`; CHANGE_LAYER`, `; Z_HEIGHT:`,
  * `; LAYER_HEIGHT:`, `; FEATURE:`, `; LINE_WIDTH:`, `; total layer number:`) so one reader
- * checks both slicers' output. Relative extrusion (M83: the start template's, else written after it).
+ * checks both slicers' output. Relative extrusion (M83: the start template's, else written after it). A path's line
+ * width and acceleration are written when they change (and at a calibration cell's start, which is read alone), not
+ * before every path; no travel goes to where the head already is.
  *
  * Extrusion per mm of path = bead cross-section / filament area × flow ratio, bead
  * cross-section = h·(w − h(1 − π/4)) (the same bead model as the walls' spacing).
@@ -304,6 +306,10 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
         var retracted = false
         var lastPath: Extrude? = null
         var feature = ""
+        // the line width and acceleration last written: a path that keeps them writes neither again (a scarf seam's ramp, loop
+        // and down pass are three paths, each had its own); forgotten at every step that is not a path (a layer change, an
+        // object, a tool change, a template: what they write, and where a reader of one block starts, is not known here)
+        var widthWritten: String? = null; var accelWritten: Long? = null
         var lz = 0.0
         var first = false      // first-layer speeds apply only after a LayerStart with index 0
         var slowLayer: Map<String?, DoubleArray>? = null   // this layer start's slow-down per object, [hidden, visible] (slowOf)
@@ -415,6 +421,7 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
         var lastLayerStart: LayerStart? = null
         var combNow: Lazy<TravelRouter.CombLayer>? = null; var combBelow: Lazy<TravelRouter.CombLayer>? = null; var firstInLayer = false
         for ((stepIndex, step) in program.steps.withIndex()) { preheatBefore[stepIndex]?.let { out.write(it) }
+            if (step !is Extrude) { widthWritten = null; accelWritten = null }
             if (step is LayerStart) { lastLayerStart?.let { if (s.coolingDwell) coolingDwell(it) }; lastLayerStart = step; combBelow = combNow; combNow = combOf[stepIndex]; firstInLayer = true }
             when (step) {
             // every object's block is marked by a comment whatever the firmware (objects printed together have their layers
@@ -517,9 +524,10 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 // the path's highest Z (the lifts clear it); a curved path starts at its first vertex's own Z
                 val pz = p.zUm / 1000.0
                 val startZ = (p.zs?.get(0) ?: p.zUm) / 1000.0
-                p.exact?.let { out.write("; CELL: ${it.label}\n") }
-                if (p.feature != feature) { out.write(dialect.feature(p.feature)); feature = p.feature }
-                out.write(dialect.width(n(p.widthUm / 1000.0)))
+                // a calibration cell is read alone (its block from its CELL line): it states its width and acceleration
+                p.exact?.let { out.write("; CELL: ${it.label}\n"); widthWritten = null; accelWritten = null }
+                if (p.feature != feature) { out.write(dialect.feature(p.feature)); feature = p.feature; widthWritten = null }
+                n(p.widthUm / 1000.0).let { wt -> if (wt != widthWritten) { out.write(dialect.width(wt)); widthWritten = wt } }
                 val sx = p.xy[0] / 1000.0; val sy = p.xy[1] / 1000.0
                 // travel
                 val d = if (x.isNaN()) Double.POSITIVE_INFINITY else Math.hypot(sx - x, sy - y)
@@ -563,7 +571,7 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 val w = wiped; val cl = combNow
                 val via = if (w == null || cl == null) p.via else replanAfterWipe(cl, combBelow, firstInLayer, w, sx, sy, p, lastPath, detourRatio, detourExtraUm)
                 firstInLayer = false
-                out.write(dialect.accel(Math.round(p.exact?.accel ?: accelFor(p.feature))))
+                Math.round(p.exact?.accel ?: accelFor(p.feature)).let { a -> if (a != accelWritten) { out.write(dialect.accel(a)); accelWritten = a } }
                 val zHop = s.zHopUm / 1000.0
                 val hop = pz + zHop
                 // after a tool change the head's place is unknown: rise where it is, clear of everything printed so far
@@ -594,7 +602,7 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 if ((d > minTravelMm || p.via != null || speckHop) && !hiddenTravel && z < hop - 1e-9) {
                     // lift during the travel (one XY+Z move) rather than a separate slow Z-only move
                     out.write("G1 X${n(sx)} Y${n(sy)} Z${n(hop)} F${f(moveF(s.travelSpeed))}\n"); z = hop
-                } else out.write("G1 X${n(sx)} Y${n(sy)} F${f(moveF(s.travelSpeed))}\n")
+                } else if (x.isNaN() || n(sx) != n(x) || n(sy) != n(y)) out.write("G1 X${n(sx)} Y${n(sy)} F${f(moveF(s.travelSpeed))}\n")   // none to where the head is
                 // the drop to the path's start: at the travel's speed, or, on a lifted bridge's layer with its own, at that
                 val dropF = if (bridgeLayer && s.bridgeMoveSpeed != null) " F${f(moveF(s.travelSpeed))}" else ""
                 if (z != startZ) { out.write("G1 Z${n(startZ)}$dropF\n"); z = startZ }

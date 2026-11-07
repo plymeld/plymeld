@@ -31,6 +31,10 @@ section the release's version and date.
 - `plan.bridge_order = "one_at_a_time"` lays the bridges from the side the head reaches least (the tools' head size and
   nozzle position, else their machine model's), as objects printed one at a time are placed, so the head never passes
   over a finished bridge. It always went from +X, which suited only a head reaching least towards +X.
+- G-code files are shorter: a line width or acceleration already in force is not written again, and no travel goes to
+  where the head already is (a scarf seam's ramp, loop and down pass each wrote all three). The motion is unchanged:
+  every move runs with the same width, acceleration and feed rate as before. On the 3DBenchy, 1,570 width lines,
+  2,590 acceleration lines and 1,055 zero-length travels fewer.
 - The bundled filaments' idle temperature (a parked nozzle on a machine with several) is 100 C below printing, was
   40 C below (170 C for the bundled PLA), where a parked nozzle may ooze onto the print and the bed. The rise back to
   printing is the next tool's pre-heat (`hardware.tool.heat.time`) or its wait.
