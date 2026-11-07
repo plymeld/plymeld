@@ -9,6 +9,8 @@ section the release's version and date.
 
 ## [Unreleased]
 
+## [0.20261107.1] - 2026-11-07
+
 ### Changed
 
 - Choosing a pose takes a first look at every pose under one plan (flat layers at the baseline's layer height) and
