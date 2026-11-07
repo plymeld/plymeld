@@ -58,14 +58,13 @@ object Slicer {
     private class Prepared(val v: LongArray, val zmin: LongArray, val zmax: LongArray, val order: IntArray)
 
     /**
-     * Each soup's [Prepared] form, by identity and held weakly (it goes with the soup): one posed model is sliced again and
-     * again (a pose search's surveys cut it at a few heights per candidate plan, and snapping and sorting every triangle
-     * for each was the larger part of that). A soup's coordinates are not changed once it is made, so its form stays true.
+     * Soups' [Prepared] forms ([SoupCache]: by identity, bounded in bytes): one posed model is sliced again and again (a
+     * pose search's surveys cut it at a few heights per candidate plan, and snapping and sorting every triangle for each was
+     * the larger part of that).
      */
-    private val prepared = java.util.WeakHashMap<TriangleSoup, Prepared>()
+    private val prepared = SoupCache<Prepared>(SoupCache.heapShare()) { p -> 8L * (p.v.size + p.zmin.size + p.zmax.size) + 4L * p.order.size }
 
-    private fun prepare(soup: TriangleSoup): Prepared {
-        synchronized(prepared) { prepared[soup] }?.let { return it }
+    private fun prepare(soup: TriangleSoup): Prepared = prepared.get(soup) {
         val v = snap(soup)
         val n = soup.count
         // Bucket: for each layer, which triangles span it. Triangles are sorted by zmin
@@ -80,7 +79,7 @@ object Slicer {
             if (z2 < lo) lo = z2; if (z2 > hi) hi = z2
             zmin[t] = lo; zmax[t] = hi
         }
-        return Prepared(v, zmin, zmax, byZmin(zmin)).also { synchronized(prepared) { prepared[soup] = it } }
+        Prepared(v, zmin, zmax, byZmin(zmin))
     }
 
     fun slice(soup: TriangleSoup, zsMm: DoubleArray): List<Layer> {
