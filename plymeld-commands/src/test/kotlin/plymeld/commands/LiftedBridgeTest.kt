@@ -3,6 +3,7 @@ package plymeld.commands
 import com.github.ajalt.clikt.core.parse
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.StringSpec
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.doubles.plusOrMinus
 import io.kotest.matchers.doubles.shouldBeGreaterThan
 import io.kotest.matchers.doubles.shouldBeLessThan
@@ -547,6 +548,19 @@ class LiftedBridgeTest : StringSpec({
                     for (i in 0..n) { val t = i.toDouble() / n; worst = maxOf(worst, abs(seg.z0 + (seg.z1 - seg.z0) * t - (archUnder(seg.x0 + (seg.x1 - seg.x0) * t - cx) + base - 6.0 + 0.2))) }
                 }
                 worst shouldBe (0.0 plusOrMinus 0.0125)
+            }
+        }
+    }
+    "the pillar layers over each strip's end stand on the strip: no wave bead or bridge line there; control: the strip's end is under them" {
+        val s = segs(stackG); val cx = middle(s)
+        fun pillar(it: Seg) = abs(it.x0 - cx) > 20.5 && abs(it.x1 - cx) > 20.5
+        for (base in listOf(6.0, 12.0)) {
+            // the strip's end: lines of the strip's own layers over the pillars, under the pillar layer above it
+            s.filter { pillar(it) && minOf(it.z0, it.z1) > base && maxOf(it.z0, it.z1) <= base + 1.2 + 1e-3 }.shouldNotBeEmpty()
+            val over = s.filter { pillar(it) && minOf(it.z0, it.z1) > base + 1.2 + 1e-3 && maxOf(it.z0, it.z1) <= base + 1.6 + 1e-3 }
+            withClue("over the strip at $base: ${over.map { it.feature }.toSet()}") {
+                over.shouldNotBeEmpty()
+                over.none { it.feature.startsWith("Wave overhang") || it.feature == "Bridge" } shouldBe true
             }
         }
     }
