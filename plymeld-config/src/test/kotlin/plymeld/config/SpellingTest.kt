@@ -16,6 +16,12 @@ class SpellingTest : StringSpec({
         Config(stack(*base, "plan.placement" to "centre"), emptyList()).warnings shouldBe emptyList()
         shouldThrow<ConfigError> { Config(stack(*base, "plan.placement" to "middle"), emptyList()) }.message!! shouldContain "middle"
     }
+    "a setting's name spelled the British way names the setting; control: a key of the user's own is left as written" {
+        val s = stack("hardware.filament.grey.colour" to "#808080")
+        s.entry("hardware.filament.grey.color".split('.'))!!.value shouldBe "#808080"
+        s.entry("hardware.filament.gray.color".split('.')) shouldBe null
+        stack("hardware.filament.grey.colours" to "x").all.single().path.last() shouldBe "colours"
+    }
     "only a value the place takes: a British word that would not be an option is left as written" {
         Spelling.american("centre", listOf("center", "as-given")) shouldBe "center"
         Spelling.american("as-given", listOf("center", "as-given")) shouldBe "as-given"

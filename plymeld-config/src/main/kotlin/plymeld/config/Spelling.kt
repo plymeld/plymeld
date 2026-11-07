@@ -18,8 +18,28 @@ object Spelling {
         return out.takeIf { it != v && it in options }
     }
 
-    /** [e] with a chosen value spelled the British way written the American way, where its setting takes the American one. */
-    fun entry(e: ConfigFiles.Entry): ConfigFiles.Entry {
+    /**
+     * [path] with one word of a setting's name spelled the British way (`colour`) written the American way, when that
+     * names a setting and [path] does not; [path] itself otherwise. One word at a time, so a key of the user's own
+     * (a filament called `grey`) is never respelled.
+     */
+    fun path(path: List<String>): List<String> {
+        if (Schema.find(path) != null) return path
+        for (i in path.indices) {
+            val a = WORDS.firstOrNull { it.first == path[i] }?.second ?: continue
+            val p = path.toMutableList().also { it[i] = a }
+            if (Schema.find(p) != null) return p
+        }
+        return path
+    }
+
+    /**
+     * [e] with a setting's name and its chosen value spelled the British way written the American way, where the
+     * American one is what plymeld takes ([path], [american]).
+     */
+    fun entry(given: ConfigFiles.Entry): ConfigFiles.Entry {
+        val p = path(given.path)
+        val e = if (p == given.path) given else ConfigFiles.Entry(p, given.value, given.source, given.keep)
         val t = Schema.find(e.path)?.type ?: return e
         val v = e.value
         val fixed: Any? = when {
