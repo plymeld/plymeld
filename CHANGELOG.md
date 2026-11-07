@@ -11,6 +11,9 @@ section the release's version and date.
 
 ### Added
 
+- `plan.mechanism.motion.inner_walls.as_visible`: inner walls at the visible lines' speed and acceleration, so a wall
+  laid fast right behind the outer wall does not ripple through it. Off by default (whether it shows is not measured
+  yet); the plan's time estimates follow it.
 - A machine's Z step (`hardware.machine.<key>.motion.z.step`, its Z motor's step as configured): flat layers are held
   to it, their height a whole number of steps (the nearest) and every top on a step. A layer height between two
   multiples otherwise prints alternating between them, in bands. Unset, layers are as planned; curved bands, layers

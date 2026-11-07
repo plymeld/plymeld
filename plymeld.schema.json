@@ -4656,6 +4656,30 @@
                     }
                   }
                 },
+                "inner_walls": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "as_visible": {
+                      "description": "INHERITED: inner walls at the visible lines' speed and acceleration (visible.speed, visible.acceleration), so the ripple of a wall laid fast right behind the outer wall does not show through it; false = at the hidden lines' (the machine's printing speed and acceleration) — true or false; or a formula (= ...)",
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "enum": [
+                            "true",
+                            "false"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^\\s*="
+                        }
+                      ]
+                    }
+                  }
+                },
                 "first_layer": {
                   "type": "object",
                   "additionalProperties": false,
@@ -6694,6 +6718,30 @@
                     }
                   }
                 },
+                "inner_walls": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "as_visible": {
+                      "description": "INHERITED: inner walls at the visible lines' speed and acceleration (visible.speed, visible.acceleration), so the ripple of a wall laid fast right behind the outer wall does not show through it; false = at the hidden lines' (the machine's printing speed and acceleration) — true or false; or a formula (= ...)",
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "enum": [
+                            "true",
+                            "false"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^\\s*="
+                        }
+                      ]
+                    }
+                  }
+                },
                 "first_layer": {
                   "type": "object",
                   "additionalProperties": false,
@@ -8438,6 +8486,30 @@
                       "type": [
                         "string",
                         "number"
+                      ]
+                    }
+                  }
+                },
+                "inner_walls": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "as_visible": {
+                      "description": "INHERITED: inner walls at the visible lines' speed and acceleration (visible.speed, visible.acceleration), so the ripple of a wall laid fast right behind the outer wall does not show through it; false = at the hidden lines' (the machine's printing speed and acceleration) — true or false; or a formula (= ...)",
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "enum": [
+                            "true",
+                            "false"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^\\s*="
+                        }
                       ]
                     }
                   }

@@ -418,6 +418,7 @@ object Schema {
         q("$pl.bridge.flow", Dimension.RATIO, "INHERITED: bridge extrusion multiplier", feeds = true)
         val mo = "plan.mechanism.motion"
         q("$mo.visible.speed", Dimension.SPEED, "speed of visible lines: outer walls, top and bottom surfaces; a value in a config of yours wins over the machine's (hardware.machine.<key>.motion.visible.speed, from its motion plate); plymeld's bundled value is only the stand-in for a machine that sets none (until decided from the quality weight)", feeds = true)
+        d("$mo.inner_walls.as_visible", Type.Bool, "INHERITED: inner walls at the visible lines' speed and acceleration (visible.speed, visible.acceleration), so the ripple of a wall laid fast right behind the outer wall does not show through it; false = at the hidden lines' (the machine's printing speed and acceleration)", feeds = true)
         q("$mo.visible.acceleration", Dimension.ACCEL, "acceleration of visible lines; the rest print at the machine's printing acceleration; a value in a config of yours wins over the machine's (hardware.machine.<key>.motion.visible.acceleration); plymeld's bundled value is only the stand-in", feeds = true)
         // not fed directly: its setting (of the same id) is made from this, the filament's, the machine's, and the filament's
         // first-layer window ([made], ConfigSetup.derived)
