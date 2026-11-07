@@ -137,13 +137,26 @@ class Job(val layout: Layout, setup: Setup, private val version: String) {
                 if (plateSettings.bridgeOrderOneAtATime) {
                     // plan.bridge_order = one_at_a_time:
                     // every object's layers below its lifted bridge first, merged by height; then each object's bridge whole,
-                    // from +X to -X, the head lifted clear of everything printed before each. A FIXED order: it suits a head that
-                    // reaches least towards +X (it then never passes over a bridge finished there), but the tool's head reach is
-                    // not read yet, as BuildOrder reads it for objects
+                    // the head lifted clear of everything printed before each, starting on the side the head reaches least (as
+                    // BuildOrder places objects printed one at a time): the head then never passes over a bridge finished
+                    // there. The reach is the bridged objects' tools' (hardware.tool.<key>.head.size and nozzle.x), else their
+                    // machine model's toolhead; with neither, from +X
                     val bridgeAt = IntArray(stripped.size) { k -> stripped[k].indexOfFirst { slicers[k].isBridgeLayer(it) }.let { if (it < 0) stripped[k].size else it } }
                     merge(all, bridgeAt)
+                    val bridged = all.filter { bridgeAt[it] < stripped[it].size }
+                    /** The head's reach from the nozzle towards -X and +X (mm) for object [k], or null when not known. */
+                    fun reachX(k: Int): Pair<Double, Double>? {
+                        val s = SliceSettings.of(setup, plymeld.model.Context(layout.objectIndex[k]))
+                        s.headReachUm?.let { return it[0] / 1000.0 to it[1] / 1000.0 }
+                        val g = s.machineDescription.toolhead(tools[k])?.geometry ?: return null
+                        val minus = g["head_minus_x"] ?: return null; val plus = g["head_plus_x"] ?: return null
+                        return minus to plus
+                    }
+                    val reaches = bridged.map(::reachX)
+                    val fromPlusX = if (reaches.any { it == null } || reaches.isEmpty()) true else reaches.maxOf { it!!.second } <= reaches.maxOf { it!!.first }
                     val maxX = all.associateWith { k -> layout.placed[k].parts.maxOf { it.bounds()[3] } }
-                    for (k in all.filter { bridgeAt[it] < stripped[it].size }.sortedByDescending { maxX.getValue(it) }) {
+                    val minX = all.associateWith { k -> layout.placed[k].parts.minOf { it.bounds()[0] } }
+                    for (k in if (fromPlusX) bridged.sortedByDescending { maxX.getValue(it) } else bridged.sortedBy { minX.getValue(it) }) {
                         steps.add(LiftTo(topUm + zHopUm))
                         merge(listOf(k), IntArray(stripped.size) { stripped[it].size })
                     }
