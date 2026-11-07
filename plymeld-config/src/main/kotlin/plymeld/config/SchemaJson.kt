@@ -42,12 +42,14 @@ object SchemaJson {
         val defs = LinkedHashMap<String, JsonElement>()
         // each scope as its own closed table, from Schema.scopesOf: job and plan for the
         // plate; job.object / plan.object for one object (the values allowed there plus the object-level declarations);
-        // plan.part for one part. No allOf over a closed $ref: such a member closes the table on its own and refuses the
-        // keys the others add (the object-level ones, and pose, a choice for the plate but a table for an object)
+        // plan.part for one part; a region's values under its own key in the object's table (plan.object.<key>.region.<key>,
+        // beside the region's own min, max, from, to, facing). No allOf over a closed $ref: such a member closes the table on
+        // its own and refuses the keys the others add (the object-level ones, and pose, a choice for the plate but a table for an object)
         for (scope in listOf("job", "plan")) {
             val own = Schema.decls.filter { it.segments[0] == scope && !objectLevel(it) }
             fun at(s: Schema.Scope) = own.filter { s in Schema.scopesOf(it.segments) }.map { it.segments.drop(1) to it }
-            val objectDecls = Schema.decls.filter { it.segments[0] == scope && objectLevel(it) }.map { it.segments.drop(3) to it }
+            val objectDecls = Schema.decls.filter { it.segments[0] == scope && objectLevel(it) }.map { it.segments.drop(3) to it } +
+                own.filter { Schema.Scope.REGION in Schema.scopesOf(it.segments) }.map { listOf("region", "<key>") + it.segments.drop(1) to it }
             defs[scope] = node(tree(at(Schema.Scope.PLATE)), "object" to keyed("#/\$defs/$scope.object",
                 "per-object values, by object key (`name`, `name#2` ...); they win over the general ones"))
             defs["$scope.object"] = node(tree(at(Schema.Scope.OBJECT) + objectDecls),

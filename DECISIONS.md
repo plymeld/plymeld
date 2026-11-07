@@ -237,3 +237,28 @@ kept as aliases: plymeld has no users to migrate yet, and two names for one valu
 **Consequences.** `plan.seam = "corners"` alone no longer means "no scarf seams": scarf seams are then decided; set
 `plan.technique.scarf_seam.enabled = "false"` for none. Configs and plan files in the old words are refused as unknown
 values or keys.
+
+## 11. A region of an object is chosen by geometry, and its values apply segment by segment (2026-11-07)
+
+**Context.** A value could be scoped to the plate, an object (or one copy), or a part by its 3MF name. Nothing pointed at
+part of an object the file does not name: slowing one side, a surface technique on one face, support under one ledge.
+And a part with settings of its own is laid as its own unit, walled on its own, even for a value that changes no geometry.
+
+**Decision.** A region is `plan.object.<key>.region.<key>`, chosen by geometry and never by index: a box in the model's own
+coordinates (turned with the pose, the turned box's bounding box), a height range as printed from the object's bottom,
+the faces its lines lay (`facing`, in the words of `plan.faces`: `flat_top`, `sloped_top`, `side`, `under`), or several of these, a line being in it where every
+one given holds. Its values are a scope of their own (`Schema.Scope.REGION`): only the values the code reads per region
+may be set there, the motion caps for now; any other is refused, as a value under any scope the code does not read.
+A region's caps apply segment by segment: a path crossing a region's side gets a vertex there, and each segment carries
+the caps of the regions holding it. A path stays one path and a loop a loop.
+
+**Rejected.** Cutting each path into pieces at the region's sides, the pieces in it capped: simpler in the writer, but a
+first layer's outer wall split into open pieces was no longer a loop, and the prime line, which looks for one, was left
+out (found by the test's plastic count). A region as a part (a mesh volume): the geometry of a box, a height range, and
+the faces covers the cases asked for without a modeled volume, and a part as a region is a later step (#31's remaining
+case). Facing by a direction vector: the faces' kinds are the words the config already uses for surfaces.
+
+**Consequences.** Lines in a region are written segment by segment, not fitted to arcs. The quick time estimates and the
+minimum-layer-time estimate do not count a region's caps (the full prediction, from the g-code, does). A line does not
+say whether the top it lays is flat or sloped, so `flat_top` and `sloped_top` both select top surface lines. More values
+per region come one by one, each with the code that reads it.

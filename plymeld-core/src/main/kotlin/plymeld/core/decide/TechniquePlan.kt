@@ -24,7 +24,9 @@ class TechniquePlan(val bands: List<Banded>,
                     * Curved islands: caps whose islands, above their start,
                     * are printed in their own layers with the shifted warp, beside the bands' flat layers.
                     */
-                   val islands: List<CurvedIsland> = emptyList()) {
+                   val islands: List<CurvedIsland> = emptyList(),
+                   /** The object's regions in its pose (plan.object.<key>.region.<key>): the values set for the lines in each. */
+                   val regions: List<Region.Posed> = emptyList()) {
     /**
      * One band. [follow], for flat layers only: its layers follow the surfaces, each as thick as the surfaces it
      * crosses allow within the tool's thinnest and thickest layer (what adaptive layers were); false = one height, the plan's
@@ -58,13 +60,15 @@ class TechniquePlan(val bands: List<Banded>,
     private val heightNote: String get() = if (layerHeightMm == null || followsThroughout) "" else ", flat layers ${Control.fmt(layerHeightMm)} mm"
     private val supportNote: String get() = support?.let { s -> if (s.any) "; support under ${s.spots.size} spot(s)" + (if (s.locked.isNotEmpty()) " (${s.locked.size} locked)" else "") else "; no support" } ?: ""
     /** The same bands with the flat bands of one height [h] mm thick (none when every band follows the surfaces: the height would mean nothing). */
-    fun at(h: Double?) = TechniquePlan(bands, if (followsThroughout) null else h, curvedDepthAuto, support, inserts, islands)
+    fun at(h: Double?) = TechniquePlan(bands, if (followsThroughout) null else h, curvedDepthAuto, support, inserts, islands, regions)
     /** The same plan with support [s] beside it. */
-    fun withSupport(s: SupportPlan?) = TechniquePlan(bands, layerHeightMm, curvedDepthAuto, s, inserts, islands)
+    fun withSupport(s: SupportPlan?) = TechniquePlan(bands, layerHeightMm, curvedDepthAuto, s, inserts, islands, regions)
     /** The same plan with the planned inserts [ins]. */
-    fun withInserts(ins: List<Insert.Posed>) = TechniquePlan(bands, layerHeightMm, curvedDepthAuto, support, ins, islands)
+    fun withInserts(ins: List<Insert.Posed>) = TechniquePlan(bands, layerHeightMm, curvedDepthAuto, support, ins, islands, regions)
     /** The same plan with the curved islands [isl]. */
-    fun withIslands(isl: List<CurvedIsland>) = TechniquePlan(bands, layerHeightMm, curvedDepthAuto, support, inserts, isl)
+    fun withIslands(isl: List<CurvedIsland>) = TechniquePlan(bands, layerHeightMm, curvedDepthAuto, support, inserts, isl, regions)
+    /** The same plan with the object's regions [rs], posed. */
+    fun withRegions(rs: List<Region.Posed>) = TechniquePlan(bands, layerHeightMm, curvedDepthAuto, support, inserts, islands, rs)
 
     /**
      * The bands as the coordinator's portions: z bands, each with its technique, flat
@@ -90,7 +94,7 @@ class TechniquePlan(val bands: List<Banded>,
         .filter { it.hi > it.lo + 1e-9 }
         .let { bs -> bs.mapIndexed { i, b -> if (i == bs.size - 1) LayerPlan.Band(b.lo, zMax, b.adaptive) else b } }
 
-    override fun equals(other: Any?) = other is TechniquePlan && other.bands.size == bands.size && other.layerHeightMm == layerHeightMm && other.support == support && other.inserts == inserts &&
+    override fun equals(other: Any?) = other is TechniquePlan && other.bands.size == bands.size && other.layerHeightMm == layerHeightMm && other.support == support && other.inserts == inserts && other.regions == regions &&
         bands.zip(other.bands).all { (a, b) -> a.same(b) && Math.abs(a.lo - b.lo) < 1e-9 && (a.hi == b.hi || Math.abs(a.hi - b.hi) < 1e-9) }
     override fun hashCode() = bands.fold(layerHeightMm.hashCode() * 31 + support.hashCode() + inserts.hashCode()) { h, b -> 31 * (31 * h + b.technique.hashCode()) + b.follow.hashCode() }
 

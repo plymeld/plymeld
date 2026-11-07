@@ -84,7 +84,9 @@ class Plan(/** Every decision, in the order made: each object's pose and techniq
                          /** Bond-first cooling locked on or off (plan.bond_cooling: the value and source); null = decided. */
                          val bondCooling: Pair<Boolean, String>? = null,
                          /** Curved islands a plan locks (plan.object.<key>.island.<key>): each cap's island in its own layers; locked only, for now. */
-                         val islands: List<CurvedIsland.Lock> = emptyList())
+                         val islands: List<CurvedIsland.Lock> = emptyList(),
+                         /** The object's regions (plan.object.<key>.region.<key>): the values set for the lines in each. */
+                         val regions: List<Region> = emptyList())
 
         /**
          * What the quick time estimate reads for object [k] with [partCount] parts: its parts grouped as
@@ -497,9 +499,23 @@ class Plan(/** Every decision, in the order made: each object's pose and techniq
                         d.alternatives, d.standIns, d.overridden)
                 }
             }
+            // the object's regions: each posed with its chosen pose, carried on its technique plan to the slice (the lines in each
+            // get its values: MotionRegions)
+            val techniques2 = techniques1.mapIndexed { k, d ->
+                val rs = o.objects.getOrNull(k)?.regions.orEmpty()
+                if (rs.isEmpty()) d else {
+                    val bs = posed[k].second.map { it.bounds() }
+                    val bounds = doubleArrayOf(bs.minOf { it[0] }, bs.minOf { it[1] }, bs.minOf { it[2] }, bs.maxOf { it[3] }, bs.maxOf { it[4] }, bs.maxOf { it[5] })
+                    val pr = rs.map { r -> try { r.posed(poses[k].value, bounds) } catch (e: IllegalArgumentException) { error("'${objects[k].first}': ${e.message}") } }
+                    Decision(d.step, d.value.withRegions(pr), d.why,
+                        d.facts + rs.map { r -> "region '${r.key}' (${r.source}): ${r.words}; " + listOfNotNull(r.speedMax?.let { "lines in it at most %s mm/s".format(Locale.ROOT, Control.fmt(it)) },
+                            r.accelMax?.let { "accelerating at most %s mm/s²".format(Locale.ROOT, Control.fmt(it)) }).joinToString(", ") },
+                        d.alternatives, d.standIns, d.overridden)
+                }
+            }
             // curved islands a plan locks: each found on the posed object by
             // the point on its cap, carried on its technique plan to the slice (its own layers, merged by height with the flat ones)
-            val techniques = techniques1.mapIndexed { k, d ->
+            val techniques = techniques2.mapIndexed { k, d ->
                 val locked = o.objects.getOrNull(k)?.islands.orEmpty()
                 if (locked.isEmpty()) d else {
                     val name = objects[k].first

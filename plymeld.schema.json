@@ -4745,6 +4745,32 @@
                     }
                   }
                 },
+                "speed": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "max": {
+                      "description": "the fastest any line prints, whatever its own speed; set on a region (plan.object.<key>.region.<key>.mechanism.motion.speed.max) for the lines in it only, without laying the object in pieces; unset = no cap — a speed (mm/s); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    }
+                  }
+                },
+                "acceleration": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "max": {
+                      "description": "the most any line accelerates, whatever its own acceleration; set on a region for the lines in it only; unset = no cap — a accel (mm/s2); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    }
+                  }
+                },
                 "melt": {
                   "type": "object",
                   "additionalProperties": false,
@@ -6807,6 +6833,32 @@
                     }
                   }
                 },
+                "speed": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "max": {
+                      "description": "the fastest any line prints, whatever its own speed; set on a region (plan.object.<key>.region.<key>.mechanism.motion.speed.max) for the lines in it only, without laying the object in pieces; unset = no cap — a speed (mm/s); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    }
+                  }
+                },
+                "acceleration": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "max": {
+                      "description": "the most any line accelerates, whatever its own acceleration; set on a region for the lines in it only; unset = no cap — a accel (mm/s2); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    }
+                  }
+                },
                 "melt": {
                   "type": "object",
                   "additionalProperties": false,
@@ -7200,6 +7252,112 @@
             "right",
             "above"
           ]
+        },
+        "region": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "min": {
+                "description": "a region of the object: the least corner of its box, in the model's own coordinates as its file gives them (turned with the model's pose: the region is the turned box's bounding box); with max. Unset (both) = no box: the height range and the faces alone — a point, x y z and a unit (\"10 20 5 mm\"); or an array of 3 numbers (mm)",
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 3,
+                    "maxItems": 3
+                  }
+                ]
+              },
+              "max": {
+                "description": "the region's box's greatest corner (above min on every axis), in the model's own coordinates — a point, x y z and a unit (\"10 20 5 mm\"); or an array of 3 numbers (mm)",
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 3,
+                    "maxItems": 3
+                  }
+                ]
+              },
+              "from": {
+                "description": "the region's bottom as printed: lines at or above this height from the object's bottom; unset = from the bottom — a length (mm); or a formula (= ...)",
+                "type": [
+                  "string",
+                  "number"
+                ]
+              },
+              "to": {
+                "description": "the region's top as printed: lines at or below this height from the object's bottom; unset = to the top — a length (mm); or a formula (= ...)",
+                "type": [
+                  "string",
+                  "number"
+                ]
+              },
+              "facing": {
+                "description": "the lines in the region by the faces they lay, in plan.faces's words: side = wall lines, flat_top and sloped_top = top surface lines and their ironing (a line does not say whether its top is flat or sloped: either selects both), under = bottom surfaces, bridges, and wave overhangs; unset = every line",
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "flat_top",
+                    "sloped_top",
+                    "side",
+                    "under"
+                  ]
+                }
+              },
+              "mechanism": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "motion": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "speed": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "max": {
+                            "description": "the fastest any line prints, whatever its own speed; set on a region (plan.object.<key>.region.<key>.mechanism.motion.speed.max) for the lines in it only, without laying the object in pieces; unset = no cap — a speed (mm/s); or a formula (= ...)",
+                            "type": [
+                              "string",
+                              "number"
+                            ]
+                          }
+                        }
+                      },
+                      "acceleration": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "max": {
+                            "description": "the most any line accelerates, whatever its own acceleration; set on a region for the lines in it only; unset = no cap — a accel (mm/s2); or a formula (= ...)",
+                            "type": [
+                              "string",
+                              "number"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "properties": {}
         },
         "pose": {
           "type": "object",
@@ -8572,6 +8730,32 @@
                   "properties": {
                     "speed": {
                       "description": "bridge speed; a wall line slows toward it as more of it hangs over air — a speed (mm/s); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    }
+                  }
+                },
+                "speed": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "max": {
+                      "description": "the fastest any line prints, whatever its own speed; set on a region (plan.object.<key>.region.<key>.mechanism.motion.speed.max) for the lines in it only, without laying the object in pieces; unset = no cap — a speed (mm/s); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    }
+                  }
+                },
+                "acceleration": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "max": {
+                      "description": "the most any line accelerates, whatever its own acceleration; set on a region for the lines in it only; unset = no cap — a accel (mm/s2); or a formula (= ...)",
                       "type": [
                         "string",
                         "number"
