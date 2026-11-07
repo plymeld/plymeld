@@ -152,11 +152,10 @@ private fun objectInput(ps: List<ThreeMfPart>, model: Path, plate: Int?): ModelI
 /**
  * `--pose`: derive (default) or keep the model's own orientation ("as-given").
  * `--placement`: where it then sits: "center" (bottom on the bed, footprint centered) or "as-given"
- * (the model's own position). Unset: as-given with `--pose as-given`, center with a derived pose.
+ * (the model's own position); "centre" is read as "center". Unset: as-given with `--pose as-given`, center with a derived pose.
  */
-fun poseOverride(pose: String, placement: String? = null): Pose? {
-    if (placement != null && placement != "center" && placement != "as-given")
-        throw UsageError("--placement must be 'center' or 'as-given' (got '$placement')")
+fun poseOverride(pose: String, given: String? = null): Pose? {
+    val placement = given?.let { plymeld.config.Spelling.american(it, listOf("center", "as-given")) ?: throw UsageError("--placement must be 'center' or 'as-given' (got '$it')") }
     return when (pose) {
         "derive" -> if (placement == "as-given") throw UsageError("--placement as-given needs --pose as-given: a derived pose turns the model, so it has no position of its own") else null
         "as-given" -> if (placement == "center") Pose.asGivenCentered() else Pose.asGiven()
