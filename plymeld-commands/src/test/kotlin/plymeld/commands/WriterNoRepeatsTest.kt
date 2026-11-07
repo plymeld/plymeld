@@ -19,7 +19,7 @@ class WriterNoRepeatsTest : StringSpec({
     "no line width, acceleration, or travel that repeats what is in force; control: scarf seams are there" {
         val out = Files.createTempDirectory("plymeld-repeats").resolve("block.gcode")
         val status = Commands.invoke(listOf("slice") + cfs.flatMap { listOf("-cf", it) } +
-            listOf("plan.pose=as-given", "plan.placement=center", "plan.seam=scarf_seam", "plan.technique.scarf_seam.where=all").flatMap { listOf("-cv", it) } +
+            listOf("plan.pose=as-given", "plan.placement=center", "plan.seam=corners", "plan.technique.scarf_seam.enabled=true", "plan.technique.scarf_seam.where=all").flatMap { listOf("-cv", it) } +
             listOf("-m", root.resolve("test-models/holeblock.stl").toString(), "-o", out.toString()), { })
         status shouldBe 0
         var width: String? = null; var accel: String? = null; var x: String? = null; var y: String? = null; var feature = ""
