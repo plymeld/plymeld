@@ -9,8 +9,18 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Added
+
+- A multi-color model printed with the filaments you have, without editing it: `model.slots` maps the filament numbers
+  the model file gives its parts to the loadout's slots (`model.slots = { 4 = 1, 5 = 2 }`; `"*"` for every number; an
+  object's own `model.object.<key>.slots` first), and `--slot N` on `slice` and `plan` prints every part from slot N. A
+  part on a filament that is not loaded is refused with both named, and the window's Model step offers "Print every
+  part from slot N". plymeld says which of the model's filaments print from another slot.
+
 ### Changed
 
+- A 3MF whose parts are all on one filament is said to have its parts "all on one filament" (it said "sliced as one
+  body", which depends on the config as well).
 - Deciding how to print a model is faster, with the same decisions and the same g-code: on 3DBenchy the pose and
   technique search takes about a fifth less time. The slicer prepares each posed model once rather than for each cut,
   and finding what an overhang stands on looks only at the faces under it.

@@ -189,8 +189,30 @@ class JobState(val viewer: ViewerState) {
         val last = LastJob.read()
         val (files, notes) = configsFor(listOf(model), if (configFiles.isNotEmpty()) configFiles else last?.configFiles ?: emptyList())
         notes.forEach { say(it) }
-        Snapshot.withMutableSnapshot { tries = emptyList() }   // a try is for the job it was made in
+        Snapshot.withMutableSnapshot { tries = emptyList(); slot = null }   // a try, and the one slot, are for the job they were made in
         open(files, listOf(model), machine ?: last?.machine, done)
+    }
+
+    /**
+     * Every part printed from one slot of the loadout (`--slot N`, as `plan` and `slice` take it), or null for the slots the
+     * model file and the config give: step 1 offers it when the model is refused for a filament the loadout lacks.
+     */
+    var slot by mutableStateOf<Int?>(null); private set
+    /**
+     * The slot the last refusal suggests printing every part from (its "--slot N"), when the job could not be read because a
+     * part's filament is not loaded; null otherwise. Step 1's "Print every part from slot N".
+     */
+    var slotOffer by mutableStateOf<Int?>(null); private set
+
+    /** The job opened again with every part on slot [n] (null: the model's own slots again); when it cannot be read so, as it was. */
+    fun useSlot(n: Int?, done: () -> Unit = {}) {
+        val before = slot
+        say(if (n == null) "slots: as the model and the config give them" else "every part from slot $n")
+        Snapshot.withMutableSnapshot { slot = n }
+        open(configFiles, modelFiles, machine) {
+            val err = openError
+            if (err != null) { say("not changed: $err"); Snapshot.withMutableSnapshot { slot = before }; open(configFiles, modelFiles, machine, done) } else done()
+        }
     }
 
     /**
@@ -403,7 +425,8 @@ class JobState(val viewer: ViewerState) {
 
     /** The command line that would do what the window does, for the console (every action is a command). */
     private fun args(command: String, vararg more: String): List<String> =
-        listOf(command) + configFiles.flatMap { listOf("-cf", it) } + tries.flatMap { listOf("-cv", it) } + modelFiles.flatMap { listOf("-m", it) } + (machine?.let { listOf("--machine", it) } ?: emptyList()) + more
+        listOf(command) + configFiles.flatMap { listOf("-cf", it) } + tries.flatMap { listOf("-cv", it) } + modelFiles.flatMap { listOf("-m", it) } + (machine?.let { listOf("--machine", it) } ?: emptyList()) +
+            (slot?.let { listOf("--slot", it.toString()) } ?: emptyList()) + more
 
     /**
      * Opens a job: the config files and models as `plymeld plan -cf ... -m ...` takes them, then decides the plan. Runs
@@ -417,6 +440,7 @@ class JobState(val viewer: ViewerState) {
         this.modelFiles = modelFiles; this.machine = machine
         val configFiles = this.configFiles
         openError = null
+        Snapshot.withMutableSnapshot { slotOffer = null }
         Thread({
             try {
                 // a job opened again (an edit, undo, redo, another model): what was sliced is of the old plan, and the old job
@@ -463,7 +487,8 @@ class JobState(val viewer: ViewerState) {
                     showParts(parts, parts.map { Renderer.DEFAULT_MESH_RGB })
                     return@Thread
                 }
-                val st = ConfigStack.load(configFiles, tries)   // the values tried for this run (-cv) over every file
+                // the values tried for this run (-cv) over every file, then the one slot (--slot), as the command line orders them
+                val st = ConfigStack.load(configFiles, tries).let { s -> slot?.let { ConfigStack(s.all + plymeld.commands.slotEntry(it)) } ?: s }
                 Snapshot.withMutableSnapshot { machines = machinesOf(st) }
                 val pr = Product(st, modelFiles.map { Path.of(it) }, machine, null, rePlan = false) { say(it) }
                 product = pr
@@ -499,6 +524,8 @@ class JobState(val viewer: ViewerState) {
             } catch (e: Exception) {
                 say("plymeld: ${e.message}")
                 openError = e.message ?: e.toString()
+                // a part on a filament the loadout lacks: the refusal's own suggestion, --slot N, offered in step 1
+                Snapshot.withMutableSnapshot { slotOffer = if (slot == null) SLOT_SUGGESTION.find(openError!!)?.groupValues?.get(1)?.toIntOrNull() else null }
                 Snapshot.withMutableSnapshot {
                     if (product == null) {
                         // the job could not be read: nothing of the job before stays on the steps (it is not what the title names)
@@ -1115,6 +1142,8 @@ class JobState(val viewer: ViewerState) {
         /** The gray of layers shown while they are sliced again after an edit ([stale]). */
         const val STALE_RGB = 0x6B7280
         const val SLICE_WAITS = "after the plan is decided"
+        /** The fix the refusal of an unloaded filament names (ConfigSetup.notLoaded): every part from one slot, its number. */
+        val SLOT_SUGGESTION = Regex("print every part from one with --slot (\\d+)")
         const val SEND_WAITS = "after a slice whose check passes"
         /** The model's see-through strength behind the lines in the Layers tab: enough to place a layer in the shape, not enough to tint it. plymeld's choice. */
         const val GHOST = 0.12f

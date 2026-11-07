@@ -144,3 +144,23 @@ reading its code: it missed what a user sees.
 
 **Consequences.** A new option shows the same everywhere with no work of its own; its help must state its default.
 The window's tests take minutes (they slice), run with the UI module's tests.
+
+## 7. A model's filaments reach the loadout through a slot map; `--slot N` prints every part from one (2026-11-06)
+
+**Context.** A 3MF puts each part on a filament number. A number the machine's loadout lacks was refused, and the only
+way round it without editing the model was a slot for each part (`model.object.<key>.part.<part>.slot`): 29 lines for a
+29-part, five-color model printed in one filament.
+
+**Decision.** `model.slots` maps the model file's filament numbers to the loadout's slots (`{ 4 = 1, 5 = 2 }`, `"*"` for
+every number), and `model.object.<key>.slots` does the same for one object, over it. A part's own slot wins over both, a
+number's own entry over `"*"`, and a number in no map prints from the model's own. `--slot N` on `slice` and `plan` is
+`model.slots."*" = N` for the run, after the `-cv` values. The refusal of an unloaded filament names both, and the
+window's Model step offers the refusal's `--slot N`. The setup and the pre-print check's tool list read a part's slot
+through one function (`ConfigSetup.partSlot`).
+
+**Rejected.** One slot per object only: it prints one color and cannot fold five colors onto two filaments or renumber
+a model to the loadout. An option alone: it lives in no config file. Folding unloaded numbers onto slot 1 by itself:
+it guesses which color matters, where a refusal that names the fix lets the user choose.
+
+**Consequences.** Like `-cv`, `--slot` is not written into a plan file: a plan made with it is sliced with it again, or
+with `model.slots` in a config file. Parts mapped onto one filament are sliced as one body where their settings agree.

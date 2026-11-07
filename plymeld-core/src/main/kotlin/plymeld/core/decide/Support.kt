@@ -399,12 +399,14 @@ object Overhangs {
      * The upward-facing triangles of a posed model by where they lie in XY: a grid over the model's footprint, each cell
      * listing every triangle whose box (grown by [FOOTPRINT_SLACK]) touches it. A ray down from a point can only hit those
      * of its cell, so [standsOn] tries a few triangles, not every one of a model for each region (a survey asks for every
-     * region; scanning the whole model each time was a twentieth of a pose search). Built once per posed model, held
-     * weakly; a soup's coordinates are not changed once it is made.
+     * region; scanning the whole model each time was a twentieth of a pose search). Built once per posed model and kept
+     * while there is room ([SoupCache]).
      */
     private class Footprints(p: TriangleSoup) {
         private val x0: Double; private val y0: Double; private val cell: Double; private val nx: Int; private val ny: Int
         private val start: IntArray; private val tris: IntArray
+        /** Its size, for [SoupCache]'s bound. */
+        val bytes: Long get() = 4L * (start.size + tris.size)
         init {
             val c = p.coords
             var bx0 = Double.POSITIVE_INFINITY; var by0 = bx0; var bx1 = Double.NEGATIVE_INFINITY; var by1 = bx1
@@ -461,11 +463,8 @@ object Overhangs {
     private const val FOOTPRINT_SLACK = 1e-2
     /** The footprint grid's most cells a side: a bound on its size for a model of few large triangles, not a print value. */
     private const val FOOTPRINT_CELLS = 512
-    private val footprintsOf = java.util.WeakHashMap<TriangleSoup, Footprints>()
-    private fun footprints(p: TriangleSoup): Footprints {
-        synchronized(footprintsOf) { footprintsOf[p] }?.let { return it }
-        return Footprints(p).also { synchronized(footprintsOf) { footprintsOf[p] = it } }
-    }
+    private val footprintsOf = plymeld.mesh.SoupCache<Footprints>(plymeld.mesh.SoupCache.heapShare()) { it.bytes }
+    private fun footprints(p: TriangleSoup): Footprints = footprintsOf.get(p) { Footprints(p) }
 
     /** Each triangle's three vertex ids, positions within a micron sharing an id: how the survey joins faces into regions. */
     fun vertexIds(p: TriangleSoup): IntArray {

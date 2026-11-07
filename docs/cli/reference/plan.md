@@ -17,5 +17,6 @@ Options:
 - `--explain`: also print how each object's techniques were chosen: the proposals and their fate, the candidates and their measures, the handoffs, the scoring, and the decision
 - `--explain-json=<file>`: write the same as --explain as JSON to FILE
 - `--plate=<n>`: which plate of a 3MF project to use (1-based, as the project numbers them); needed when several have objects
+- `--slot=<n>`: print every part from slot N of the loadout, whatever filament the model file puts it on (sets model.slots."\*" = N for this run, over the config; model.slots maps the model's filaments one by one)
 - `-o, --output=<file>`: write the decisions as a config file (TOML), for `plymeld slice -cf`
 - `-h, --help`: Show this message and exit

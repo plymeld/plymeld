@@ -74,15 +74,13 @@ object ConfigSetup {
         val materialTool = slots.map { it.filament to it.toolIndex }.distinct().associate { (f, t) -> (f to t - 1) to Values(Entity.MATERIAL_TOOL, "$f in tool $t") }
 
         fun slotSite(s: Slot) = base.copy(tool = s.tool, filament = s.filament)
-        fun slotOf(n: Int, what: String): Slot = slots.firstOrNull { it.number == n }
-            ?: throw ConfigError(listOf("$what uses filament $n, but the loadout has ${slots.joinToString { it.number.toString() }} (hardware.machine.$machine.loadout)"))
+        fun slotOf(n: Int, what: String): Slot = slots.firstOrNull { it.number == n } ?: throw ConfigError(listOf(notLoaded(what, n, slots, machine)))
 
-        // objects: each part's slot (the model's, or model.object.<key>.part.<part>.slot)
+        // objects: each part's slot ([partSlot]: its own lock, else the model's number through the slot map)
         val objectSetups = c.objects.map { o ->
             val parts = o.model.partNames.indices.map { k ->
                 val pk = o.partKeys[k]
-                val lock = c.entry(listOf("model", "object", o.key, "part", pk, "slot")) ?: c.entry(listOf("model", "object", o.base, "part", pk, "slot"))
-                val n = lock?.let { c.quantity(it, Dimension.COUNT, base.copy(obj = o, part = pk)).toInt() } ?: o.model.partSlots[k]
+                val n = partSlot(c, o, k, base)
                 slotOf(n, "part '${o.model.partNames[k]}' of '${o.key}'")
                 PartSetup(o.model.partNames[k], "spool $n", Values(Entity.INTENT, "${o.key} part $pk"))
             }
@@ -148,6 +146,29 @@ object ConfigSetup {
         return Result(Setup(machineV, tools, materials, spools, materialTool, intents, objectSetups, keysOf = Schema::keysOf, plate = plateV, models = Models.library(c)),
             pauses, notes + c.warnings, warnings + windowWarnings, firstLayer)
     }
+
+    /**
+     * The slot part [k] of [o] prints from: its own `model.object.<key>.part.<part>.slot` (on the copy, else its base); else
+     * the model file's filament number for it through the slot map: `model.object.<key>.slots` (the copy's, else its base's),
+     * then `model.slots`, each its entry for that number, else its "*" entry (every number); else the model's number.
+     * [site] is where the values are read (the machine; the object and part are filled in here).
+     */
+    fun partSlot(c: Config, o: PlateObject, k: Int, site: Site): Int {
+        val pk = o.partKeys[k]
+        val at = site.copy(obj = o, part = pk)
+        fun count(e: ConfigFiles.Entry) = c.quantity(e, Dimension.COUNT, at).toInt()
+        val own = c.entry(listOf("model", "object", o.key, "part", pk, "slot")) ?: c.entry(listOf("model", "object", o.base, "part", pk, "slot"))
+        if (own != null) return count(own)
+        val n = o.model.partSlots[k]
+        val maps = listOf(listOf("model", "object", o.key, "slots"), listOf("model", "object", o.base, "slots"), listOf("model", "slots")).distinct()
+        for (m in maps) for (key in listOf(n.toString(), "*")) c.entry(m + key)?.let { return count(it) }
+        return n
+    }
+
+    /** The refusal of a part on a filament number the loadout lacks: the slots it has, and how to map the model's numbers to them. */
+    fun notLoaded(what: String, n: Int, slots: List<Slot>, machine: String): String =
+        "$what uses filament $n, but the loadout has ${slots.joinToString { it.number.toString() }} (hardware.machine.$machine.loadout); " +
+            "map the model's filaments to the loaded ones with model.slots (e.g. model.slots = { $n = ${slots.first().number} }), or print every part from one with --slot ${slots.first().number}"
 
     /** The filament slots of [machine]'s loadout (`hardware.machine.<machine>.loadout`), by number; an empty one ("") is no slot. */
     fun slots(c: Config, machine: String, problems: MutableList<String>): List<Slot> {

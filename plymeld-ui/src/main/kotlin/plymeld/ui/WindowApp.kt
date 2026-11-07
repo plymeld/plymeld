@@ -322,6 +322,13 @@ private fun Steps(j: JobState, ui: WindowUi, modifier: Modifier, rail: Boolean, 
             // "Turn or move" opens the pose and placement settings in the drawer
             Actions(listOf((if (j.modelFilesOpen.isEmpty()) "Open…" else "Open another…") to onOpen, "Add a model…" to onAddModel, link("Turn or move")),
                 mapOf("Open another…" to j.commandLine("plan").substringBefore(" -m ") + " -m MODEL", "Add a model…" to j.commandLine("plan") + " -m MODEL"))
+            // a part on a filament the loadout lacks: print every part from the slot the refusal names (--slot N); once
+            // printed from one slot, the way back to the model's own (JobState.useSlot)
+            j.slotOffer?.let { n -> Actions(listOf("Print every part from slot $n" to { j.useSlot(n) }), mapOf("Print every part from slot $n" to j.commandLine("plan", "--slot", n.toString()))) }
+            j.slot?.let { n ->
+                Text("every part printed from slot $n (--slot $n)", color = Ink.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                Actions(listOf("Print in the model's filaments" to { j.useSlot(null) }))
+            }
             // the models on the plate, each with × to take it off (JobState.removeModel)
             if (j.modelFilesOpen.size > 1) FileRows(j.modelFilesOpen, "take this model off the plate") { j.removeModel(it) }
         }

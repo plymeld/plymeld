@@ -48,7 +48,9 @@ plymeld slice -m 'parts/*.stl' -o plate.gcode
 ```
 
 `-m` adds a model file (STL or 3MF) or a glob of them to the plate; repeat it for more. For a 3MF project with several
-plates, `--plate N` picks one. `-o` names the g-code file to write. Before writing it, plymeld checks the g-code against
+plates, `--plate N` picks one. A 3MF puts each part on a filament number; `model.slots` in a config file maps those
+numbers to your loadout's slots (`model.slots = { 4 = 1, 5 = 2 }`), and `--slot N` prints every part from slot N, a
+multi-color model in one filament. `-o` names the g-code file to write. Before writing it, plymeld checks the g-code against
 the machine (its limits, retraction, travels, tools, start, and end) and against the model.
 
 To see how plymeld would print the models, and why:

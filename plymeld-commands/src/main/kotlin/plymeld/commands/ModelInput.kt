@@ -141,7 +141,7 @@ private fun objectInput(ps: List<ThreeMfPart>, model: Path, plate: Int?): ModelI
     val slots = partSlots.distinct().sorted()
     val notes = listOfNotNull(
         plate?.takeIf { it != 1 }?.let { "plate $it of ${model.fileName}" },
-        if (ps.size > 1 && partSlots.distinct().size == 1) "${ps.size} parts (${ps.joinToString { it.name }}) sliced as one body" else if (ps.size > 1) "${ps.size} parts (${ps.joinToString { it.name }})" else null,
+        if (ps.size > 1 && partSlots.distinct().size == 1) "${ps.size} parts (${ps.joinToString { it.name }}), all on one filament" else if (ps.size > 1) "${ps.size} parts (${ps.joinToString { it.name }})" else null,
         if (slots.size > 1) "multi-color: parts on filaments ${slots.joinToString()}" else null,
         if (partKeys.isNotEmpty()) "part settings: ${partKeys.joinToString()}" else null,
     )
