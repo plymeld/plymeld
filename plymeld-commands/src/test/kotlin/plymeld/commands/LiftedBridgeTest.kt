@@ -727,7 +727,7 @@ class LiftedBridgeTest : StringSpec({
     }
     // plan.technique.bridge.first_layer = "wave_overhang" with
     // plan.bridge_order = "one_at_a_time" (the feet first, then the bridges one after another)
-    "a waved arch: its first layer wave beads, one side from its pillar up to the middle, then the other, none running down; two arches one after the other from +X; the check passes; wave.sides alternate: the sides front by front, still climbing; wave.edges.order last: every edge piece after both sides' beads; one_support: from one pillar over the peak and down to the other; wave.layers 2: the first two layers together; control: lines" {
+    "a waved arch: its first layer wave beads, one side from its pillar up to the middle, then the other, none running down; two arches one after the other from the side the head reaches least (+X here; mirrored, -X); the check passes; wave.sides alternate: the sides front by front, still climbing; wave.edges.order last: every edge piece after both sides' beads; one_support: from one pillar over the peak and down to the other; wave.layers 2: the first two layers together; control: lines" {
         fun moved(ts: List<DoubleArray>, dx: Double, dy: Double) = ts.map { t -> DoubleArray(9) { i -> t[i] + if (i % 3 == 0) dx else if (i % 3 == 1) dy else 0.0 } }
         // the strip along X: pillars 8 x 10 x 6 mm, 20 mm apart, arching 2 mm
         val arc = (0..40).map { i -> val x = -10.0 + i * 0.5; val r = 26.0; x to 6.0 + Math.sqrt(r * r - x * x) - (r - 2.0) }
@@ -800,6 +800,10 @@ class LiftedBridgeTest : StringSpec({
             sides.zipWithNext().count { (a, b) -> a != b } shouldBe 1
         }
         beads.keys shouldBe setOf("wa", "wb")
+        // the order follows the head: this tool's nozzle sits 70 mm from the head's left edge in a 90 mm head (reaching
+        // 20 mm towards +X), so the bridges go from +X (wb first); control: the head mirrored (the nozzle 20 mm from its left
+        // edge, reaching least towards -X), from -X (wa first)
+        read(sliced("wave_overhang", "wave_arch_mirrored.gcode", cv = listOf("hardware.tool.t1.head.nozzle.x=20 mm"))).second shouldBe listOf("wa", "wb")
         // plan.technique.bridge.wave.sides = "alternate" (the sides front by front): the
         // same beads, each still climbing, the side changing at nearly every front
         val (alt, altOrder) = read(sliced("wave_overhang", "wave_alt.gcode", "alternate"))

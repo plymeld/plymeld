@@ -24,6 +24,9 @@ section the release's version and date.
 
 ### Changed
 
+- `plan.bridge_order = "one_at_a_time"` lays the bridges from the side the head reaches least (the tools' head size and
+  nozzle position, else their machine model's), as objects printed one at a time are placed, so the head never passes
+  over a finished bridge. It always went from +X, which suited only a head reaching least towards +X.
 - The bundled filaments' idle temperature (a parked nozzle on a machine with several) is 100 C below printing, was
   40 C below (170 C for the bundled PLA), where a parked nozzle may ooze onto the print and the bed. The rise back to
   printing is the next tool's pre-heat (`hardware.tool.heat.time`) or its wait.
