@@ -48,6 +48,9 @@ section the release's version and date.
   `plan.technique.scarf_seam.enabled` (was `plan.seam = "scarf_seam"` with `scarf_seam.plain_style`, now gone).
   Each is locked on its own, or decided when unset: `plan.seam = "corners"` alone leaves scarf seams decided (set
   `scarf_seam.enabled = "false"` for none). Configs and plan files in the old words are refused; `plan -o` writes the new.
+- A part whose own settings only restate what it would have anyway (a project's per-part keys repeating the object's)
+  is laid with the parts beside it, as one area, with no walls or seams where they touch. It was laid part by part, each
+  part walled on its own. A config already left such values out.
 - The bundled filaments' idle temperature (a parked nozzle on a machine with several) is 100 C below printing, was
   40 C below (170 C for the bundled PLA), where a parked nozzle may ooze onto the print and the bed. The rise back to
   printing is the next tool's pre-heat (`hardware.tool.heat.time`) or its wait.
