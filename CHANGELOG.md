@@ -21,9 +21,10 @@ section the release's version and date.
 
 - A 3MF whose parts are all on one filament is said to have its parts "all on one filament" (it said "sliced as one
   body", which depends on the config as well).
-- Deciding how to print a model is faster, with the same decisions and the same g-code: on 3DBenchy the pose and
-  technique search takes about a fifth less time. The slicer prepares each posed model once rather than for each cut,
-  and finding what an overhang stands on looks only at the faces under it.
+- Deciding how to print a model is faster: on 3DBenchy the pose and technique search takes about a quarter less time,
+  with the same decisions and the same g-code. The slicer prepares each posed model once rather than for each cut, and
+  finding what an overhang stands on looks only at the faces under it. On a large model, where the search stops at its
+  time limit (`method.search.time.max`), it measures more candidates in that time.
 - `plymeld calibrate ironing` and `plymeld calibrate seams` print their first layer at the filament's first-layer
   temperature (`temperature.first_layer`), as a print does, and the rest at its print temperature: the head waits,
   parked in front of the plate, for the print temperature before the ironing plate's top and before the seam plate's
