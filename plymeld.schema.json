@@ -1243,6 +1243,25 @@
                   }
                 }
               },
+              "extrude": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "section": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "max": {
+                        "description": "the largest cross-section a move may extrude (filament per mm of head motion times the filament's cross-section) as its firmware checks it: Klipper's max_extrude_cross_section, whose own default is 4 times the nozzle diameter squared. A restore spread over a path (filament retract.return.distance) stays within it; unset = not known, and every restore stands still — a area (mm2); or a formula (= ...)",
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      }
+                    }
+                  }
+                }
+              },
               "offset": {
                 "type": "object",
                 "additionalProperties": false,
@@ -1780,6 +1799,26 @@
                     "properties": {
                       "speed": {
                         "description": "speed pushing it back — a speed (mm/s); or a formula (= ...)",
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      },
+                      "distance": {
+                        "description": "the push back after a travel spread over the path's first this many mm, laid as the head moves rather than standing still at the path's start (a blob there); as much of it as the tool's extrude.section.max allows over that length, the rest standing still first; unset = all standing still — a length (mm); or a formula (= ...)",
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      }
+                    }
+                  },
+                  "coast": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "distance": {
+                        "description": "coasting: the last this many mm of a path before a retraction laid with no filament pushed, the pressure left in the nozzle laying them (less ooze at the path's end); a path no longer than this is laid whole; unset = none — a length (mm); or a formula (= ...)",
                         "type": [
                           "string",
                           "number"

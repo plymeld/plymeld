@@ -240,6 +240,7 @@ object Schema {
         q("$t.temperature.max", Dimension.TEMPERATURE, "hottest its nozzle may be set (the machine maker's figure): above it plymeld warns", feeds = true)
         q("$t.pressure_advance", Dimension.TIME, "pressure advance it prints with (Klipper's, in seconds, e.g. \"0.035 s\") unless the filament sets its own; unset = the machine's (hardware.machine.<key>.pressure_advance)", feeds = true)
         q("$t.heat.time", Dimension.TIME, "time to heat to printing temperature", feeds = true)
+        q("$t.extrude.section.max", Dimension.AREA, "the largest cross-section a move may extrude (filament per mm of head motion times the filament's cross-section) as its firmware checks it: Klipper's max_extrude_cross_section, whose own default is 4 times the nozzle diameter squared. A restore spread over a path (filament retract.return.distance) stays within it; unset = not known, and every restore stands still", feeds = true)
         for (a in listOf("x", "y", "z")) q("$t.offset.$a", Dimension.LENGTH, "its nozzle's offset from the first tool's, $a (not yet used)")
         // ---- hardware: filaments
         val f = "hardware.filament.<key>"
@@ -291,6 +292,8 @@ object Schema {
         q("$f.retract.length", Dimension.LENGTH, "filament pulled back before a travel", feeds = true)
         q("$f.retract.speed", Dimension.SPEED, "retraction speed", feeds = true)
         q("$f.retract.return.speed", Dimension.SPEED, "speed pushing it back", feeds = true)
+        q("$f.retract.return.distance", Dimension.LENGTH, "the push back after a travel spread over the path's first this many mm, laid as the head moves rather than standing still at the path's start (a blob there); as much of it as the tool's extrude.section.max allows over that length, the rest standing still first; unset = all standing still", feeds = true)
+        q("$f.retract.coast.distance", Dimension.LENGTH, "coasting: the last this many mm of a path before a retraction laid with no filament pushed, the pressure left in the nozzle laying them (less ooze at the path's end); a path no longer than this is laid whole; unset = none", feeds = true)
         q("$f.retract.travel.min", Dimension.LENGTH, "shorter travels do not retract (nor lift)", feeds = true)
         // the lift goes with the retraction, as in other slicers (a printer's extruder value a filament may override there):
         // what a travel must clear depends on what the plastic does (oozing, curling) and the nozzle

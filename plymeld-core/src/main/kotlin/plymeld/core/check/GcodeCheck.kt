@@ -18,7 +18,11 @@ import java.util.Locale
  *    any layer, a move going no lower than the lowest of them on its layer; [Expect.zaa], Z anti-aliasing: a line
  *    on the model's own top where it lies within the layer, all along the line, and nowhere else);
  *  - retraction: nothing printed while retracted; every retraction (wipe moves included) restored in
- *    full and no more; each one a configured length;
+ *    full and no more; each one a configured length. Where the config spreads a restore over the path's start
+ *    ([Expect.returnSpreadMm]) the standing restore may be part of it, the rest going with the lines after it (how much
+ *    is not read back: a line's own plastic and the restore's are one E);
+ *  - extrusion: no printing move past the tool's largest cross-section ([Expect.extrudeSectionMaxMm2]), as the firmware
+ *    refuses it;
  *  - travels: none at or below the height of a visible line (outer wall, top or bottom surface, ironing)
  *    already printed on that layer, across it;
  *  - start: the start template's own lines in order before the first layer, no placeholder left in
@@ -87,6 +91,16 @@ object GcodeCheck {
          * the layer, on that top ([ZaaRule], from the model and the config), and nowhere else. Null: no line below its layer.
          */
         val zaa: ZaaRule? = null,
+        /**
+         * The restore after a travel may be spread over the path's first this many mm (hardware.filament.retract.return.distance,
+         * where the tool's extrude.section.max is known): a standing restore may then push back only part of the retraction.
+         * Null: every restore in full, standing still.
+         */
+        val returnSpreadMm: Double? = null,
+        /** The largest cross-section (mm²) a printing move may extrude (hardware.tool.extrude.section.max). Null: not judged. */
+        val extrudeSectionMaxMm2: Double? = null,
+        /** The filament's cross-section (mm²), for [extrudeSectionMaxMm2]. */
+        val filamentAreaMm2: Double = Math.PI * 1.75 * 1.75 / 4,
     )
 
     private class Seg(val x0: Double, val y0: Double, val x1: Double, val y1: Double, val halfW: Double, val feature: String, val z: Double)
@@ -196,6 +210,10 @@ object GcodeCheck {
                             if (e.allowedTools != null && tool !in e.allowedTools && wrongTool.add(tool))
                                 bad(ln, "printed by T$tool (tool ${tool + 1}), which the config's loadout gives this print nothing to print; its parts are on ${tools(e.partTools ?: e.allowedTools)}")
                             if (retracted > 1e-6) bad(ln, "printing while ${fmt(retracted, 3)} mm retracted")
+                            e.extrudeSectionMaxMm2?.let { maxA ->
+                                val mm = Math.hypot(nx - x, ny - y)
+                                if (mm > 0 && ev * e.filamentAreaMm2 / mm > maxA + 1e-3) bad(ln, "extrudes ${fmt(ev * e.filamentAreaMm2 / mm, 3)} mm² of cross-section, past the tool's ${fmt(maxA, 3)} mm² (hardware.tool.<key>.extrude.section.max): the firmware refuses the move")
+                            }
                             // the ramp's lowest is worked from the layer's height and thickness, so it may fall between the
                             // file's 0.001 mm Z steps (0.245 mm layers: 39.235 - 0.75 x 0.245 = 39.05125, written Z39.051);
                             // a Z rounded to the nearest step is at it
@@ -242,8 +260,9 @@ object GcodeCheck {
                             retracted += -ev                                  // a retraction (a wipe's moves too)
                         } else if (ev > 0) {
                             // a restore: exactly what was retracted, one configured length
+                            // (part of it, the rest spread over the path's start, where the config says so: returnSpreadMm)
                             if (ev > retracted + 1e-4) bad(ln, "restores ${fmt(ev, 3)} mm with ${fmt(retracted, 3)} mm retracted (extra plastic)")
-                            else if (Math.abs(ev - retracted) > 1e-4) bad(ln, "restores ${fmt(ev, 3)} mm of ${fmt(retracted, 3)} mm retracted")
+                            else if (Math.abs(ev - retracted) > 1e-4 && e.returnSpreadMm == null) bad(ln, "restores ${fmt(ev, 3)} mm of ${fmt(retracted, 3)} mm retracted")
                             if (e.retractLengths.none { Math.abs(it - retracted) < 1e-3 }) bad(ln, "a retraction of ${fmt(retracted, 3)} mm; the config's are ${e.retractLengths.joinToString { fmt(it, 3) }} mm")
                             retracted = 0.0
                         } else if (xy) {
