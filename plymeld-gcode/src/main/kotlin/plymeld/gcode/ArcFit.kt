@@ -14,7 +14,11 @@ object ArcFit {
     data class Line(override val x: Double, override val y: Double) : Move
     data class Arc(override val x: Double, override val y: Double, val cx: Double, val cy: Double, val cw: Boolean, val length: Double) : Move
 
-    fun fit(pts: DoubleArray, tolMm: Double, minPoints: Int = 4, maxRadiusMm: Double = 1000.0, minRadiusMm: Double = 0.5): List<Move> {
+    /**
+     * [pts] as lines and arcs within [tolMm]; an arc shorter than [minLengthMm] (the firmware's own arc piece,
+     * hardware.machine.firmware.arc_segment: it would run it as one chord) is left as the points' own lines.
+     */
+    fun fit(pts: DoubleArray, tolMm: Double, minPoints: Int = 4, maxRadiusMm: Double = 1000.0, minRadiusMm: Double = 0.5, minLengthMm: Double = 0.0): List<Move> {
         val n = pts.size / 2
         val out = ArrayList<Move>()
         var i = 0
@@ -26,7 +30,7 @@ object ArcFit {
                 best = j; bestArc = arc
                 j++
             }
-            if (bestArc != null) { out.add(bestArc); i = best }
+            if (bestArc != null && bestArc.length >= minLengthMm) { out.add(bestArc); i = best }
             else { out.add(Line(pts[2 * (i + 1)], pts[2 * (i + 1) + 1])); i++ }
         }
         return out

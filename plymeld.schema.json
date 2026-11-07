@@ -241,6 +241,13 @@
                       }
                     ]
                   },
+                  "arc_segment": {
+                    "description": "the length of the straight pieces the firmware cuts an arc into (Klipper's [gcode_arcs] resolution): an arc shorter than one piece would be run as a single chord across it, so such a stretch is written as the path's own lines; unset = not known, every arc that fits is written — a length (mm); or a formula (= ...)",
+                    "type": [
+                      "string",
+                      "number"
+                    ]
+                  },
                   "exclude_object": {
                     "description": "the firmware can cancel one object mid-print — true or false; or a formula (= ...)",
                     "anyOf": [
