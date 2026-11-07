@@ -6,16 +6,23 @@ import java.util.Locale
 
 /** A rigid placement: p' = R·p + t (R row-major 3x3, mm). */
 class Pose(val label: String, val r: DoubleArray, val t: DoubleArray) {
-    fun apply(s: TriangleSoup): TriangleSoup {
+    /**
+     * [s] placed by this pose. The same soup for the same model and placement while it is held ([posed]): the search
+     * measures a pose again and again (its first look, its plans, its survey, its rounds), and what is worked out once per
+     * soup (the slicer's prepared form, the overhang grid, the cross-sections) is kept by the soup's identity.
+     */
+    fun apply(s: TriangleSoup): TriangleSoup = posed.get(s, r.toList() + t.toList()) {
         val c = FloatArray(s.count * 9)
         for (i in 0 until s.count * 3) {
             val x = s.coords[3 * i].toDouble(); val y = s.coords[3 * i + 1].toDouble(); val z = s.coords[3 * i + 2].toDouble()
             for (k in 0 until 3) c[3 * i + k] = (r[3 * k] * x + r[3 * k + 1] * y + r[3 * k + 2] * z + t[k]).toFloat()
         }
-        return TriangleSoup(c, s.count)
+        TriangleSoup(c, s.count)
     }
 
     companion object {
+        /** Posed soups by model (held weakly) and placement, within a bound ([plymeld.mesh.SoupCache]). */
+        private val posed = plymeld.mesh.SoupCache<TriangleSoup>(plymeld.mesh.SoupCache.heapShare()) { 4L * it.coords.size }
         val IDENTITY = doubleArrayOf(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
         fun asGiven() = Pose("as given", IDENTITY, doubleArrayOf(0.0, 0.0, 0.0))
         /** The model's own orientation, moved onto the bed: bottom at z = 0, footprint centered (PoseDecision.place). */
