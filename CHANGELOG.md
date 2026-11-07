@@ -9,6 +9,12 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Added
+
+- A config may spell a setting's name or a chosen value the British way: `colour` names `color`, and `centre` is read
+  as `center` (`plan.placement`, a machine's `build.origin`, `--placement`), wherever the American spelling is what
+  the setting takes. A key of your own (a filament called `grey`) is never respelled.
+
 ### Fixed
 
 - Several lifted bridges in one object: the flat layers above a strip's end are laid onto the strip as onto a printed
