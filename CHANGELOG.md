@@ -11,6 +11,11 @@ section the release's version and date.
 
 ### Added
 
+- `plymeld report`: a problem report about what you are working on, as a zip, and a GitHub issue filled in for you to
+  attach it to and submit (`--open` opens it in the browser). The zip holds plymeld's version and the system, the
+  config as plymeld reads it, the plan for the models given (`-m`), a g-code file's header and source block
+  (`--gcode`), and the printer's status (`--printer`). The models and the whole g-code only with `--include-model`;
+  never credentials; network addresses and the home folder's path hidden. In the window, from the finder.
 - `plymeld printer clear`: tells the printer its bed is clear, the last print removed. A Flashforge Creator 5 keeps
   showing a finished print and refuses an upload ("Printer is busy") until told; `printer send` now says so and names
   the command, and the window's Send step offers "The bed is clear" there. On a Klipper printer it sends nothing:

@@ -2,9 +2,12 @@
 
 Thanks for your interest. Bug reports, ideas, and pull requests are all welcome.
 
-- **A bug or a question:** open an issue. For a slicing problem, include the plymeld version
-  (`plymeld --version`), the command, and the smallest model and config that show it, if you are free to
-  share them.
+- **A bug or a question:** open an issue. `plymeld report` does most of it for you: run it with the same config
+  files and models (`plymeld report -m model.stl --gcode model.gcode --open`), and it writes a zip (the version, the
+  config as plymeld reads it, the plan, the g-code's header and source block) and opens the issue filled in, for you to
+  attach the zip and submit. It leaves out your models unless you add `--include-model`. Otherwise, include the plymeld
+  version (`plymeld --version`), the command, and the smallest model and config that show it, if you are free to share
+  them.
 - **A security problem:** do not open an issue; see [SECURITY.md](SECURITY.md).
 - **A change:** for anything beyond a small fix, open an issue first so the approach can be agreed before
   you spend time on it. New dependencies and new technology always need agreement first (below).
