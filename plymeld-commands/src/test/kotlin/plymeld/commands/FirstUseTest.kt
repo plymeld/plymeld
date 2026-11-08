@@ -159,4 +159,12 @@ class FirstUseTest : StringSpec({
         FirstUse.keyProblem("My Q2", c.taken)!! shouldContain "lower-case"
         FirstUse.keyProblem("pla-generic", c.taken)!! shouldContain "already a key"
     }
+
+    // the serial number is on the printer's screen and box: shown as typed (a user could not see it going in); the check code
+    // stays hidden (control)
+    "a Creator 5's serial number is asked in the open, its check code hidden" {
+        val asks = FirstUse.connectionAsks(model("flashforge-c5")).associateBy { it.path }
+        asks.getValue("serial_number").secret shouldBe false
+        asks.getValue("check_code").secret shouldBe true
+    }
 })
