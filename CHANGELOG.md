@@ -93,6 +93,9 @@ section the release's version and date.
 
 ### Fixed
 
+- In a Windows console, plymeld's text shows as written: `init`'s chooser (`❯`, `↑ · ↓`), dashes, `°`, `²` came out as
+  `Γ¥»`, `ΓÇö` and the like (UTF-8 shown in the console's own code page, 437 in many places). The console is put in UTF-8
+  for the run and given its own code page back at exit; output to a file or a pipe is unchanged.
 - A model thinner than one layer (most often a file in other units: a model file holds none, and plymeld reads
   millimetres) is refused in one line saying so. `plan` and `slice` crashed on it with an index out of bounds (#63). A
   pose in which the model is thinner than a layer is ruled out.
