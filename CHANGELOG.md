@@ -13,6 +13,11 @@ section the release's version and date.
 
 - A Flashforge printer's "canceling" (a cancel under way) reads as busy, where plymeld called it a status word it does
   not know: `printer status` says busy, an upload waits, and `printer watch` keeps watching until the print has ended.
+- A purge tower's first layer is solid wall to wall. Where the first layer is thicker than the layers above it, its purge
+  takes fewer lines than the tower holds, and the rest was left empty: the tower stood on its outline, its brim and a
+  strip of purge, and the next layer's purge lines over the empty part were laid in the air above the bed. On a
+  two-filament print with a 0.28 mm first layer under 0.08 mm layers, about three quarters of the tower's first layer
+  was empty; that print's tower came loose partway up.
 
 ## [0.20261108.0] - 2026-11-08
 
