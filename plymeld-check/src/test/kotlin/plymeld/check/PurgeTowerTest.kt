@@ -101,6 +101,25 @@ class PurgeTowerTest : StringSpec({
         (mc < mb) shouldBe true
     }
 
+    "the first layer is solid wall to wall even where its purge needs fewer lines than the band holds (a thicker first layer); control: the layer above is not" {
+        // a 0.28 mm first layer under 0.08 mm layers: the band is sized for the thin layers' purge, the first layer's takes far fewer lines
+        val tops = LongArray(60) { 280L + 80L * it }
+        val changes = IntArray(60) { 1 }
+        for (compactLayout in listOf(true, false)) {
+            val t = PurgeTower.square(165_000, 165_000, 20.0, 400, 4_070, changes, tops, compact = compactLayout, maxGapUm = 280)
+            fun lineYs(i: Int): List<Long> { val l = t.layer(i, changes[i]); return (l.base + l.purges.flatten()).filter { !it.closed }
+                .flatMap { p -> (0 until p.xy.size / 2).map { p.xy[2 * it + 1] } }.distinct().sorted() }
+            fun widestGap(i: Int): Long { val ys = listOf(165_000L + 400) + lineYs(i) + listOf(165_000L + t.depthUm - 400); return ys.zipWithNext { a, b -> b - a }.max() }
+            val firstLines = PurgeTower(165_000, 165_000, t.widthUm, 20.0, 400, 4_070, changes, tops, compact = compactLayout, maxGapUm = 280).purgeLines(0)
+            (firstLines * 370L < t.depthUm - 2_000) shouldBe true            // the case: the purge alone leaves most of the band empty
+            (widestGap(0) <= 400L) shouldBe true                             // first layer: no gap wider than a line, wall to wall
+            val sparseAbove = PurgeTower.square(165_000, 165_000, 20.0, 400, 4_070, IntArray(60) { if (it == 0) 1 else 0 }.also { it[59] = 1 }, tops, compact = false)
+            val l1 = sparseAbove.layer(1, 0)                                   // control: a layer without a change is sparse, not solid
+            val ys = l1.base.filter { !it.closed }.flatMap { p -> (0 until p.xy.size / 2).map { p.xy[2 * it + 1] } }.distinct().sorted()
+            (ys.zipWithNext { a, b -> b - a }.max() > 400L) shouldBe true
+        }
+    }
+
     "square: the smallest width whose depth is no greater; control: the 35 mm setting is far from square" {
         val sq = PurgeTower.square(165_000, 204_365, 30.0, 400, 4_070, changes8, tops8, compact = true, maxGapUm = 280)
         (sq.depthUm <= sq.widthUm) shouldBe true

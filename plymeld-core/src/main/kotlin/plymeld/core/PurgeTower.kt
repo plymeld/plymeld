@@ -153,8 +153,11 @@ class PurgeTower(
             if (compact && k == 0 && wall != null) { group += wall; need = Math.max(0.0, need - wallMm3) }
             val n = if (compact || needs != null) linesFor(need, h) else purgeLines(i)
             if (n > 0) zigzag(y0, y0 + bandUm, spacing(h), h, n)?.let { group += it }
-            // the band's rest, where the purge took fewer lines than the band holds: filled at the sparse spacing
-            if (needs != null || padded) { val yEnd = y0 + n * spacing(h); if (yEnd + sparseSpacingUm < y0 + bandUm) zigzag(yEnd, y0 + bandUm, sparseSpacingUm, h)?.let { group += it } }
+            // the band's rest, where the purge took fewer lines than the band holds: on the first layer solid (the tower's
+            // hold on the bed, and the floor the next layers' purges land on, which may take more lines than a thicker
+            // first layer's), above it at the sparse spacing
+            val restStep = if (i == 0) spacing(h) else sparseSpacingUm
+            if (i == 0 || needs != null || padded) { val yEnd = y0 + n * spacing(h); if (yEnd + restStep < y0 + bandUm) zigzag(yEnd, y0 + bandUm, restStep, h)?.let { group += it } }
             group
         }
         val idle = (changes until bands).filter { bandH[i][it] > 0 }.mapNotNull { k ->
