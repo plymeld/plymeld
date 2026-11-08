@@ -73,7 +73,7 @@ class Plan(/** Every decision, in the order made: each object's pose and techniq
          */
         class ObjectLocks(val pose: Pose? = null, val techniques: TechniquePlan? = null, /** a locked flat layer height (mm): no candidates */ val layerHeightMm: Double? = null,
                          val flatHeights: FlatLayers.Heights? = null,
-                         /** The spots the user forces support on (plan.support.locked.<key>): requirements. */
+                         /** The spots the user forces support on (a region's support = "always"): requirements. */
                          val lockedSpots: List<LockedSpot> = emptyList(),
                          /** Support spots a plan file locks (plan.object.<key>.support.spot.<key>): the faces needing support within them get it, nothing else; null = none locked. */
                          val supportSpots: List<SupportPlan.Spot>? = null,
@@ -377,6 +377,7 @@ class Plan(/** Every decision, in the order made: each object's pose and techniq
                     ironingSource = listOfNotNull(ironSpacing?.let { "spacing ${it.value} mm, ${it.from}" } ?: "plan.technique.ironing.spacing unset",
                         ironSpeed?.let { "speed ${it.value} mm/s, ${it.from}" } ?: "plan.technique.ironing.speed unset").joinToString("; "),
                     lockedSpots = locksK?.lockedSpots ?: emptyList(), supportSpotsLocked = locksK?.supportSpots, supportControls = supportControls,
+                    blocked = locksK?.regions.orEmpty().filter { it.support == Region.NEVER },
                     supportColumnWidthMm = numOrNull("plan.support.column.width", k),
                     nozzleHeightMm = (nozzleHeight?.value as Number?)?.toDouble(), nozzleHeightSource = nozzleHeight?.let { "hardware.tool.<key>.head.nozzle.height: ${it.from}" } ?: "hardware.tool.<key>.head.nozzle.height not set",
                     travelSpeedMmS = numOrNull("hardware.machine.motion.travel.speed", k),
@@ -507,6 +508,9 @@ class Plan(/** Every decision, in the order made: each object's pose and techniq
                     val bs = posed[k].second.map { it.bounds() }
                     val bounds = doubleArrayOf(bs.minOf { it[0] }, bs.minOf { it[1] }, bs.minOf { it[2] }, bs.maxOf { it[3] }, bs.maxOf { it[4] }, bs.maxOf { it[5] })
                     val pr = rs.map { r -> try { r.posed(poses[k].value, bounds) } catch (e: IllegalArgumentException) { error("'${objects[k].first}': ${e.message}") } }
+                    // support kept off a region that also locks it on: no rule wins over the other
+                    for (a in pr.filter { it.support == Region.ALWAYS }) for (b in pr.filter { it.support == Region.NEVER }) if (a.region.overlaps(b.region))
+                        error("'${objects[k].first}': region '${a.key}' (${a.source}) locks support on, and region '${b.key}' (${b.source}) keeps it off, over the same faces: move one, or drop one rule")
                     Decision(d.step, d.value.withRegions(pr), d.why,
                         d.facts + rs.map { r -> "region '${r.key}' (${r.source}): ${r.words}; " + listOfNotNull(r.speedMax?.let { "lines in it at most %s mm/s".format(Locale.ROOT, Control.fmt(it)) },
                             r.accelMax?.let { "accelerating at most %s mm/s²".format(Locale.ROOT, Control.fmt(it)) }).joinToString(", ") },

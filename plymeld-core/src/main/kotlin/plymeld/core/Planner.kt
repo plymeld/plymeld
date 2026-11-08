@@ -413,11 +413,12 @@ object Planner {
         val out = ArrayList<LayerPlanOut>(n)
         droppedSliverMm2 = 0.0
         // the support switch is a lock: on = everywhere (and every downward face of a locked
-        // box), off = nowhere, unset = the plan's spots: the chosen boxes, and the locked ones; tree support, the one style
+        // box), off = nowhere, unset = the plan's spots: the chosen boxes, and the locked ones; never in a blocked box (a
+        // region's support = "never"); tree support, the one style
         val supportOn = s.enableSupport ?: (support?.any == true)
         val supportRegions: Supports.Regions? = when {
             support == null -> null
-            s.enableSupport == true -> if (support.locked.isEmpty()) null else Supports.Regions(null, support.locked)
+            s.enableSupport == true -> if (support.locked.isEmpty() && support.blocked.isEmpty()) null else Supports.Regions(null, support.locked, support.blocked)
             else -> support
         }
         // the layers between support's top and the object (one, the least that leaves a parting plane, unless set)

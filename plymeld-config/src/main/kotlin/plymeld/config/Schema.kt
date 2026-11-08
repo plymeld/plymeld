@@ -60,7 +60,7 @@ object Schema {
         fun under(vararg heads: String) = heads.any { p == it || p.startsWith("$it.") }
         return when {
             under("plan.pause", "plan.objects.printing", "plan.objects.order", "plan.bridge_order", "plan.placement", "plan.pose", "plan.source_fingerprint", "plan.mechanism.purge.tower") -> setOf(Scope.PLATE)
-            under("plan.insert", "plan.support.locked") -> setOf(Scope.PLATE, Scope.OBJECT)
+            under("plan.insert") -> setOf(Scope.PLATE, Scope.OBJECT)
             p in REGION_VALUES -> setOf(Scope.PLATE, Scope.OBJECT, Scope.PART, Scope.REGION)
             segments[0] == "plan" -> setOf(Scope.PLATE, Scope.OBJECT, Scope.PART)
             under("job.machine") -> setOf(Scope.PLATE)
@@ -346,10 +346,6 @@ object Schema {
         q("plan.pause.<key>.at", Dimension.LENGTH, "pause before the first layer whose top is at or above this height")
         d("plan.pause.<key>.before", Type.Text, "pause before an object or part (by key) first prints")
         d("plan.pause.<key>.after", Type.Text, "pause after an object or part (by key) last prints")
-        // support the user forces: a box in the model's own coordinates; a requirement
-        val fs = "plan.support.locked.<key>"
-        d("$fs.min", Type.Point(Dimension.LENGTH), "a spot support is locked on (a requirement the search never weighs away: every downward face in the box gets support, whether or not it needs it; plymeld refuses when nothing in the box can be supported): the box's least corner, in the model's own coordinates as its file gives them")
-        d("$fs.max", Type.Point(Dimension.LENGTH), "the locked spot's greatest corner (above min on every axis), in the model's own coordinates")
         // a region of an object, by geometry, never by index: a box, a height range, the faces it holds, or several of these
         // together (a line is in the region when every one given holds); the values under it apply to the lines in it
         val rg = "plan.object.<key>.region.<key>"
@@ -357,7 +353,9 @@ object Schema {
         d("$rg.max", Type.Point(Dimension.LENGTH), "the region's box's greatest corner (above min on every axis), in the model's own coordinates")
         q("$rg.from", Dimension.LENGTH, "the region's bottom as printed: lines at or above this height from the object's bottom; unset = from the bottom")
         q("$rg.to", Dimension.LENGTH, "the region's top as printed: lines at or below this height from the object's bottom; unset = to the top")
-        d("$rg.facing", Type.Choices(listOf("flat_top", "sloped_top", "side", "under")), "the lines in the region by the faces they lay, in plan.faces's words: side = wall lines, flat_top and sloped_top = top surface lines and their ironing (a line does not say whether its top is flat or sloped: either selects both), under = bottom surfaces, bridges, and wave overhangs; unset = every line")
+        d("$rg.facing", Type.Choices(listOf("flat_top", "sloped_top", "side", "under")), "the lines in the region by the faces they lay, in plan.faces's words: side = wall lines, flat_top and sloped_top = top surface lines and their ironing (a line does not say whether its top is flat or sloped: either selects both), under = bottom surfaces, bridges, and wave overhangs; unset = every line. Not read with a support rule (support holds downward faces only)")
+        // the user's support rules: where support must go, and where it must not, whatever the switch or the weights decide
+        d("$rg.support", Type.Choice(listOf("always", "never")), "support under the region's downward faces whatever plan.support.enabled or the weights decide: always = every downward face in it gets support, whether or not it needs it (a requirement: refused with the switch off, and where nothing in the region can be supported); never = no support under them (their droop counted as unsupported area); unset = the object's own rule")
         // a planned insert: a socket the print pauses at so an object (a steel ball, a magnet, a nut) is placed
         // in it, the next layer planned onto the object's top; a box in the model's own coordinates, as a locked spot
         val ins = "plan.insert.<key>"
@@ -575,7 +573,7 @@ object Schema {
         q("$sc.start", Dimension.RATIO, "a scarf ramp's starting thickness, as a share of the layer (0 starts from nothing, the nozzle on the layer below)", feeds = true)
         q("plan.technique.corner_seam.corner_angle", Dimension.ANGLE, "the smallest turn of a wall loop (measured across two line widths each side) that counts as a corner for its seam (also for scarf seams' where = smooth)", feeds = true)
         val su = "plan.support"
-        d("$su.enabled", Type.Bool, "the support switch, a lock: true = tree support under every face too steep to hold itself up; false = never (and a locked spot, plan.support.locked, is then refused); unset = the search decides per overhang (coordination phase 3), weighing each region's scars and plastic against the droop without it, with the locked spots always supported", feeds = true)
+        d("$su.enabled", Type.Bool, "the support switch, a lock: true = tree support under every face too steep to hold itself up; false = never (and a region's support = \"always\" is then refused); unset = the search decides per overhang (coordination phase 3), weighing each region's scars and plastic against the droop without it. Either way a region's support rule (plan.object.<key>.region.<key>.support) wins: always supported, or never", feeds = true)
         q("$su.interface.top_layers", Dimension.COUNT, "INHERITED: interface layers under the object", feeds = true)
         q("$su.interface.bottom_layers", Dimension.COUNT, "INHERITED: interface layers on what it stands on", feeds = true)
         q("$su.gap.top.value", Dimension.LENGTH, "the gap between support's top and the object it holds up, rounded to whole layers; unset = one layer, at least gap.top.min", feeds = true)

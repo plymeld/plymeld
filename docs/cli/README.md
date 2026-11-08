@@ -86,9 +86,11 @@ mechanism.motion.speed.max = "40 mm/s"
 mechanism.motion.acceleration.max = "2000 mm/s2"
 ```
 
-The values a region takes today are the motion caps, `mechanism.motion.speed.max` and `.acceleration.max`. plymeld
-refuses any other value under a region, and a region that lies outside the object. `plymeld plan` lists each region and
-what it sets.
+The values a region takes today are the motion caps, `mechanism.motion.speed.max` and `.acceleration.max`, and a support
+rule: `support = "always"` supports every downward face in the region whatever `plan.support.enabled` or the weights
+decide, and `support = "never"` keeps support off it, even with support switched on (give a support rule a region of its
+own: `facing` is not read with it). plymeld refuses any other value under a region, a region that lies outside the
+object, and an `"always"` and a `"never"` region over the same faces. `plymeld plan` lists each region and what it sets.
 
 ## Talk to the printer
 

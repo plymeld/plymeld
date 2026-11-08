@@ -13,7 +13,7 @@ import java.util.Locale
  *
  * - [Overhangs.survey] finds the overhang regions of a posed model under one plan's layers: the faces needing support,
  *   clustered by shared vertices, each cluster an XY box within a height range ([Coordination.Volume.Region]).
- * - [LockedSpot] is a spot the user marks (`plan.support.locked.<key>`, in the model's own coordinates): a requirement,
+ * - [LockedSpot] is a region the user locks support on (`plan.object.<key>.region.<key>.support = "always"`): a requirement,
  *   never weighed away; every downward face inside it is supported, whether or not it needs support.
  * - [order] is the print order of a support column beside the model's layers (searched, not assumed): finished first
  *   where the head clears it, or interleaved layer by layer.
@@ -87,33 +87,19 @@ object Support {
 }
 
 /**
- * A spot the user locks support on ("ensure we can force support on certain spots; that wouldn't be overridable
- * by plymeld"): a box in the model's own coordinates, as the file gives them ([minX]..[maxX], [minY]..[maxY], [minZ]..[maxZ],
- * mm), from `plan.support.locked.<key>` (or `plan.object.<key>.support.locked.<key>`). In each pose the box is turned with the
- * model and taken as its bounding box there ([posed]).
+ * A region of an object the user locks support on (`plan.object.<key>.region.<key>.support = "always"`): every downward face
+ * in it is supported, whatever the switch or the weights decide; a requirement. In each pose the region is turned with the
+ * model ([Region.posed]: its box's bounding box there, cut to its height range).
  */
-class LockedSpot(val key: String, val minX: Double, val maxX: Double, val minY: Double, val maxY: Double, val minZ: Double, val maxZ: Double, val source: String) {
-    init {
-        require(minX < maxX && minY < maxY && minZ < maxZ) { "locked support spot '$key' ($source): each min must be below its max (x $minX..$maxX, y $minY..$maxY, z $minZ..$maxZ mm)" }
-    }
+class LockedSpot(val key: String, val area: Region, val source: String) {
+    /** A box in the model's own coordinates (mm), as a region of its own. */
+    constructor(key: String, minX: Double, maxX: Double, minY: Double, maxY: Double, minZ: Double, maxZ: Double, source: String) :
+        this(key, Region(key, doubleArrayOf(minX, maxX, minY, maxY, minZ, maxZ), null, null, null, null, null, source, support = Region.ALWAYS), source)
 
-    val words: String get() = "x %s..%s, y %s..%s, z %s..%s mm in the model's own coordinates".format(Locale.ROOT,
-        Control.fmt(minX), Control.fmt(maxX), Control.fmt(minY), Control.fmt(maxY), Control.fmt(minZ), Control.fmt(maxZ))
+    val words: String get() = area.words
 
-    /**
-     * The box in pose [pose] (its rotation; the posed model's bounding box is [bounds], as TriangleSoup.bounds gives it):
-     * the bounding box of the turned corners, relative to the posed model's corner and bottom.
-     */
-    fun posed(pose: Pose, bounds: DoubleArray): Coordination.Volume.Region {
-        val r = pose.r
-        var x0 = Double.POSITIVE_INFINITY; var x1 = Double.NEGATIVE_INFINITY; var y0 = x0; var y1 = x1; var z0 = x0; var z1 = x1
-        for (c in 0 until 8) {
-            val x = if (c and 1 == 0) minX else maxX; val y = if (c and 2 == 0) minY else maxY; val z = if (c and 4 == 0) minZ else maxZ
-            val px = r[0] * x + r[1] * y + r[2] * z + pose.t[0]; val py = r[3] * x + r[4] * y + r[5] * z + pose.t[1]; val pz = r[6] * x + r[7] * y + r[8] * z + pose.t[2]
-            x0 = minOf(x0, px); x1 = maxOf(x1, px); y0 = minOf(y0, py); y1 = maxOf(y1, py); z0 = minOf(z0, pz); z1 = maxOf(z1, pz)
-        }
-        return Coordination.Volume.Region(z0 - bounds[2], z1 - bounds[2], x0 - bounds[0], x1 - bounds[0], y0 - bounds[1], y1 - bounds[1])
-    }
+    /** The spot in pose [pose] (the posed model's bounding box is [bounds]): its region from the posed model's corner and bottom. */
+    fun posed(pose: Pose, bounds: DoubleArray): Coordination.Volume.Region = area.posed(pose, bounds).region
 }
 
 /**

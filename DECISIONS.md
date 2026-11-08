@@ -262,3 +262,24 @@ case). Facing by a direction vector: the faces' kinds are the words the config a
 minimum-layer-time estimate do not count a region's caps (the full prediction, from the g-code, does). A line does not
 say whether the top it lays is flat or sloped, so `flat_top` and `sloped_top` both select top surface lines. More values
 per region come one by one, each with the code that reads it.
+
+## 12. Support rules are region values; the switch keeps its three states (2026-11-07)
+
+**Context.** Support could be locked on a box (a locked spot, `locked.<key>` under `plan.support`) but never kept off one, and the region
+selector (entry 11) now chooses parts of an object by geometry. The switch `plan.support.enabled = true` supported every
+face that needs it, with no way to spare one.
+
+**Decision.** A region's `support = "always"` replaces the locked spot (every downward face in it supported, a
+requirement); `support = "never"` keeps support off a region, whatever the switch or the weights say, and its faces'
+droop is counted as unsupported area. The switch keeps its three states: unset = weighed per region, `true` = every face
+that needs support, `false` = none (with an `"always"` region refused). Exceptions are regions, never another switch.
+An `"always"` and a `"never"` region over the same faces are refused. `facing` is not read with a support rule.
+
+**Rejected.** Keeping the locked spots beside the regions: two ways to say the same thing. `true` meaning "allowed,
+weighed": it nearly repeats unset, and loses the plain "support on". A second support setting choosing "weighed" beside
+the switch: unset already weighs.
+
+**Consequences.** A config with a locked spot is refused (no other users yet, so no migration). A plate-wide
+locked spot is gone: each object names its own regions. A blocker keeps support off its faces, but a tree branch may
+still pass through the blocked region's air (not routed around it yet).
+
