@@ -267,6 +267,18 @@ class Plan(/** Every decision, in the order made: each object's pose and techniq
         /** [objects]: name and parts of each object on the plate, in the same order as `setup.objects`. */
         fun makeFor(objects: List<Pair<String, List<TriangleSoup>>>, setup: Setup, o: Overrides = Overrides()): Plan {
             require(objects.size == setup.objects.size) { "${objects.size} objects but the setup describes ${setup.objects.size}" }
+            // an object thinner than one layer, however it is turned (its thinnest side under the tool's thinnest layer), prints
+            // as nothing in any pose: lying down it has no layer, standing up no line fits it. Most often a file in other units
+            // (a model file has none; plymeld reads millimetres)
+            for ((k, ob) in objects.withIndex()) {
+                val bs = ob.second.map { it.bounds() }
+                if (bs.isEmpty()) continue
+                val size = doubleArrayOf(bs.maxOf { it[3] } - bs.minOf { it[0] }, bs.maxOf { it[4] } - bs.minOf { it[1] }, bs.maxOf { it[5] } - bs.minOf { it[2] })
+                val thinnest = (Resolver.resolveOrNull(setup, "hardware.tool.layer.height.min", plymeld.model.Context(k))?.value as Number?)?.toDouble() ?: continue
+                if (size.min() < thinnest) error("'${ob.first}' is %s x %s x %s mm: thinner than one layer (the tool's thinnest, %s mm), so nothing of it would print in any pose. "
+                    .format(Locale.ROOT, *size.map { "%.3g".format(Locale.ROOT, it) }.toTypedArray(), "%.3g".format(Locale.ROOT, thinnest)) +
+                    "A model file holds no units, and plymeld reads them as millimetres: a model made in centimetres or metres needs saving again in millimetres")
+            }
             fun r(id: String) = Resolver.resolve(setup, id)
             fun num(id: String) = (r(id).value as Number).toDouble()
             // how far a line holds out over air is the filament's (hardware: filament x cooling), as a share

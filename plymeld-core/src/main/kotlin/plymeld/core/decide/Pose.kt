@@ -454,8 +454,9 @@ object PoseDecision {
         val sevOfK = if (survey) Array(techniques.size) { DoubleArray(p.count) } else null
         val spotsOfK = Array(techniques.size) { k -> (techniques[k].support?.chosen.orEmpty()) + f?.supportSpotsLocked.orEmpty() }
         fun spotsOf(k: Int): List<SupportPlan.Spot> = spotsOfK[k]
-        /** The height of the layer of [t] that holds z (the last layer above the model's top). */
+        /** The height of the layer of [t] that holds z (the last layer above the model's top); a pose thinner than one layer has none: the model's height. */
         fun heightAt(t: DoubleArray, z: Double): Double {
+            if (t.isEmpty()) return maxOf(b[5] - zMin, 1e-6)
             var i = java.util.Arrays.binarySearch(t, z).let { if (it < 0) -it - 1 else it }
             if (i >= t.size) i = t.size - 1
             return t[i] - (if (i == 0) zMin else t[i - 1])
@@ -691,6 +692,7 @@ object PoseDecision {
             val ex = exposed; val w = units?.whole
             if (ex != null && w != null && w.solidSpeed > 0 && w.solidWidthMm > 0) {
                 fun heightAt(z: Double): Double {
+                    if (tops.isEmpty()) return maxOf(height, 1e-6)
                     var i = java.util.Arrays.binarySearch(tops, z).let { if (it < 0) -it - 1 else it }
                     if (i >= tops.size) i = tops.size - 1
                     return tops[i] - (if (i == 0) zMin else tops[i - 1])
@@ -1423,6 +1425,8 @@ object PoseDecision {
         fun rejected(p: Pose, m: Measure): String? = when {
             m.sizeX > f.bedMaxX - f.bedMinX || m.sizeY > f.bedMaxY - f.bedMinY -> "footprint %.1f x %.1f mm exceeds the bed".format(Locale.ROOT, m.sizeX, m.sizeY)
             m.heightMm > f.maxZ -> "height %.1f mm exceeds %.0f".format(Locale.ROOT, m.heightMm, f.maxZ)
+            // thinner than one layer: it has no layer, so nothing of it would print
+            f.minLayerMm != null && m.heightMm < f.minLayerMm -> "height %.3g mm is under one layer (the tool's thinnest, %.3g mm): nothing of it would print".format(Locale.ROOT, m.heightMm, f.minLayerMm)
             m.contactMm2 <= 0.0 -> "no flat face on the bed: nothing to adhere"
             // a locked spot is a requirement: a pose in which it holds nothing to support cannot meet it
             m.lockedStats.orEmpty().any { it.areaMm2 <= 0 } -> m.lockedStats!!.filter { it.areaMm2 <= 0 }.joinToString("; ") { st ->
