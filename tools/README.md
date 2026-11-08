@@ -21,7 +21,9 @@ Kotlin, in the modules.
 A version tag on `main` (`v0.YYYYMMDD.N`, the release's date in UTC) runs these in CI (`.github/workflows/release.yml`),
 built with that version (`-Pplymeld.version`; any other build is `0.0.0-dev`): the native builds on Linux and Windows
 runners, Velopack's packages for each, and the Linux command line's tar, uploaded to a draft GitHub release. A release
-needs no commit of its own.
+needs no commit of its own. Its Gradle distribution and dependencies come from caches kept on `main` for each runner
+(`.github/workflows/release-cache.yml`, run when the Gradle build files change and twice a week), so a release does not
+depend on downloading them.
 
 The independent reference data the tests compare against was computed once, outside plymeld, and is not regenerated
 here: the 3DBenchy's mesh facts (`test-models/3DBenchy.stl.reference.json`) and the geometry kernel's answers on random

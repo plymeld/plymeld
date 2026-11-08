@@ -54,6 +54,9 @@ jobs:
           java-version: '21.0.7'
           distribution: graalvm
           github-token: ${{ github.token }}
+          # restores the Gradle caches release-cache.yml keeps on main (the Gradle distribution, the dependencies), so a
+          # release needs no download from Gradle's or Maven's servers when its build files match main's
+          cache: gradle
       - name: Check the Gradle wrapper jar
         run: echo "238e777fcddd7e34f9708186085def2abd6e08e658505b38718d79d74c21abd5  gradle/wrapper/gradle-wrapper.jar" | sha256sum -c -
       - name: The jars, the window's with Linux natives, and the icons
@@ -104,6 +107,9 @@ jobs:
           java-version: '21.0.7'
           distribution: graalvm
           github-token: ${{ github.token }}
+          # restores the Gradle caches release-cache.yml keeps on main (the Gradle distribution, the dependencies), so a
+          # release needs no download from Gradle's or Maven's servers when its build files match main's
+          cache: gradle
       - name: Check the Gradle wrapper jar
         shell: bash
         run: echo "238e777fcddd7e34f9708186085def2abd6e08e658505b38718d79d74c21abd5  gradle/wrapper/gradle-wrapper.jar" | sha256sum -c -
@@ -159,3 +165,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "$GITHUB_REF_NAME" "$RUNNER_TEMP"/releases/* --clobber
+      # when the cache missed, setup-graalvm saves it after the job, which on Windows fails while a Gradle or Kotlin
+      # daemon (java.exe) still holds its files open
+      - name: Stop the build's daemons
+        if: always()
+        shell: cmd
+        run: taskkill /F /IM java.exe /T || exit /b 0

@@ -1,0 +1,46 @@
+name: Release cache
+
+# Keeps the release's Gradle caches (the Gradle distribution and every dependency, the Kotlin compiler among them) saved
+# on main, for each runner the release builds on, so a release tag restores them instead of downloading them: a release
+# then needs the network only to upload its packages. A tag's run can restore a cache saved on the default branch, never
+# one saved on another tag. The cache is setup-graalvm's own, set up exactly as in release.yml, so both compute the same
+# key (the runner's OS and a hash of the Gradle build files); a change to those files on main saves a new one. GitHub
+# drops a cache not used for 7 days, so this also runs twice a week.
+on:
+  push:
+    branches: [main]
+    paths: ['**/*.gradle*', 'gradle/**', 'buildSrc/**', '.github/workflows/release-cache.yml']
+  schedule:
+    - cron: '23 5 * * 1,4'
+  workflow_dispatch:
+
+jobs:
+  cache:
+    name: Gradle caches (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            natives: nativeLib
+          - os: windows-latest
+            natives: windowsLib
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      # the same GraalVM and cache as release.yml
+      - uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '21.0.7'
+          distribution: graalvm
+          github-token: ${{ github.token }}
+          cache: gradle
+      - name: Check the Gradle wrapper jar
+        shell: bash
+        run: echo "238e777fcddd7e34f9708186085def2abd6e08e658505b38718d79d74c21abd5  gradle/wrapper/gradle-wrapper.jar" | sha256sum -c -
+      # the release's first Gradle step, which downloads all it needs; no Gradle daemon and the Kotlin compiler in
+      # Gradle's own process, so on Windows no process is left holding the cache's files open when it is saved
+      - name: The jars and the window's natives
+        shell: bash
+        run: ./gradlew --no-daemon -Dorg.gradle.jvmargs=-Xmx4g -Pkotlin.compiler.execution.strategy=in-process :plymeld-cli:installDist :plymeld-ui:${{ matrix.natives }} :plymeld-ui:icons
