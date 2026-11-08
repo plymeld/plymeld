@@ -158,7 +158,8 @@ try things with.
 
 ## Contributing
 
-Bug reports, ideas, and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). Contributions
+Bug reports, ideas, and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). `plymeld report` makes a
+bug report about what you are working on and opens the issue for you. Contributions
 come under a contributor license agreement (CLA), accepted once through a bot on your first pull request.
 
 ## Safety

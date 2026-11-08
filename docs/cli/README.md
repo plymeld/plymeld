@@ -113,6 +113,19 @@ Some printers (a Flashforge Creator 5) keep showing a finished print until told 
 until then. `printer send` says so, and `plymeld printer clear` tells the printer, once the print is off the bed: the
 printer takes your word for it.
 
+## Report a problem
+
+```
+plymeld report -m bracket.stl --gcode bracket.gcode --open
+```
+
+`plymeld report` writes a zip about what you are working on and opens a GitHub issue filled in, for you to read, attach
+the zip to, and submit. The zip holds plymeld's version and your system, the config as plymeld reads it, with `-m` the
+plan, with `--gcode` that file's header and source block (the config and plan it was made from), and with `--printer`
+the printer's status. Your models and the whole g-code go in only with `--include-model`. Credentials are never in it
+(they are in the environment or the secrets files, which it does not read); network addresses and your home folder's
+path are hidden. Nothing is sent: without `--open`, it prints the issue's address.
+
 ## Calibrate
 
 `plymeld calibrate` makes a calibration plate for one filament, printed exactly as specified. There is one subcommand
