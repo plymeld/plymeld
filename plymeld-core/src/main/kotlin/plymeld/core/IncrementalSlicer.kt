@@ -378,11 +378,13 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
      * Null = the plan has no support of its own (the switch decides).
      */
     private fun supportRegions(): Supports.Regions? {
-        val sp = technique.support ?: return null
         val b = soup.bounds()
         fun box(r: plymeld.core.decide.Coordination.Volume.Region) = Supports.Box(Math.round((b[0] + r.x0) * 1000), Math.round((b[0] + r.x1) * 1000),
             Math.round((b[1] + r.y0) * 1000), Math.round((b[1] + r.y1) * 1000), Math.round(r.fromMm * 1000), Math.round(r.toMm * 1000))
-        return Supports.Regions(sp.chosen.map { box(it.region) }, sp.locked.map { box(it.region) })
+        // the regions support is kept off (support = "never"), whatever the plan or the switch says
+        val blocked = technique.regions.filter { it.support == plymeld.core.decide.Region.NEVER }.map { box(it.region) }
+        val sp = technique.support ?: return if (blocked.isNotEmpty() && s!!.enableSupport == true) Supports.Regions(null, emptyList(), blocked) else null
+        return Supports.Regions(sp.chosen.map { box(it.region) }, sp.locked.map { box(it.region) }, blocked)
     }
 
     /**
@@ -907,7 +909,7 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
      */
     private val regionBoxes: List<MotionRegions.Box> by lazy {
         val b = soup.bounds()
-        technique.regions.map { r -> val g = r.region
+        technique.regions.filter { it.speedMax != null || it.accelMax != null }.map { r -> val g = r.region
             MotionRegions.Box(r.key, (b[0] + g.x0) * 1000, (b[0] + g.x1) * 1000, (b[1] + g.y0) * 1000, (b[1] + g.y1) * 1000, g.fromMm * 1000, g.toMm * 1000,
                 r.facing?.let { MotionRegions.features(it) }, r.speedMax, r.accelMax)
         }

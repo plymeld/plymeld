@@ -6,10 +6,16 @@ import java.util.Locale
  * A region of an object (`plan.object.<key>.region.<key>`), selected by geometry, never by index: a box in the model's own
  * coordinates ([box]: x0, x1, y0, y1, z0, z1 mm), a height range as printed ([fromMm], [toMm], from the object's bottom), the
  * lines it holds by the faces they lay ([facing]), or several of these together; a line is in it where every one given holds.
- * The values set under it apply to the lines in it: the motion caps ([speedMax], [accelMax]; Schema.REGION_VALUES).
+ * The values set under it apply to the lines in it: the motion caps ([speedMax], [accelMax]; Schema.REGION_VALUES); and its
+ * support rule ([support]: [ALWAYS], every downward face in it supported, or [NEVER], none; null = the object's own rule).
  */
 class Region(val key: String, val box: DoubleArray?, val fromMm: Double?, val toMm: Double?, val facing: Set<Coordination.Facing>?,
-             val speedMax: Double?, val accelMax: Double?, val source: String) {
+             val speedMax: Double?, val accelMax: Double?, val source: String, val support: String? = null) {
+    companion object {
+        const val ALWAYS = "always"
+        const val NEVER = "never"
+    }
+
     init {
         require(box != null || fromMm != null || toMm != null || facing != null) {
             "region '$key' ($source) selects nothing: give it a box (min and max), a height range (from, to), or the faces (facing)" }
@@ -17,8 +23,11 @@ class Region(val key: String, val box: DoubleArray?, val fromMm: Double?, val to
             "region '$key' ($source): each of the box's min must be below its max (x %s..%s, y %s..%s, z %s..%s)".format(Locale.ROOT,
                 *box!!.map { Control.fmt(it) }.toTypedArray()) }
         require(fromMm == null || toMm == null || fromMm < toMm) { "region '$key' ($source): from (${Control.fmt(fromMm!!)} mm) must be below to (${Control.fmt(toMm!!)} mm)" }
-        require(speedMax != null || accelMax != null) {
-            "region '$key' ($source) sets nothing for the lines in it: give it a value (${plymeld.config.Schema.REGION_VALUES.joinToString { "region.$key.${it.removePrefix("plan.")}" }})" }
+        require(speedMax != null || accelMax != null || support != null) {
+            "region '$key' ($source) sets nothing for the lines in it: give it a value (${plymeld.config.Schema.REGION_VALUES.joinToString { "region.$key.${it.removePrefix("plan.")}" }}) or a support rule (region.$key.support)" }
+        require(support == null || support == ALWAYS || support == NEVER) { "region '$key' ($source): support is \"always\" or \"never\", not \"$support\"" }
+        require(support == null || facing == null) {
+            "region '$key' ($source): a support rule holds the region's downward faces, so facing is not read with it; give the support rule a region of its own" }
         require(speedMax == null || speedMax > 0) { "region '$key' ($source): speed.max must be above 0" }
         require(accelMax == null || accelMax > 0) { "region '$key' ($source): acceleration.max must be above 0" }
     }
@@ -52,12 +61,16 @@ class Region(val key: String, val box: DoubleArray?, val fromMm: Double?, val to
         require(x0 < w && x1 > 0 && y0 < d && y1 > 0 && z0 <= h && z1 >= 0 && z0 <= z1) {
             "region '$key' ($source, $words) lies outside the object in pose '${pose.label}' (%s x %s x %s mm): it holds no line".format(Locale.ROOT,
                 Control.fmt(w), Control.fmt(d), Control.fmt(h)) }
-        return Posed(key, Coordination.Volume.Region(z0, z1, x0, x1, y0, y1), facing, speedMax, accelMax, source)
+        // within the object (nothing beyond it is the object's): an unbounded side is the object's own
+        return Posed(key, Coordination.Volume.Region(maxOf(z0, 0.0), minOf(z1, h), maxOf(x0, 0.0), minOf(x1, w), maxOf(y0, 0.0), minOf(y1, d)),
+            facing, speedMax, accelMax, source, support)
     }
 
-    /** The region in its object's pose: [region] from the posed object's corner and bottom (unbounded sides infinite). */
-    class Posed(val key: String, val region: Coordination.Volume.Region, val facing: Set<Coordination.Facing>?, val speedMax: Double?, val accelMax: Double?, val source: String) {
-        override fun equals(other: Any?) = other is Posed && key == other.key && region == other.region && facing == other.facing && speedMax == other.speedMax && accelMax == other.accelMax
+    /** The region in its object's pose: [region] from the posed object's corner and bottom, within the object's bounds. */
+    class Posed(val key: String, val region: Coordination.Volume.Region, val facing: Set<Coordination.Facing>?, val speedMax: Double?, val accelMax: Double?, val source: String,
+                val support: String? = null) {
+        override fun equals(other: Any?) = other is Posed && key == other.key && region == other.region && facing == other.facing && speedMax == other.speedMax && accelMax == other.accelMax &&
+            support == other.support
         override fun hashCode() = key.hashCode() * 31 + region.hashCode()
         override fun toString() = "region '$key'"
     }

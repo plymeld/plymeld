@@ -105,8 +105,10 @@ class PoseFacts(
     val weighSurfaceTechniques: Set<SurfaceTechnique> = emptySet(),
     /** Ironing's own values its outcome model reads (plan.technique.ironing.spacing, mm; .speed, mm/s), with where they came from; null = ironing cannot be weighed (said). */
     val ironingSpacingMm: Double? = null, val ironingSpeedMmS: Double? = null, val ironingSource: String = "",
-    /** The spots the user forces support on (plan.support.locked.<key>): requirements, in the model's own coordinates. */
+    /** The spots the user forces support on (a region's support = "always"): requirements, in the model's own coordinates. */
     val lockedSpots: List<LockedSpot> = emptyList(),
+    /** The regions the user keeps support off (support = "never"): their downward faces droop whatever is decided. */
+    val blocked: List<Region> = emptyList(),
     /**
      * Support spots a plan locks (plan.object.<key>.support.spot.<key>, what `plan -o` wrote): the overhang faces needing
      * support within each are supported, nothing else is searched; null = none locked (the search decides where the switch is unset).
@@ -253,15 +255,21 @@ object PoseDecision {
                    * support at a thicker layer whenever it does at a thinner one): no plan in this pose needs less. The pose's
                    * floor for the search's bound ([PoseDecision.decideWithTechnique]); 0 where the thinnest layer is not known.
                    */
-                  val supportFloorVisibleMm2: Double = 0.0) {
+                  val supportFloorVisibleMm2: Double = 0.0,
+                  /** Of [needsSupportMm2], what lies in the regions support is kept off ([PoseFacts.blocked]): it droops, support on or off. */
+                  val blocked: Blocked = Blocked.NONE) {
+        /** Faces needing support in a region support is kept off: their area, as seen, their air column, their droop severity. */
+        class Blocked(val mm2: Double, val visibleMm2: Double, val volumeMm3: Double, val severityMm2: Double) {
+            companion object { val NONE = Blocked(0.0, 0.0, 0.0, 0.0) }
+        }
         val stable: Boolean get() = tipOffsetMm == 0.0
         fun with(bond: Double?, time: Double?) = Measure(contactMm2, needsSupportMm2, heightMm, sizeX, sizeY, tipOffsetMm, sealedMm2, surfaceStepMm, bond, time, supportVolumeMm3, plan, layerTops, layerLinesMm, flatTopMm2, surfaceTechniques,
             heldMm2, heldVolumeMm3, lockedExtraMm2, lockedExtraVolumeMm3, overhangs, lockedStats, heldBaseMm2, lockedBaseMm2, droopSeverityMm2, heldSeverityMm2, slenderness, firstLayerIslands, heightErrorMm,
-            surfaceMm2, visibleMm2, needsSupportVisibleMm2, heldVisibleMm2, lockedExtraVisibleMm2, curvedBorderMm2, islandFaces, supportFloorVisibleMm2)
+            surfaceMm2, visibleMm2, needsSupportVisibleMm2, heldVisibleMm2, lockedExtraVisibleMm2, curvedBorderMm2, islandFaces, supportFloorVisibleMm2, blocked)
         /** The same candidate laid with [fs]. */
         fun withSurfaceTechniques(fs: Set<SurfaceTechnique>) = Measure(contactMm2, needsSupportMm2, heightMm, sizeX, sizeY, tipOffsetMm, sealedMm2, surfaceStepMm, weakestBondMm2, timeEstimateS, supportVolumeMm3, plan, layerTops, layerLinesMm, flatTopMm2, fs,
             heldMm2, heldVolumeMm3, lockedExtraMm2, lockedExtraVolumeMm3, overhangs, lockedStats, heldBaseMm2, lockedBaseMm2, droopSeverityMm2, heldSeverityMm2, slenderness, firstLayerIslands, heightErrorMm,
-            surfaceMm2, visibleMm2, needsSupportVisibleMm2, heldVisibleMm2, lockedExtraVisibleMm2, curvedBorderMm2, islandFaces, supportFloorVisibleMm2)
+            surfaceMm2, visibleMm2, needsSupportVisibleMm2, heldVisibleMm2, lockedExtraVisibleMm2, curvedBorderMm2, islandFaces, supportFloorVisibleMm2, blocked)
         /** The share of the surface that counts as seen (1 without a map). */
         val seenShare: Double get() = if (surfaceMm2 <= 0) 1.0 else visibleMm2 / surfaceMm2
         /** The same plan with the same surface techniques: one candidate (in one pose). */
@@ -422,6 +430,9 @@ object PoseDecision {
         val decided = f != null && f.supportEnabled == null
         val lockedPosed = f?.lockedSpots.orEmpty().map { it to it.posed(pose, b) }
         val anyLocked = lockedPosed.isNotEmpty()
+        // the regions support is kept off (support = "never"): their faces needing support are left to droop
+        val blockedPosed = f?.blocked.orEmpty().map { it.posed(pose, b).region }
+        val blockedA = DoubleArray(techniques.size); val blockedVis = DoubleArray(techniques.size); val blockedVol = DoubleArray(techniques.size); val blockedSev = DoubleArray(techniques.size)
         // planned inserts: a face in a socket at or above its insert's top is covered by the insert, not over air
         val insertsPosed = f?.inserts.orEmpty().map { it.posed(pose, b) }
         val held = DoubleArray(techniques.size); val heldVol = DoubleArray(techniques.size)
@@ -534,6 +545,7 @@ object PoseDecision {
                 val cx = (c[o] + c[o + 3] + c[o + 6]) / 3.0 - b[0]; val cy = (c[o + 1] + c[o + 4] + c[o + 7]) / 3.0 - b[1]; val cz = zc - zMin
                 val a = if (insertsPosed.any { it.covers(cx, cy, cz) }) 0.0 else area * overAir(o)
                 val lockedAt = if (!anyLocked || cz <= firstLayer + 1e-6 || a <= 0) -1 else lockedPosed.indexOfFirst { it.second.contains(cx, cy, cz) }
+                val blockedHere = a > 0 && blockedPosed.any { it.contains(cx, cy, cz) }
                 if (lockedAt >= 0) { lockedArea[lockedAt] += a; lockedVol[lockedAt] += a * (zc - zMin) }
                 if (areaOf != null) { areaOf[i] = a; zcOf!![i] = zc }
                 // the pose's floor: what needs support even at the thinnest layer (Measure.supportFloorVisibleMm2)
@@ -550,8 +562,12 @@ object PoseDecision {
                         droopSev[k] += a * sev * seenDir
                         // the survey's regions: faces no locked spot holds (a locked spot supports its faces already, so a
                         // survey region never claims the same faces as a locked one)
-                        if (lockedAt < 0) { needsOf?.get(k)?.set(i, true); sevOfK?.get(k)?.set(i, sev) }
-                        if (lockedAt >= 0 || (decided && spotsOf(k).any { it.region.contains(cx, cy, cz) })) { held[k] += a; heldVis[k] += a * seenDir; heldVol[k] += a * (zc - zMin); heldSev[k] += a * sev * seenDir }
+                        // a face in a region support is kept off: never proposed, never held, its droop counted whatever is decided
+                        if (blockedHere) { blockedA[k] += a; blockedVis[k] += a * seenDir; blockedVol[k] += a * (zc - zMin); blockedSev[k] += a * sev * seenDir }
+                        else {
+                            if (lockedAt < 0) { needsOf?.get(k)?.set(i, true); sevOfK?.get(k)?.set(i, sev) }
+                            if (lockedAt >= 0 || (decided && spotsOf(k).any { it.region.contains(cx, cy, cz) })) { held[k] += a; heldVis[k] += a * seenDir; heldVol[k] += a * (zc - zMin); heldSev[k] += a * sev * seenDir }
+                        }
                     } else if (lockedAt >= 0) { extra[k] += a; extraVis[k] += a * seenDir; extraVol[k] += a * (zc - zMin) }
                 }
             }
@@ -587,7 +603,7 @@ object PoseDecision {
                     fun mean(sum: Double, a: Double) = if (a > 0) sum / a else 0.0
                     probe[q].key to IslandFaces(probeArea[q], if (slopedArea > 0) probeArea[q] / slopedArea else 0.0, probeAlong[q], probeUp[q], probeStep[k][q] / probeArea[q],
                         mean(probeStepAlong[k][q], probeAlong[q]), mean(probeStepUp[k][q], probeUp[q]), mean(probeStep[k][q] - probeStepAlong[k][q] - probeStepUp[k][q], rest)) },
-                supportFloorVisibleMm2 = supportFloorVis)
+                supportFloorVisibleMm2 = supportFloorVis, blocked = Measure.Blocked(blockedA[k], blockedVis[k], blockedVol[k], blockedSev[k]))
         }
         return if (f == null || !withSections) geometry else posedWithSections(p, geometry, f, partTriangles)
     }
@@ -599,7 +615,7 @@ object PoseDecision {
      * what the plan's spots hold up and the locked spots add.
      */
     fun supportVolumeFor(m: Measure, f: PoseFacts): Double = when (f.supportEnabled) {
-        true -> m.supportVolumeMm3 + m.lockedExtraVolumeMm3
+        true -> m.supportVolumeMm3 - m.blocked.volumeMm3 + m.lockedExtraVolumeMm3
         false -> m.supportVolumeMm3
         null -> m.heldVolumeMm3 + m.lockedExtraVolumeMm3
     }
@@ -784,7 +800,10 @@ object PoseDecision {
      * metric takes a share of its goal's weight, a measure that is 0 by definition is left out rather than given
      * a share it can never use (the support-needing area counts under quality once, either way).
      */
-    fun poseMetrics(f: PoseFacts) = (when (f.supportEnabled) { true -> listOf(Metric.SUPPORT_INTERFACE); false -> listOf(Metric.UNSUPPORTED_AREA)
+    fun poseMetrics(f: PoseFacts) = (when (f.supportEnabled) {
+            // on: nothing droops, but in a region support is kept off
+            true -> if (f.blocked.isEmpty()) listOf(Metric.SUPPORT_INTERFACE) else listOf(Metric.UNSUPPORTED_AREA, Metric.SUPPORT_INTERFACE)
+            false -> listOf(Metric.UNSUPPORTED_AREA)
             // decided per spot: both can be anything, and both are measured
             null -> listOf(Metric.UNSUPPORTED_AREA, Metric.SUPPORT_INTERFACE) }) +
         listOf(Metric.HEIGHT, Metric.BED_CONTACT, Metric.TIP_OFFSET, Metric.SLENDERNESS, Metric.FIRST_LAYER_ISLANDS, Metric.SURFACE_STEP, Metric.LAYER_LINES, Metric.HEIGHT_ERROR, Metric.WEAKEST_BOND, Metric.TIME_ESTIMATE) +
@@ -828,7 +847,9 @@ object PoseDecision {
         // the locked spots' other downward faces are scarred too (support under every face in them)
         // the scar's and droop's areas as seen (the visibility map; the columns' bases are upward faces, seen in full)
         val (droop, scar, vol) = when (f.supportEnabled) {
-            true -> Triple(0.0, r(m.needsSupportVisibleMm2 + m.lockedExtraVisibleMm2 + (m.overhangs?.sumOf { it.baseMm2 } ?: 0.0) + m.lockedBaseMm2), r(m.supportVolumeMm3 + m.lockedExtraVolumeMm3))
+            // the switch on: everything needing support gets it but the regions support is kept off, which droop
+            true -> Triple(r(m.blocked.severityMm2), r(m.needsSupportVisibleMm2 - m.blocked.visibleMm2 + m.lockedExtraVisibleMm2 + (m.overhangs?.sumOf { it.baseMm2 } ?: 0.0) + m.lockedBaseMm2),
+                r(m.supportVolumeMm3 - m.blocked.volumeMm3 + m.lockedExtraVolumeMm3))
             false -> Triple(r(m.droopSeverityMm2), 0.0, 0.0)
             null -> Triple(r(m.droopSeverityMm2 - m.heldSeverityMm2), r(m.heldVisibleMm2 + m.lockedExtraVisibleMm2 + m.heldBaseMm2 + m.lockedBaseMm2), r(m.heldVolumeMm3 + m.lockedExtraVolumeMm3))
         }
@@ -1066,7 +1087,7 @@ object PoseDecision {
                 true -> "support on: unsupported area gets support (intent)"; false -> "support OFF: unsupported area prints over air (intent)"
                 null -> if (f.supportSpotsLocked != null) "support locked by the plan's spots (plan.object.<key>.support.spot): the faces needing support within them get it, nothing else"
                     else "support decided per overhang (plan.support.enabled unset, coordination phase 3): support's survey proposes each overhang region too steep to hold itself up, " +
-                        "the weights choose between its scars and plastic (support.interface, support.mass) and the droop without it (unsupported_area); locked spots (plan.support.locked) are always supported"
+                        "the weights choose between its scars and plastic (support.interface, support.mass) and the droop without it (unsupported_area); locked spots (a region's support = \"always\") are always supported, and a region's support = \"never\" never"
             } + (if (f.lockedSpots.isEmpty()) "" else "; locked spots: " + f.lockedSpots.joinToString("; ") { "'${it.key}' (${it.words}; ${it.source})" }) +
                 (if (f.supportControls.isEmpty()) "" else "; support's controls, locked at the settings: " + f.supportControls.joinToString("; ") { it.describe() }) +
                 Support.minRegionWidthMm(f.supportControls).let { if (it > 0) "; an overhang region narrower than %.2f mm (a tip's diameter with the XY gap on both sides) is left to droop: no tree can stand in it".format(Locale.ROOT, it) else "" },
@@ -1205,7 +1226,7 @@ object PoseDecision {
             val withSupport = plan.withSupport(SupportPlan(spots))
             return withSupport to Measure(m.contactMm2, m.needsSupportMm2, m.heightMm, m.sizeX, m.sizeY, m.tipOffsetMm, m.sealedMm2, m.surfaceStepMm, null, null, m.supportVolumeMm3, withSupport, m.layerTops,
                 m.layerLinesMm, m.flatTopMm2, emptySet(), m.heldMm2, m.heldVolumeMm3, m.lockedExtraMm2, m.lockedExtraVolumeMm3, m.overhangs, m.lockedStats, m.heldBaseMm2, m.lockedBaseMm2, m.droopSeverityMm2, m.heldSeverityMm2, m.slenderness, m.firstLayerIslands, m.heightErrorMm,
-                m.surfaceMm2, m.visibleMm2, m.needsSupportVisibleMm2, m.heldVisibleMm2, m.lockedExtraVisibleMm2)
+                m.surfaceMm2, m.visibleMm2, m.needsSupportVisibleMm2, m.heldVisibleMm2, m.lockedExtraVisibleMm2, blocked = m.blocked)
         }
         fun lockedExplain(plan: TechniquePlan, proposals: List<TechniqueExplain.ProposalOut>, why: String, m: Measure?) = TechniqueExplain("", override!!.label,
             proposals, plan.portions(), Coordination.fill(Coordination.Volume.WHOLE, proposals.filter { it.fate != TechniqueExplain.Fate.REJECTED }.map { it.now }),
@@ -1214,7 +1235,7 @@ object PoseDecision {
         /** A locked plan's support spots as proposals (requirements). */
         fun spotProposals(plan: TechniquePlan): List<TechniqueExplain.ProposalOut> = plan.support?.spots.orEmpty().map { s ->
             chosenWhole(Coordination.Proposal(if (s.locked) "locked spot '${s.id}'" else s.id, PrintTechnique.SUPPORT, null, Coordination.Volume.Under(s.region, s.standsOn),
-                if (s.locked) "locked by the user (plan.support.locked): every downward face in it gets support" else "locked by the plan (plan.object.<key>.support.spot)", "the user's requirement", locked = true, order = s.order),
+                if (s.locked) "locked by the user (a region's support = \"always\"): every downward face in it gets support" else "locked by the plan (plan.object.<key>.support.spot)", "the user's requirement", locked = true, order = s.order),
                 "a requirement: a locked proposal is always in the chosen set")
         }
         // A locked pose with a locked plan: nothing to measure
@@ -1368,7 +1389,7 @@ object PoseDecision {
                 }
             }
             for (st in sample.lockedStats.orEmpty()) if (st.areaMm2 > 0) add("locked spot '${st.spot.key}'", st.region, true, st.standsOn, st.standsOnMm, st.columnMm, st.areaMm2, st.columnMm3, st.baseMm2, 0.0,
-                "locked by the user (${st.spot.source}): every downward face in it gets support, %.1f mm² here".format(Locale.ROOT, st.areaMm2), "the user's requirement (plan.support.locked)", "locked:${st.spot.key}")
+                "locked by the user (${st.spot.source}): every downward face in it gets support, %.1f mm² here".format(Locale.ROOT, st.areaMm2), "the user's requirement (a region's support = \"always\")", "locked:${st.spot.key}")
             val hReach = hh ?: f.layerHeightMm ?: f.firstLayerMm ?: 0.0
             if (f.supportSearched) reachAll(pose, sample.overhangs.orEmpty(), hReach)
             if (f.supportSearched) for (r in sample.overhangs.orEmpty()) {

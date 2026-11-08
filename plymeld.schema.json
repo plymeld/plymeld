@@ -3251,238 +3251,6 @@
           },
           "properties": {}
         },
-        "support": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "locked": {
-              "type": "object",
-              "additionalProperties": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "min": {
-                    "description": "a spot support is locked on (a requirement the search never weighs away: every downward face in the box gets support, whether or not it needs it; plymeld refuses when nothing in the box can be supported): the box's least corner, in the model's own coordinates as its file gives them — a point, x y z and a unit (\"10 20 5 mm\"); or an array of 3 numbers (mm)",
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "array",
-                        "items": {
-                          "type": "number"
-                        },
-                        "minItems": 3,
-                        "maxItems": 3
-                      }
-                    ]
-                  },
-                  "max": {
-                    "description": "the locked spot's greatest corner (above min on every axis), in the model's own coordinates — a point, x y z and a unit (\"10 20 5 mm\"); or an array of 3 numbers (mm)",
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "array",
-                        "items": {
-                          "type": "number"
-                        },
-                        "minItems": 3,
-                        "maxItems": 3
-                      }
-                    ]
-                  }
-                }
-              },
-              "properties": {}
-            },
-            "enabled": {
-              "description": "the support switch, a lock: true = tree support under every face too steep to hold itself up; false = never (and a locked spot, plan.support.locked, is then refused); unset = the search decides per overhang (coordination phase 3), weighing each region's scars and plastic against the droop without it, with the locked spots always supported — true or false; or a formula (= ...)",
-              "anyOf": [
-                {
-                  "type": "boolean"
-                },
-                {
-                  "enum": [
-                    "true",
-                    "false"
-                  ]
-                },
-                {
-                  "type": "string",
-                  "pattern": "^\\s*="
-                }
-              ]
-            },
-            "interface": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "top_layers": {
-                  "description": "INHERITED: interface layers under the object — a count; or a formula (= ...)",
-                  "type": [
-                    "string",
-                    "number"
-                  ]
-                },
-                "bottom_layers": {
-                  "description": "INHERITED: interface layers on what it stands on — a count; or a formula (= ...)",
-                  "type": [
-                    "string",
-                    "number"
-                  ]
-                },
-                "spacing": {
-                  "description": "the gap between interface lines (0 = touching); unset = plymeld's rule, lines at bead contact — a length (mm); or a formula (= ...)",
-                  "type": [
-                    "string",
-                    "number"
-                  ]
-                },
-                "slot": {
-                  "description": "the slot that prints support interface (0 = whichever is loaded) — a count; or a formula (= ...)",
-                  "type": [
-                    "string",
-                    "number"
-                  ]
-                }
-              }
-            },
-            "gap": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "top": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "properties": {
-                    "value": {
-                      "description": "the gap between support's top and the object it holds up, rounded to whole layers; unset = one layer, at least gap.top.min — a length (mm); or a formula (= ...)",
-                      "type": [
-                        "string",
-                        "number"
-                      ]
-                    },
-                    "min": {
-                      "description": "the least gap between support's top and the object when gap.top.value is unset: one layer, or as many as reach this (0.2 mm: 3 layers at 0.08 mm) — a length (mm); or a formula (= ...)",
-                      "type": [
-                        "string",
-                        "number"
-                      ]
-                    }
-                  }
-                },
-                "bottom": {
-                  "description": "the gap between support standing on the model and the model's top under it; the support's lowest interface.bottom_layers above the gap are bottom interface, as on the bed; unset = one layer (the layer on the model's top left out); 0 = laid onto it — a length (mm); or a formula (= ...)",
-                  "type": [
-                    "string",
-                    "number"
-                  ]
-                },
-                "side": {
-                  "description": "the gap beside the object, between support and the object's walls; unset = plymeld's rule, one support line — a length (mm); or a formula (= ...)",
-                  "type": [
-                    "string",
-                    "number"
-                  ]
-                }
-              }
-            },
-            "column": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "width": {
-                  "description": "the narrowest column of support laid, so the narrowest overhang that gets support: an overhang is kept only where the overhang within this height above and below it, taken together, is at least this wide (a sloped face is a stack of thin strips, judged as a stack); what is narrower is a speck nothing could stand under and gets no support, a locked spot excepted; unset = plymeld's rule, a tree tip (two support lines) — a length (mm); or a formula (= ...)",
-                  "type": [
-                    "string",
-                    "number"
-                  ]
-                }
-              }
-            },
-            "spacing": {
-              "description": "INHERITED: gap between support lines — a length (mm); or a formula (= ...)",
-              "type": [
-                "string",
-                "number"
-              ]
-            },
-            "from_bed_only": {
-              "description": "INHERITED: only support standing on the bed — true or false; or a formula (= ...)",
-              "anyOf": [
-                {
-                  "type": "boolean"
-                },
-                {
-                  "enum": [
-                    "true",
-                    "false"
-                  ]
-                },
-                {
-                  "type": "string",
-                  "pattern": "^\\s*="
-                }
-              ]
-            },
-            "line": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "width": {
-                  "description": "INHERITED: support line width — a length (mm); or a formula (= ...)",
-                  "type": [
-                    "string",
-                    "number"
-                  ]
-                }
-              }
-            },
-            "angle": {
-              "description": "INHERITED: support line direction — a angle (deg); or a formula (= ...)",
-              "type": [
-                "string",
-                "number"
-              ]
-            },
-            "slot": {
-              "description": "the slot that prints support (0 = whichever is loaded) — a count; or a formula (= ...)",
-              "type": [
-                "string",
-                "number"
-              ]
-            },
-            "tree": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "branch_diameter": {
-                  "description": "INHERITED: largest branch diameter — a length (mm); or a formula (= ...)",
-                  "type": [
-                    "string",
-                    "number"
-                  ]
-                },
-                "widening": {
-                  "description": "INHERITED: how fast a branch widens going down — a angle (deg); or a formula (= ...)",
-                  "type": [
-                    "string",
-                    "number"
-                  ]
-                },
-                "tip_spacing": {
-                  "description": "INHERITED: spacing of the tips under an overhang — a length (mm); or a formula (= ...)",
-                  "type": [
-                    "string",
-                    "number"
-                  ]
-                }
-              }
-            }
-          }
-        },
         "insert": {
           "type": "object",
           "additionalProperties": {
@@ -5250,158 +5018,12 @@
             "off"
           ]
         },
-        "view_from": {
-          "description": "where the finished print is looked at from, for quality's measures (the visibility map): all_around = no face counts as turned away; front, back, left, right, above = the model's own sides as given (front is its small-y side, toward the printer's door when it prints as given), turned with whatever pose the plan gives it. A face turned away from the viewer counts method.quality.visibility.away by how squarely it faces away; a seam placed least_visible goes where its viewing directions, weighed by the quadrant they look from (method.quality.visibility.quadrant.*), see it least. Per object: plan.object.<key>.view_from",
-          "enum": [
-            "all_around",
-            "front",
-            "back",
-            "left",
-            "right",
-            "above"
-          ]
-        },
-        "object": {
-          "type": "object",
-          "description": "per-object values, by object key (`name`, `name#2` ...); they win over the general ones",
-          "additionalProperties": {
-            "$ref": "#/$defs/plan.object"
-          }
-        }
-      }
-    },
-    "plan.object": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "faces": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "flat_top": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "technique": {
-                  "description": "the surface technique locked on the flat tops: ironing = smooth, the nozzle passed over them again laying almost no plastic (plan.technique.ironing); as_laid = as the volume technique lays them. Unset = as laid",
-                  "enum": [
-                    "ironing",
-                    "as_laid"
-                  ]
-                }
-              }
-            },
-            "sloped_top": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "technique": {
-                  "description": "the surface technique locked on the sloped tops: z_antialiasing = the stair-steps removed: in flat layers, where the model's top lies within a layer, its lines are lowered onto the top with less plastic (never thinner than the tool's thinnest layer, hardware.tool.<key>.layer.height.min), and the layer reaches out to where the top is that far above its bottom; curved and lifted layers follow their own surfaces; as_laid = as laid. Unset = as laid (Z anti-aliasing until a print decides it)",
-                  "enum": [
-                    "z_antialiasing",
-                    "as_laid"
-                  ]
-                }
-              }
-            },
-            "side": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "technique": {
-                  "description": "the surface technique locked on the walls: fuzzy_skin = rough, jittered in and out on the walls plan.technique.fuzzy_skin.where names; as_laid = as laid. Unset = as laid",
-                  "enum": [
-                    "fuzzy_skin",
-                    "as_laid"
-                  ]
-                }
-              }
-            },
-            "under": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "technique": {
-                  "description": "the surface technique locked on the undersides over air: wave_overhang = each flat layer's bottom over air that hangs off one side grown outward from the supported material beside it, bead by bead, each bead laid against the one before at plan.technique.wave_overhang's spacing, flow, and speed (a span, every bridge line landing on what is printed at both ends, stays a bridge; an area with support under it is the support's; what no front reaches is bridged); as_laid = bridged, as before. Bundled: wave_overhang (wave overhang, support, or nothing for an underside hanging off one side; never bridged)",
-                  "enum": [
-                    "wave_overhang",
-                    "as_laid"
-                  ]
-                },
-                "from": {
-                  "description": "where the underside surface technique starts: only layers whose top is above this height (from the object's bottom, as printed) get it; unset = from the bottom — a length (mm); or a formula (= ...)",
-                  "type": [
-                    "string",
-                    "number"
-                  ]
-                },
-                "to": {
-                  "description": "where the underside surface technique ends: only layers whose bottom is below this height (from the object's bottom, as printed) get it; unset = to the top — a length (mm); or a formula (= ...)",
-                  "type": [
-                    "string",
-                    "number"
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "seam": {
-          "description": "where every wall loop starts (its seam), a scarf seam's too: corners = every loop starts at a corner when it has one (inside corners first), each layer's seam nearest the one below (with none below: the sharpest corner, else the back-most point); back = every loop starts at its back-most point; least_visible = every loop starts at the held-up point the seam measure counts least (its visibility, turned away from plan.view_from's viewer or an underside, times method.quality.seam.corner_share in a corner), ties to the point the viewer sees least first (a turned-away face before a front corner), then to a corner, then to the seam below, then the back. Either way, a point on an edge of the layer that hangs over the layer below (where the overhang slow-down starts) only when the loop has no other. Unset = decided per object by the job's weights (seam_scar, with whether scarf seams are on where plan.technique.scarf_seam.enabled is unset)",
-          "enum": [
-            "corners",
-            "back",
-            "least_visible"
-          ]
-        },
         "support": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "locked": {
-              "type": "object",
-              "additionalProperties": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "min": {
-                    "description": "a spot support is locked on (a requirement the search never weighs away: every downward face in the box gets support, whether or not it needs it; plymeld refuses when nothing in the box can be supported): the box's least corner, in the model's own coordinates as its file gives them — a point, x y z and a unit (\"10 20 5 mm\"); or an array of 3 numbers (mm)",
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "array",
-                        "items": {
-                          "type": "number"
-                        },
-                        "minItems": 3,
-                        "maxItems": 3
-                      }
-                    ]
-                  },
-                  "max": {
-                    "description": "the locked spot's greatest corner (above min on every axis), in the model's own coordinates — a point, x y z and a unit (\"10 20 5 mm\"); or an array of 3 numbers (mm)",
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "array",
-                        "items": {
-                          "type": "number"
-                        },
-                        "minItems": 3,
-                        "maxItems": 3
-                      }
-                    ]
-                  }
-                }
-              },
-              "properties": {}
-            },
             "enabled": {
-              "description": "the support switch, a lock: true = tree support under every face too steep to hold itself up; false = never (and a locked spot, plan.support.locked, is then refused); unset = the search decides per overhang (coordination phase 3), weighing each region's scars and plastic against the droop without it, with the locked spots always supported — true or false; or a formula (= ...)",
+              "description": "the support switch, a lock: true = tree support under every face too steep to hold itself up; false = never (and a region's support = \"always\" is then refused); unset = the search decides per overhang (coordination phase 3), weighing each region's scars and plastic against the droop without it. Either way a region's support rule (plan.object.<key>.region.<key>.support) wins: always supported, or never — true or false; or a formula (= ...)",
               "anyOf": [
                 {
                   "type": "boolean"
@@ -5583,57 +5205,112 @@
                   ]
                 }
               }
-            },
-            "spot": {
-              "type": "object",
-              "additionalProperties": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "min": {
-                    "description": "a support spot the plan locks (what `plymeld plan -o` wrote of the search's choice): the faces too steep to hold themselves up within the box get tree support, nothing else does; the box's least corner: x and y from the posed object's corner (its least x and y), z from the object's bottom as posed — a point, x y z and a unit (\"10 20 5 mm\"); or an array of 3 numbers (mm)",
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "array",
-                        "items": {
-                          "type": "number"
-                        },
-                        "minItems": 3,
-                        "maxItems": 3
-                      }
-                    ]
-                  },
-                  "max": {
-                    "description": "the locked support spot's greatest corner (above min on x and y, at or above it on z: a flat underside), in the same frame — a point, x y z and a unit (\"10 20 5 mm\"); or an array of 3 numbers (mm)",
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "array",
-                        "items": {
-                          "type": "number"
-                        },
-                        "minItems": 3,
-                        "maxItems": 3
-                      }
-                    ]
-                  },
-                  "order": {
-                    "description": "the print order of the spot's support column beside the model's layers: interleaved = layer by layer with them; first = the column finished before the model's layers beside it start (only where it stays under the nozzle tip's protrusion, hardware.tool.<key>.head.nozzle.height). Unset = interleaved",
-                    "enum": [
-                      "interleaved",
-                      "first"
-                    ]
-                  }
-                }
-              },
-              "properties": {}
             }
           }
+        },
+        "view_from": {
+          "description": "where the finished print is looked at from, for quality's measures (the visibility map): all_around = no face counts as turned away; front, back, left, right, above = the model's own sides as given (front is its small-y side, toward the printer's door when it prints as given), turned with whatever pose the plan gives it. A face turned away from the viewer counts method.quality.visibility.away by how squarely it faces away; a seam placed least_visible goes where its viewing directions, weighed by the quadrant they look from (method.quality.visibility.quadrant.*), see it least. Per object: plan.object.<key>.view_from",
+          "enum": [
+            "all_around",
+            "front",
+            "back",
+            "left",
+            "right",
+            "above"
+          ]
+        },
+        "object": {
+          "type": "object",
+          "description": "per-object values, by object key (`name`, `name#2` ...); they win over the general ones",
+          "additionalProperties": {
+            "$ref": "#/$defs/plan.object"
+          }
+        }
+      }
+    },
+    "plan.object": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "faces": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "flat_top": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "technique": {
+                  "description": "the surface technique locked on the flat tops: ironing = smooth, the nozzle passed over them again laying almost no plastic (plan.technique.ironing); as_laid = as the volume technique lays them. Unset = as laid",
+                  "enum": [
+                    "ironing",
+                    "as_laid"
+                  ]
+                }
+              }
+            },
+            "sloped_top": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "technique": {
+                  "description": "the surface technique locked on the sloped tops: z_antialiasing = the stair-steps removed: in flat layers, where the model's top lies within a layer, its lines are lowered onto the top with less plastic (never thinner than the tool's thinnest layer, hardware.tool.<key>.layer.height.min), and the layer reaches out to where the top is that far above its bottom; curved and lifted layers follow their own surfaces; as_laid = as laid. Unset = as laid (Z anti-aliasing until a print decides it)",
+                  "enum": [
+                    "z_antialiasing",
+                    "as_laid"
+                  ]
+                }
+              }
+            },
+            "side": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "technique": {
+                  "description": "the surface technique locked on the walls: fuzzy_skin = rough, jittered in and out on the walls plan.technique.fuzzy_skin.where names; as_laid = as laid. Unset = as laid",
+                  "enum": [
+                    "fuzzy_skin",
+                    "as_laid"
+                  ]
+                }
+              }
+            },
+            "under": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "technique": {
+                  "description": "the surface technique locked on the undersides over air: wave_overhang = each flat layer's bottom over air that hangs off one side grown outward from the supported material beside it, bead by bead, each bead laid against the one before at plan.technique.wave_overhang's spacing, flow, and speed (a span, every bridge line landing on what is printed at both ends, stays a bridge; an area with support under it is the support's; what no front reaches is bridged); as_laid = bridged, as before. Bundled: wave_overhang (wave overhang, support, or nothing for an underside hanging off one side; never bridged)",
+                  "enum": [
+                    "wave_overhang",
+                    "as_laid"
+                  ]
+                },
+                "from": {
+                  "description": "where the underside surface technique starts: only layers whose top is above this height (from the object's bottom, as printed) get it; unset = from the bottom — a length (mm); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                },
+                "to": {
+                  "description": "where the underside surface technique ends: only layers whose bottom is below this height (from the object's bottom, as printed) get it; unset = to the top — a length (mm); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "seam": {
+          "description": "where every wall loop starts (its seam), a scarf seam's too: corners = every loop starts at a corner when it has one (inside corners first), each layer's seam nearest the one below (with none below: the sharpest corner, else the back-most point); back = every loop starts at its back-most point; least_visible = every loop starts at the held-up point the seam measure counts least (its visibility, turned away from plan.view_from's viewer or an underside, times method.quality.seam.corner_share in a corner), ties to the point the viewer sees least first (a turned-away face before a front corner), then to a corner, then to the seam below, then the back. Either way, a point on an edge of the layer that hangs over the layer below (where the overhang slow-down starts) only when the loop has no other. Unset = decided per object by the job's weights (seam_scar, with whether scarf seams are on where plan.technique.scarf_seam.enabled is unset)",
+          "enum": [
+            "corners",
+            "back",
+            "least_visible"
+          ]
         },
         "insert": {
           "type": "object",
@@ -7249,6 +6926,245 @@
             "off"
           ]
         },
+        "support": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "description": "the support switch, a lock: true = tree support under every face too steep to hold itself up; false = never (and a region's support = \"always\" is then refused); unset = the search decides per overhang (coordination phase 3), weighing each region's scars and plastic against the droop without it. Either way a region's support rule (plan.object.<key>.region.<key>.support) wins: always supported, or never — true or false; or a formula (= ...)",
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "enum": [
+                    "true",
+                    "false"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "pattern": "^\\s*="
+                }
+              ]
+            },
+            "interface": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "top_layers": {
+                  "description": "INHERITED: interface layers under the object — a count; or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                },
+                "bottom_layers": {
+                  "description": "INHERITED: interface layers on what it stands on — a count; or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                },
+                "spacing": {
+                  "description": "the gap between interface lines (0 = touching); unset = plymeld's rule, lines at bead contact — a length (mm); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                },
+                "slot": {
+                  "description": "the slot that prints support interface (0 = whichever is loaded) — a count; or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                }
+              }
+            },
+            "gap": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "top": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "value": {
+                      "description": "the gap between support's top and the object it holds up, rounded to whole layers; unset = one layer, at least gap.top.min — a length (mm); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    },
+                    "min": {
+                      "description": "the least gap between support's top and the object when gap.top.value is unset: one layer, or as many as reach this (0.2 mm: 3 layers at 0.08 mm) — a length (mm); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    }
+                  }
+                },
+                "bottom": {
+                  "description": "the gap between support standing on the model and the model's top under it; the support's lowest interface.bottom_layers above the gap are bottom interface, as on the bed; unset = one layer (the layer on the model's top left out); 0 = laid onto it — a length (mm); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                },
+                "side": {
+                  "description": "the gap beside the object, between support and the object's walls; unset = plymeld's rule, one support line — a length (mm); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                }
+              }
+            },
+            "column": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "width": {
+                  "description": "the narrowest column of support laid, so the narrowest overhang that gets support: an overhang is kept only where the overhang within this height above and below it, taken together, is at least this wide (a sloped face is a stack of thin strips, judged as a stack); what is narrower is a speck nothing could stand under and gets no support, a locked spot excepted; unset = plymeld's rule, a tree tip (two support lines) — a length (mm); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                }
+              }
+            },
+            "spacing": {
+              "description": "INHERITED: gap between support lines — a length (mm); or a formula (= ...)",
+              "type": [
+                "string",
+                "number"
+              ]
+            },
+            "from_bed_only": {
+              "description": "INHERITED: only support standing on the bed — true or false; or a formula (= ...)",
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "enum": [
+                    "true",
+                    "false"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "pattern": "^\\s*="
+                }
+              ]
+            },
+            "line": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "width": {
+                  "description": "INHERITED: support line width — a length (mm); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                }
+              }
+            },
+            "angle": {
+              "description": "INHERITED: support line direction — a angle (deg); or a formula (= ...)",
+              "type": [
+                "string",
+                "number"
+              ]
+            },
+            "slot": {
+              "description": "the slot that prints support (0 = whichever is loaded) — a count; or a formula (= ...)",
+              "type": [
+                "string",
+                "number"
+              ]
+            },
+            "tree": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "branch_diameter": {
+                  "description": "INHERITED: largest branch diameter — a length (mm); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                },
+                "widening": {
+                  "description": "INHERITED: how fast a branch widens going down — a angle (deg); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                },
+                "tip_spacing": {
+                  "description": "INHERITED: spacing of the tips under an overhang — a length (mm); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                }
+              }
+            },
+            "spot": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "min": {
+                    "description": "a support spot the plan locks (what `plymeld plan -o` wrote of the search's choice): the faces too steep to hold themselves up within the box get tree support, nothing else does; the box's least corner: x and y from the posed object's corner (its least x and y), z from the object's bottom as posed — a point, x y z and a unit (\"10 20 5 mm\"); or an array of 3 numbers (mm)",
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "number"
+                        },
+                        "minItems": 3,
+                        "maxItems": 3
+                      }
+                    ]
+                  },
+                  "max": {
+                    "description": "the locked support spot's greatest corner (above min on x and y, at or above it on z: a flat underside), in the same frame — a point, x y z and a unit (\"10 20 5 mm\"); or an array of 3 numbers (mm)",
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "number"
+                        },
+                        "minItems": 3,
+                        "maxItems": 3
+                      }
+                    ]
+                  },
+                  "order": {
+                    "description": "the print order of the spot's support column beside the model's layers: interleaved = layer by layer with them; first = the column finished before the model's layers beside it start (only where it stays under the nozzle tip's protrusion, hardware.tool.<key>.head.nozzle.height). Unset = interleaved",
+                    "enum": [
+                      "interleaved",
+                      "first"
+                    ]
+                  }
+                }
+              },
+              "properties": {}
+            }
+          }
+        },
         "view_from": {
           "description": "where the finished print is looked at from, for quality's measures (the visibility map): all_around = no face counts as turned away; front, back, left, right, above = the model's own sides as given (front is its small-y side, toward the printer's door when it prints as given), turned with whatever pose the plan gives it. A face turned away from the viewer counts method.quality.visibility.away by how squarely it faces away; a seam placed least_visible goes where its viewing directions, weighed by the quadrant they look from (method.quality.visibility.quadrant.*), see it least. Per object: plan.object.<key>.view_from",
           "enum": [
@@ -7313,7 +7229,7 @@
                 ]
               },
               "facing": {
-                "description": "the lines in the region by the faces they lay, in plan.faces's words: side = wall lines, flat_top and sloped_top = top surface lines and their ironing (a line does not say whether its top is flat or sloped: either selects both), under = bottom surfaces, bridges, and wave overhangs; unset = every line",
+                "description": "the lines in the region by the faces they lay, in plan.faces's words: side = wall lines, flat_top and sloped_top = top surface lines and their ironing (a line does not say whether its top is flat or sloped: either selects both), under = bottom surfaces, bridges, and wave overhangs; unset = every line. Not read with a support rule (support holds downward faces only)",
                 "type": "array",
                 "items": {
                   "enum": [
@@ -7323,6 +7239,13 @@
                     "under"
                   ]
                 }
+              },
+              "support": {
+                "description": "support under the region's downward faces whatever plan.support.enabled or the weights decide: always = every downward face in it gets support, whether or not it needs it (a requirement: refused with the switch off, and where nothing in the region can be supported); never = no support under them (their droop counted as unsupported area); unset = the object's own rule",
+                "enum": [
+                  "always",
+                  "never"
+                ]
               },
               "mechanism": {
                 "type": "object",
@@ -9158,7 +9081,7 @@
           "additionalProperties": false,
           "properties": {
             "enabled": {
-              "description": "the support switch, a lock: true = tree support under every face too steep to hold itself up; false = never (and a locked spot, plan.support.locked, is then refused); unset = the search decides per overhang (coordination phase 3), weighing each region's scars and plastic against the droop without it, with the locked spots always supported — true or false; or a formula (= ...)",
+              "description": "the support switch, a lock: true = tree support under every face too steep to hold itself up; false = never (and a region's support = \"always\" is then refused); unset = the search decides per overhang (coordination phase 3), weighing each region's scars and plastic against the droop without it. Either way a region's support rule (plan.object.<key>.region.<key>.support) wins: always supported, or never — true or false; or a formula (= ...)",
               "anyOf": [
                 {
                   "type": "boolean"

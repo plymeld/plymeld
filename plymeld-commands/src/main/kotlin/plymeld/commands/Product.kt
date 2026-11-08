@@ -225,14 +225,17 @@ class Product(given: ConfigStack, modelFiles: List<Path>, machine: String? = nul
             val where = if (on) config.scoped("plan", listOf("technique", "scarf_seam", "where"), Site(obj = o))?.value as String? ?: "smooth" else "none"
             plymeld.core.decide.SeamDecision.Lock(where, "${e.key} (${e.source})") }
         val bondLock = config.scoped("plan", listOf("bond_cooling"), Site(obj = o))?.let { e -> when (e.value) { "on" -> true; "off" -> false; else -> null }?.let { it to "${e.key} (${e.source})" } }
-        return Plan.Companion.ObjectLocks(pose, techniques?.first?.at(h), h, flatHeights(o), if (planSpots != null) emptyList() else lockedSpots(o), planSpots, inserts(o),
-            seam = seamLock, scarf = scarfLock, bondCooling = bondLock, islands = islands(o), regions = regions(o))
+        // the regions; those with support = "always" are the spots support is locked on (a plan file's spots carry them already)
+        val rs = regions(o)
+        val lockedSpots = rs.filter { it.support == plymeld.core.decide.Region.ALWAYS }.map { plymeld.core.decide.LockedSpot(it.key, it, it.source) }
+        return Plan.Companion.ObjectLocks(pose, techniques?.first?.at(h), h, flatHeights(o), if (planSpots != null) emptyList() else lockedSpots, planSpots, inserts(o),
+            seam = seamLock, scarf = scarfLock, bondCooling = bondLock, islands = islands(o), regions = rs)
     }
 
     /**
      * The regions of [o] (`plan.object.<key>.region.<key>`, its copy's or its own; a region keyed alike under both is the copy's):
-     * each its box (min, max), height range (from, to), and faces (facing), and the values set for the lines in it
-     * (Schema.REGION_VALUES; the config refuses any other value under a region).
+     * each its box (min, max), height range (from, to), and faces (facing), the values set for the lines in it
+     * (Schema.REGION_VALUES; the config refuses any other value under a region), and its support rule (support).
      */
     private fun regions(o: plymeld.config.PlateObject): List<plymeld.core.decide.Region> {
         val site = Site(obj = o)
@@ -249,7 +252,8 @@ class Product(given: ConfigStack, modelFiles: List<Path>, machine: String? = nul
                 fun motion(leaf: String, dim: Dimension) = e("mechanism", "motion", leaf, "max")?.let { config.quantity(it, dim, site) }
                 try {
                     plymeld.core.decide.Region(n, box, e("from")?.let { config.quantity(it, Dimension.LENGTH, site) }, e("to")?.let { config.quantity(it, Dimension.LENGTH, site) },
-                        facing, motion("speed", Dimension.SPEED), motion("acceleration", Dimension.ACCEL), ConfigFiles.pathText(at) + " (${es.first().source})")
+                        facing, motion("speed", Dimension.SPEED), motion("acceleration", Dimension.ACCEL), ConfigFiles.pathText(at) + " (${es.first().source})",
+                        support = e("support")?.value as String?)
                 } catch (x: IllegalArgumentException) { throw UsageError(x.message ?: "bad region") }
             }
         }.distinctBy { it.key }
@@ -276,22 +280,6 @@ class Product(given: ConfigStack, modelFiles: List<Path>, machine: String? = nul
         return doubleArrayOf(lo[0], hi[0], lo[1], hi[1], lo[2], hi[2])
     }
 
-    /**
-     * The spots the user forces support on for [o]: `plan.support.locked.<key>` for every object, and
-     * `plan.object.<key>.support.locked.<key>` for this one (its copy's or its own); each a box in the model's own coordinates.
-     */
-    private fun lockedSpots(o: plymeld.config.PlateObject): List<plymeld.core.decide.LockedSpot> {
-        // the sets add up across scopes (every box applies); a spot keyed alike at two scopes is the narrowest scope's (it was
-        // the general one's, against the "narrower scope wins" rule)
-        val heads = listOf(o.key, o.base).distinct().map { listOf("plan", "object", it, "support", "locked") } + listOf(listOf("plan", "support", "locked"))
-        return heads.flatMap { head ->
-            config.values.values.filter { it.path.size == head.size + 2 && it.path.subList(0, head.size) == head }.groupBy { it.path[head.size] }.map { (k, es) ->
-                val b = box(head + k, es)
-                try { plymeld.core.decide.LockedSpot(k, b[0], b[1], b[2], b[3], b[4], b[5], ConfigFiles.pathText(head + k) + " (${es.first().source})") }
-                catch (e: IllegalArgumentException) { throw UsageError(e.message ?: "bad locked spot") }
-            }
-        }.distinctBy { it.key }
-    }
 
     /**
      * The planned inserts for [o]: `plan.insert.<key>` for every object and `plan.object.<key>.insert.<key>` for this one, each a
@@ -575,7 +563,7 @@ class Product(given: ConfigStack, modelFiles: List<Path>, machine: String? = nul
                     // the locked spots are written as the plan's own spots too (first), so `slice` decides nothing again and never meets
                     // the switch locked off beside a locked spot (that plan file was refused by plymeld's own rule)
                     append(comment((if (decidedHere) "support decided per overhang (plan.support.enabled unset): " else "support locked by the plan given (its spots, kept or as given): ") +
-                        (if (locked.isEmpty()) "" else "${locked.size} locked spot(s) (plan.support.locked, the job's requirement, written here in the posed frame) and ") +
+                        (if (locked.isEmpty()) "" else "${locked.size} locked spot(s) (a region's support = \"always\", the job's requirement, written here in the posed frame) and ") +
                         "${chosen.size} spot(s) ${if (decidedHere) "chosen" else "locked"}, each the faces needing support within its box " +
                         "(x, y from the posed object's corner, z from its bottom) and its column's print order beside the model's layers") + "\n")
                     // each spot named by what it holds up: the part whose box holds the spot's top center, when

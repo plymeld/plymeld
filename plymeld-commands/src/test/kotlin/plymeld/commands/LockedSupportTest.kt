@@ -15,8 +15,9 @@ import java.nio.file.Path
 
 /**
  * Support as a technique on the product path: the switch unset, the search decides per
- * overhang and the slice prints what it chose; a locked spot (`plan.support.locked.<key>`, here scoped to the object) is
- * supported whatever the weights, and refused where support cannot be generated; `plan -o` writes the chosen spots as
+ * overhang and the slice prints what it chose; a region locking support on (`plan.object.<key>.region.<key>.support =
+ * "always"`) is supported whatever the weights, and refused where support cannot be generated; a region keeping it off
+ * (`support = "never"`) gets none, even with the switch on; `plan -o` writes the chosen spots as
  * locks and the slice reads them back; `--explain` shows support's proposals, the locked spots and the columns' order.
  * The model is a T (a post with a bar across its top: two flat undersides over air).
  */
@@ -77,8 +78,13 @@ class LockedSupportTest : StringSpec({
     Files.writeString(d.resolve("q2.toml"), q2)
     Files.writeString(d.resolve("t.stl"), tStl())
     // the left overhang's underside (x -15..-5, y -5..5 at z 10 in the model's own coordinates), scoped to the object
-    Files.writeString(d.resolve("lock.toml"), "[plan.object.\"t.stl\".support.locked.left]\nmin = \"-15 -5 9 mm\"\nmax = \"-5 5 11 mm\"\n")
-    Files.writeString(d.resolve("air.toml"), "[plan.support.locked.air]\nmin = \"40 -5 9 mm\"\nmax = \"50 5 11 mm\"\n")
+    fun region(name: String, min: String, max: String, rule: String) = "[plan.object.\"t.stl\".region.$name]\nmin = \"$min\"\nmax = \"$max\"\nsupport = \"$rule\"\n"
+    Files.writeString(d.resolve("lock.toml"), region("left", "-15 -5 9 mm", "-5 5 11 mm", "always"))
+    // under the left overhang, clear of the post: inside the object's bounds, but no face of the model in it in any pose
+    Files.writeString(d.resolve("air.toml"), region("air", "-14 -4 2 mm", "-7 4 8 mm", "always"))
+    Files.writeString(d.resolve("outside.toml"), region("out", "40 -5 9 mm", "50 5 11 mm", "always"))
+    Files.writeString(d.resolve("block.toml"), region("left", "-15 -5 9 mm", "-5 5 11 mm", "never"))
+    Files.writeString(d.resolve("both.toml"), region("on", "-15 -5 9 mm", "-5 5 11 mm", "always") + region("off", "-12 -5 9 mm", "-8 5 11 mm", "never"))
     Files.writeString(d.resolve("thrifty.toml"), "[job.priorities]\nquality = \"1\"\nmaterial = \"50\"\n")
     // the pose as given (the T upright), so the per-overhang decision is what is tested: left to the search, the weights lay
     // the T on its side, where it has no overhang to support at all
@@ -102,12 +108,46 @@ class LockedSupportTest : StringSpec({
         Files.exists(d.resolve("off.gcode")) shouldBe false
     }
 
-    "a locked spot with nothing to support in it, in any pose, is refused with the reason" {
+    "a locked spot with nothing to support in it, in any pose, is refused with the reason; so is one outside the object" {
         val refused = io.kotest.assertions.throwables.shouldThrow<IllegalStateException> { slice("air.gcode", "q2.toml", "air.toml") }.message!!
         refused shouldContain "locked support spot 'air'"
         refused shouldContain "holds no downward face"
         refused shouldContain "move or remove the locked spot"
         Files.exists(d.resolve("air.gcode")) shouldBe false
+        val outside = runCatching { slice("out.gcode", "q2.toml", "outside.toml") }.exceptionOrNull()?.message ?: slice("out.gcode", "q2.toml", "outside.toml")
+        outside shouldContain "lies outside the object"
+        Files.exists(d.resolve("out.gcode")) shouldBe false
+    }
+
+    // the X of each support line's middle, from the left overhang's side of the T or the right's (the T centered: its outer
+    // walls' middle splits the sides)
+    fun supportSides(g: String): Pair<Int, Int> {
+        var x = Double.NaN; var feature = ""; val mids = ArrayList<Double>(); val walls = ArrayList<Double>()
+        for (l in g.lines()) {
+            if (l.startsWith("; FEATURE: ")) { feature = l.removePrefix("; FEATURE: "); continue }
+            if (!l.startsWith("G1 ")) continue
+            val w = l.substringBefore(';').trim().split(' ').drop(1).filter { it.length > 1 }.associate { it[0] to it.substring(1).toDouble() }
+            val nx = w['X'] ?: x
+            if ((w['E'] ?: 0.0) > 0 && !x.isNaN()) { if (feature.startsWith("Support")) mids += (x + nx) / 2 else if (feature == "Outer wall") walls += nx }
+            x = nx
+        }
+        val mid = (walls.min() + walls.max()) / 2
+        return mids.count { it < mid - 6 } to mids.count { it > mid + 6 }
+    }
+
+    "a region support is kept off gets none, even with the switch on; control: without it, support under both overhangs" {
+        val on = listOf("-cv", "plan.support.enabled=true", "-cv", "plan.pose=as-given", "-cv", "plan.placement=center")
+        slice("both_sides.gcode", "q2.toml", more = on)
+        val (l0, r0) = supportSides(gcode("both_sides.gcode"))
+        (l0 > 0 && r0 > 0) shouldBe true
+        slice("blocked.gcode", "q2.toml", "block.toml", more = on)
+        val (l1, r1) = supportSides(gcode("blocked.gcode"))
+        l1 shouldBe 0
+        (r1 > 0) shouldBe true
+        // a region locking support on and one keeping it off, over the same faces: refused, naming both
+        val refused = io.kotest.assertions.throwables.shouldThrow<IllegalStateException> { slice("both.gcode", "q2.toml", "both.toml", more = on) }.message!!
+        refused shouldContain "region 'on'"
+        refused shouldContain "region 'off'"
     }
 
     "decided per overhang: weights naming the droop support both overhangs, finished first; plan -o locks them as spots and the slice reads them back; --explain shows it" {

@@ -1,6 +1,7 @@
 package plymeld.check
 
 import io.kotest.assertions.throwables.shouldThrow
+import plymeld.core.decide.Metric
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.doubles.plusOrMinus
 import io.kotest.matchers.shouldBe
@@ -32,15 +33,33 @@ import plymeld.model.Overhang
 class SupportTechniqueTest : StringSpec({
     val soup = tShape()
     val range = Control(FlatLayers.LAYER_HEIGHT, "mm", Control.Range.Continuous(0.1, 0.3), "test: the tool's thinnest and thickest layer")
-    fun facts(weights: String, locked: List<LockedSpot> = emptyList(), support: Boolean? = null, nozzleHeight: Double? = 20.0, travel: Double? = 300.0) =
+    fun facts(weights: String, locked: List<LockedSpot> = emptyList(), support: Boolean? = null, nozzleHeight: Double? = 20.0, travel: Double? = 300.0,
+              blocked: List<plymeld.core.decide.Region> = emptyList()) =
         PoseFacts(0.0, 0.0, 270.0, 270.0, 256.0, Overhang.fromAngle(30.0, 0.2, 0.4), "test", Weights.parse(weights, "test"), support,
             layerHeightMm = 0.2, flowMaxMm3s = 18.0, minLayerTimeS = 8.0, firstLayerMm = 0.2, minLayerMm = 0.1, maxLayerMm = 0.3,
             layerHeightCandidates = FlatLayers.coarse(range, 0.2, 3), layerHeightControl = range, layerHeightBudget = 3, baselineLayerMm = 0.2, baselineWhat = "test",
-            lockedSpots = locked, nozzleHeightMm = nozzleHeight, nozzleHeightSource = "test", travelSpeedMmS = travel)
+            lockedSpots = locked, nozzleHeightMm = nozzleHeight, nozzleHeightSource = "test", travelSpeedMmS = travel, blocked = blocked)
     val flat = listOf(PrintTechnique.FLAT_LAYERS to null)
     fun decide(f: PoseFacts) = PoseDecision.decideWithTechnique(listOf(soup), f, flat, Pose.asGiven(), heights = FlatLayers.Heights.ONE)
     // the left overhang's underside: x -15..-5, y -5..5 at z 10 (the model's own coordinates); a box around it
     val left = LockedSpot("left", -15.0, -5.0, -5.0, 5.0, 9.0, 11.0, "test")
+
+    // a region support is kept off (support = "never") over the left underside: with the switch on, its 100 mm² droop
+    // (unsupported_area measured, support's scars and column only the right's); control: without it, nothing droops and
+    // unsupported_area is not even measured (0 by definition)
+    "support kept off a region: with the switch on, its faces droop and get no column; control: without it, none droop" {
+        val never = plymeld.core.decide.Region("left", doubleArrayOf(-15.0, -5.0, -5.0, 5.0, 9.0, 11.0), null, null, null, null, null, "test",
+            support = plymeld.core.decide.Region.NEVER)
+        fun values(f: PoseFacts) = PoseDecision.valuesOf(PoseDecision.measureAll(soup, Pose.asGiven(), Overhang.fromAngle(30.0, 0.2, 0.4), f = f, withSections = false,
+            plansFor = { _, _ -> listOf(FlatLayers.plan(0.2)) }).single(), f)
+        val on = values(facts("quality=1", support = true))
+        val kept = values(facts("quality=1", support = true, blocked = listOf(never)))
+        (Metric.UNSUPPORTED_AREA in PoseDecision.poseMetrics(facts("quality=1", support = true))) shouldBe false
+        (on[Metric.UNSUPPORTED_AREA] ?: 0.0) shouldBe 0.0
+        (kept.getValue(Metric.UNSUPPORTED_AREA) > 0) shouldBe true
+        (Metric.UNSUPPORTED_AREA in PoseDecision.poseMetrics(facts("quality=1", support = true, blocked = listOf(never)))) shouldBe true
+        kept.getValue(Metric.SUPPORT_VOLUME) shouldBe (on.getValue(Metric.SUPPORT_VOLUME) / 2 plusOrMinus 0.02)
+    }
 
     "the shape: two overhang regions of 100 mm² each, standing on the bed, columns 10 mm tall" {
         val m = PoseDecision.measureAll(soup, Pose.asGiven(), Overhang.fromAngle(30.0, 0.2, 0.4), f = facts("quality=1"), withSections = false,
@@ -85,8 +104,9 @@ class SupportTechniqueTest : StringSpec({
     }
 
     "a locked spot with nothing to support in it is refused with the reason; control: one around the overhang is not" {
-        val air = LockedSpot("air", 40.0, 50.0, -5.0, 5.0, 9.0, 11.0, "test")
-        shouldThrow<IllegalStateException> { decide(facts("quality=1", locked = listOf(air))) }.message!! shouldContain "locked support spot 'air' (x 40..50, y -5..5, z 9..11 mm in the model's own coordinates; test) holds no downward face"
+        // under the left overhang beside the post: within the T's bounds, no downward face in it
+        val air = LockedSpot("air", -15.0, -5.0, -5.0, 5.0, 2.0, 8.0, "test")
+        shouldThrow<IllegalStateException> { decide(facts("quality=1", locked = listOf(air))) }.message!! shouldContain "locked support spot 'air' (x -15..-5, y -5..5, z 2..8 mm in the model's own coordinates; test) holds no downward face"
         decide(facts("quality=1", locked = listOf(left))).technique.value.support!!.locked.size shouldBe 1
     }
 

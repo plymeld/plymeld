@@ -208,7 +208,7 @@ A summary of plymeld's column in [FEATURES.md](../FEATURES.md), which has the de
 | feature | plymeld |
 |---|---|
 | Classic and variable-width walls; sparse infill rectilinear, grid, cubic, gyroid; top and bottom monotonic, rectilinear, concentric, Archimedean chords | **[Built]** |
-| Tree support, decided overhang by overhang; support locked on a spot | **[Built]** (no painted enforcers or blockers) |
+| Tree support, decided overhang by overhang; support locked on or kept off a region | **[Built]** (by geometry; no painted enforcers or blockers) |
 | Bridges, internal bridges, graded overhang speed; wave overhangs | **[Built]** |
 | Layer heights following the surfaces; every print ending on the model's top | **[Built]** |
 | Corner, back, and scarf seams | **[Built]** |

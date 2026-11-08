@@ -18,7 +18,7 @@ import plymeld.geom.Polygon
  *     (removed); a per-line filter dropped every tree tip's interface and the
  *     columns under small faces (reverted). What this drops: specks (an engraved letter's
  *     ceiling a fraction of a line wide, 21 of them in one print's show face) and faces narrower than a
- *     column, which get no support at all. A locked spot (plan.support.locked) is never filtered.
+ *     column, which get no support at all. A locked spot (a region's support = "always") is never filtered; a blocked box (support = "never") gets none.
  *  2. Support standing on the model kept clear of it ([clearAboveModel]).
  */
 /** [walls]: outlines printed as support loops before the lines (the tree's branches). */
@@ -43,9 +43,9 @@ object Supports {
     /**
      * Where support is generated: [chosen] boxes (null = everywhere, the switch locked on): an overhang outside every box
      * gets no support; [locked] boxes: every downward face in them gets support, whether or not it needs it (the
-     * user's locked spots).
+     * user's locked spots); [blocked] boxes: no support under any face in them (a region's support = "never").
      */
-    class Regions(val chosen: List<Box>?, val locked: List<Box>) {
+    class Regions(val chosen: List<Box>?, val locked: List<Box>, val blocked: List<Box> = emptyList()) {
         val any: Boolean get() = chosen == null || chosen.isNotEmpty() || locked.isNotEmpty()
     }
 
@@ -86,14 +86,22 @@ object Supports {
             raw.add(if (chosenHere == null) over else if (chosenHere.isEmpty() || over.isEmpty()) emptyList() else Booleans.intersection(over, chosenHere))
         }
         val kept = if (faces != null && n > 1) dropSpecks(raw, faces, layerTopsUm!!, p.minWidthUm) else raw
-        if (rg == null || rg.locked.isEmpty()) return kept
-        // a locked spot: every downward face in it, filtered by nothing
+        if (rg == null || (rg.locked.isEmpty() && rg.blocked.isEmpty())) return kept
+        // a blocked box (a region support is kept off): no overhang in it on the layers of its height range
+        fun unblocked(i: Int, ov: List<Polygon>): List<Polygon> {
+            if (ov.isEmpty() || i == 0) return ov
+            val here = rg.blocked.filter { it.spans(layerTopsUm!![i - 1], layerTopsUm[i]) }.map { it.polygon() }
+            return if (here.isEmpty()) ov else Booleans.difference(ov, here)
+        }
+        if (rg.locked.isEmpty()) return List(n) { i -> unblocked(i, kept[i]) }
+        // a locked spot: every downward face in it, filtered by nothing (a blocked box over it is refused before this)
         return List(n) { i ->
-            if (i == 0 || outlines[i].isEmpty()) kept[i] else {
+            val k0 = unblocked(i, kept[i])
+            if (i == 0 || outlines[i].isEmpty()) k0 else {
                 val lockedHere = rg.locked.filter { it.spans(layerTopsUm!![i - 1], layerTopsUm[i]) }.map { it.polygon() }
-                if (lockedHere.isEmpty()) kept[i] else {
+                if (lockedHere.isEmpty()) k0 else {
                     val down = Booleans.intersection(Booleans.difference(outlines[i], below(i)), lockedHere)
-                    if (down.isEmpty()) kept[i] else if (kept[i].isEmpty()) down else Booleans.union(kept[i], down)
+                    if (down.isEmpty()) k0 else if (k0.isEmpty()) down else Booleans.union(k0, down)
                 }
             }
         }

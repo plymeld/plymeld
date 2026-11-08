@@ -11,6 +11,10 @@ section the release's version and date.
 
 ### Added
 
+- A region's support rule, `plan.object.<key>.region.<key>.support`: `"always"` supports every downward face in the
+  region whatever the switch or the weights decide, `"never"` keeps support off it, even with `plan.support.enabled =
+  true` (its droop counted as unsupported area). A blocker, which plymeld did not have. An `"always"` region and a
+  `"never"` region over the same faces are refused.
 - Regions of an object, chosen by geometry: `plan.object.<key>.region.<key>` with a box in the model's own coordinates
   (`min`, `max`, turned with the pose), a height range as printed (`from`, `to`), the faces its lines lay (`facing`:
   walls, tops, undersides), or several together. A region's values apply to the lines in it; the first are the new motion
@@ -50,6 +54,9 @@ section the release's version and date.
 
 ### Changed
 
+- The locked support spots (`locked.<key>` under `plan.support`) are gone: support is locked on a region of the object, `plan.object.<key>.region.<key>`
+  with `support = "always"` (its box as `min` and `max` as before, or a height range). A locked spot for every object at
+  once is no longer possible; each object names its own. Configs with the old key are refused.
 - The minimum layer time counts a travel's detour (round the layer's other islands, or inside its own) as the head goes,
   not as the straight line it replaces, so a layer is slowed only by what it still falls short. On the 3DBenchy, 25
   slowed layers each run up to 0.04 s faster.
