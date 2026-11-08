@@ -9,6 +9,8 @@ section the release's version and date.
 
 ## [Unreleased]
 
+## [0.20261108.0] - 2026-11-08
+
 ### Added
 
 - `plymeld report`: a problem report about what you are working on, as a zip, and a GitHub issue filled in for you to
