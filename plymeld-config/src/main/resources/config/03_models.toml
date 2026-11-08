@@ -455,7 +455,8 @@ notes = """Built from one g-code file of Flashforge's own slicer for this machin
 No firmware config available: the stock firmware is Flashforge's own, so every command is 'observed' evidence only. Fans and heaters are not described yet.
 The firmware homes and levels by itself when a print starts: Flashforge's own start sequence has no G28, no wait for the bed and no levelling, and its upload names levelling as an option of the print (levelingBeforePrint).
 Toolhead underside, nozzle height and tip cone: not published by Flashforge; measured by hand on each of one machine's four heads (toolhead.*.evidence). The profile has no gantry.distance.
-No square corner velocity from the firmware: the profile's machine_max_jerk (9), a different quantity, stands in for it as a placeholder (motion.square_corner_velocity) until the firmware's value is known."""
+No square corner velocity from the firmware: the profile's machine_max_jerk (9), a different quantity, stands in for it as a placeholder (motion.square_corner_velocity) until the firmware's value is known.
+Observed on one machine (2026-11-07): as a print starts, the firmware heats tool 1 to 220 C, then sets it to 120 C, before the file's first line, levelling or not."""
 motion.speed.max = "600 mm/s"
 motion.acceleration.max = "30000 mm/s2"
 motion.z.speed.max = "20 mm/s"
