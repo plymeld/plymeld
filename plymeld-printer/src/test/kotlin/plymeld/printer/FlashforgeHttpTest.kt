@@ -62,6 +62,11 @@ class FlashforgeHttpTest : StringSpec({
         status("printing").status shouldBe Status.PRINTING
         status("ready").status shouldBe Status.IDLE
         status("completed").status shouldBe Status.FINISHED
+        // a cancel under way is busy, not yet ended (so `printer watch` waits for "cancel"); a cancelled print has ended
+        val canceling = status("canceling")
+        canceling.status shouldBe Status.BUSY; canceling.rawStatus shouldBe "canceling"; canceling.notes shouldContainExactly emptyList()
+        Watch.ended(canceling.status, sawPrinting = true) shouldBe false
+        Watch.ended(status("cancel").status, sawPrinting = true) shouldBe true
         val odd = status("defrosting")
         odd.status shouldBe Status.UNKNOWN; odd.rawStatus shouldBe "defrosting"
         odd.notes shouldContainExactly listOf("status \"defrosting\" is not a word plymeld knows for this API")
