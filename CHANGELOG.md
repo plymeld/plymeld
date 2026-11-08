@@ -96,6 +96,10 @@ section the release's version and date.
 - A model thinner than one layer (most often a file in other units: a model file holds none, and plymeld reads
   millimetres) is refused in one line saying so. `plan` and `slice` crashed on it with an index out of bounds (#63). A
   pose in which the model is thinner than a layer is ruled out.
+- `plymeld init` shows a Creator 5's serial number as it is typed (it is on the printer's screen, not a secret), and
+  says "typing is hidden" where input is hidden (the check code, an API key; `printer credential` too): a user could not
+  tell that typing went in. The README says where the portable zip's command line is (`current\cli\plymeld.exe`): its
+  top `plymeld.exe` opens the window.
 - A purge tower's first layer is laid at the first layer's speed, no faster than the model's own first layer. It was laid
   at the tower's own speed (the hidden lines', about 250 mm/s on a Creator 5 where the model's first layer went at
   100-120), and a tower came loose during a print.

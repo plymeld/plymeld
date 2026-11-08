@@ -173,7 +173,8 @@ class InitFlow(terminal: Terminal, private val say: (String) -> Unit) {
     /** A line of text; null = left empty where [optional]. The end of input stops. */
     private fun text(question: String, default: String?, optional: Boolean = false, hide: Boolean = false): String? {
         while (true) {
-            val v = t.prompt(question, default = default, hideInput = hide) ?: throw Stopped()
+            // hidden input shows nothing as it is typed: said, so a user does not take it for a frozen prompt
+            val v = t.prompt(if (hide) "$question (typing is hidden)" else question, default = default, hideInput = hide) ?: throw Stopped()
             if (v.isNotBlank()) return v.trim()
             if (optional) return null
             say("  an answer is needed here")

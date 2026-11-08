@@ -125,7 +125,8 @@ object FirstUse {
         "shown on the printer's screen or your router's list; empty: no connection, plymeld writes files you copy over", optional = true)) +
         when (api(m)) {
             "flashforge-http" -> listOf(
-                Ask("serial_number", "its serial number", null, "on the printer's screen (About)", secret = true),
+                // not a secret (it is on the printer's screen and its box): shown as typed; it is still kept in the secrets file
+                Ask("serial_number", "its serial number", null, "on the printer's screen (About)"),
                 Ask("check_code", "its check code", null, "on the printer's screen, with the serial number", secret = true))
             "moonraker" -> listOf(Ask("api_key", "Moonraker's API key", null, "only if you set one; empty: none", optional = true, secret = true))
             else -> emptyList()

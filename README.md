@@ -83,8 +83,9 @@ has what may come next.
 
 From the [releases page](https://github.com/plymeld/plymeld/releases), nothing else needed:
 
-- **Windows:** `plymeld-win-setup.exe` (or the portable zip). It installs the window and the command line, and
-  puts `plymeld` on your `PATH` for new terminals.
+- **Windows:** `plymeld-win-setup.exe`. It installs the window and the command line, and puts `plymeld` on your
+  `PATH` for new terminals. Or the portable zip, which installs nothing: its top `plymeld.exe` opens the window, and
+  the command line is `current\cli\plymeld.exe` (not on your `PATH`: run it by that path, or add the folder yourself).
 - **Linux:** the AppImage for the window, and `plymeld-linux-x64.tar.gz` for the command line.
 
 ### Build from source

@@ -264,7 +264,7 @@ class PrinterCredentialCommand : PrinterConfigCommand("credential") {
         val file = text("file") ?: error("printer '$key': no secrets file is named for '$name'" +
             (variable?.let { " (it comes from environment variable $it: set it there)" } ?: "") + "; set $path.file to one (plymeld edit), then run this again")
         val interactive = terminal.terminalInfo.inputInteractive
-        val value = (if (interactive) terminal.prompt("$name for printer '$key'", hideInput = true) else readlnOrNull())?.trim()
+        val value = (if (interactive) terminal.prompt("$name for printer '$key' (typing is hidden)", hideInput = true) else readlnOrNull())?.trim()
         if (value.isNullOrEmpty()) error("no value given for '$name': nothing written")
         val target = plymeld.printer.FileCredential.expandHome(file)
         val replaced = plymeld.printer.FileCredential(target, name).write(value)
