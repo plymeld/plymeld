@@ -30,6 +30,8 @@ import java.time.Duration
  *   mapping when one is given. LEVEL_ON_START: that switch.
  * - PAUSE / RESUME / CANCEL: `POST /control` with `jobCtl_cmd` pause / continue / cancel. `/control` acknowledges
  *   UNKNOWN commands with "Success" (the map, and observed), so the state is read back and reported.
+ * - CLEAR: `POST /control` with `stateCtrl_cmd` setClearPlatform (the community endpoint map): the "completed" screen
+ *   acknowledged, the bed said to be clear. While it shows, `/uploadGcode` answers code 2, "Printer is busy" (observed).
  * - CAMERA: the MJPEG stream (`connection.camera.url`, else `/detail`'s `cameraStreamUrl`: inferred, that field was
  *   seen but no tool uses it), the first frame discarded (it was observed stale). One client at a time.
  * - RAW_COMMAND: refused; `/control` takes only its own commands.
@@ -48,7 +50,7 @@ class FlashforgeHttp(
 ) : Printer, LoadoutReader {
     override val protocol = Protocol.FLASHFORGE_HTTP
     override val capabilities = setOf(Capability.STATE, Capability.LOADOUT, Capability.FILES, Capability.UPLOAD, Capability.START,
-        Capability.LEVEL_ON_START, Capability.PAUSE, Capability.RESUME, Capability.CANCEL, Capability.CAMERA)
+        Capability.LEVEL_ON_START, Capability.PAUSE, Capability.RESUME, Capability.CANCEL, Capability.CLEAR, Capability.CAMERA)
 
     private fun url(path: String) = "http://$host:$port$path"
     private fun credentials() = buildJsonObject { put("serialNumber", serialNumber); put("checkCode", checkCode) }
@@ -115,14 +117,17 @@ class FlashforgeHttp(
     override fun pause(): Done = job("pause")
     override fun resume(): Done = job("continue")
     override fun cancel(): Done = job("cancel")
+    override fun clear(): Done = control("stateCtrl_cmd", "setClearPlatform")
 
-    private fun job(action: String): Done {
+    private fun job(action: String): Done = control("jobCtl_cmd", action)
+
+    private fun control(cmd: String, action: String): Done {
         val body = buildJsonObject {
             put("serialNumber", serialNumber); put("checkCode", checkCode)
-            putJsonObject("payload") { put("cmd", "jobCtl_cmd"); putJsonObject("args") { put("action", action) } }
+            putJsonObject("payload") { put("cmd", cmd); putJsonObject("args") { put("action", action) } }
         }
         codeOf(key, "/control", postRaw("/control", body.toString()))
-        return Done("POST /control jobCtl_cmd action=$action (acknowledged whatever happens: judge by the state read back)", state())
+        return Done("POST /control $cmd action=$action (acknowledged whatever happens: judge by the state read back)", state())
     }
 
     /** The stream's second frame unless [frame] says which: its first was observed stale. */

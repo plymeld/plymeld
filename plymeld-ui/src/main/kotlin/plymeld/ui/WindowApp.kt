@@ -408,6 +408,8 @@ private fun Steps(j: JobState, ui: WindowUi, modifier: Modifier, rail: Boolean, 
             if (j.send.status == JobState.Status.NOW || j.send.status == JobState.Status.FAILED || j.send.status == JobState.Status.DONE) Column(Modifier.padding(top = 8.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Primary(if (j.send.status == JobState.Status.NOW) "Send to the ${j.printerName}" else "Send again", onSend, Modifier.fillMaxWidth(),
                     caption = j.gcode?.let { j.printerLine("printer", "send", it.toString()) })
+                // the printer still shows its last print finished: the user's word that the bed is clear, then Send again
+                if (j.sendNeedsClear) Secondary("The bed is clear: tell the ${j.printerName}", { j.clearBed() }, Modifier.fillMaxWidth())
                 Secondary("Save the g-code…", onSave, Modifier.fillMaxWidth())
             }
         }

@@ -55,6 +55,7 @@ object UiRegistry {
         Surface("plymeld printer watch", FORM),
         Surface("plymeld printer files", FORM),
         Surface("plymeld printer pause", FORM),
+        Surface("plymeld printer clear", "the window: step 6, where a send is refused because the printer still shows its last print finished (\"The bed is clear: tell the <key>\", then Send again); $FORM", setOf("-cf", "--machine")),
         Surface("plymeld printer resume", FORM),
         Surface("plymeld printer cancel", FORM),
         Surface("plymeld investigate", "the finder: its subcommands each their own form"),

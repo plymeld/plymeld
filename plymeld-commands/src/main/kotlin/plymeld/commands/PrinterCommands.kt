@@ -28,6 +28,7 @@ import plymeld.printer.ToolMapping
 import plymeld.printer.Watch
 import plymeld.printer.refuse
 import plymeld.printer.text
+import plymeld.printer.uploadRefusal
 
 /**
  * `plymeld printer ...`: talking to the machine's printer through one interface,
@@ -36,10 +37,10 @@ import plymeld.printer.text
  * machine's API cannot do is refused in one line. The printer is named by its machine key everywhere, never its model.
  */
 class PrinterCommand : CliktCommand(name = "printer") {
-    init { subcommands(PrinterStatusCommand(), PrinterWatchCommand(), PrinterCameraCommand(), PrinterFilesCommand(), PrinterSendCommand(), PrinterPauseCommand(), PrinterResumeCommand(), PrinterCancelCommand(), PrinterLoadoutCommand(), PrinterCredentialCommand()) }
+    init { subcommands(PrinterStatusCommand(), PrinterWatchCommand(), PrinterCameraCommand(), PrinterFilesCommand(), PrinterSendCommand(), PrinterPauseCommand(), PrinterResumeCommand(), PrinterCancelCommand(), PrinterClearCommand(), PrinterLoadoutCommand(), PrinterCredentialCommand()) }
     override fun help(context: com.github.ajalt.clikt.core.Context) =
         "Talk to the machine's printer (--machine, over hardware.machine.<key>.connection in the config; credentials from the environment variables or secrets files named there): " +
-            "status (its state), watch (its state as it changes), camera (one picture from its camera), files (what is on it), send (upload a file; --print starts it), pause, resume, cancel, loadout (what it has loaded, against the config), " +
+            "status (its state), watch (its state as it changes), camera (one picture from its camera), files (what is on it), send (upload a file; --print starts it), pause, resume, cancel, clear (tell it its bed is clear, the last print removed), loadout (what it has loaded, against the config), " +
             "credential (set one in its secrets file; sends nothing). " +
             "Each says what it sends; what the machine's API cannot do is refused in one line."
     override fun run() = Unit
@@ -181,10 +182,7 @@ class PrinterSendCommand : PrinterConfigCommand("send") {
         }
         if (p.can(Capability.FILES) && remote in p.files().map { it.name } && !replace)
             error("printer '${p.key}' already has a file named $remote: --replace to overwrite it, or --name to call this one something else")
-        if (p.can(Capability.STATE)) {
-            val s = p.state()
-            if (s.status in setOf(Status.PRINTING, Status.PAUSED, Status.BUSY)) error("printer '${p.key}' is ${s.status.words}${s.job.orNull?.let { " ($it)" } ?: ""}: not uploading to it now")
-        }
+        if (p.can(Capability.STATE)) p.state().uploadRefusal(p.can(Capability.CLEAR))?.let { error(it) }
         val u = p.upload(remote, bytes)
         when (u.confirmed) {
             true -> echo("uploaded $file as $remote (${u.bytes} bytes) to printer '${p.key}': its file list confirms it")
@@ -221,6 +219,24 @@ class PrinterResumeCommand : PrinterJobCommand("resume", Capability.RESUME, "the
 
 class PrinterCancelCommand : PrinterJobCommand("cancel", Capability.CANCEL, "the cancel (flashforge-http: POST /control jobCtl_cmd cancel; moonraker: POST /printer/print/cancel)") {
     override fun act(p: Printer) = p.cancel()
+}
+
+/**
+ * `plymeld printer clear`: tell the printer its bed is clear, the last print removed, so it takes the next one (a Creator 5
+ * holds its finished print on its screen and refuses an upload until then). The user's word, never plymeld's: nothing
+ * else sends it. A printer that holds nothing back (Moonraker) is told nothing, and says so.
+ */
+class PrinterClearCommand : PrinterJobCommand("clear", Capability.CLEAR, "the bed-is-clear acknowledgement (flashforge-http: POST /control stateCtrl_cmd setClearPlatform); only once the last print is off the bed: the printer takes your word for it") {
+    override fun act(p: Printer) = p.clear()
+    override fun run() {
+        val c = config()
+        val p = printer(c)
+        if (!p.can(Capability.CLEAR) && p.protocol == plymeld.printer.Protocol.MOONRAKER) {
+            echo("printer '${p.key}': nothing to clear: Moonraker starts the next print whatever the last one left; nothing sent")
+            return
+        }
+        super.run()
+    }
 }
 
 /**

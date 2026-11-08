@@ -97,3 +97,18 @@ class Done(val sent: String, val readBack: PrinterState?)
 
 /** One JPEG from the printer's camera and where it came from (the URL, never a credential). */
 class CameraFrame(val jpeg: ByteArray, val source: String)
+
+/**
+ * Why a file should not be uploaded to a printer in this state, or null: it is printing, paused, or busy; or it still shows
+ * its last print finished and holds the next upload until told its bed is clear ([canClear]: the printer has
+ * [Capability.CLEAR]; the Creator 5 answers an upload "Printer is busy" then).
+ */
+fun PrinterState.uploadRefusal(canClear: Boolean): String? {
+    val job = this.job.orNull?.let { " ($it)" } ?: ""
+    return when {
+        status == Status.PRINTING || status == Status.PAUSED || status == Status.BUSY -> "printer '$key' is ${status.words}$job: not uploading to it now"
+        status == Status.FINISHED && canClear -> "printer '$key' still shows its last print finished$job and takes no upload until told its bed is clear: " +
+            "once the print is off the bed, `plymeld printer clear`, then send again"
+        else -> null
+    }
+}
