@@ -4,7 +4,7 @@
 
 [Command reference](README.md)
 
-Talk to the machine's printer (--machine, over hardware.machine.&lt;key&gt;.connection in the config; credentials from the environment variables or secrets files named there): status (its state), watch (its state as it changes), camera (one picture from its camera), files (what is on it), send (upload a file; --print starts it), pause, resume, cancel, loadout (what it has loaded, against the config), credential (set one in its secrets file; sends nothing). Each says what it sends; what the machine's API cannot do is refused in one line.
+Talk to the machine's printer (--machine, over hardware.machine.&lt;key&gt;.connection in the config; credentials from the environment variables or secrets files named there): status (its state), watch (its state as it changes), camera (one picture from its camera), files (what is on it), send (upload a file; --print starts it), pause, resume, cancel, clear (tell it its bed is clear, the last print removed), loadout (what it has loaded, against the config), credential (set one in its secrets file; sends nothing). Each says what it sends; what the machine's API cannot do is refused in one line.
 
 Usage: `plymeld printer [<options>] <command> [<args>]...`
 
@@ -18,6 +18,7 @@ Subcommands:
 - [`pause`](#plymeld-printer-pause): Pause the print.
 - [`resume`](#plymeld-printer-resume): Resume the print.
 - [`cancel`](#plymeld-printer-cancel): Cancel the print.
+- [`clear`](#plymeld-printer-clear): Be told its bed is clear.
 - [`loadout`](#plymeld-printer-loadout): Read what the printer has loaded in each tool or slot and compare it with the machine's loadout in the config (-cf, -cv, --machine): for each, the printer's material and color, the config's filament, and which config filament matches (same kind as the printer's material, same color exactly).
 - [`credential`](#plymeld-printer-credential): Set one of the printer's credentials in the secrets file the machine's connection names (hardware.machine.&lt;key&gt;.connection.credential.NAME.file), the file's other lines kept.
 
@@ -134,6 +135,19 @@ Options:
 Cancel the print. Sends the cancel (flashforge-http: POST /control jobCtl\_cmd cancel; moonraker: POST /printer/print/cancel), then reads the state back where the API allows (the Creator 5's /control acknowledges whatever happens: judge by the status read back).
 
 Usage: `plymeld printer cancel [<options>]`
+
+Options:
+
+- `-cf, --config-file=FILE|GLOB`: a config file (.toml or .json) or a glob of them; repeatable, read in order (a glob's matches in natural order); later files win; none given: every .toml file in plymeld's config folder (secrets.toml aside)
+- `-cv, --config-value=<path=value>`: one config value, e.g. job.priorities.speed=5 or plan.technique.flat.layer.height=0.2mm; repeatable; wins over every file
+- `--machine=<key>`: the machine that prints (hardware.machine.&lt;key&gt;; its loadout gives the plate, tools, and filaments); default: job.machine, else the only machine the config defines
+- `-h, --help`: Show this message and exit
+
+## `plymeld printer clear`
+
+Be told its bed is clear. Sends the bed-is-clear acknowledgement (flashforge-http: POST /control stateCtrl\_cmd setClearPlatform); only once the last print is off the bed: the printer takes your word for it, then reads the state back where the API allows (the Creator 5's /control acknowledges whatever happens: judge by the status read back).
+
+Usage: `plymeld printer clear [<options>]`
 
 Options:
 

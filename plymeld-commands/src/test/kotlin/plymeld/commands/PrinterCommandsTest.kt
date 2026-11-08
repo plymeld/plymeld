@@ -198,9 +198,9 @@ class PrinterCommandsTest : StringSpec({
         Files.readString(secrets) shouldContain "real-code-42"
     }
 
-    "every printer subcommand's help says what it sends, and the printer command is in the model with its ten subcommands" {
+    "every printer subcommand's help says what it sends, and the printer command is in the model with its eleven subcommands" {
         val printer = CommandModel.read().root.subcommands.single { it.name == "printer" }
-        printer.subcommands.map { it.name } shouldBe listOf("status", "watch", "camera", "files", "send", "pause", "resume", "cancel", "loadout", "credential")
+        printer.subcommands.map { it.name } shouldBe listOf("status", "watch", "camera", "files", "send", "pause", "resume", "cancel", "clear", "loadout", "credential")
         for (c in printer.subcommands) c.help shouldContain "Sends "
         printer.subcommands.single { it.name == "send" }.options.flatMap { it.names } shouldContain "--print"
     }

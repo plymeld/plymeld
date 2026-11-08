@@ -31,7 +31,7 @@ Options:
   - [`plymeld calibrate ironing`](calibrate.md#plymeld-calibrate-ironing), [`readings`](calibrate.md#plymeld-calibrate-ironing-readings), [`values`](calibrate.md#plymeld-calibrate-ironing-values)
   - [`plymeld calibrate seams`](calibrate.md#plymeld-calibrate-seams), [`readings`](calibrate.md#plymeld-calibrate-seams-readings), [`values`](calibrate.md#plymeld-calibrate-seams-values)
 - [`plymeld render-plate`](render-plate.md): Draw a calibration plate (plymeld calibrate) from its g-code, to review before printing: a top view by flow, the front face by temperature, the melt test's strips, and every temperature command (always); an isometric diagram labeled from the plate's instructions page (--iso); a melt step in section, its strips on their floor and the head's travel over them (--section); each base's layers (--layers, --base).
-- [`plymeld printer`](printer.md): Talk to the machine's printer (--machine, over hardware.machine.&lt;key&gt;.connection in the config; credentials from the environment variables or secrets files named there): status (its state), watch (its state as it changes), camera (one picture from its camera), files (what is on it), send (upload a file; --print starts it), pause, resume, cancel, loadout (what it has loaded, against the config), credential (set one in its secrets file; sends nothing).
+- [`plymeld printer`](printer.md): Talk to the machine's printer (--machine, over hardware.machine.&lt;key&gt;.connection in the config; credentials from the environment variables or secrets files named there): status (its state), watch (its state as it changes), camera (one picture from its camera), files (what is on it), send (upload a file; --print starts it), pause, resume, cancel, clear (tell it its bed is clear, the last print removed), loadout (what it has loaded, against the config), credential (set one in its secrets file; sends nothing).
   - [`plymeld printer status`](printer.md#plymeld-printer-status)
   - [`plymeld printer watch`](printer.md#plymeld-printer-watch)
   - [`plymeld printer camera`](printer.md#plymeld-printer-camera)
@@ -40,6 +40,7 @@ Options:
   - [`plymeld printer pause`](printer.md#plymeld-printer-pause)
   - [`plymeld printer resume`](printer.md#plymeld-printer-resume)
   - [`plymeld printer cancel`](printer.md#plymeld-printer-cancel)
+  - [`plymeld printer clear`](printer.md#plymeld-printer-clear)
   - [`plymeld printer loadout`](printer.md#plymeld-printer-loadout)
   - [`plymeld printer credential`](printer.md#plymeld-printer-credential)
 - [`plymeld investigate`](investigate.md): INVESTIGATION ONLY: slice, plan, check, and config with the settings in a project or g-code file (--settings), and predict the time and filament of any g-code file, to compare plymeld's result with that file.

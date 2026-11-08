@@ -109,6 +109,10 @@ print, so the bed must be clear, the right filament loaded, and someone with the
 what the printer reports loaded with the machine's loadout in the config. `status`, `watch`, `camera`, `files`,
 `pause`, `resume`, and `cancel` do what their names say.
 
+Some printers (a Flashforge Creator 5) keep showing a finished print until told its bed is clear, and take no upload
+until then. `printer send` says so, and `plymeld printer clear` tells the printer, once the print is off the bed: the
+printer takes your word for it.
+
 ## Calibrate
 
 `plymeld calibrate` makes a calibration plate for one filament, printed exactly as specified. There is one subcommand

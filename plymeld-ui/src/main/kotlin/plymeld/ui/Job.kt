@@ -571,6 +571,33 @@ class JobState(val viewer: ViewerState) {
         }, "plymeld-send").apply { isDaemon = true }.start()
     }
 
+    /**
+     * Step 6's "The bed is clear" button, shown where a send was refused because the printer still shows its last print
+     * finished: `plymeld printer clear` on the machine, in-process, the user's word that the print is off the bed; its
+     * lines to the console, the outcome in the step. Runs on a thread of its own.
+     */
+    fun clearBed(done: () -> Unit = {}) {
+        Thread({
+            try {
+                val a = listOf("printer", "clear") + configFiles.flatMap { listOf("-cf", it) } + (machine?.let { listOf("--machine", it) } ?: emptyList())
+                sayLine(a)
+                val before = console.size
+                val status = Commands.invoke(a, ::say)
+                val lines = console.drop(before + 1)
+                Snapshot.withMutableSnapshot {
+                    send = if (status == 0) StepView(Status.NOW, listOf("The ${printerName} was told its bed is clear.") + lines.filter { it.startsWith("status now: ") })
+                    else StepView(Status.FAILED, listOf("Not cleared.") + lines.filter { it.startsWith("plymeld: ") || it.startsWith("Error") }.map { it.removePrefix("plymeld: ") }.take(2))
+                }
+            } catch (e: Exception) {
+                say("plymeld: ${e.message}")
+                Snapshot.withMutableSnapshot { send = StepView(Status.FAILED, listOf("Not cleared.", e.message ?: e.toString())) }
+            } finally { done() }
+        }, "plymeld-clear").apply { isDaemon = true }.start()
+    }
+
+    /** Whether the last send was refused because the printer still shows its last print finished (it asks for `printer clear`). */
+    val sendNeedsClear: Boolean get() = send.status == Status.FAILED && send.lines.any { "plymeld printer clear" in it }
+
     // ---- editing: every edit is `plymeld edit`, journaled; the job is opened again after each ----
 
     /**

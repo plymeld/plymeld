@@ -33,6 +33,8 @@ interface Printer {
     fun pause(): Done = refuse(Capability.PAUSE)
     fun resume(): Done = refuse(Capability.RESUME)
     fun cancel(): Done = refuse(Capability.CANCEL)
+    /** Tell the printer its bed is clear (the last print removed), so it takes the next one ([Capability.CLEAR]). */
+    fun clear(): Done = refuse(Capability.CLEAR)
     /**
      * One JPEG from the printer's camera: the [frame]-th (1-based) of a stream, or the adapter's own choice when null
      * (an adapter whose stream hands out a stale first frame skips it); a snapshot URL gives its one image whatever

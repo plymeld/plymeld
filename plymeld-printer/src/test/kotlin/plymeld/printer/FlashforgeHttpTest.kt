@@ -134,6 +134,28 @@ class FlashforgeHttpTest : StringSpec({
         }
     }
 
+    "clear: POST /control stateCtrl_cmd setClearPlatform, then the state read back; control: pause is still jobCtl_cmd" {
+        val (p, t) = printer(answer = byPath("/control" to ok, "/detail" to detail))
+        p.can(Capability.CLEAR) shouldBe true
+        val d = p.clear()
+        t.paths shouldContainExactly listOf("POST /control", "POST /detail")
+        t.bodyText(0) shouldBe """{"serialNumber":"SN-TEST","checkCode":"CODE-TEST","payload":{"cmd":"stateCtrl_cmd","args":{"action":"setClearPlatform"}}}"""
+        d.sent shouldContain "stateCtrl_cmd action=setClearPlatform"
+        val (p2, t2) = printer(answer = byPath("/control" to ok, "/detail" to detail))
+        p2.pause()
+        t2.bodyText(0) shouldContain "\"cmd\":\"jobCtl_cmd\""
+    }
+
+    "an upload is refused while the printer shows its last print finished, naming printer clear; controls: idle uploads, and a printer that cannot be cleared is not held" {
+        fun state(word: String) = printer(answer = byPath("/detail" to detail.replace("\"status\": \"cancel\"", "\"status\": \"$word\""))).first.state()
+        val done = state("completed")
+        done.status shouldBe Status.FINISHED
+        done.uploadRefusal(canClear = true)!! shouldContain "`plymeld printer clear`, then send again"
+        done.uploadRefusal(canClear = false) shouldBe null
+        state("ready").uploadRefusal(canClear = true) shouldBe null
+        state("printing").uploadRefusal(canClear = true)!! shouldContain "is printing"
+    }
+
     "a refused request and an unreachable printer each give one line naming the key, never the check code" {
         val refused = shouldThrow<IllegalStateException> { printer(answer = byPath("/detail" to """{"code": -2, "message": "LAN mode off"}""")).first.state() }
         refused.message shouldBe "printer 'c5' refused /detail: code -2, \"LAN mode off\" (a wrong serial number or check code, or LAN mode off, give a non-zero code; 2 = busy)"

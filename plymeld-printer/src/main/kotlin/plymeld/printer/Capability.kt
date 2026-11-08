@@ -16,6 +16,11 @@ enum class Capability(val words: String) {
     PAUSE("pause the print"),
     RESUME("resume the print"),
     CANCEL("cancel the print"),
+    /**
+     * Tell the printer its bed is clear, the last print removed (Flashforge's "completed" screen, which holds back the next
+     * upload until acknowledged). Only someone who has seen the bed can say so: never done on its own.
+     */
+    CLEAR("be told its bed is clear"),
     CAMERA("read a camera frame"),
     RAW_COMMAND("send a raw command"),
 }

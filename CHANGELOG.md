@@ -11,6 +11,10 @@ section the release's version and date.
 
 ### Added
 
+- `plymeld printer clear`: tells the printer its bed is clear, the last print removed. A Flashforge Creator 5 keeps
+  showing a finished print and refuses an upload ("Printer is busy") until told; `printer send` now says so and names
+  the command, and the window's Send step offers "The bed is clear" there. On a Klipper printer it sends nothing:
+  nothing is held back.
 - A region's support rule, `plan.object.<key>.region.<key>.support`: `"always"` supports every downward face in the
   region whatever the switch or the weights decide, `"never"` keeps support off it, even with `plan.support.enabled =
   true` (its droop counted as unsupported area). A blocker, which plymeld did not have. An `"always"` region and a
