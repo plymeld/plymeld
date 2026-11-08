@@ -146,13 +146,14 @@ class FlashforgeHttp(
         private val COLOR = Regex("^#?([0-9A-Fa-f]{6})$")
 
         /**
-         * The printer's status words as plymeld reads them: the recorded answer's `cancel` and the community map's
-         * examples. NOT verified which words the firmware emits beyond `cancel`; an unknown word reads UNKNOWN with the
-         * word kept.
+         * The printer's status words as plymeld reads them: the recorded answer's `cancel`, `canceling` (seen on a
+         * Creator 5 while a cancel is under way: busy, the print not yet ended), and the community map's examples. NOT
+         * verified which other words the firmware emits; an unknown word reads UNKNOWN with the word kept.
          */
         private val STATUS = mapOf("ready" to Status.IDLE, "idle" to Status.IDLE, "printing" to Status.PRINTING, "pause" to Status.PAUSED,
             "paused" to Status.PAUSED, "completed" to Status.FINISHED, "complete" to Status.FINISHED, "cancel" to Status.CANCELLED,
-            "canceled" to Status.CANCELLED, "canceled" to Status.CANCELLED, "error" to Status.ERROR, "busy" to Status.BUSY)
+            "canceled" to Status.CANCELLED, "cancelled" to Status.CANCELLED, "canceling" to Status.BUSY, "error" to Status.ERROR,
+            "busy" to Status.BUSY)
 
         /** The JSON of an answer, refused when it is not JSON, not an object, or its `code` is not 0 (naming [path]). */
         private fun codeOf(key: String, path: String, text: String): JsonObject {

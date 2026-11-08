@@ -9,6 +9,11 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Fixed
+
+- A Flashforge printer's "canceling" (a cancel under way) reads as busy, where plymeld called it a status word it does
+  not know: `printer status` says busy, an upload waits, and `printer watch` keeps watching until the print has ended.
+
 ## [0.20261108.0] - 2026-11-08
 
 ### Added
