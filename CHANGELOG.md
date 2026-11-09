@@ -14,7 +14,15 @@ section the release's version and date.
 - `plymeld updates`: whether plymeld checks for a newer release, off until you turn it on (`--set notify` or
   `install`), and `--check` to ask now. Turned on, every command run in a terminal asks the release feed in the
   background, at most once a day, and says a newer release in one line on stderr after the command; the command line
-  never updates itself. One setting for the command line and the window: the window's settings offer the same three.
+  installs nothing by itself (`plymeld update` does, when you run it). One setting for the command line and the window:
+  the window's settings offer the same three.
+- `plymeld update`: installs the newest release over this one. An install from the Windows installer, the portable zip
+  or the AppImage is updated by its own updater as the command exits, the window included. The Linux command line's
+  download has its files replaced where it was unpacked, once the download matches the checksum now published beside
+  it (`plymeld-linux-x64.tar.gz.sha256`) and the new executable's `--version` says the expected version; otherwise
+  nothing changes. On Windows, other plymeld processes running from the install (a window, a command in another
+  terminal) keep its files from being replaced: the update names them and stops, and `--stop-others` stops them first.
+  The window's own install does the same: its bar names them, and a second click stops them and installs.
 
 ### Changed
 
@@ -36,6 +44,12 @@ section the release's version and date.
 - A thin area shaped like a T or a Y gets its center lines on every layer. Each arm was judged alone against the rule
   that leaves a corner's void empty (a line shorter than twice its width), so a small T's arms, each about 1 mm long and
   0.5 mm wide, were all dropped: the space a wall loop leaves inside a T-shaped stroke was a hole.
+- A purge tower's hold on the bed, after one came loose twice. After a tool change the new filament lays its purge lines inside the tower first and
+  its wall last, so its first, least even plastic goes inside, not on the edge: every change had started the wall at
+  the same corner, piling a blob there each time (188 times on a two-color nameplate), and that corner peeled off the
+  bed. The tower's brim reaches into its outline (`plan.mechanism.purge.tower.brim.overlap`, a placeholder: a quarter
+  of a first-layer line) so the two fuse; it only touched the tower, laid by another tool before it, and the brim
+  stayed down while the tower lifted off it. The brim is twice as wide as the object's brim would be (it was as wide).
 - Requests to a printer are plain HTTP/1.1. They asked the printer's web server to switch to HTTP/2 on each new
   connection (an upload's included), which printers' small servers do not speak; a Creator 5 refused several uploads
   in a row ("Download failed" on its screen) where the same files had gone through before.
@@ -57,7 +71,6 @@ section the release's version and date.
   wall. A line laid after another than it was planned after retracts on the travel into it.
 - The installed window's update check never ran: the release feed's address was packaged beside the executables, where
   the window did not look. It is now built into both executables.
-
 - A Flashforge printer's "canceling" (a cancel under way) reads as busy, where plymeld called it a status word it does
   not know: `printer status` says busy, an upload waits, and `printer watch` keeps watching until the print has ended.
 - A purge tower's first layer is solid wall to wall. Where the first layer is thicker than the layers above it, its purge

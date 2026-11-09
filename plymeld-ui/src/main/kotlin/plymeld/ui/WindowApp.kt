@@ -1,5 +1,6 @@
 package plymeld.ui
 
+import plymeld.commands.Installs
 import plymeld.commands.UpdateFeed
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -216,20 +217,24 @@ fun WindowApp(j: JobState, ui: WindowUi, onOpen: (() -> Unit)? = null, onSlice: 
  * The update Velopack's feed offers (Updates.kt), checked once as the window opens when the user has turned checks on
  * (`plymeld updates --set notify|install`, or the window's settings; off by default): shown in the bar as
  * "⬆ VERSION · install" and installed on the click (`install`: installed at once). The window exits for the updater,
- * which starts the new version.
+ * which starts the new version. On Windows, other plymeld processes running from the install (a second window, a
+ * command in a terminal) lock its files: the bar names them, and the next click stops them and installs, as
+ * `plymeld update --stop-others` does.
  */
 object UpdateState {
     var available by mutableStateOf<Updates.Available?>(null)
     var status by mutableStateOf("")
-    private var install: Updates.Install? = null
+    private var install: Installs.Velopack? = null
     private var started = false
+    /** Others seen running at the last click: the next click stops them. */
+    private var blocking: List<Installs.Running> = emptyList()
     fun checkOnStart() {
         if (started) return; started = true
         Thread {
             try {
                 val pref = UpdateFeed.Pref.load()
                 if (pref.mode == UpdateFeed.Pref.Mode.OFF) return@Thread
-                val i = Updates.install() ?: return@Thread; install = i
+                val i = Installs.velopack() ?: return@Thread; install = i
                 val feed = pref.feed ?: return@Thread
                 val a = Updates.check(feed, i) ?: return@Thread
                 available = a
@@ -242,9 +247,23 @@ object UpdateState {
         if (status.startsWith("downloading") || status == "installing…") return
         Thread {
             try {
-                val pkg = Updates.download(a, i) { done, total -> status = if (total > 0) "downloading ${100 * done / total} %" else "downloading" }
+                if (System.getProperty("os.name").lowercase().contains("windows")) {
+                    val others = Installs.running(i.root)
+                    if (others.isNotEmpty()) {
+                        // the first click names them; the next, with the same ones still running, stops them
+                        if (others.map { it.handle.pid() }.toSet() != blocking.map { it.handle.pid() }.toSet()) {
+                            blocking = others
+                            status = "${others.size} other plymeld running (${others.joinToString("; ") { it.command }}): click to stop and install"
+                            return@Thread
+                        }
+                        status = "stopping ${others.size} other plymeld…"
+                        val left = Installs.stop(others)
+                        if (left.isNotEmpty()) { status = "update waits: would not stop: ${left.joinToString("; ") { it.describe() }}"; return@Thread }
+                    }
+                }
+                val pkg = Installs.downloadPackage(a.release, a.url, i) { done, total -> status = if (total > 0) "downloading ${100 * done / total} %" else "downloading" }
                 status = "installing…"
-                Updates.apply(i, pkg)
+                Installs.apply(i, pkg)
                 kotlin.system.exitProcess(0)
             } catch (e: Exception) { status = "update failed: ${e.message}" }
         }.apply { name = "update install" }.start()

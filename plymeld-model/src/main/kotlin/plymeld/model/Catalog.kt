@@ -412,6 +412,7 @@ object Catalog {
         s("plan.mechanism.purge.tower.y", INTENT, LENGTH, "purge tower position: Y of its lower-left corner")
         s("plan.mechanism.purge.tower.brim.enabled", INTENT, BOOL, "a brim around the purge tower's first layer, for its hold on the bed (whatever the object's brim)")
         s("plan.mechanism.purge.tower.brim.width", INTENT, LENGTH, "the purge tower's brim width")
+        s("plan.mechanism.purge.tower.brim.overlap", INTENT, LENGTH, "how far the purge tower brim's inner loop reaches into the tower's outline, so the two fuse; 0 = they only touch")
         s("plan.mechanism.purge.tower.side_share.min", INTENT, FRACTION, "each side of the purge tower at least this share of its height (a tall, thin tower sways); 0 = no minimum")
         s("plan.mechanism.purge.tower.width", INTENT, LENGTH, "purge tower width (along X): another slicer's (investigation); unset = plymeld's rule, a square tower sized by the purge (PurgeTower.square)")
         s("hardware.filament.purge.volume", MATERIAL_TOOL, Kind.VOLUME, "plastic purged into the tower after a change to this filament in this nozzle (hardware-owned)")
