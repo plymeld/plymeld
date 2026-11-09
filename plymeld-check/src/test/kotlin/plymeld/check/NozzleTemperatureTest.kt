@@ -59,6 +59,15 @@ class NozzleTemperatureTest : StringSpec({
     "control: a first layer at the print temperature sets nothing more" {
         temps(listOf("hardware.filament.pla-generic.temperature.first_layer" to "210 C"), listOf(a), program("a")) shouldBe listOf("M109 S210 T0")
     }
+    "after a pause, the tool's temperature waited for again (a printer may turn its nozzles off while paused); control: no pause, no wait" {
+        val paused = listOf<Step>(ObjectStart("a"), LayerStart(0, 200, 200, 0), line(100.0, 0.2), LayerStart(1, 400, 200, 1), line(100.0, 0.4),
+            ObjectEnd("a"), plymeld.program.Pause("check"), ObjectStart("a"), LayerStart(2, 600, 200, 2), line(100.0, 0.6), ObjectEnd("a"))
+        val pause = listOf<Pair<String, Any>>("hardware.machine.m.gcode.pause" to "M25")
+        // the print temperature set after the first layer, then waited for after the pause
+        temps(pause, listOf(a), paused) shouldBe listOf("M109 S215 T0", "M104 S210 T0", "M109 S210 T0")
+        // control: the same layers without the pause
+        temps(pause, listOf(a), paused.filterNot { it is plymeld.program.Pause }) shouldBe listOf("M109 S215 T0", "M104 S210 T0")
+    }
     "an object's own print temperature; one after the other, each object's first layer waited for again; control: an object without its own takes the filament's" {
         temps(listOf("plan.object.b.mechanism.temperature.print" to "195 C"), listOf(a, b), program("a", "b")) shouldBe
             listOf("M109 S215 T0", "M104 S210 T0", "M109 S215 T0", "M104 S195 T0")

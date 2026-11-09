@@ -23,6 +23,9 @@ section the release's version and date.
 
 ### Fixed
 
+- After a pause, every nozzle's temperature is set back to what it was and the tool in hand waited for before printing
+  resumes. A Creator 5 turns its nozzles off while paused (the bed kept warm): where no tool change follows the pause to
+  heat the tool, printing would resume with a cold nozzle. A printer that keeps them on resumes at once.
 - A purge tower's tool changes start their purge at a different corner of their band in turn (four, layer by layer and
   change by change), where every change started at one point: a nozzle back from the dock lays its first plastic there,
   and on a two-color nameplate all 188 changes put it in one spot, by the tower corner that peeled. Each change purges as
