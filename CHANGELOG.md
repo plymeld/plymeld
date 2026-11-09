@@ -9,6 +9,8 @@ section the release's version and date.
 
 ## [Unreleased]
 
+## [0.20261109.1] - 2026-11-09
+
 ### Added
 
 - `plan.mechanism.purge.tower.first_layer.speed`: the purge tower's first layer, its brim included, no faster than this.
