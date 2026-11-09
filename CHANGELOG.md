@@ -9,6 +9,11 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Added
+
+- The documentation's start, [docs/README.md](docs/README.md): installing plymeld, and a first print from setting up to
+  sending the file. Every command a tutorial shows is run by the tests as written. The window's finder lists the pages.
+
 ## [0.20261109.1] - 2026-11-09
 
 ### Added
