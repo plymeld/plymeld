@@ -90,7 +90,8 @@ From the [releases page](https://github.com/plymeld/plymeld/releases), nothing e
 
 To hear about new releases: watch [Announcements](https://github.com/plymeld/plymeld/discussions/categories/announcements)
 in the Discussions (a post per release), or the repository (Watch → Custom → Releases), or turn on plymeld's own check,
-`plymeld updates --set notify`, which says a newer release after a command, at most once a day.
+`plymeld updates --set notify`, which says a newer release after a command, at most once a day. `plymeld update`
+installs it (the window's bar does too).
 
 ### Build from source
 

@@ -84,6 +84,8 @@ jobs:
           vpk pack --packId plymeld --packTitle plymeld --packVersion "$VER" --packDir "$RUNNER_TEMP/linux" --mainExe plymeld-ui \
             --icon plymeld-ui/build/icons/plymeld-256.png --channel linux --outputDir "$out"
           cp plymeld-cli/build/plymeld-linux-x64.tar.gz "$out/"
+          # the checksum `plymeld update` checks the tar against before it replaces an installed command line
+          (cd "$out" && sha256sum plymeld-linux-x64.tar.gz > plymeld-linux-x64.tar.gz.sha256)
       - name: Upload to the draft release
         env:
           GH_TOKEN: ${{ github.token }}

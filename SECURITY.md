@@ -22,12 +22,20 @@ until you turn it on.
 
 ### Network access
 
-**On the command line, only `plymeld printer` reaches the network**, and the check for updates once you
-turn it on (`plymeld updates --set notify` or `install`; `off`, the default, checks nothing). Every other
-command (`slice`, `plan`, `config`, `calibrate`, ...) makes no network connection. Turned on, a command
-run in a terminal reads the release feed (one GET of `releases.<channel>.json`) in the background, at
-most once a day, and says a newer release on stderr; the command line never downloads or installs one.
-`plymeld updates --check` reads the feed when you run it, whatever the setting.
+**On the command line, only `plymeld printer` and `plymeld update` reach the network**, and the check for
+updates once you turn it on (`plymeld updates --set notify` or `install`; `off`, the default, checks
+nothing). Every other command (`slice`, `plan`, `config`, `calibrate`, ...) makes no network connection.
+Turned on, a command run in a terminal reads the release feed (one GET of `releases.<channel>.json`) in
+the background, at most once a day, and says a newer release on stderr; it downloads and installs nothing
+by itself. `plymeld updates --check` reads the feed when you run it, whatever the setting.
+
+**`plymeld update`**, when you run it, reads the feed and downloads the newest release from the same
+place. A Velopack install's package is checked as the window's is (below) and handed to the install's own
+updater. The Linux command line's tar is checked against the SHA-256 published beside it
+(`plymeld-linux-x64.tar.gz.sha256`) and its executable's `--version` is run before any installed file is
+replaced; a mismatch changes nothing. Both checksums come from the same place as the download, so they
+guard against a damaged download, not a compromised release. With `--stop-others`, it stops the other
+plymeld processes running from the install (only processes whose executable is in the install's folder).
 
 **The window** (an installed build only) reads the same feed when it opens, once you have turned the
 check on (the same setting, from the command line or the window's settings); it downloads and installs an

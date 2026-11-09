@@ -27,7 +27,7 @@ object CliPath {
      * on Windows only, and only when the install has the command line (`cli\plymeld.exe` beside this executable). A
      * failure is reported on stderr and the hook still exits: an install is never held up by its PATH.
      */
-    fun hook(args: Array<String>, exe: Path? = Updates.currentExe(), os: String = System.getProperty("os.name")) {
+    fun hook(args: Array<String>, exe: Path? = plymeld.commands.Installs.currentExe(), os: String = System.getProperty("os.name")) {
         if (!os.lowercase().contains("windows")) return
         val dir = exe?.toAbsolutePath()?.parent?.resolve("cli") ?: return
         if (!Files.isRegularFile(dir.resolve("plymeld.exe"))) return
