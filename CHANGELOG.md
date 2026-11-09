@@ -9,6 +9,12 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Fixed
+
+- `plymeld update` on the Linux command line's download gives the new files the permissions the download holds
+  (rwxr-xr-x for the executable, rw-r--r-- for its libraries), where it gave them the shell's default (group-writable
+  under a umask of 002). It says each check as it passes: the checksum, and the new executable's version.
+
 ## [0.20261109.1] - 2026-11-09
 
 ### Added
