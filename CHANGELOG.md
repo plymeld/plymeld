@@ -9,6 +9,18 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Added
+
+- `plan.mechanism.purge.tower.first_layer.speed`: the purge tower's first layer, its brim included, no faster than this.
+  Unset in a config of yours, it is the object's first-layer speed, as before.
+
+### Changed
+
+- The purge tower stands beside the object by default: on its right, back, left or front, the first side with room on
+  the bed, centered along it, `plan.mechanism.purge.tower.gap` (5 mm, a placeholder) clear of the object and its brim. It
+  stood at 70 % of the bed's width and depth, wherever the object was; a tower at the bed's corner, far from the object,
+  peeled off there twice. A place you set (`plan.mechanism.purge.tower.x` and `.y`, both) is kept.
+
 ### Fixed
 
 - The first layer is closed where a small region's walls leave a compact piece in its middle (a small square's: its

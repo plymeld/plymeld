@@ -66,7 +66,7 @@ class FirstUseTest : StringSpec({
         FirstUse.write(FirstUse.files(FirstUse.Answers(listOf(printer("qidi-q2", "q2", omitBuild = true)), listOf(FirstUse.Filament("pla", "pla-generic", null))), bare), bare)
         val bareSaid = ArrayList<String>()
         FirstUse.check(bare, listOf("q2"), { bareSaid += it }) shouldBe false
-        bareSaid.joinToString("\n") shouldContain "build.x"
+        bareSaid.joinToString("\n") shouldContain "build.z"
     }
 
     "the Creator 5's defaults come from its model: Flashforge's start and end, print and travel speeds, pause, pictures, nozzle limit; controls: models without them" {

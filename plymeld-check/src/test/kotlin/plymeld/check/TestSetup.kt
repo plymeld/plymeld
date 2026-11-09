@@ -48,6 +48,9 @@ val TEST_PLAN: List<Pair<String, Any>> = listOf(
     "plan.mechanism.adhesion.brim.gap" to "0.1 mm",
 )
 
+/** A value in [testSetup]'s extra that removes its path's test value (the bundled value, if any, then applies). */
+object Unset
+
 /** One object, "test", of one part on slot 1: the object the single-model tests slice. */
 val TEST_OBJECT = ModelObject("test", listOf("test"), listOf(1), "test.stl")
 
@@ -59,7 +62,7 @@ fun testSetup(vararg extra: Pair<String, Any>, models: List<ModelObject> = listO
     val loadout = if (slots <= 1) listOf("hardware.machine.tm.loadout.tool.t1.filament" to "test-pla")
         else (1..slots).map { "hardware.machine.tm.loadout.slot.$it.filament" to (if (it == 1) "test-pla" else "test-pla-2") }
     // a value in [extra] replaces the test value of the same path (the last of a path wins)
-    val values = LinkedHashMap<String, Any>().apply { for ((k, v) in TEST_MACHINE + loadout + TEST_PLAN + extra) { remove(k); put(k, v) } }
+    val values = LinkedHashMap<String, Any>().apply { for ((k, v) in TEST_MACHINE + loadout + TEST_PLAN + extra) { remove(k); if (v !== Unset) put(k, v) } }
     val entries = ConfigFiles.bundled() + values.map { (k, v) -> ConfigFiles.Entry(k.split('.'), v, "test") }
     return ConfigSetup.setup(Config(ConfigStack(entries), models)).setup
 }

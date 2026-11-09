@@ -229,6 +229,14 @@ object MultiFilament {
         fun extrude(p: ToolPath, i: Int, t: Int) {
             out += Scarf.extrudes(p, layerTopsUm[i], t)
         }
+        /** A path of the tower: on its first layer (its brim included) no faster than the tower's first-layer speed, when set. */
+        fun towerExtrude(p: ToolPath, i: Int, t: Int) {
+            val cap = tower?.firstLayerSpeed
+            if (i != 0 || cap == null) { extrude(p, i, t); return }
+            val m = p.xy.size / 2
+            out += plymeld.program.Extrude(p.feature.label, p.xy, p.closed, layerTopsUm[i], p.widthUm, p.heightUm, t, p.overhangShare, p.ePerMmOverride,
+                p.retractBefore, p.widths, hopOnly = p.hopOnly, speedMax = DoubleArray(if (p.closed) m else m - 1) { cap })
+        }
         /** The paths of [sp] on layer [i] that take the purge first (none with the tower alone). */
         fun purgePaths(sp: String, i: Int): List<ToolPath> = if (purgeInto == "tower") emptyList() else {
             val into = if (purgeInto == "infill") setOf(Feature.SPARSE) else setOf(Feature.SPARSE, Feature.SOLID)
@@ -255,7 +263,7 @@ object MultiFilament {
             }
             val tl = if (tower != null && i <= tower.top) tower.layer(i, perLayer[i], needs) else null
             var baseDone = tl == null; var k = 0
-            fun base() { if (!baseDone) { tl!!.base.forEach { extrude(it, i, tool) }; baseDone = true } }
+            fun base() { if (!baseDone) { tl!!.base.forEach { towerExtrude(it, i, tool) }; baseDone = true } }
             val sup = r.support.getOrNull(i).orEmpty(); val itf = r.supportInterface.getOrNull(i).orEmpty()
             var first = true
             for (sp in order[i]) {
@@ -284,7 +292,7 @@ object MultiFilament {
                         for (p in into) { extrude(p, i, t); purged += p }
                         out += plymeld.program.ObjectEnd(objectName)
                     }
-                    tl?.purges?.get(k)?.forEach { extrude(it, i, t) }
+                    tl?.purges?.get(k)?.forEach { towerExtrude(it, i, t) }
                     k++
                 }
                 out += plymeld.program.ObjectStart(objectName)
