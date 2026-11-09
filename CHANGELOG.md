@@ -29,6 +29,10 @@ section the release's version and date.
   square of a QR code laid on the bed had a hole in its middle, on the face a viewer sees. Thin curved pieces and rings
   are left as before. A gap between a wall loop's sides too thin for a line of the usual narrowest width (a stroke a
   little wider than one loop: 1.3 mm left a 0.1 mm slit) gets a line as wide as the gap, on the first layer only.
+- A solid band around a hole (laid as loops along its outer edge, as many as its mean width holds) is filled to its full
+  depth: where it is deeper than its mean, what its loops leave is laid as lines. A band whose inner edge is jagged (a QR
+  code's quiet zone beside its modules) left a 1.1 x 2.3 mm hole in a visible bottom, and a 3DBenchy's internal solid
+  had holes inside its bands.
 - A thin area shaped like a T or a Y gets its center lines on every layer. Each arm was judged alone against the rule
   that leaves a corner's void empty (a line shorter than twice its width), so a small T's arms, each about 1 mm long and
   0.5 mm wide, were all dropped: the space a wall loop leaves inside a T-shaped stroke was a hole.

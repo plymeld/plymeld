@@ -103,7 +103,7 @@ class LayerPlanOut(val index: Int, val topZUm: Long, val heightUm: Long, val pat
  *    - sparse: rectilinear, grid, or cubic, each family spaced so the pattern keeps its density;
  *      a strip narrower than one cell gets a single loop at bead contact with the wall;
  *    - internal solid, top, bottom: their pattern (line patterns, concentric outside-in or inside-out, archimedean chords);
- *      ring bands and narrow regions get loops along their outline instead of a hatch;
+ *      ring bands and narrow regions get loops along their outline instead of a hatch (a band's part deeper than its loops reach is hatched);
  *    - bridges over air, and internal bridges over sparse infill, each with its own direction
  *      rule ([Bridges]); ironing on top surfaces;
  *  where s = bead spacing(width, height). Infill lines end where their bead touches the wall
@@ -1046,7 +1046,11 @@ object Planner {
                                 paths.add(ToolPath(feature, seamAtBack(lp).xy, true, widthK, h)); placed = true
                             }
                         }
-                        if (!placed) { leftovers.add(outer); leftovers.addAll(holes) }
+                        if (!placed) { leftovers.add(outer); leftovers.addAll(holes); continue }
+                        // what lies deeper than the loops goes to the hatch: the band's width is a mean (2 x area / perimeter),
+                        // and a band whose inner edge is jagged (a QR code's quiet zone, the light modules joined to it) is
+                        // deeper in places than its loops reach; there the bottom was left empty (a 1.1 x 2.3 mm hole)
+                        if (holes.isNotEmpty()) leftovers.addAll(Booleans.intersection(listOf(outer) + holes, Offset.offset(listOf(outer), -Math.round(share * loopsN))))
                     }
                     if (leftovers.isEmpty()) return
                     // 2. What is left gets hatched, minus slivers narrower than half a line (an opening
