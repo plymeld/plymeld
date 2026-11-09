@@ -161,6 +161,20 @@ class FlashforgeHttpTest : StringSpec({
         state("printing").uploadRefusal(canClear = true)!! shouldContain "is printing"
     }
 
+    "an upload the printer refuses says the printer's reason where it gives one; one it cuts short says it was refused, not unreachable; control: a closed port is unreachable" {
+        val p400 = printer(answer = { HttpAnswer.of(400, """{"code": 1, "message": "file name exists"}""") }).first
+        shouldThrow<IllegalStateException> { p400.upload("x.gcode", ByteArray(3)) }.message shouldBe
+            "printer 'c5' at printer.test:8898 answered /uploadGcode with HTTP 400: \"{\"code\": 1, \"message\": \"file name exists\"}\""
+        val bare = printer(answer = { HttpAnswer.of(400, "") }).first
+        shouldThrow<IllegalStateException> { bare.upload("x.gcode", ByteArray(3)) }.message shouldBe "printer 'c5' at printer.test:8898 answered /uploadGcode with HTTP 400"
+        val cut = printer(answer = { throw java.io.IOException("fixed content-length: 40, bytes received: 0") }).first
+        val msg = shouldThrow<IllegalStateException> { cut.upload("x.gcode", ByteArray(3)) }.message!!
+        msg shouldContain "answered /uploadGcode but closed the connection before its answer (0 of 40 bytes arrived): it refused the request"
+        msg shouldNotContain "could not reach"
+        val down = shouldThrow<IllegalStateException> { FlashforgeHttp("c5", "printer.test", 8898, "SN-TEST", "CODE-TEST", Duration.ofSeconds(1), Recorded.unreachable()).upload("x.gcode", ByteArray(3)) }
+        down.message shouldBe "printer 'c5': could not reach printer.test:8898 (/uploadGcode): Connection refused"
+    }
+
     "a refused request and an unreachable printer each give one line naming the key, never the check code" {
         val refused = shouldThrow<IllegalStateException> { printer(answer = byPath("/detail" to """{"code": -2, "message": "LAN mode off"}""")).first.state() }
         refused.message shouldBe "printer 'c5' refused /detail: code -2, \"LAN mode off\" (a wrong serial number or check code, or LAN mode off, give a non-zero code; 2 = busy)"

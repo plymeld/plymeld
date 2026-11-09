@@ -64,7 +64,7 @@ class FlashforgeHttp(
     private fun postRaw(path: String, body: String): String {
         val call = HttpCall("POST", url(path), mapOf("Content-Type" to "application/json"), body.toByteArray(Charsets.UTF_8), timeout)
         val answer = transport.sendOrRefuse(call, key)
-        check(answer.status == 200) { "printer '$key' at $host:$port answered $path with HTTP ${answer.status}" }
+        check(answer.status == 200) { "printer '$key' at $host:$port answered $path with HTTP ${answer.status}" + answer.said().let { if (it.isEmpty()) "" else ": \"$it\"" } }
         return answer.text()
     }
 
@@ -88,7 +88,7 @@ class FlashforgeHttp(
         // an upload takes as long as the file: the timeout grows with it (plymeld's choice: the connection's timeout per megabyte, at least the timeout itself)
         val wait = Duration.ofMillis(maxOf(timeout.toMillis(), timeout.toMillis() * (1 + bytes.size / (1 shl 20))))
         val answer = transport.sendOrRefuse(HttpCall("POST", url("/uploadGcode"), headers, body, wait), key)
-        check(answer.status == 200) { "printer '$key' at $host:$port answered /uploadGcode with HTTP ${answer.status}" }
+        check(answer.status == 200) { "printer '$key' at $host:$port answered /uploadGcode with HTTP ${answer.status}" + answer.said().let { if (it.isEmpty()) "" else ": \"$it\"" } }
         codeOf(key, "/uploadGcode", answer.text())
         return Upload(name, bytes.size, name in files().map { it.name })
     }
