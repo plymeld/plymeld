@@ -921,6 +921,16 @@ object Planner {
                     if (fill.isEmpty()) covered else Booleans.union(covered, fill.last().loops)
                 }
             }
+            /** The object's other parts on this layer, for one part of several ([whole]): the whole object less this part. */
+            val otherParts by lazy { if (whole == null) emptyList() else Booleans.difference(whole.outlines[i], outlines[i]) }
+            /** Whether another part lies within one of [c]'s widths of its middle point. */
+            fun otherPartNear(c: CenterLine): Boolean {
+                val others = otherParts
+                if (others.isEmpty()) return false
+                val m = c.xy.size / 4 * 2
+                val grown = plymeld.geom.Offset.offset(others, c.maxWidthUm, plymeld.geom.Offset.Join.ROUND)
+                return grown.count { plymeld.geom.Polygons.contains(it, c.xy[m], c.xy[m + 1]) } % 2 == 1
+            }
             /** A wall's runs outside what the waves cover (the whole loop, closed, when none of it is over the waves). */
             fun overWaves(xy: LongArray, closed: Boolean): List<LongArray>? = if (waveCovered.isEmpty()) null else plymeld.geom.Clip.outside(xy, closed, waveCovered).takeIf { it.size != 1 || it[0] !== xy }
             // walls: inner walls first (last loop inward-most) then outer, per wall_sequence
@@ -940,6 +950,11 @@ object Planner {
                 // stays in its island and crosses no wall, whatever the in-island switch (keepInIsland): a restart for a dot
                 // left a blob on a show face (kept, not dropped, so the outline stays walled)
                 val speck = outer && Planner.polylineLength(c.xy) < 2.0 * c.maxWidthUm
+                // a speck shorter than one of its widths where another part of the object lies within a width of it (this part a
+                // sliver in front of the other there) is left out: a dot of one filament, stopped and restarted on the visible
+                // face every layer, made a column of blobs (on a two-color nameplate, 142 such starts on the lettering's face),
+                // and the part behind fills the outline there within less than a line
+                if (speck && whole != null && Planner.polylineLength(c.xy) < c.maxWidthUm && otherPartNear(c)) continue
                 paths.add(ToolPath(f, c.xy, false, c.maxWidthUm, h, widths = c.widths, speck = speck)) } }
             if (s.innerWallsFirst) center()
             if (s.fuzzySkin != "none") require(s.fuzzyMode == "displacement" && s.fuzzyNoise == "classic") {
