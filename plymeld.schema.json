@@ -4960,6 +4960,13 @@
                         "number"
                       ]
                     },
+                    "speed": {
+                      "description": "INHERITED: the purge tower's speed above its first layer, never faster than the machine prints (bundled: the visible lines' speed, plan.mechanism.motion.visible.speed) — a speed (mm/s); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    },
                     "first_layer": {
                       "type": "object",
                       "additionalProperties": false,

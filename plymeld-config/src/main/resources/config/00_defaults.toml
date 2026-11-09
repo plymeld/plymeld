@@ -202,6 +202,9 @@ into = "tower"
 tower.gap = "5 mm"
 # the tower's first layer, its brim included, no faster than this: the object's first-layer speed unless set slower
 tower.first_layer.speed = "= plan.mechanism.motion.first_layer.speed"
+# the tower above its first layer: at the visible lines' speed, as the walls beside it (at the hidden lines', 300 mm/s
+# against the walls' 100 on one print, its jump stood out); set faster where a tower is known to hold
+tower.speed = "= plan.mechanism.motion.visible.speed"
 # a brim around the tower's first layer whatever the object's (a tower standing on its own footprint came loose), twice
 # as wide as the object's brim would be (a tower as wide as the object's came loose from the bed twice, peeling from a
 # corner); each side at least half the tower's height (a tall, thin tower sways). PLACEHOLDERS: neither tested on a
