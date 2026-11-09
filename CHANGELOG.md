@@ -37,6 +37,11 @@ section the release's version and date.
   covered by it and hides a seam. Each part's seams were placed seeing that part alone, so such an edge read as an
   open wall, and the seams went to corners on the visible face instead. On a two-color nameplate, the inlaid lettering's
   seams on the front face went from 587 to 205 of about 1,700, and the seam measure from 6.5 to 1.5 mm².
+- After a tool change, the new filament's first lines on the model are its infill on that layer, hidden inside it, then
+  the rest in their usual order. Its outer wall had come first: a nozzle back from the dock lays its first, least even
+  lines on the visible surface. On a two-color nameplate, every one of 94 changes back to the base color began on the
+  lettering's front face. On a layer where the filament has no infill, its inner walls come first, before any outer
+  wall. A line laid after another than it was planned after retracts on the travel into it.
 - The installed window's update check never ran: the release feed's address was packaged beside the executables, where
   the window did not look. It is now built into both executables.
 

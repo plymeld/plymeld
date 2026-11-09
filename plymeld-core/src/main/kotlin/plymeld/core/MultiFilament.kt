@@ -23,6 +23,10 @@ import plymeld.model.SliceSettings
 object MultiFilament {
     /** plan.mechanism.purge.into: where the purge after a change goes ([steps]). */
     val PURGE_INTO = listOf("tower", "infill", "infill_and_object")
+    /** What a filament lays first after a change on a layer: its infill, hidden inside the model (sparse and internal solid). */
+    private val HIDDEN_FIRST = setOf(Feature.SPARSE, Feature.SOLID)
+    /** ... and on a layer where it lays no infill: its inner walls, before any outer wall. */
+    private val HIDDEN_FIRST_NO_INFILL = setOf(Feature.INNER_WALL)
     /**
      * One filament's share of the object, or one settings group's share of a filament ([unit]:
      * parts on one spool with the same own settings), with its layers' areas and planned paths.
@@ -190,7 +194,9 @@ object MultiFilament {
      * canceled object's block are skipped, and a tool change must not be.
      * [tower]: after each change the NEW tool purges its band; the tower's base paths (wall and
      * spare bands, as its layout gives them) are printed at the layer's first visit (before its first
-     * change) or, on a layer without a change, at the layer's end — up to the tower's top.
+     * change) or, on a layer without a change, at the layer's end — up to the tower's top. After a change, the new
+     * filament's first lines on the model are its infill on the layer, hidden inside it (its inner walls where it has no
+     * infill there); then the rest in its order.
      */
     fun steps(r: Result, order: List<List<String>>, toolOf: (String) -> Int, objectName: String, layerTopsUm: LongArray, startTool: Int,
               tower: PurgeTower? = null,
@@ -285,7 +291,27 @@ object MultiFilament {
                 // support first on the layer (it holds up what this layer's model prints over)
                 if (supportSpool == sp || (supportSpool == null && first)) for (p in sup) extrude(p, i, t)
                 if (interfaceSpool == sp || (interfaceSpool == null && first)) for (p in itf) extrude(p, i, t)
-                for (f in byspool[sp].orEmpty()) for (p in f.layers[i].paths) if (p !in purged) extrude(p, i, t)
+                // after a change (or a swap by hand), the new filament's first lines on the model are its hidden infill (sparse and
+                // internal solid), in their planned order, then everything else in its order: a nozzle back from the dock
+                // (from its idle temperature, past the purge) lays its first, least even lines where they do not show. Its
+                // outer wall had come first: on a two-color nameplate every change back to the base color began on the
+                // lettering's visible face. On a layer where it lays no infill, its inner walls come first (hidden, though next
+                // to the face), before any outer wall; with neither, its first line is whatever comes first.
+                val planned = byspool[sp].orEmpty().flatMap { f -> f.layers[i].paths }
+                if (!changed && !swapped) { for (p in planned) if (p !in purged) extrude(p, i, t) } else {
+                    val rest = planned.filter { it !in purged }
+                    val firstKind = if (rest.any { it.feature in HIDDEN_FIRST }) HIDDEN_FIRST else HIDDEN_FIRST_NO_INFILL
+                    val laid = rest.filter { it.feature in firstKind } + rest.filter { it.feature !in firstKind }
+                    // a line whose predecessor is not the one it was planned after retracts on the travel into it: whether that
+                    // travel retracts was decided for the planned order (inside an island, crossing no wall), and moved lines'
+                    // travels can cross open air (unretracted, they quadrupled the strings over air on that nameplate)
+                    val plannedBefore = java.util.IdentityHashMap<ToolPath, ToolPath?>()
+                    for ((k, p) in planned.withIndex()) plannedBefore[p] = planned.getOrNull(k - 1)
+                    for ((k, p) in laid.withIndex()) {
+                        val before = laid.getOrNull(k - 1)
+                        extrude(if (plannedBefore[p] === before || p.retractBefore) p else p.withRetract(true), i, t)
+                    }
+                }
                 out += plymeld.program.ObjectEnd(objectName)
                 first = false
             }
