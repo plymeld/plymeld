@@ -503,8 +503,10 @@ object Planner {
             leastVisible = s.seamLeastVisible,
             vis = seamVis,
             cornerShare = if (s.seamLeastVisible) s.seamCornerShare else 1.0,
-            // what hides a point nearby, from the layers' outer walls, its viewing directions by quadrant
-            exposure = seamVis?.exposure(walls.map { it.walls.getOrNull(0).orEmpty() }, layerTopsUm),
+            // what hides a point nearby, from the layers' outer walls, its viewing directions by quadrant: the WHOLE object's for
+            // one part of several ([whole]): a part's edge against another part (a letter's inlay against the base it sits in)
+            // is covered by it, not an open wall; read as open, the seams went to corners on the visible face instead
+            exposure = seamVis?.exposure((whole?.w?.walls ?: walls).map { it.walls.getOrNull(0).orEmpty() }, layerTopsUm),
             shelfOf = { i -> shelfAt(i) })
         val builtAll = Parallel.map(n, progress.Counter("paths", n)) { i ->
             // what this layer's paths are built from (LayerCache): its own walls, regions and outline, the layer below's printed
