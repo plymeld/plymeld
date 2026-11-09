@@ -70,6 +70,22 @@ class PurgeTowerShapeTest : StringSpec({
             (purged.max() - purged.min() <= t.widthUm.toDouble()) shouldBe true
         }
     }
+    "the tower's first layer is laid at the first layer's line width and spacing, the layers above at its own; control: without it, at its own" {
+        fun first(firstLine: Long?) = (if (firstLine == null) PurgeTower.square(100_000, 100_000, 15.0, 400, 2_000, changes, tops, compact = true, maxGapUm = 300)
+            else PurgeTower.square(100_000, 100_000, 15.0, 400, 2_000, changes, tops, compact = true, maxGapUm = 300, firstLineUm = firstLine))
+        val t = first(500)
+        val l0 = t.layer(0, 1).purges.single()
+        l0.all { it.widthUm == 500L } shouldBe true                              // purge, the band's rest, the wall
+        val purge = l0.first()
+        val ys = (0 until purge.xy.size / 2).map { purge.xy[2 * it + 1] }.distinct()
+        (ys.zipWithNext { a, b -> Math.abs(b - a) }.toSet()) shouldBe setOf(plymeld.core.Walls.spacing(500, 200))   // a first-layer line's spacing
+        t.layer(1, 1).purges.single().all { it.widthUm == 400L } shouldBe true
+        // the first layer's whole band laid solid: as much plastic across it at 0.5 mm lines as at 0.4 (within a line)
+        fun mm3(g: List<plymeld.core.ToolPath>) = g.filter { !it.closed }.sumOf { p -> (1 until p.xy.size / 2).sumOf { k -> Math.hypot((p.xy[2 * k] - p.xy[2 * k - 2]).toDouble(), (p.xy[2 * k + 1] - p.xy[2 * k - 1]).toDouble()) } * p.widthUm }
+        val plain = first(null)
+        plain.layer(0, 1).purges.single().all { it.widthUm == 400L } shouldBe true
+        println("first layer: lines 0.5 mm, %.0f; at 0.4 mm, %.0f (mm x um)".format(java.util.Locale.ROOT, mm3(l0) / 1000, mm3(plain.layer(0, 1).purges.single()) / 1000))
+    }
     "the brim's inner loop reaches into the tower's outline by the overlap; control: with none it only touches" {
         fun innerGapUm(overlap: Long): Long {
             val t = PurgeTower.square(100_000, 100_000, 15.0, 400, 2_000, changes, tops, compact = true, maxGapUm = 300, brimUm = 4_800, brimLineUm = 500, brimOverlapUm = overlap)
