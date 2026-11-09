@@ -21,12 +21,13 @@ import plymeld.geom.Polygon
  *   change purges into it, or when leaving it one more layer would open a gap taller than
  *   [maxGapUm] (the nozzle's max layer height); then it gets sparse filler. Anything printed over a
  *   gap is extruded at the gap's height. The wall is printed only on a layer the tower is visited;
- *   on a change it is the NEW filament's first extrusion and counts toward the purge volume. A
- *   layer without a change and without a filler due is not visited at all.
+ *   on a change the NEW filament lays it after its purge lines (its first plastic goes inside the tower, not on its
+ *   edge), and it counts toward the purge volume. A layer without a change and without a filler due is not visited at all.
  *
  * Each side at least [minSideShare] of the tower's height (a tall, thin tower sways): a tower the purge alone would
  * leave narrower is widened, its bands deepened, and a band's lines beyond its purge laid at the sparse spacing. A brim
- * [brimUm] wide around it on the first layer, laid before the tower, for its hold on the bed.
+ * [brimUm] wide around it on the first layer, laid before the tower, for its hold on the bed, its inner loop reaching
+ * [brimOverlapUm] into the tower's outline so the two fuse.
  */
 class PurgeTower(
     val xUm: Long, val yUm: Long, val widthUm: Long, val purgeMm3: Double,
@@ -38,6 +39,8 @@ class PurgeTower(
     val brimUm: Long = 0,
     /** The brim's line width on the first layer. */
     val brimLineUm: Long = lineUm,
+    /** How far the brim's inner loop reaches into the tower's outline, so the two fuse (0 = they only touch). */
+    val brimOverlapUm: Long = 0,
 ) {
     private val hs = Planner.heights(layerTopsUm)
     /** Layers the tower is printed on: 0 .. the last layer with a change (empty when there is none). */
@@ -97,8 +100,8 @@ class PurgeTower(
          * wall, and is the least slender across its narrowest side, where a tall tower would sway.
          */
         fun square(xUm: Long, yUm: Long, purgeMm3: Double, lineUm: Long, sparseSpacingUm: Long, changesPerLayer: IntArray, layerTopsUm: LongArray,
-                   compact: Boolean = false, maxGapUm: Long = Long.MAX_VALUE, minSideShare: Double = 0.0, brimUm: Long = 0, brimLineUm: Long = lineUm): PurgeTower {
-            fun at(w: Long) = PurgeTower(xUm, yUm, w, purgeMm3, lineUm, sparseSpacingUm, changesPerLayer, layerTopsUm, compact, maxGapUm, minSideShare, brimUm, brimLineUm)
+                   compact: Boolean = false, maxGapUm: Long = Long.MAX_VALUE, minSideShare: Double = 0.0, brimUm: Long = 0, brimLineUm: Long = lineUm, brimOverlapUm: Long = 0): PurgeTower {
+            fun at(w: Long) = PurgeTower(xUm, yUm, w, purgeMm3, lineUm, sparseSpacingUm, changesPerLayer, layerTopsUm, compact, maxGapUm, minSideShare, brimUm, brimLineUm, brimOverlapUm)
             var lo = 3 * lineUm; var hi = lo
             while (at(hi).depthUm > hi) hi *= 2                 // the depth only falls as the width grows
             while (hi - lo > 1) { val mid = (lo + hi) / 2; if (at(mid).depthUm > mid) lo = mid else hi = mid }
@@ -111,7 +114,9 @@ class PurgeTower(
     private val brimLoops: List<Polygon> = if (brimUm <= 0 || top < 0) emptyList() else {
         val sp = Walls.spacing(brimLineUm, hs[0])
         val out = ArrayList<Polygon>()
-        var d = brimLineUm / 2
+        // the inner loop reaches [brimOverlapUm] into the tower's outline: a loop that only touched the tower's wall, laid by
+        // another tool before it, held the bed while the tower peeled off it
+        var d = brimLineUm / 2 - brimOverlapUm
         while (d <= brimUm - brimLineUm / 2) { out += Offset.offset(listOf(outline), d, Offset.Join.ROUND).filter { it.isCcw() }; d += sp }
         out
     }
@@ -150,7 +155,11 @@ class PurgeTower(
             val y0 = yUm + lineUm + k * bandUm
             val group = ArrayList<ToolPath>()
             var need = needs?.get(k) ?: purgeMm3
-            if (compact && k == 0 && wall != null) { group += wall; need = Math.max(0.0, need - wallMm3) }
+            // the wall this change lays (compact: the first change on a layer the tower is visited) counts toward its purge,
+            // but is laid LAST: a nozzle just back from the dock lays its first, uneven plastic inside the tower, not on its
+            // edge (every change starting the wall at one corner piled a blob there each time, and that corner peeled off)
+            val ownWall = compact && k == 0 && wall != null
+            if (ownWall) need = Math.max(0.0, need - wallMm3)
             val n = if (compact || needs != null) linesFor(need, h) else purgeLines(i)
             if (n > 0) zigzag(y0, y0 + bandUm, spacing(h), h, n)?.let { group += it }
             // the band's rest, where the purge took fewer lines than the band holds: on the first layer solid (the tower's
@@ -158,6 +167,7 @@ class PurgeTower(
             // first layer's), above it at the sparse spacing
             val restStep = if (i == 0) spacing(h) else sparseSpacingUm
             if (i == 0 || needs != null || padded) { val yEnd = y0 + n * spacing(h); if (yEnd + restStep < y0 + bandUm) zigzag(yEnd, y0 + bandUm, restStep, h)?.let { group += it } }
+            if (ownWall) group += wall
             group
         }
         val idle = (changes until bands).filter { bandH[i][it] > 0 }.mapNotNull { k ->

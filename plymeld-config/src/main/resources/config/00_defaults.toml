@@ -198,11 +198,15 @@ tower.enabled = "true"
 into = "tower"
 tower.x = "= machine.build.x * 0.7"
 tower.y = "= machine.build.y * 0.7"
-# a brim around the tower's first layer whatever the object's (a tower standing on its own footprint came loose), as wide
-# as the object's brim would be; each side at least half the tower's height (a tall, thin tower sways). PLACEHOLDERS:
-# neither tested on a print
+# a brim around the tower's first layer whatever the object's (a tower standing on its own footprint came loose), twice
+# as wide as the object's brim would be (a tower as wide as the object's came loose from the bed twice, peeling from a
+# corner); each side at least half the tower's height (a tall, thin tower sways). PLACEHOLDERS: neither tested on a
+# print that held
 tower.brim.enabled = "true"
-tower.brim.width = "= plan.mechanism.adhesion.brim.width"
+tower.brim.width = "= plan.mechanism.adhesion.brim.width * 2"
+# how far the brim's inner loop reaches into the tower's outline, so the two fuse: a brim that only touched the tower,
+# laid by another tool before it, held the bed while the tower peeled off it. PLACEHOLDER: a quarter of a first-layer line
+tower.brim.overlap = "= plan.mechanism.adhesion.first_layer.line.width * 0.25"
 tower.side_share.min = "0.5"
 
 # ---- seams (the locks in the job, the seams' values under plan.technique). plan.seam and scarf_seam.enabled are NOT set
