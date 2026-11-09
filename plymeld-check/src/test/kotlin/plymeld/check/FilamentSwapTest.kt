@@ -106,8 +106,10 @@ class FilamentSwapTest : StringSpec({
         val placed = Pauses.insert(PrintProgram(MultiFilament.steps(r, order, toolOf, "box", tops, 0, tower, loadedOn = mapOf(0 to "spool 1")), emptyList()), listOf(PauseLock.AtZ(4.2))).program.steps
         placed.indexOfFirst { it is FilamentSwap } shouldBe placed.indexOfFirst { it is Pause } + 1
         afterSwap(placed).first() shouldBe ("Prime tower" to false)
-        // control: without a tower nothing purges after the swap
-        afterSwap(steps).first().first shouldBe "Outer wall"
+        // control: without a tower nothing purges after the swap; the new filament's first line is its infill, hidden, as
+        // after any change
+        afterSwap(steps).first() shouldBe ("Sparse infill" to true)
+        afterSwap(steps).none { it.first == "Prime tower" } shouldBe true
     }
     "written: the swap's note comes right after the pause, the new filament's temperature is waited for, and the header counts filament 5 from there" {
         val placed = Pauses.insert(program, listOf(PauseLock.AtZ(4.2))).program
