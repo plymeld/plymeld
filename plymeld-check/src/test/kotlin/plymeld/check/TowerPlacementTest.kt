@@ -83,6 +83,31 @@ class TowerPlacementTest : StringSpec({
         (Math.abs(set.x0 - 165.0) < 1.0 && Math.abs(set.y0 - 232.0) < 1.0) shouldBe true
     }
 
+    "above its first layer the tower is laid at plan.mechanism.purge.tower.speed, by default the visible lines'; control: set slower, slower" {
+        /** The fastest feed (mm/s) of the tower's lines above the first layer. */
+        fun towerAbove(g: String): Double {
+            var layer = 0; var f = 0.0; var feature = ""; var max = 0.0; var x = 0.0; var y = 0.0
+            for (line in g.lineSequence()) {
+                if (line.startsWith(";LAYER_CHANGE")) layer++
+                if (line.startsWith(";TYPE:")) feature = line.substringAfter(":").trim()
+                if (!(line.startsWith("G1 ") || line.startsWith("G2 ") || line.startsWith("G3 "))) continue
+                var nx = x; var ny = y; var e = 0.0
+                for (m in Regex("([XYEF])(-?[\\d.]+)").findAll(line.substringBefore(';'))) {
+                    val v = m.groupValues[2].toDouble()
+                    when (m.groupValues[1]) { "X" -> nx = v; "Y" -> ny = v; "E" -> e = v; "F" -> f = v }
+                }
+                if (layer > 1 && feature == "Prime tower" && e > 0 && (nx != x || ny != y)) max = maxOf(max, f / 60)
+                x = nx; y = ny
+            }
+            return max
+        }
+        // the visible lines at 50 mm/s, well under the melt cap (about 190 mm/s here), so the tower's default shows as theirs
+        val byDefault = towerAbove(slice("plan.mechanism.motion.visible.speed" to "50 mm/s"))
+        val slow = towerAbove(slice("plan.mechanism.motion.visible.speed" to "50 mm/s", "plan.mechanism.purge.tower.speed" to "30 mm/s"))
+        println("  the tower above its first layer: %.0f mm/s by default (the visible lines' 50), %.0f set to 30".format(Locale.ROOT, byDefault, slow))
+        (Math.abs(byDefault - 50.0) < 1e-6) shouldBe true
+        (slow <= 30.0 + 1e-6) shouldBe true
+    }
     "the tower's first layer, its brim included, no faster than its first-layer speed; control: the object's first layer at its own" {
         val gcode = slice("plan.mechanism.purge.tower.first_layer.speed" to "20 mm/s")
         val first = boxes(gcode, allLayers = false)

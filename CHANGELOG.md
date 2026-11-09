@@ -20,6 +20,9 @@ section the release's version and date.
   the bed, centered along it, `plan.mechanism.purge.tower.gap` (5 mm, a placeholder) clear of the object and its brim. It
   stood at 70 % of the bed's width and depth, wherever the object was; a tower at the bed's corner, far from the object,
   peeled off there twice. A place you set (`plan.mechanism.purge.tower.x` and `.y`, both) is kept.
+- The purge tower above its first layer is laid at `plan.mechanism.purge.tower.speed`, the visible lines' speed unless
+  set (it was the hidden lines', the machine's print speed: 300 mm/s on a Creator 5, beside walls laid at 100). Set it
+  faster where a tower is known to hold.
 
 ### Fixed
 

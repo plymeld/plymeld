@@ -411,6 +411,7 @@ object Catalog {
         s("plan.mechanism.purge.tower.x", INTENT, LENGTH, "purge tower position: X of its lower-left corner; unset (with y) = beside the object (plan.mechanism.purge.tower.gap)")
         s("plan.mechanism.purge.tower.y", INTENT, LENGTH, "purge tower position: Y of its lower-left corner; unset (with x) = beside the object (plan.mechanism.purge.tower.gap)")
         s("plan.mechanism.purge.tower.gap", INTENT, LENGTH, "with plan.mechanism.purge.tower.x and .y unset, the purge tower stands beside the object (its right, back, left or front, the first with room on the bed), this far from the object and its brim, its own brim included")
+        s("plan.mechanism.purge.tower.speed", INTENT, SPEED, "the purge tower's speed above its first layer, never faster than the machine prints")
         s("plan.mechanism.purge.tower.first_layer.speed", INTENT, SPEED, "the purge tower's first layer, its brim included, no faster than this")
         s("plan.mechanism.purge.tower.brim.enabled", INTENT, BOOL, "a brim around the purge tower's first layer, for its hold on the bed (whatever the object's brim)")
         s("plan.mechanism.purge.tower.brim.width", INTENT, LENGTH, "the purge tower's brim width")
