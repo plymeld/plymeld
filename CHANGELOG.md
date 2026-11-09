@@ -24,7 +24,8 @@ section the release's version and date.
 ### Fixed
 
 - The first layer is closed where a small region's walls leave a compact piece in its middle (a small square's: its
-  skeleton is a point, so no line reached it): the piece gets lines of its own, as wide as it is across. Every small
+  skeleton is a point, so no line reached it): the piece gets lines of its own, as wide as it is across (one line a
+  little wider than usual for a piece a little wider than one line, not two too narrow to lay). Every small
   square of a QR code laid on the bed had a hole in its middle, on the face a viewer sees. Thin curved pieces and rings
   are left as before. A gap between a wall loop's sides too thin for a line of the usual narrowest width (a stroke a
   little wider than one loop: 1.3 mm left a 0.1 mm slit) gets a line as wide as the gap, on the first layer only.

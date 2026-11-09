@@ -57,6 +57,32 @@ class FirstLayerClosedTest : StringSpec({
         (open < 0.95) shouldBe true
     }
 
+    "a 1.7 x 2.3 mm rectangle's middle (a little wider than one line) gets one line; control: without the rule it is empty" {
+        // the loop leaves 0.54 x 1.14 mm: split into two lines it made each narrower than min_bead, and none was laid
+        val w = 1_700L; val h = 2_300L
+        val rect = Polygon(longArrayOf(0, 0, w, 0, w, h, 0, h))
+        val tops = LongArray(3) { s.firstLayerHeightUm + it * 200L }
+        val first = Planner.plan(s, List(3) { listOf(rect) }, tops)[0].paths
+        val inset = s.elephantFootUm + 100
+        fun share(paths: List<ToolPath>): Double {
+            var n = 0; var laid = 0
+            var y = inset
+            while (y <= h - inset) { var x = inset
+                while (x <= w - inset) { n++; if (paths.any { near(it, x, y) }) laid++; x += 25 }
+                y += 25 }
+            return laid.toDouble() / n
+        }
+        val shrunk = plymeld.geom.Offset.offset(listOf(rect), -s.elephantFootUm)
+        val open = plymeld.core.Walls.arachne(shrunk, s.wallLoops, s.firstLayerWidthUm, s.firstLayerWidthUm, s.firstLayerHeightUm,
+            s.minBeadUm, s.minFeatureUm, s.minLengthFactor, s.transitionLengthUm, closeCompact = false)
+        val openPaths = open.walls.flatten().map { ToolPath(plymeld.core.Feature.INNER_WALL, it.xy, true, s.firstLayerWidthUm, s.firstLayerHeightUm) } +
+            open.center.map { ToolPath(plymeld.core.Feature.INNER_WALL, it.xy, false, it.widths.max(), s.firstLayerHeightUm) }
+        val laid = share(first); val without = share(openPaths)
+        println("rectangle laid: first layer %.3f; its walls without the rule %.3f".format(Locale.ROOT, laid, without))
+        (laid >= 0.99) shouldBe true
+        (without < 0.9) shouldBe true
+    }
+
     "a 1.3 mm strip's first layer has no slit between its loop's sides; control: the same walls without the rule leave one" {
         // one loop each side leaves a gap thinner than the smallest feature along the middle
         val w = 1_300L; val len = 8_000L

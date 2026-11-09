@@ -101,8 +101,8 @@ object Walls {
     }
 
     /**
-     * Lines covering a compact piece [p] (no center line of its own): along its bounding box's longer side, as many as fit
-     * across its shorter side at most [maxWidthUm] wide each, their width the shorter side shared among them, each ending
+     * Lines covering a compact piece [p] (no center line of its own): along its bounding box's longer side, as many across
+     * its shorter side as make each nearest [maxWidthUm] wide (up to 1.5 x it), their width the shorter side shared among them, each ending
      * half its width from the box's ends (at least a quarter of its width long). Only for a piece that fills most of its box
      * ([COMPACT_SHARE]: a square, a short bar), and only lines whose ends and middle lie at least half their width inside
      * it: a thin curved piece's box reaches outside it, and lines from it ran outside the model (the pre-print check
@@ -114,7 +114,9 @@ object Walls {
         val short = minOf(wx, wy); val long = maxOf(wx, wy)
         if (short < minFeatureUm || short <= 0) return emptyList()
         if (p.signedArea2() / 2.0 < COMPACT_SHARE * wx.toDouble() * wy) return emptyList()
-        val n = Math.max(1, Math.ceil(short.toDouble() / maxWidthUm).toInt())
+        // the count whose width is nearest the line width: a piece a little wider than one line gets one line a little wider
+        // (rounding up split 0.54 mm into two lines narrower than min_bead, and the piece got none)
+        val n = Math.max(1, Math.round(short.toDouble() / maxWidthUm).toInt())
         val w = short / n
         if (w < minBeadUm) return emptyList()
         val len = maxOf(long - w, w / 4)
