@@ -88,11 +88,12 @@ class TowerPlacementTest : StringSpec({
         val first = boxes(gcode, allLayers = false)
         val tower = first.getValue("Prime tower")
         // the tower's brim: the first layer's brim moves within its 4 mm (and a line) of the tower's lines
-        var layer = 0; var x = 0.0; var y = 0.0; var f = 0.0; var feature = ""; var towerBrimMax = 0.0; var towerBrimMoves = 0
+        var layer = 0; var x = 0.0; var y = 0.0; var f = 0.0; var feature = ""; var towerBrimMax = 0.0; var towerBrimMoves = 0; var towerBrimArcs = 0
         for (line in gcode.lineSequence()) {
             if (line.startsWith(";LAYER_CHANGE")) { layer++; if (layer > 1) break }
             if (line.startsWith(";TYPE:")) feature = line.substringAfter(":").trim()
-            if (!line.startsWith("G1 ")) continue
+            if (!(line.startsWith("G1 ") || line.startsWith("G2 ") || line.startsWith("G3 "))) continue
+            if (layer == 1 && feature == "Brim" && !line.startsWith("G1 ")) towerBrimArcs++
             var nx = x; var ny = y; var e = 0.0
             for (m in Regex("([XYEF])(-?[\\d.]+)").findAll(line.substringBefore(';'))) {
                 val v = m.groupValues[2].toDouble()
@@ -106,6 +107,9 @@ class TowerPlacementTest : StringSpec({
         (tower.fMax <= 20 * 60 + 1e-6) shouldBe true
         (towerBrimMoves > 0) shouldBe true
         (towerBrimMax <= 20 * 60 + 1e-6) shouldBe true
+        // one cap on the whole path keeps it fitted to arcs (the brim's rounded corners as arcs, not chords)
+        println("  the brim's arcs on the first layer: $towerBrimArcs")
+        (towerBrimArcs > 0) shouldBe true
         // the object's bottom keeps the first layer's 50 mm/s (the test plan's)
         (first.getValue("Bottom surface").fMax > 20 * 60 + 1) shouldBe true
     }

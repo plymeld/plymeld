@@ -690,7 +690,11 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 /** Segment [k]'s own speed (mm/s), the melt cap and the caps applied; null = the usual. */
                 fun ownSpeed(k: Int): Double? = segFixed?.get(k)?.takeIf { !it.isNaN() }?.let { Math.min(it, cap) }
                 val slowF = slowLayer?.get(pathObject[p])?.let { if (p.feature in VISIBLE) it[1] else it[0] } ?: 1.0
-                val baseSpeed = fixedSpeed ?: Math.max(Math.min(s.slowDownMinSpeed, pathSpeed(p, first)), pathSpeed(p, first) * slowF)
+                // one cap on every segment (the purge tower's first layer: plan.mechanism.purge.tower.first_layer.speed) caps the
+                // path's own speed, so the path is still fitted to arcs; caps that differ along it are laid segment by segment
+                val uniformCap = p.speedMax?.let { a -> a.firstOrNull()?.takeIf { c -> !c.isNaN() && a.all { it == c } } }
+                val baseSpeed = Math.min(fixedSpeed ?: Math.max(Math.min(s.slowDownMinSpeed, pathSpeed(p, first)), pathSpeed(p, first) * slowF),
+                    uniformCap ?: Double.POSITIVE_INFINITY)
                 val m = p.xy.size / 2
                 val count = if (p.closed) m else m - 1
                 // variable width (arachne center lines) or a curved layer's varying thickness: each segment's
@@ -735,7 +739,7 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 val layerFan = if (fanOn) s.fanMinPct else 0.0
                 if (p.overhangShare == null) fanTo(layerFan)
                 // a region's caps per segment (MotionRegions): laid segment by segment, not fitted to arcs
-                val segCaps = p.speedMax != null || p.accelMax != null
+                val segCaps = (p.speedMax != null && uniformCap == null) || p.accelMax != null
                 if (s.arcFitting && !ownEnds && !segCaps && p.overhangShare == null && segE == null && !p.curved && count >= 3) {
                     // Arc fitting (enable_arc_fitting): tolerance = resolution. The path's own points,
                     // closed back to the start for loops; arcs as G2/G3 with I/J relative to here.
