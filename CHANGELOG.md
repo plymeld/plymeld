@@ -23,6 +23,12 @@ section the release's version and date.
 
 ### Fixed
 
+- A purge tower's hold on the bed, after one came loose twice. After a tool change the new filament lays its purge lines inside the tower first and
+  its wall last, so its first, least even plastic goes inside, not on the edge: every change had started the wall at
+  the same corner, piling a blob there each time (188 times on a two-color nameplate), and that corner peeled off the
+  bed. The tower's brim reaches into its outline (`plan.mechanism.purge.tower.brim.overlap`, a placeholder: a quarter
+  of a first-layer line) so the two fuse; it only touched the tower, laid by another tool before it, and the brim
+  stayed down while the tower lifted off it. The brim is twice as wide as the object's brim would be (it was as wide).
 - Requests to a printer are plain HTTP/1.1. They asked the printer's web server to switch to HTTP/2 on each new
   connection (an upload's included), which printers' small servers do not speak; a Creator 5 refused several uploads
   in a row ("Download failed" on its screen) where the same files had gone through before.

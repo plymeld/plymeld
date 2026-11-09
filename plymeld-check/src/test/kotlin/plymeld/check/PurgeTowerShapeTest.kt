@@ -24,10 +24,10 @@ class PurgeTowerShapeTest : StringSpec({
         (plain.widthUm < 20_000 && plain.depthUm < 20_000) shouldBe true
         (min.widthUm >= 20_000 && min.depthUm >= 20_000) shouldBe true
         // the deepened band: after a change's purge lines, the rest of its band at the sparse spacing (one more path than
-        // the plain tower's: its wall, its purge, and that rest), reaching to the band's far end
+        // the plain tower's: its purge, that rest, and its wall), reaching to the band's far end
         val paths = { t: PurgeTower -> t.layer(100, 1).purges.single() }
         paths(min).size shouldBe paths(plain).size + 1
-        val rest = paths(min).last()
+        val rest = paths(min).last { !it.closed }
         val ys = (0 until rest.xy.size / 2).map { rest.xy[2 * it + 1] }
         (ys.max() > 100_000 + min.depthUm - 400 - 2_000) shouldBe true
     }
@@ -43,5 +43,28 @@ class PurgeTowerShapeTest : StringSpec({
         val none = tower(0.0, 0)
         none.layer(0, 1).base.none { it.feature == Feature.BRIM } shouldBe true
         size(none) shouldBe (none.widthUm to none.depthUm)
+    }
+    "after a change the new filament lays its purge lines first and the tower's wall last, every layer; control: the same lines, the wall among them" {
+        val t = tower(0.0, 0)
+        for (i in listOf(0, 1, 100, 199)) {
+            val g = t.layer(i, 1).purges.single()
+            g.first().closed shouldBe false                                      // inside the tower, not its edge
+            g.last().closed shouldBe true                                        // the wall, by a nozzle already flowing
+            g.count { it.closed } shouldBe 1
+            // its first line starts inside the wall (at or past its inner edge, 0.4 mm in), not on the wall's own line
+            val (x0, y0) = g.first().xy[0] to g.first().xy[1]
+            (x0 >= 100_000 + 400 && y0 >= 100_000 + 400) shouldBe true
+        }
+    }
+    "the brim's inner loop reaches into the tower's outline by the overlap; control: with none it only touches" {
+        fun innerGapUm(overlap: Long): Long {
+            val t = PurgeTower.square(100_000, 100_000, 15.0, 400, 2_000, changes, tops, compact = true, maxGapUm = 300, brimUm = 4_800, brimLineUm = 500, brimOverlapUm = overlap)
+            val inner = t.layer(0, 1).base.first { it.feature == Feature.BRIM }
+            val minX = (0 until inner.xy.size / 2).minOf { inner.xy[2 * it] }
+            // the inner loop's inner edge (its center plus half its width) against the tower's left edge (x 100 mm)
+            return (minX + 250) - 100_000
+        }
+        innerGapUm(0) shouldBe 0L                                                  // edge to edge: touching, no overlap
+        innerGapUm(125) shouldBe 125L                                              // 0.125 mm into the tower's outline
     }
 })

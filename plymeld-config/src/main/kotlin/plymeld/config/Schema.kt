@@ -599,6 +599,7 @@ object Schema {
         q("$pu.tower.y", Dimension.LENGTH, "INHERITED: tower position, Y", feeds = true)
         d("$pu.tower.brim.enabled", Type.Bool, "INHERITED: a brim around the purge tower's first layer, for its hold on the bed (whatever the object's brim)", feeds = true)
         q("$pu.tower.brim.width", Dimension.LENGTH, "INHERITED: the purge tower's brim width", feeds = true)
+        q("$pu.tower.brim.overlap", Dimension.LENGTH, "INHERITED: how far the purge tower brim's inner loop reaches into the tower's outline, so the two fuse (a brim only touching the tower held the bed while the tower peeled off it); 0 = they only touch", feeds = true)
         q("$pu.tower.side_share.min", Dimension.RATIO, "INHERITED: each side of the purge tower at least this share of its height (a tall, thin tower sways): a tower its purge would leave narrower is widened and deepened; 0 = no minimum", feeds = true)
         // ---- method: plymeld's own algorithms
         q("method.search.time.max", Dimension.TIME, "how long the search for a plan may run", feeds = true)

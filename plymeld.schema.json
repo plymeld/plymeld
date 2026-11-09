@@ -4981,6 +4981,13 @@
                             "string",
                             "number"
                           ]
+                        },
+                        "overlap": {
+                          "description": "INHERITED: how far the purge tower brim's inner loop reaches into the tower's outline, so the two fuse (a brim only touching the tower held the bed while the tower peeled off it); 0 = they only touch — a length (mm); or a formula (= ...)",
+                          "type": [
+                            "string",
+                            "number"
+                          ]
                         }
                       }
                     },
