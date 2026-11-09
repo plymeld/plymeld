@@ -28,6 +28,9 @@ section the release's version and date.
   square of a QR code laid on the bed had a hole in its middle, on the face a viewer sees. Thin curved pieces and rings
   are left as before. A gap between a wall loop's sides too thin for a line of the usual narrowest width (a stroke a
   little wider than one loop: 1.3 mm left a 0.1 mm slit) gets a line as wide as the gap, on the first layer only.
+- A thin area shaped like a T or a Y gets its center lines on every layer. Each arm was judged alone against the rule
+  that leaves a corner's void empty (a line shorter than twice its width), so a small T's arms, each about 1 mm long and
+  0.5 mm wide, were all dropped: the space a wall loop leaves inside a T-shaped stroke was a hole.
 - Requests to a printer are plain HTTP/1.1. They asked the printer's web server to switch to HTTP/2 on each new
   connection (an upload's included), which printers' small servers do not speak; a Creator 5 refused several uploads
   in a row ("Download failed" on its screen) where the same files had gone through before.

@@ -354,11 +354,11 @@ object Walls {
             if (cur.size >= 2) out.add(cur)
             return out
         }
-        // Small lines: an open line shorter than min_length_factor x its narrowest width is dropped
+        // Small lines: an open line (with the lines it joins at a junction) shorter than min_length_factor x its narrowest width is dropped
         // (min_length_factor, as the Orca-lineage Arachne is understood to use it: plymeld's reading,
         // not verified against its source); a closed one (a skeleton cycle) shorter than its own
         // widest width is a blob, not a wall (one model: 4,266 closed center lines under 0.2 mm).
-        // Corner voids: an open line less than twice as long as its widest point is not a thin band
+        // Corner voids: an open line (with the lines it joins) less than twice as long as its widest point is not a thin band
         // but the void a round bead leaves in a sharp corner between loops (on one layer seen: most of
         // the short lines). That is gap fill, which the Orca lineage prints only where
         // gap_fill_target says (commonly topbottom), so it is left empty here.
@@ -367,16 +367,33 @@ object Walls {
         // a two-color Benchy's window-frame ends printed nothing, their outline with no wall).
         // The outline exception covers both rules (a double helix's wall wedge beside a strip's end, 0.5 to 0.97 mm
         // wide, kept a loop at its wide end and lost its 0.57 mm center line to min_length_factor alone: its outline had no wall)
-        return chains().flatMap { split(it) }.filter { c ->
-            if (c.size < 2) return@filter false
-            val len = length(c)
+        // The lengths are a connected group's, not one branch's: a thin T or Y is split into a line per branch at its
+        // junction, and judged branch by branch each arm of a small T (a QR code's stroke: arms about 1 mm long, 0.5 mm
+        // wide) was "shorter than twice its width" and the whole T was left empty.
+        val lines = chains().flatMap { split(it) }.filter { it.size >= 2 }
+        val group = IntArray(lines.size) { it }
+        fun root(i: Int): Int { var r = i; while (group[r] != r) r = group[r]; var j = i; while (group[j] != r) { val n = group[j]; group[j] = r; j = n }; return r }
+        val byEnd = HashMap<Int, Int>()
+        for ((i, c) in lines.withIndex()) for (e in listOf(c.first(), c.last())) {
+            val other = byEnd.putIfAbsent(e, i)
+            if (other != null) group[root(i)] = root(other)
+        }
+        val groupLen = HashMap<Int, Double>(); val groupMin = HashMap<Int, Double>(); val groupMax = HashMap<Int, Double>()
+        for ((i, c) in lines.withIndex()) {
+            val r = root(i)
+            groupLen.merge(r, length(c), Double::plus)
+            groupMin.merge(r, c.minOf { width(it) }, ::minOf); groupMax.merge(r, c.maxOf { width(it) }, ::maxOf)
+        }
+        return lines.withIndex().filter { (i, c) ->
+            val r = root(i)
+            val len = groupLen.getValue(r)
             val closed = c.first() == c.last()
-            if (closed) return@filter len >= c.maxOf { width(it) }
+            if (closed) return@filter length(c) >= c.maxOf { width(it) }
             val along by lazy { outline.isNotEmpty() &&
                 alongOutline(LongArray(2 * c.size) { k -> Math.round(if (k % 2 == 0) nx[c[k / 2]] else ny[c[k / 2]]) }, LongArray(c.size) { Math.round(width(c[it])) }, outline) }
-            if (len < minLengthFactor * c.minOf { width(it) } && !along) return@filter false
-            len >= 2 * c.maxOf { width(it) } || along
-        }.map { c ->
+            if (len < minLengthFactor * groupMin.getValue(r) && !along) return@filter false
+            len >= 2 * groupMax.getValue(r) || along
+        }.map { it.value }.map { c ->
             CenterLine(LongArray(2 * c.size) { k -> Math.round(if (k % 2 == 0) nx[c[k / 2]] else ny[c[k / 2]]) },
                 LongArray(c.size) { Math.round(width(c[it])) })
         }
