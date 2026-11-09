@@ -32,6 +32,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import plymeld.core.decide.Decision
+import plymeld.commands.UpdateFeed
 import java.util.Locale
 
 /** The marks' colors: bands on the ruler, spots as boxes, pauses as planes. plymeld's choices. */
@@ -240,11 +241,12 @@ fun Drawer(j: JobState, modifier: Modifier, onClose: () -> Unit, page: String? =
 /**
  * The window's own settings (the bar's "settings"): per-viewer
  * conveniences only, nothing that changes a print (those are config values, found by the finder): the theme, whether
- * the window checks for updates, and where it keeps what it writes and remembers.
+ * whether plymeld checks for updates (the same setting as `plymeld updates --set`), and where it keeps what it writes
+ * and remembers.
  */
 @Composable
 private fun WindowSettings(j: JobState) {
-    var check by remember { mutableStateOf(Updates.Pref.also { it.load() }.check) }
+    var check by remember { mutableStateOf(UpdateFeed.Pref.load().mode) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Per-viewer conveniences: nothing here changes a print. What does is a config value; the finder (Ctrl K) finds every one.", color = Ink.muted, fontSize = 12.sp, lineHeight = 17.sp)
         Text("THEME", color = Ink.faint, fontSize = 11.sp, letterSpacing = 0.6.sp, modifier = Modifier.padding(top = 6.dp))
@@ -255,11 +257,13 @@ private fun WindowSettings(j: JobState) {
         }
         Text("UPDATES", color = Ink.faint, fontSize = 11.sp, letterSpacing = 0.6.sp, modifier = Modifier.padding(top = 6.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            for (c in Updates.Pref.Check.entries) Text(when (c) { Updates.Pref.Check.ASK -> "say so, install on a click"; Updates.Pref.Check.AUTO -> "install at the next start"; Updates.Pref.Check.NEVER -> "never check" },
+            for (c in UpdateFeed.Pref.Mode.entries) Text(when (c) { UpdateFeed.Pref.Mode.OFF -> "off: never check"; UpdateFeed.Pref.Mode.NOTIFY -> "notify: say so, install on a click"; UpdateFeed.Pref.Mode.INSTALL -> "install: at the next start" },
                 color = if (check == c) Ink.text else Ink.accent, fontSize = 12.sp, fontWeight = if (check == c) FontWeight.SemiBold else FontWeight.Normal,
-                modifier = Modifier.clickable { Updates.Pref.save(c); check = c })
+                modifier = Modifier.clickable { try { UpdateFeed.Pref.save(c) } catch (_: Exception) { }; check = c })
         }
-        Text("kept in ${Updates.Pref.file}", color = Ink.faint, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+        Text("Off until you turn it on. The same setting as `plymeld updates --set`: turned on, the command line also says a newer release after a command, at most once a day.",
+            color = Ink.muted, fontSize = 12.sp, lineHeight = 17.sp)
+        Text("kept in ${UpdateFeed.Pref.file()}", color = Ink.faint, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
         Text("WHERE THE WINDOW KEEPS THINGS", color = Ink.faint, fontSize = 11.sp, letterSpacing = 0.6.sp, modifier = Modifier.padding(top = 6.dp))
         for ((what, where) in listOf("plan files and their journals" to JobState.userDataDir().resolve("plans"), "job config files it made" to JobState.userDataDir().resolve("jobs"),
             "the last job's config files" to JobState.LastJob.file, "the recent jobs" to JobState.RecentJobs.file, "g-code it sliced (temporary)" to JobState.outFor(emptyList()).parent)) Column {

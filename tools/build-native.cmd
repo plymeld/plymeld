@@ -26,4 +26,4 @@ if exist "%PLYMELD_ICO%" (
   rc.exe /nologo /fo "%OUT%\plymeld.res" "%OUT%\plymeld.rc" || ( echo rc.exe failed: the executable gets no icon )
   if exist "%OUT%\plymeld.res" set "ICONOPT=-H:NativeLinkerOption=%OUT%\plymeld.res"
 )
-call "%GRAALVM_HOME%\bin\native-image.cmd" --no-fallback -O2 -H:+ReportExceptionStackTraces -H:IncludeResources="config/.*\.toml|plymeld-version\.txt" --initialize-at-build-time=org.slf4j,org.apache.sshd.common.file.root.RootedFileSystemProvider !ICONOPT! -cp "!CP!" plymeld.cli.MainKt -o "%OUT%\plymeld" %*
+call "%GRAALVM_HOME%\bin\native-image.cmd" --no-fallback -O2 -H:+ReportExceptionStackTraces -H:IncludeResources="config/.*\.toml|plymeld-version\.txt|plymeld-update-feed\.txt" --initialize-at-build-time=org.slf4j,org.apache.sshd.common.file.root.RootedFileSystemProvider !ICONOPT! -cp "!CP!" plymeld.cli.MainKt -o "%OUT%\plymeld" %*

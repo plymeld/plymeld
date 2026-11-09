@@ -56,6 +56,7 @@ object UiRegistry {
         Surface("plymeld printer files", FORM),
         Surface("plymeld printer pause", FORM),
         Surface("plymeld report", FORM),
+        Surface("plymeld updates", "the window: the bar's settings (⚙), UPDATES: off, notify or install, the same setting; the window checks as it opens, its bar saying a newer release; $FORM", setOf("--set")),
         Surface("plymeld printer clear", "the window: step 6, where a send is refused because the printer still shows its last print finished (\"The bed is clear: tell the <key>\", then Send again); $FORM", setOf("-cf", "--machine")),
         Surface("plymeld printer resume", FORM),
         Surface("plymeld printer cancel", FORM),

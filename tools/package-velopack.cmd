@@ -18,9 +18,8 @@ rem   PLYMELD_LINUX_CLI  the Linux command line's own download, plymeld-linux-x6
 rem                 it on Linux (an AppImage opens the window only); copied beside the AppImage
 rem                 (default %TEMP%\plymeld-pack\plymeld-linux-x64.tar.gz)
 rem   PLYMELD_ICONS  the icon set `./gradlew :plymeld-ui:icons` writes (default %TEMP%\plymeld-pack\icons)
-rem   PLYMELD_FEED   the URL the installed window checks for updates (written into the package as plymeld-update-feed.txt).
-rem                 Required: an install keeps the URL its package carries. PLYMELD_FEED=none
-rem                 packages a build that never checks, for testing only.
+rem The update feed's URL is not packaged: Gradle bakes it into both executables (-Pplymeld.feed or
+rem PLYMELD_FEED when Gradle runs; plymeld-commands/build.gradle.kts).
 rem Usage: package-velopack.cmd VERSION [win|linux|all]   (VERSION in semver 2, e.g. 0.20261026.0, the date as one number; default all)
 setlocal enabledelayedexpansion
 if "%~1"=="" ( echo usage: %~nx0 VERSION [win^|linux^|all] & exit /b 2 )
@@ -35,17 +34,6 @@ rem vpk on PATH, or the per-user .NET install's tools folder (dotnet-install.ps1
 set "VPK=vpk"
 where vpk >nul 2>nul || (
   if exist "%USERPROFILE%\.dotnet\tools\vpk.exe" ( set "VPK=%USERPROFILE%\.dotnet\tools\vpk.exe" & set "DOTNET_ROOT=%USERPROFILE%\.dotnet" ) else ( echo vpk not found: dotnet tool install -g vpk ^(needs the .NET SDK^) & exit /b 1 )
-)
-if "%PLYMELD_FEED%"=="" ( echo PLYMELD_FEED is not set: the update feed's URL ^(or none, for a test package that never checks^) & exit /b 1 )
-if /i "%PLYMELD_FEED%"=="none" (
-  set "PLYMELD_FEED="
-  rem a feed file left in a build folder by an earlier run would still be packaged
-  if exist "%PLYMELD_WIN%\plymeld-update-feed.txt" del "%PLYMELD_WIN%\plymeld-update-feed.txt"
-  if exist "%PLYMELD_LINUX%\plymeld-update-feed.txt" del "%PLYMELD_LINUX%\plymeld-update-feed.txt"
-)
-if not "%PLYMELD_FEED%"=="" (
-  if exist "%PLYMELD_WIN%" echo %PLYMELD_FEED%> "%PLYMELD_WIN%\plymeld-update-feed.txt"
-  if exist "%PLYMELD_LINUX%" echo %PLYMELD_FEED%> "%PLYMELD_LINUX%\plymeld-update-feed.txt"
 )
 if not exist "%OUT%" mkdir "%OUT%"
 if "%WHAT%"=="linux" goto linux

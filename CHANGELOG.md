@@ -9,7 +9,22 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Added
+
+- `plymeld updates`: whether plymeld checks for a newer release, off until you turn it on (`--set notify` or
+  `install`), and `--check` to ask now. Turned on, every command run in a terminal asks the release feed in the
+  background, at most once a day, and says a newer release in one line on stderr after the command; the command line
+  never updates itself. One setting for the command line and the window: the window's settings offer the same three.
+
+### Changed
+
+- The window checks for updates only once you turn it on (it checked by default). A choice made in its settings before
+  is kept.
+
 ### Fixed
+
+- The installed window's update check never ran: the release feed's address was packaged beside the executables, where
+  the window did not look. It is now built into both executables.
 
 - A Flashforge printer's "canceling" (a cancel under way) reads as busy, where plymeld called it a status word it does
   not know: `printer status` says busy, an upload waits, and `printer watch` keeps watching until the print has ended.

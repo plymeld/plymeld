@@ -32,13 +32,20 @@ tasks.withType<Test>().configureEach {
         .withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("docs")
 }
 
-// Bake the project version into a resource the commands read at runtime (PlymeldVersion).
-// The closure captures a local `v`, not the script object — the configuration cache
+// Bake the project version into a resource the commands read at runtime (PlymeldVersion), and the release feed the
+// update check asks (UpdateFeed.bakedFeed): -Pplymeld.feed, else PLYMELD_FEED in Gradle's environment (the release
+// workflow sets it), else none, as in a development build, which never checks.
+// The closure captures locals, not the script object — the configuration cache
 // refuses to serialize script references.
 tasks.processResources {
     val v = project.version.toString()
+    val feed = providers.gradleProperty("plymeld.feed").orElse(providers.environmentVariable("PLYMELD_FEED")).getOrElse("")
     inputs.property("version", v)
+    inputs.property("feed", feed)
     filesMatching("plymeld-version.txt") {
         expand("version" to v)
+    }
+    filesMatching("plymeld-update-feed.txt") {
+        expand("feed" to feed)
     }
 }

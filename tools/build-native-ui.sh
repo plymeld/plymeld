@@ -25,7 +25,7 @@ case "${1:-build}" in
     out="$here/plymeld-ui/build/native"
     # the natives Skiko and LWJGL unpack from their jars, the bundled config, the machines, the version; slf4j (MINA) at build time
     "$graal/bin/native-image" --no-fallback -O2 -H:+ReportExceptionStackTraces -H:+UnlockExperimentalVMOptions \
-      -H:IncludeResources=".*\\.so|.*\\.dll|.*\\.sha256|.*\\.sha1|config/.*\\.toml|plymeld-version\\.txt" \
+      -H:IncludeResources=".*\\.so|.*\\.dll|.*\\.sha256|.*\\.sha1|config/.*\\.toml|plymeld-version\\.txt|plymeld-update-feed\\.txt" \
       -H:ConfigurationFileDirectories="$meta" --initialize-at-build-time=org.slf4j,org.apache.sshd.common.file.root.RootedFileSystemProvider \
       -cp "$cp" plymeld.ui.MainKt -o "$out/plymeld-ui" "$@"
     # Skiko's AWT bridge dlopens ${java.home}/lib/libjawt.so, and the executable sets java.home to its own directory

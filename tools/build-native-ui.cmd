@@ -56,7 +56,7 @@ rem a Windows GUI program (no console window beside it): the linker's /SUBSYSTEM
 rem (/ENTRY:mainCRTStartup); Main.kt then sends System.out and System.err to a log file when there is no console
 call "%GRAALVM_HOME%\bin\native-image.cmd" -J-Xmx%NATIVE_XMX% --no-fallback -O2 -H:+ReportExceptionStackTraces -H:+UnlockExperimentalVMOptions !ICONOPT! ^
   -H:NativeLinkerOption=/SUBSYSTEM:WINDOWS -H:NativeLinkerOption=/ENTRY:mainCRTStartup ^
-  -H:IncludeResources=".*\.dll|.*\.sha256|.*\.sha1|config/.*\.toml|plymeld-version\.txt" ^
+  -H:IncludeResources=".*\.dll|.*\.sha256|.*\.sha1|config/.*\.toml|plymeld-version\.txt|plymeld-update-feed\.txt" ^
   -H:ConfigurationFileDirectories="%META%" --initialize-at-build-time=org.slf4j,org.apache.sshd.common.file.root.RootedFileSystemProvider ^
   -cp "!CP!" plymeld.ui.MainKt -o "%OUT%\plymeld-ui" !REST!
 if not "!errorlevel!"=="0" exit /b 1
