@@ -11,6 +11,19 @@ section the release's version and date.
 
 ### Fixed
 
+- The first layer is closed where a small region's walls leave a compact piece in its middle (a small square's: its
+  skeleton is a point, so no line reached it): the piece gets lines of its own, as wide as it is across (one line a
+  little wider than usual for a piece a little wider than one line, not two too narrow to lay). Every small
+  square of a QR code laid on the bed had a hole in its middle, on the face a viewer sees. Thin curved pieces and rings
+  are left as before. A gap between a wall loop's sides too thin for a line of the usual narrowest width (a stroke a
+  little wider than one loop: 1.3 mm left a 0.1 mm slit) gets a line as wide as the gap, on the first layer only.
+- A solid band around a hole (laid as loops along its outer edge, as many as its mean width holds) is filled to its full
+  depth: where it is deeper than its mean, what its loops leave is laid as lines. A band whose inner edge is jagged (a QR
+  code's quiet zone beside its modules) left a 1.1 x 2.3 mm hole in a visible bottom, and a 3DBenchy's internal solid
+  had holes inside its bands.
+- A thin area shaped like a T or a Y gets its center lines on every layer. Each arm was judged alone against the rule
+  that leaves a corner's void empty (a line shorter than twice its width), so a small T's arms, each about 1 mm long and
+  0.5 mm wide, were all dropped: the space a wall loop leaves inside a T-shaped stroke was a hole.
 - A purge tower's tool changes start their purge at a different corner of their band in turn (four, layer by layer and
   change by change), where every change started at one point: a nozzle back from the dock lays its first plastic there,
   and on a two-color nameplate all 188 changes put it in one spot, by the tower corner that peeled. Each change purges as
@@ -40,19 +53,6 @@ section the release's version and date.
 
 ### Fixed
 
-- The first layer is closed where a small region's walls leave a compact piece in its middle (a small square's: its
-  skeleton is a point, so no line reached it): the piece gets lines of its own, as wide as it is across (one line a
-  little wider than usual for a piece a little wider than one line, not two too narrow to lay). Every small
-  square of a QR code laid on the bed had a hole in its middle, on the face a viewer sees. Thin curved pieces and rings
-  are left as before. A gap between a wall loop's sides too thin for a line of the usual narrowest width (a stroke a
-  little wider than one loop: 1.3 mm left a 0.1 mm slit) gets a line as wide as the gap, on the first layer only.
-- A solid band around a hole (laid as loops along its outer edge, as many as its mean width holds) is filled to its full
-  depth: where it is deeper than its mean, what its loops leave is laid as lines. A band whose inner edge is jagged (a QR
-  code's quiet zone beside its modules) left a 1.1 x 2.3 mm hole in a visible bottom, and a 3DBenchy's internal solid
-  had holes inside its bands.
-- A thin area shaped like a T or a Y gets its center lines on every layer. Each arm was judged alone against the rule
-  that leaves a corner's void empty (a line shorter than twice its width), so a small T's arms, each about 1 mm long and
-  0.5 mm wide, were all dropped: the space a wall loop leaves inside a T-shaped stroke was a hole.
 - A purge tower's hold on the bed, after one came loose twice. After a tool change the new filament lays its purge lines inside the tower first and
   its wall last, so its first, least even plastic goes inside, not on the edge: every change had started the wall at
   the same corner, piling a blob there each time (188 times on a two-color nameplate), and that corner peeled off the
