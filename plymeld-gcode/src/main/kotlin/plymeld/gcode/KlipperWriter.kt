@@ -963,7 +963,8 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
     }
 
     /**
-     * Speeds: the first layer at its own (adhesion), the purge tower's first layer no faster; visible lines
+     * Speeds: the first layer at its own (adhesion), the purge tower at its own (plan.mechanism.purge.tower.speed), its
+     * first layer no faster than the first layer's; visible lines
      * at the visible cap; bridges at the bridge speed (sag); everything else, hidden, at the
      * machine's fastest move. [pathSpeed] then caps each by the filament's melt rate.
      */

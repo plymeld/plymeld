@@ -598,6 +598,7 @@ object Schema {
         q("$pu.tower.x", Dimension.LENGTH, "INHERITED: tower position, X of its lower-left corner; unset (with y) = beside the object (tower.gap)", feeds = true)
         q("$pu.tower.y", Dimension.LENGTH, "INHERITED: tower position, Y of its lower-left corner; unset (with x) = beside the object (tower.gap)", feeds = true)
         q("$pu.tower.gap", Dimension.LENGTH, "INHERITED: with tower.x and tower.y unset, the tower stands beside the object (its right, back, left or front, the first with room on the bed), this far from the object and its brim, its own brim included", feeds = true)
+        q("$pu.tower.speed", Dimension.SPEED, "INHERITED: the purge tower's speed above its first layer, never faster than the machine prints (bundled: the visible lines' speed, plan.mechanism.motion.visible.speed)", feeds = true)
         q("$pu.tower.first_layer.speed", Dimension.SPEED, "INHERITED: the purge tower's first layer, its brim included, no faster than this (bundled: the object's first-layer speed)", feeds = true)
         d("$pu.tower.brim.enabled", Type.Bool, "INHERITED: a brim around the purge tower's first layer, for its hold on the bed (whatever the object's brim)", feeds = true)
         q("$pu.tower.brim.width", Dimension.LENGTH, "INHERITED: the purge tower's brim width", feeds = true)
