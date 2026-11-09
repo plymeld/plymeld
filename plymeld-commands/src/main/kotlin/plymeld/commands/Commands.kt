@@ -51,7 +51,8 @@ class Plymeld : CliktCommand(name = "plymeld") {
             "commands (every command and option plymeld has, and every config path, as the UI reads them; or the command reference as Markdown pages); " +
             "edit (write values into a config file, the rest of it kept as it was); journal (the edits made with --journal: list, undo, redo); " +
             "init (set up your printers and filaments, asked in the terminal; it starts by itself when a command finds no config); " +
-            "report (a problem report about what you are working on: a zip, and a GitHub issue filled in for you to submit)."
+            "report (a problem report about what you are working on: a zip, and a GitHub issue filled in for you to submit); " +
+            "updates (whether plymeld checks for a newer release as it runs: off until you turn it on)."
 
     override fun run() = Unit
 }
@@ -64,7 +65,7 @@ class Plymeld : CliktCommand(name = "plymeld") {
 object Commands {
     /** The command tree, fresh (Clikt commands hold their parsed values, so each parse gets its own). */
     fun tree(): Plymeld = Plymeld().subcommands(SliceCommand(), PlanCommand(), ShowConfigCommand(), SchemaCommand(), LayersCommand(), CalibrateCommand(),
-        RenderPlateCommand(), PrinterCommand(), InvestigateCommand(), CommandsCommand(), EditCommand(), JournalCommand(), InitCommand(), ReportCommand())
+        RenderPlateCommand(), PrinterCommand(), InvestigateCommand(), CommandsCommand(), EditCommand(), JournalCommand(), InitCommand(), ReportCommand(), UpdatesCommand())
 
     /**
      * Runs a command line as the CLI does and returns the exit status. Refusals (plymeld's own `require` / `error`

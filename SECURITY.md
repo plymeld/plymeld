@@ -17,17 +17,21 @@ plymeld runs locally. It reads model files (STL, 3MF) and config files (TOML, JS
 plans, and pictures where a command names them, and one file of its own: the search log, a line per
 decision (date, model file name, how the search stopped, its time) appended to `search.log` in plymeld's
 state folder (`method.search.log.enabled = "false"` switches it off; `.file` moves it). Two things talk to
-anything outside the machine: the `plymeld printer` command, and the window's check for updates.
+anything outside the machine: the `plymeld printer` command, and the check for updates, which is off
+until you turn it on.
 
 ### Network access
 
-**On the command line, only `plymeld printer` reaches the network.** Every other
-command (`slice`, `plan`, `config`, `calibrate`, ...) makes no network connection, and the command line
-never checks for updates.
+**On the command line, only `plymeld printer` reaches the network**, and the check for updates once you
+turn it on (`plymeld updates --set notify` or `install`; `off`, the default, checks nothing). Every other
+command (`slice`, `plan`, `config`, `calibrate`, ...) makes no network connection. Turned on, a command
+run in a terminal reads the release feed (one GET of `releases.<channel>.json`) in the background, at
+most once a day, and says a newer release on stderr; the command line never downloads or installs one.
+`plymeld updates --check` reads the feed when you run it, whatever the setting.
 
-**The window** (an installed build only) reads its release feed (one GET of `releases.<channel>.json`)
-when it opens, unless the viewer chose `never`; it downloads and installs an update only after a click
-(the default) or, when the viewer chose `auto`, at the next start. The feed is read over https only.
+**The window** (an installed build only) reads the same feed when it opens, once you have turned the
+check on (the same setting, from the command line or the window's settings); it downloads and installs an
+update only after a click (`notify`) or, with `install`, at the next start. The feed is read over https only.
 The package is checked against the feed's size and SHA-256 (SHA-1 where an older feed gives only that;
 a package the feed gives no checksum for is refused) before it is installed. The checksum comes from the
 same feed, so it guards against a damaged download, not a compromised feed: signed packages are not

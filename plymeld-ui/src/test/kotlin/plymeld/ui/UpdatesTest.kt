@@ -4,10 +4,11 @@ import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import plymeld.commands.UpdateFeed
 import java.nio.file.Files
 import java.nio.file.Path
 
-/** The Velopack client's own parts (Updates.kt): the feed, the version order, the manifest, the install layout, the hooks. */
+/** The Velopack client's own parts (Updates.kt) and the feed it reads through UpdateFeed: the feed, the version order, the manifest, the install layout, the hooks. */
 class UpdatesTest : StringSpec({
     val feed = """{"Assets":[
         {"PackageId":"plymeld","Version":"0.0.1-phase0","Type":"Full","FileName":"plymeld-0.0.1-phase0-full.nupkg","SHA1":"aa","Size":10},
@@ -18,30 +19,30 @@ class UpdatesTest : StringSpec({
     fun Path.wipe() { Files.walk(this).sorted(Comparator.reverseOrder()).forEach { Files.delete(it) } }
 
     "the feed's entries are read, and the newest full release of this package wins" {
-        val releases = Updates.parseFeed(feed)
+        val releases = UpdateFeed.parseFeed(feed)
         releases.size shouldBe 4
         releases[1].type shouldBe "Delta"; releases[1].size shouldBe 2L
-        Updates.newest(releases, "0.0.1-phase0", "plymeld").shouldNotBeNull().fileName shouldBe "plymeld-0.0.2-full.nupkg"
-        Updates.newest(releases, "0.0.2", "plymeld").shouldBeNull()        // up to date
-        Updates.newest(releases, "0.0.3", "plymeld").shouldBeNull()        // ahead of the feed
-        Updates.newest(releases, "0.0.1", "nothing").shouldBeNull()       // another package's releases are not ours
+        UpdateFeed.newest(releases, "0.0.1-phase0", "plymeld").shouldNotBeNull().fileName shouldBe "plymeld-0.0.2-full.nupkg"
+        UpdateFeed.newest(releases, "0.0.2", "plymeld").shouldBeNull()        // up to date
+        UpdateFeed.newest(releases, "0.0.3", "plymeld").shouldBeNull()        // ahead of the feed
+        UpdateFeed.newest(releases, "0.0.1", "nothing").shouldBeNull()       // another package's releases are not ours
     }
 
     "versions order as semver 2" {
-        (Updates.compareVersions("0.0.2", "0.0.1-phase0") > 0) shouldBe true
-        (Updates.compareVersions("0.0.1", "0.0.1-phase0") > 0) shouldBe true      // the release after its pre-release
-        (Updates.compareVersions("0.0.1-phase1", "0.0.1-phase0") > 0) shouldBe true
-        (Updates.compareVersions("1.0.0-rc.2", "1.0.0-rc.10") < 0) shouldBe true  // numeric pre-release parts
-        (Updates.compareVersions("1.10.0", "1.9.9") > 0) shouldBe true
-        Updates.compareVersions("1.0.0+build7", "1.0.0") shouldBe 0             // build metadata ignored
+        (UpdateFeed.compareVersions("0.0.2", "0.0.1-phase0") > 0) shouldBe true
+        (UpdateFeed.compareVersions("0.0.1", "0.0.1-phase0") > 0) shouldBe true      // the release after its pre-release
+        (UpdateFeed.compareVersions("0.0.1-phase1", "0.0.1-phase0") > 0) shouldBe true
+        (UpdateFeed.compareVersions("1.0.0-rc.2", "1.0.0-rc.10") < 0) shouldBe true  // numeric pre-release parts
+        (UpdateFeed.compareVersions("1.10.0", "1.9.9") > 0) shouldBe true
+        UpdateFeed.compareVersions("1.0.0+build7", "1.0.0") shouldBe 0             // build metadata ignored
     }
 
     "date versions (0.YYYYMMDD.N) order by day, then by the day's release" {
-        (Updates.compareVersions("0.20261101.0", "0.20261026.0") > 0) shouldBe true
-        (Updates.compareVersions("0.20261026.10", "0.20261026.9") > 0) shouldBe true  // numbers, not text
-        (Updates.compareVersions("0.20261027.0", "0.20261026.10") > 0) shouldBe true  // a later day beats a later N
-        (Updates.compareVersions("0.20261026.0", "0.0.1-phase0") > 0) shouldBe true   // the old pre-release updates
-        (Updates.compareVersions("0.20261026.0", "0.20261101.0") < 0) shouldBe true   // control: the order is not always "greater"
+        (UpdateFeed.compareVersions("0.20261101.0", "0.20261026.0") > 0) shouldBe true
+        (UpdateFeed.compareVersions("0.20261026.10", "0.20261026.9") > 0) shouldBe true  // numbers, not text
+        (UpdateFeed.compareVersions("0.20261027.0", "0.20261026.10") > 0) shouldBe true  // a later day beats a later N
+        (UpdateFeed.compareVersions("0.20261026.0", "0.0.1-phase0") > 0) shouldBe true   // the old pre-release updates
+        (UpdateFeed.compareVersions("0.20261026.0", "0.20261101.0") < 0) shouldBe true   // control: the order is not always "greater"
     }
 
     "the manifest's id, version and channel are read" {
@@ -101,24 +102,24 @@ class UpdatesTest : StringSpec({
         try {
             val f = Files.writeString(dir.resolve("a.txt"), "abc")
             val sha1 = "a9993e364706816aba3e25717850c26c9cd0d89d"; val sha256 = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
-            fun r(s1: String, s256: String) = Updates.Release("plymeld", "0.0.2", "Full", "a.txt", s1, 3, s256)
+            fun r(s1: String, s256: String) = UpdateFeed.Release("plymeld", "0.0.2", "Full", "a.txt", s1, 3, s256)
             Updates.matches(f, r(sha1, sha256)) shouldBe true
             Updates.matches(f, r("", sha256)) shouldBe true
             Updates.matches(f, r(sha1, "")) shouldBe true                       // an older feed: SHA1 only
             Updates.matches(f, r(sha1, "00" + sha256.drop(2))) shouldBe false   // control: the SHA-256 decides when given
             Updates.matches(f, r("", "")) shouldBe false                        // no checksum: never trusted
-            val withSha256 = Updates.parseFeed("""{"Assets":[{"PackageId":"plymeld","Version":"0.0.2","Type":"Full","FileName":"a","SHA1":"aa","SHA256":"bb","Size":1}]}""")
+            val withSha256 = UpdateFeed.parseFeed("""{"Assets":[{"PackageId":"plymeld","Version":"0.0.2","Type":"Full","FileName":"a","SHA1":"aa","SHA256":"bb","Size":1}]}""")
             withSha256.single().sha256 shouldBe "bb"
-            Updates.parseFeed(feed)[0].sha256 shouldBe ""
+            UpdateFeed.parseFeed(feed)[0].sha256 shouldBe ""
         } finally { dir.wipe() }
     }
 
     "the feed is read over https only, plain http on this machine alone" {
-        Updates.feedAllowed("https://updates.example.org/plymeld") shouldBe true
-        Updates.feedAllowed("http://localhost:8080/feed") shouldBe true
-        Updates.feedAllowed("http://127.0.0.1/feed") shouldBe true
-        Updates.feedAllowed("http://updates.example.org/plymeld") shouldBe false
-        Updates.feedAllowed("file:///tmp/feed") shouldBe false
-        Updates.feedAllowed("not a url") shouldBe false
+        UpdateFeed.feedAllowed("https://updates.example.org/plymeld") shouldBe true
+        UpdateFeed.feedAllowed("http://localhost:8080/feed") shouldBe true
+        UpdateFeed.feedAllowed("http://127.0.0.1/feed") shouldBe true
+        UpdateFeed.feedAllowed("http://updates.example.org/plymeld") shouldBe false
+        UpdateFeed.feedAllowed("file:///tmp/feed") shouldBe false
+        UpdateFeed.feedAllowed("not a url") shouldBe false
     }
 })

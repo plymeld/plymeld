@@ -1,5 +1,6 @@
 package plymeld.ui
 
+import plymeld.commands.UpdateFeed
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -212,9 +213,10 @@ fun WindowApp(j: JobState, ui: WindowUi, onOpen: (() -> Unit)? = null, onSlice: 
 }
 
 /**
- * The update Velopack's feed offers (Updates.kt), checked once as the window opens when the viewer allows
- * it: shown in the bar as "⬆ VERSION · install" and installed on the click (`auto`: installed at once). The window
- * exits for the updater, which starts the new version.
+ * The update Velopack's feed offers (Updates.kt), checked once as the window opens when the user has turned checks on
+ * (`plymeld updates --set notify|install`, or the window's settings; off by default): shown in the bar as
+ * "⬆ VERSION · install" and installed on the click (`install`: installed at once). The window exits for the updater,
+ * which starts the new version.
  */
 object UpdateState {
     var available by mutableStateOf<Updates.Available?>(null)
@@ -225,13 +227,13 @@ object UpdateState {
         if (started) return; started = true
         Thread {
             try {
-                Updates.Pref.load()
+                val pref = UpdateFeed.Pref.load()
+                if (pref.mode == UpdateFeed.Pref.Mode.OFF) return@Thread
                 val i = Updates.install() ?: return@Thread; install = i
-                val feed = Updates.Pref.feed ?: return@Thread
-                if (Updates.Pref.check == Updates.Pref.Check.NEVER) return@Thread
+                val feed = pref.feed ?: return@Thread
                 val a = Updates.check(feed, i) ?: return@Thread
                 available = a
-                if (Updates.Pref.check == Updates.Pref.Check.AUTO) installNow()
+                if (pref.mode == UpdateFeed.Pref.Mode.INSTALL) installNow()
             } catch (e: Exception) { status = "update check failed: ${e.message}" }
         }.apply { isDaemon = true; name = "update check" }.start()
     }

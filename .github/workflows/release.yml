@@ -13,7 +13,7 @@ permissions:
   contents: write
 
 env:
-  # the update feed the installed window checks: plymeld.org/releases redirects to the latest release's files
+  # the update feed the window and the command line check (baked into both by Gradle): plymeld.org/releases redirects to the latest release's files
   PLYMELD_FEED: https://plymeld.org/releases
 
 jobs:
@@ -66,7 +66,7 @@ jobs:
         run: tools/build-native.sh
       - name: The window
         run: tools/build-native-ui.sh build
-      # one folder: the window with its libraries and lib/libjawt.so, the command line beside it, the update feed's URL
+      # one folder: the window with its libraries and lib/libjawt.so, the command line beside it
       - name: The package folder
         run: |
           pack="$RUNNER_TEMP/linux"; mkdir -p "$pack"
@@ -74,7 +74,6 @@ jobs:
           rm -rf "$pack/lib/"*.jar
           # the command line and any library native-image put beside it (the window's own copies kept)
           for f in plymeld-cli/build/native/*; do case "$f" in *.txt) ;; *) cp -an "$f" "$pack/" ;; esac; done
-          echo "$PLYMELD_FEED" > "$pack/plymeld-update-feed.txt"
       - name: Install vpk (Velopack's packager)
         run: |
           dotnet tool install -g vpk

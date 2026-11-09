@@ -126,6 +126,20 @@ the printer's status. Your models and the whole g-code go in only with `--includ
 (they are in the environment or the secrets files, which it does not read); network addresses and your home folder's
 path are hidden. Nothing is sent: without `--open`, it prints the issue's address.
 
+## Hear about new releases
+
+```
+plymeld updates --set notify
+plymeld updates --check
+```
+
+plymeld checks for nothing until you turn it on. With `--set notify`, every command you run in a terminal asks the
+release feed in the background, at most once a day, and after the command says in one line on stderr when a newer
+release is out, again at most once a day; a script's output and a pipe never get it. `--set install` does the same,
+and the window also installs the update at its next start; `--set off` turns it off. It is one setting for the
+command line and the window (whose settings offer the same three). `plymeld updates` shows the setting and what the
+last check found; `--check` asks the feed now. The command line never updates itself.
+
 ## Calibrate
 
 `plymeld calibrate` makes a calibration plate for one filament, printed exactly as specified. There is one subcommand

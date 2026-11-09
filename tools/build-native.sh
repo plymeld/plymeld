@@ -13,7 +13,7 @@ lib="$here/plymeld-cli/build/install/plymeld/lib"
 cp="$(ls "$lib"/*.jar | tr '\n' ':')"; cp="${cp%:}"
 out="$here/plymeld-cli/build/native"
 mkdir -p "$out"
-"$graal/bin/native-image" --no-fallback -O2 -H:+ReportExceptionStackTraces -H:IncludeResources="config/.*\\.toml|plymeld-version\\.txt" \
+"$graal/bin/native-image" --no-fallback -O2 -H:+ReportExceptionStackTraces -H:IncludeResources="config/.*\\.toml|plymeld-version\\.txt|plymeld-update-feed\\.txt" \
   --initialize-at-build-time=org.slf4j,org.apache.sshd.common.file.root.RootedFileSystemProvider \
   -cp "$cp" plymeld.cli.MainKt -o "$out/plymeld" "$@"
 if [ "$(uname -s)" = Linux ]; then
