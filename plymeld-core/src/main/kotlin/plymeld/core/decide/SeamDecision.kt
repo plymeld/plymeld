@@ -28,7 +28,7 @@ object SeamDecision {
         BACK("back", "at the loop's back-most point, in line with the layer below"),
         CORNERS("corners", "at a corner when the loop has one (inside corners first), in line with the layer below; else the back"),
         /** the held-up point the visibility map counts least (seen from the less-weighted quadrants, hidden nearby, an underside), ties to the seam below, then the back. */
-        LEAST_VISIBLE("least_visible", "at the held-up point seen least (its viewing directions weighed by the quadrant they look from, hidden by nearby geometry, on an underside), in line with the layer below; else the back");
+        LEAST_VISIBLE("least_visible", "at the held-up point seen least (its viewing directions weighed by the quadrant they look from, hidden by nearby geometry, the object's other parts included, on an underside), in line with the layer below; else the back");
     }
 
     /** One candidate: the placement, and scarf seams on "none", "smooth" (loops whose seam lands off a corner), or "all" outer walls. */

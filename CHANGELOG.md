@@ -23,6 +23,10 @@ section the release's version and date.
 
 ### Fixed
 
+- Least-visible seams on a model of several parts in different filaments: a part's edge pressed against another part is
+  covered by it and hides a seam. Each part's seams were placed seeing that part alone, so such an edge read as an
+  open wall, and the seams went to corners on the visible face instead. On a two-color nameplate, the inlaid lettering's
+  seams on the front face went from 587 to 205 of about 1,700, and the seam measure from 6.5 to 1.5 mm².
 - The installed window's update check never ran: the release feed's address was packaged beside the executables, where
   the window did not look. It is now built into both executables.
 
