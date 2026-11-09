@@ -196,8 +196,12 @@ tower.enabled = "true"
 # where the purge after a tool change goes: tower, infill (the new filament's own sparse infill first, the tower
 # taking the rest), infill_and_object (its sparse, then its hidden solid infill, then the tower)
 into = "tower"
-tower.x = "= machine.build.x * 0.7"
-tower.y = "= machine.build.y * 0.7"
+# tower.x and tower.y are NOT set: the tower stands beside the object (its right, back, left or front, the first with
+# room), this far from it and its brim, where its first layer holds as the object's does: a tower at the bed's corner,
+# far from the object, peeled off there twice. PLACEHOLDER: a clearance for travels between them, not measured
+tower.gap = "5 mm"
+# the tower's first layer, its brim included, no faster than this: the object's first-layer speed unless set slower
+tower.first_layer.speed = "= plan.mechanism.motion.first_layer.speed"
 # a brim around the tower's first layer whatever the object's (a tower standing on its own footprint came loose), twice
 # as wide as the object's brim would be (a tower as wide as the object's came loose from the bed twice, peeling from a
 # corner); each side at least half the tower's height (a tall, thin tower sways). PLACEHOLDERS: neither tested on a

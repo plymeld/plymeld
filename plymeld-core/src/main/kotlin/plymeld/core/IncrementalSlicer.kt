@@ -858,17 +858,45 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
             Resolver.resolveOrNull(setup, "plan.mechanism.purge.tower.brim.width", ctx)?.let { Math.round((it.value as Number).toDouble() * 1000) } ?: 0L else 0L
         val brimOverlap = if (brim <= 0) 0L else
             Resolver.resolveOrNull(setup, "plan.mechanism.purge.tower.brim.overlap", ctx)?.let { Math.round((it.value as Number).toDouble() * 1000) } ?: 0L
-        val t = if (towerW != null) PurgeTower(um("plan.mechanism.purge.tower.x"), um("plan.mechanism.purge.tower.y"), towerW, purge, st.nozzleDiameterUm, sparseSpacing, perLayer, tops,
+        // the tower's first layer, its brim included, no faster than its own first-layer speed
+        val firstSpeed = (Resolver.resolveOrNull(setup, "plan.mechanism.purge.tower.first_layer.speed", ctx)?.value as Number?)?.toDouble()
+        fun build(x: Long, y: Long) = if (towerW != null) PurgeTower(x, y, towerW, purge, st.nozzleDiameterUm, sparseSpacing, perLayer, tops,
                 compact = layout == "compact", maxGapUm = maxGap, minSideShare = minSide, brimUm = brim, brimLineUm = st.firstLayerWidthUm, brimOverlapUm = brimOverlap,
-                firstLineUm = st.firstLayerWidthUm)
-            else PurgeTower.square(um("plan.mechanism.purge.tower.x"), um("plan.mechanism.purge.tower.y"), purge, st.nozzleDiameterUm, sparseSpacing, perLayer, tops,
+                firstLineUm = st.firstLayerWidthUm, firstLayerSpeed = firstSpeed)
+            else PurgeTower.square(x, y, purge, st.nozzleDiameterUm, sparseSpacing, perLayer, tops,
                 compact = layout == "compact", maxGapUm = maxGap, minSideShare = minSide, brimUm = brim, brimLineUm = st.firstLayerWidthUm, brimOverlapUm = brimOverlap,
-                firstLineUm = st.firstLayerWidthUm)
-        val f = t.footprint
+                firstLineUm = st.firstLayerWidthUm, firstLayerSpeed = firstSpeed)
         val bx = listOf("hardware.machine.build.left", "hardware.machine.build.front", "hardware.machine.build.right", "hardware.machine.build.back").map { um(it) }
+        val hull = plymeld.geom.Polygon(LongArray(obj.footprint.size) { Math.round(obj.footprint[it] * 1000) }).let { if (it.isCcw()) it else it.reversed() }
+        val setX = Resolver.resolveOrNull(setup, "plan.mechanism.purge.tower.x", ctx)
+        val setY = Resolver.resolveOrNull(setup, "plan.mechanism.purge.tower.y", ctx)
+        require((setX == null) == (setY == null)) {
+            "plan.mechanism.purge.tower.${if (setX == null) "y" else "x"} is set without plan.mechanism.purge.tower.${if (setX == null) "x" else "y"}: set both, or neither for a tower beside the object" }
+        val t = if (setX != null) build(um("plan.mechanism.purge.tower.x"), um("plan.mechanism.purge.tower.y")) else {
+            // beside the object, where its first layer holds as the object's does: a tower placed at the bed's corner, far from
+            // the object, peeled there twice (the bed's height off its middle). Its right, back, left, then front, centered
+            // on the object along that side (moved along it to stay on the bed), [gap] clear of the object and its brim
+            val gap = um("plan.mechanism.purge.tower.gap")
+            // the object's brim where the planner lays one (Planner: outer_only, a width above 0)
+            val objBrim = if (st.brimType == "outer_only" && st.brimWidthUm > 0) st.brimGapUm + st.brimWidthUm else 0L
+            val probe = build(0, 0).footprint.bounds()                    // the tower at (0, 0): its footprint around it, brim included
+            val w = probe[2] - probe[0]; val d = probe[3] - probe[1]
+            val ob = hull.bounds(); val clear = gap + objBrim
+            val cx = (ob[0] + ob[2]) / 2; val cy = (ob[1] + ob[3]) / 2
+            fun along(c: Long, size: Long, lo: Long, hi: Long) = (c - size / 2).coerceIn(lo, maxOf(lo, hi - size))
+            val sides = listOf(
+                "right" to (ob[2] + clear to along(cy, d, bx[1], bx[3])),
+                "back" to (along(cx, w, bx[0], bx[2]) to ob[3] + clear),
+                "left" to (ob[0] - clear - w to along(cy, d, bx[1], bx[3])),
+                "front" to (along(cx, w, bx[0], bx[2]) to ob[1] - clear - d))
+            val fits = sides.firstOrNull { (_, at) -> at.first >= bx[0] && at.first + w <= bx[2] && at.second >= bx[1] && at.second + d <= bx[3] }
+                ?: error("no room for the purge tower (%.1f x %.1f mm, its brim included) %.1f mm beside '%s' on the bed: set its place (plan.mechanism.purge.tower.x / .y) or a smaller gap (plan.mechanism.purge.tower.gap)"
+                    .format(java.util.Locale.ROOT, w / 1e3, d / 1e3, clear / 1e3, objectName))
+            build(fits.second.first - probe[0], fits.second.second - probe[1])
+        }
+        val f = t.footprint
         require(f.xy.withIndex().all { (k, v) -> if (k % 2 == 0) v in bx[0]..bx[2] else v in bx[1]..bx[3] }) {
             f.bounds().let { fb -> "purge tower (%.1f..%.1f, %.1f..%.1f mm, its brim included) is off the bed".format(java.util.Locale.ROOT, fb[0] / 1e3, fb[2] / 1e3, fb[1] / 1e3, fb[3] / 1e3) } }
-        val hull = plymeld.geom.Polygon(LongArray(obj.footprint.size) { Math.round(obj.footprint[it] * 1000) }).let { if (it.isCcw()) it else it.reversed() }
         require(plymeld.geom.Booleans.intersection(listOf(f), listOf(hull)).isEmpty()) {
             f.bounds().let { fb -> "purge tower at (%.1f, %.1f), %.1f x %.1f mm (its brim included), overlaps '%s': move the tower (plan.mechanism.purge.tower.x / plan.mechanism.purge.tower.y)".format(java.util.Locale.ROOT,
                 fb[0] / 1e3, fb[1] / 1e3, (fb[2] - fb[0]) / 1e3, (fb[3] - fb[1]) / 1e3, objectName) } }

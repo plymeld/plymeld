@@ -283,3 +283,24 @@ the switch: unset already weighs.
 locked spot is gone: each object names its own regions. A blocker keeps support off its faces, but a tree branch may
 still pass through the blocked region's air (not routed around it yet).
 
+
+## 13. The purge tower stands beside the object unless placed; its first layer has a speed of its own (2026-11-09)
+
+**Context.** The purge tower stood at a fixed share of the bed (70 % of its width and depth) unless a config placed it,
+wherever the object was. A two-color print's tower, placed at the bed's front-left corner far from the object, peeled off
+there twice while the object's first layer held; its brim had the object's first-layer height, flow and speed, so the
+place was the difference left. Most beds are flattest, and best leveled, near the middle, where objects go.
+
+**Decision.** With `plan.mechanism.purge.tower.x` and `.y` unset (the default), the tower stands beside the object: on
+its right, back, left, then front, the first side where it fits on the bed, centered on the object along that side and
+moved along it to stay on the bed, `plan.mechanism.purge.tower.gap` clear of the object and its brim (its own brim
+counted in the tower). Set, both are kept as given; one without the other is refused. The tower's first layer, its brim
+included, has its own fastest speed, `plan.mechanism.purge.tower.first_layer.speed`, the object's first-layer speed by
+default.
+
+**Rejected.** Keeping a fixed place on the bed: it puts the tower wherever the bed is worst for a given object's place.
+Placing it by the bed's measured flatness: plymeld has no bed mesh to read. Slowing the tower's first layer by default:
+no measurement says by how much; the setting allows it where a print needs it.
+
+**Consequences.** Prints with a tower move it next to the object (the plate's g-code changes where it has one). The
+gap's 5 mm is a placeholder. The order of the sides is plymeld's choice, untested against a print.

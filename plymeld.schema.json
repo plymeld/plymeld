@@ -4940,18 +4940,38 @@
                       ]
                     },
                     "x": {
-                      "description": "INHERITED: tower position, X — a length (mm); or a formula (= ...)",
+                      "description": "INHERITED: tower position, X of its lower-left corner; unset (with y) = beside the object (tower.gap) — a length (mm); or a formula (= ...)",
                       "type": [
                         "string",
                         "number"
                       ]
                     },
                     "y": {
-                      "description": "INHERITED: tower position, Y — a length (mm); or a formula (= ...)",
+                      "description": "INHERITED: tower position, Y of its lower-left corner; unset (with x) = beside the object (tower.gap) — a length (mm); or a formula (= ...)",
                       "type": [
                         "string",
                         "number"
                       ]
+                    },
+                    "gap": {
+                      "description": "INHERITED: with tower.x and tower.y unset, the tower stands beside the object (its right, back, left or front, the first with room on the bed), this far from the object and its brim, its own brim included — a length (mm); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    },
+                    "first_layer": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "speed": {
+                          "description": "INHERITED: the purge tower's first layer, its brim included, no faster than this (bundled: the object's first-layer speed) — a speed (mm/s); or a formula (= ...)",
+                          "type": [
+                            "string",
+                            "number"
+                          ]
+                        }
+                      }
                     },
                     "brim": {
                       "type": "object",

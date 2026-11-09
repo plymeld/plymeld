@@ -46,6 +46,8 @@ class PurgeTower(
      * tower's first layer was laid narrower and with less plastic per millimeter than the object's beside it.
      */
     val firstLineUm: Long = lineUm,
+    /** The fastest the tower's first layer, its brim included, is laid (mm/s; plan.mechanism.purge.tower.first_layer.speed); null = no cap of its own. */
+    val firstLayerSpeed: Double? = null,
 ) {
     private val hs = Planner.heights(layerTopsUm)
     /** Layers the tower is printed on: 0 .. the last layer with a change (empty when there is none). */
@@ -106,8 +108,8 @@ class PurgeTower(
          */
         fun square(xUm: Long, yUm: Long, purgeMm3: Double, lineUm: Long, sparseSpacingUm: Long, changesPerLayer: IntArray, layerTopsUm: LongArray,
                    compact: Boolean = false, maxGapUm: Long = Long.MAX_VALUE, minSideShare: Double = 0.0, brimUm: Long = 0, brimLineUm: Long = lineUm, brimOverlapUm: Long = 0,
-                   firstLineUm: Long = lineUm): PurgeTower {
-            fun at(w: Long) = PurgeTower(xUm, yUm, w, purgeMm3, lineUm, sparseSpacingUm, changesPerLayer, layerTopsUm, compact, maxGapUm, minSideShare, brimUm, brimLineUm, brimOverlapUm, firstLineUm)
+                   firstLineUm: Long = lineUm, firstLayerSpeed: Double? = null): PurgeTower {
+            fun at(w: Long) = PurgeTower(xUm, yUm, w, purgeMm3, lineUm, sparseSpacingUm, changesPerLayer, layerTopsUm, compact, maxGapUm, minSideShare, brimUm, brimLineUm, brimOverlapUm, firstLineUm, firstLayerSpeed)
             var lo = 3 * lineUm; var hi = lo
             while (at(hi).depthUm > hi) hi *= 2                 // the depth only falls as the width grows
             while (hi - lo > 1) { val mid = (lo + hi) / 2; if (at(mid).depthUm > mid) lo = mid else hi = mid }
