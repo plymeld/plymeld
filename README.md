@@ -88,6 +88,10 @@ From the [releases page](https://github.com/plymeld/plymeld/releases), nothing e
   the command line is `current\cli\plymeld.exe` (not on your `PATH`: run it by that path, or add the folder yourself).
 - **Linux:** the AppImage for the window, and `plymeld-linux-x64.tar.gz` for the command line.
 
+To hear about new releases: watch [Announcements](https://github.com/plymeld/plymeld/discussions/categories/announcements)
+in the Discussions (a post per release), or the repository (Watch → Custom → Releases), or turn on plymeld's own check,
+`plymeld updates --set notify`, which says a newer release after a command, at most once a day.
+
 ### Build from source
 
 With **JDK 21** (the Gradle wrapper fetches everything else):
