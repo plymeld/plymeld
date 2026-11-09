@@ -41,12 +41,16 @@ fun interface Transport {
     fun send(call: HttpCall): HttpAnswer
 }
 
-/** JDK 21's `java.net.http`, one client per transport; the connect timeout is the call's own timeout. */
+/**
+ * JDK 21's `java.net.http`, one client per transport; the connect timeout is the call's own timeout. HTTP/1.1 only: the
+ * JDK's default asks a plain-http server to switch to HTTP/2 on each new connection (`Upgrade: h2c`), which a printer's
+ * small web server does not speak; the printers' own clients send HTTP/1.1.
+ */
 class JdkHttp : Transport {
     private val clients = HashMap<Duration, HttpClient>()
 
     override fun send(call: HttpCall): HttpAnswer {
-        val client = clients.getOrPut(call.timeout) { HttpClient.newBuilder().connectTimeout(call.timeout).build() }
+        val client = clients.getOrPut(call.timeout) { HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(call.timeout).build() }
         val b = HttpRequest.newBuilder(URI(call.url)).timeout(call.timeout)
         call.headers.forEach { (k, v) -> b.header(k, v) }
         b.method(call.method, call.body?.let { HttpRequest.BodyPublishers.ofByteArray(it) } ?: HttpRequest.BodyPublishers.noBody())
