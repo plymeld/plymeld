@@ -31,6 +31,8 @@ fun main(args: Array<String>) {
     // Velopack's install, update, and uninstall hooks (Updates.kt): the command line's PATH entry (CliPath.kt), then exit at
     // once, as the updater waits for it
     if (Updates.isHook(args)) { CliPath.hook(args); return }
+    // `plymeld update` run from the window's finder would wait on the window itself: there, the bar installs updates
+    System.setProperty(plymeld.commands.UpdateCommand.IN_WINDOW, "true")
     // A native executable has no java.home, and Skiko's AWT bridge loads ${java.home}/lib/libjawt.so
     // (bin\jawt.dll on Windows) from it, so it is the executable's own directory: the native build scripts put the
     // library there. A JVM run has its java.home and is left alone.

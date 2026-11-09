@@ -12,7 +12,7 @@ import plymeld.config.UserDirs
  */
 class UpdatesCommand : CliktCommand(name = "updates") {
     private val set by option("--set", metavar = "off|notify|install",
-        help = "turn checks on or off, for the command line and the window: off (the default: nothing is checked), notify (a newer release is said after a command, at most once a day, and in the window's bar) or install (as notify, and the window installs it at its next start; the command line never updates itself)")
+        help = "turn checks on or off, for the command line and the window: off (the default: nothing is checked), notify (a newer release is said after a command, at most once a day, and in the window's bar) or install (as notify, and the window installs it at its next start; the command line installs only with `plymeld update`)")
         .choice(*UpdateFeed.Pref.Mode.entries.map { it.word }.toTypedArray())
     private val check by option("--check", help = "ask the release feed now, whatever the setting, and say whether a newer release is out").flag()
 

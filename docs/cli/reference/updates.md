@@ -10,6 +10,6 @@ Usage: `plymeld updates [<options>]`
 
 Options:
 
-- `--set=off|notify|install`: turn checks on or off, for the command line and the window: off (the default: nothing is checked), notify (a newer release is said after a command, at most once a day, and in the window's bar) or install (as notify, and the window installs it at its next start; the command line never updates itself)
+- `--set=off|notify|install`: turn checks on or off, for the command line and the window: off (the default: nothing is checked), notify (a newer release is said after a command, at most once a day, and in the window's bar) or install (as notify, and the window installs it at its next start; the command line installs only with `plymeld update`)
 - `--check`: ask the release feed now, whatever the setting, and say whether a newer release is out
 - `-h, --help`: Show this message and exit

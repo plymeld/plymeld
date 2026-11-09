@@ -14,7 +14,15 @@ section the release's version and date.
 - `plymeld updates`: whether plymeld checks for a newer release, off until you turn it on (`--set notify` or
   `install`), and `--check` to ask now. Turned on, every command run in a terminal asks the release feed in the
   background, at most once a day, and says a newer release in one line on stderr after the command; the command line
-  never updates itself. One setting for the command line and the window: the window's settings offer the same three.
+  installs nothing by itself (`plymeld update` does, when you run it). One setting for the command line and the window:
+  the window's settings offer the same three.
+- `plymeld update`: installs the newest release over this one. An install from the Windows installer, the portable zip
+  or the AppImage is updated by its own updater as the command exits, the window included. The Linux command line's
+  download has its files replaced where it was unpacked, once the download matches the checksum now published beside
+  it (`plymeld-linux-x64.tar.gz.sha256`) and the new executable's `--version` says the expected version; otherwise
+  nothing changes. On Windows, other plymeld processes running from the install (a window, a command in another
+  terminal) keep its files from being replaced: the update names them and stops, and `--stop-others` stops them first.
+  The window's own install does the same: its bar names them, and a second click stops them and installs.
 
 ### Changed
 
@@ -43,9 +51,13 @@ section the release's version and date.
   covered by it and hides a seam. Each part's seams were placed seeing that part alone, so such an edge read as an
   open wall, and the seams went to corners on the visible face instead. On a two-color nameplate, the inlaid lettering's
   seams on the front face went from 587 to 205 of about 1,700, and the seam measure from 6.5 to 1.5 mm².
+- After a tool change, the new filament's first lines on the model are its infill on that layer, hidden inside it, then
+  the rest in their usual order. Its outer wall had come first: a nozzle back from the dock lays its first, least even
+  lines on the visible surface. On a two-color nameplate, every one of 94 changes back to the base color began on the
+  lettering's front face. On a layer where the filament has no infill, its inner walls come first, before any outer
+  wall. A line laid after another than it was planned after retracts on the travel into it.
 - The installed window's update check never ran: the release feed's address was packaged beside the executables, where
   the window did not look. It is now built into both executables.
-
 - A Flashforge printer's "canceling" (a cancel under way) reads as busy, where plymeld called it a status word it does
   not know: `printer status` says busy, an upload waits, and `printer watch` keeps watching until the print has ended.
 - A purge tower's first layer is solid wall to wall. Where the first layer is thicker than the layers above it, its purge

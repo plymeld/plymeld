@@ -4,6 +4,7 @@ import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import plymeld.commands.Installs
 import plymeld.commands.UpdateFeed
 import java.nio.file.Files
 import java.nio.file.Path
@@ -46,9 +47,9 @@ class UpdatesTest : StringSpec({
     }
 
     "the manifest's id, version and channel are read" {
-        val m = Updates.parseManifest("""<?xml version="1.0"?><package><metadata><id>plymeld</id><version>0.0.1-phase0</version><title>plymeld</title><channel>win</channel></metadata></package>""")
+        val m = Installs.parseManifest("""<?xml version="1.0"?><package><metadata><id>plymeld</id><version>0.0.1-phase0</version><title>plymeld</title><channel>win</channel></metadata></package>""")
         m.shouldNotBeNull(); m.id shouldBe "plymeld"; m.version shouldBe "0.0.1-phase0"; m.channel shouldBe "win"
-        Updates.parseManifest("<package/>").shouldBeNull()
+        Installs.parseManifest("<package/>").shouldBeNull()
     }
 
     "a Windows install is found from the executable's place, a bare folder is not" {
@@ -56,15 +57,21 @@ class UpdatesTest : StringSpec({
         try {
             val current = Files.createDirectories(dir.resolve("current"))
             val exe = Files.writeString(current.resolve("plymeld-ui.exe"), "")
-            Updates.install(exe, emptyMap(), "Windows 11").shouldBeNull()                    // no manifest, no updater
+            Installs.velopack(exe, emptyMap(), "Windows 11").shouldBeNull()                    // no manifest, no updater
             Files.writeString(current.resolve("sq.version"), "<package><metadata><id>plymeld</id><version>0.0.1</version></metadata></package>")
-            Updates.install(exe, emptyMap(), "Windows 11").shouldBeNull()                    // still no Update.exe
+            Installs.velopack(exe, emptyMap(), "Windows 11").shouldBeNull()                    // still no Update.exe
             Files.writeString(dir.resolve("Update.exe"), "")
-            val i = Updates.install(exe, emptyMap(), "Windows 11").shouldNotBeNull()
+            val i = Installs.velopack(exe, emptyMap(), "Windows 11").shouldNotBeNull()
             i.id shouldBe "plymeld"; i.version shouldBe "0.0.1"; i.channel shouldBe "win"; i.updater shouldBe dir.resolve("Update.exe")
             i.packages shouldBe dir.resolve("packages"); i.portable shouldBe false
             Files.writeString(dir.resolve(".portable"), "")
-            Updates.install(exe, emptyMap(), "Windows 11").shouldNotBeNull().portable shouldBe true
+            Installs.velopack(exe, emptyMap(), "Windows 11").shouldNotBeNull().portable shouldBe true
+            // the command line, a folder below (current\cli\plymeld.exe): the same install, its root the install's
+            val cli = Files.writeString(Files.createDirectories(current.resolve("cli")).resolve("plymeld.exe"), "")
+            Installs.velopack(cli, emptyMap(), "Windows 11").shouldNotBeNull().root shouldBe dir
+            // control: two folders below is not part of it
+            val deeper = Files.writeString(Files.createDirectories(current.resolve("cli/x")).resolve("plymeld.exe"), "")
+            Installs.velopack(deeper, emptyMap(), "Windows 11").shouldBeNull()
         } finally { dir.wipe() }
     }
 
@@ -75,8 +82,8 @@ class UpdatesTest : StringSpec({
             val exe = Files.writeString(bin.resolve("plymeld-ui"), "")
             Files.writeString(bin.resolve("sq.version"), "<package><metadata><id>plymeld</id><version>0.0.1</version><channel>linux</channel></metadata></package>")
             Files.writeString(bin.resolve("UpdateNix"), "")
-            Updates.install(exe, emptyMap(), "Linux").shouldBeNull()                          // not run as an AppImage
-            val i = Updates.install(exe, mapOf("APPIMAGE" to "/home/x/plymeld.AppImage"), "Linux").shouldNotBeNull()
+            Installs.velopack(exe, emptyMap(), "Linux").shouldBeNull()                          // not run as an AppImage
+            val i = Installs.velopack(exe, mapOf("APPIMAGE" to "/home/x/plymeld.AppImage"), "Linux").shouldNotBeNull()
             i.updater shouldBe bin.resolve("UpdateNix"); i.channel shouldBe "linux"; i.portable shouldBe true
         } finally { dir.wipe() }
     }
@@ -92,8 +99,8 @@ class UpdatesTest : StringSpec({
         val dir = tempDir()
         try {
             val f = Files.writeString(dir.resolve("a.txt"), "abc")
-            Updates.sha1(f) shouldBe "a9993e364706816aba3e25717850c26c9cd0d89d"
-            Updates.sha256(f) shouldBe "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+            Installs.sha1(f) shouldBe "a9993e364706816aba3e25717850c26c9cd0d89d"
+            Installs.sha256(f) shouldBe "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         } finally { dir.wipe() }
     }
 
@@ -103,11 +110,11 @@ class UpdatesTest : StringSpec({
             val f = Files.writeString(dir.resolve("a.txt"), "abc")
             val sha1 = "a9993e364706816aba3e25717850c26c9cd0d89d"; val sha256 = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
             fun r(s1: String, s256: String) = UpdateFeed.Release("plymeld", "0.0.2", "Full", "a.txt", s1, 3, s256)
-            Updates.matches(f, r(sha1, sha256)) shouldBe true
-            Updates.matches(f, r("", sha256)) shouldBe true
-            Updates.matches(f, r(sha1, "")) shouldBe true                       // an older feed: SHA1 only
-            Updates.matches(f, r(sha1, "00" + sha256.drop(2))) shouldBe false   // control: the SHA-256 decides when given
-            Updates.matches(f, r("", "")) shouldBe false                        // no checksum: never trusted
+            Installs.matches(f, r(sha1, sha256)) shouldBe true
+            Installs.matches(f, r("", sha256)) shouldBe true
+            Installs.matches(f, r(sha1, "")) shouldBe true                       // an older feed: SHA1 only
+            Installs.matches(f, r(sha1, "00" + sha256.drop(2))) shouldBe false   // control: the SHA-256 decides when given
+            Installs.matches(f, r("", "")) shouldBe false                        // no checksum: never trusted
             val withSha256 = UpdateFeed.parseFeed("""{"Assets":[{"PackageId":"plymeld","Version":"0.0.2","Type":"Full","FileName":"a","SHA1":"aa","SHA256":"bb","Size":1}]}""")
             withSha256.single().sha256 shouldBe "bb"
             UpdateFeed.parseFeed(feed)[0].sha256 shouldBe ""
