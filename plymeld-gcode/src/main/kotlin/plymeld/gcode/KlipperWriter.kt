@@ -294,6 +294,9 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
         val toolTemp = HashMap<Int, Int>()
         for (m in Regex("(?m)^M10[49] S(\\d+)(?: T(\\d+))?").findAll(start)) toolTemp[m.groupValues[2].toIntOrNull() ?: initialTool] = m.groupValues[1].toInt()
         val ownTemps = !exact && program.steps.none { it is plymeld.program.ToolChange }
+        // the tool in hand, and each tool's temperature as last set (its tool changes' too), for the restore after a pause
+        var toolInHand = initialTool
+        val setTemp = HashMap<Int, Int>(toolTemp)
         // the objects printed with an arched lifted bridge (an object starting in a layer marked as one's): their bridge's own
         // layers at the bridge temperature when set (plan.technique.bridge.temperature: arches printed
         // best cooler; the bridge's layers only, below)
@@ -465,9 +468,10 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 // so the next travel rises first (see Extrude).
                 flushLift()
                 if (!retracted) retract()
-                if (step.fromTool != null && step.fromIdleC != null) out.write("M104 S${step.fromIdleC} T${step.fromTool}\n")
+                if (step.fromTool != null && step.fromIdleC != null) { out.write("M104 S${step.fromIdleC} T${step.fromTool}\n"); setTemp[step.fromTool!!] = step.fromIdleC!! }
                 out.write("T${step.tool}\n")
-                step.tempC?.let { out.write("M109 S$it T${step.tool}\n") }
+                toolInHand = step.tool
+                step.tempC?.let { out.write("M109 S$it T${step.tool}\n"); setTemp[step.tool] = it }
                 pressureAdvanceFor(step.tool)
                 x = Double.NaN; y = Double.NaN; z = Double.NaN
             }
@@ -476,12 +480,17 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 // header and the pre-print check read the note: FILAMENT_SWAP), the new filament brought to its temperature
                 flushLift()
                 out.write("$FILAMENT_SWAP T${step.tool} filament ${step.fromId} -> ${step.toId} (${step.fromSpool} -> ${step.toSpool}, swapped by hand at the pause)\n")
-                step.tempC?.let { if (!retracted) retract(); out.write("M109 S$it T${step.tool}\n"); toolTemp[step.tool] = it }
+                step.tempC?.let { if (!retracted) retract(); out.write("M109 S$it T${step.tool}\n"); toolTemp[step.tool] = it; setTemp[step.tool] = it }
             }
             is plymeld.program.Pause -> {
                 flushLift()
                 val cmd = s.pauseGcode ?: error("a pause is asked for (${step.reason}) but the machine has no pause command (machine_pause_gcode)")
                 out.write("; PAUSE: ${step.reason}\n" + Template.render(cmd, vars) + "\n")
+                // the temperatures back as they were, the tool in hand waited for: a printer may turn its nozzles off while
+                // paused (a Creator 5 set every nozzle to 0 and kept the bed), and printing would resume with a cold nozzle
+                // where no tool change follows to heat it. Where the printer kept them, the wait ends at once.
+                for ((t, c) in setTemp.toSortedMap()) if (t != toolInHand) out.write("M104 S$c T$t\n")
+                setTemp[toolInHand]?.let { out.write("M109 S$it T$toolInHand\n") }
             }
             is LiftTo -> {
                 flushLift()
@@ -546,7 +555,7 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                     if (toolTemp[p.tool] != want) {
                         val wait = first || (printTempLayer && want > (toolTemp[p.tool] ?: 0)) || bridgeTemp != null
                         if (wait) { if (!retracted) retract(); out.write("M109 S$want T${p.tool}\n") } else out.write("M104 S$want T${p.tool}\n")
-                        toolTemp[p.tool] = want
+                        toolTemp[p.tool] = want; setTemp[p.tool] = want
                     }
                 }
                 // the path's highest Z (the lifts clear it); a curved path starts at its first vertex's own Z
