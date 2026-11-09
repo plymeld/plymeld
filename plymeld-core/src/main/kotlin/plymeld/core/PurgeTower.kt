@@ -10,7 +10,7 @@ import plymeld.geom.Polygon
  *
  * A rectangular prism at ([xUm], [yUm]), [widthUm] along X, its depth along Y sized for the layer
  * with the most changes. Inside its outline wall, each change on a layer gets its own band of purge
- * lines (back and forth along X, [lineUm] wide, one bead spacing apart) long enough to hold
+ * lines (back and forth along X, [lineUm] wide, [firstLineUm] on the first layer, one bead spacing apart) long enough to hold
  * [purgeMm3]; the band printed with the NEW filament. Layer 0 is solid (adhesion). The tower stops at
  * the last layer with a change.
  *
@@ -41,19 +41,24 @@ class PurgeTower(
     val brimLineUm: Long = lineUm,
     /** How far the brim's inner loop reaches into the tower's outline, so the two fuse (0 = they only touch). */
     val brimOverlapUm: Long = 0,
+    /**
+     * The line width of the tower's first layer: the first layer's, as the object's (its hold on the bed). At [lineUm] the
+     * tower's first layer was laid narrower and with less plastic per millimeter than the object's beside it.
+     */
+    val firstLineUm: Long = lineUm,
 ) {
     private val hs = Planner.heights(layerTopsUm)
     /** Layers the tower is printed on: 0 .. the last layer with a change (empty when there is none). */
     val top: Int = changesPerLayer.indexOfLast { it > 0 }
-    /** The inside of the outline wall, along X. */
-    private val innerW = widthUm - 2 * lineUm
-    private fun spacing(hUm: Long) = Walls.spacing(lineUm, hUm)
-    /** Cross-section (mm²) of a bead [lineUm] wide and [hUm] high: the same bead model as every path. */
-    private fun bead(hUm: Long): Double { val h = hUm / 1000.0; val w = lineUm / 1000.0; return h * (w - h * (1 - Math.PI / 4)) }
-    /** Lines of the band's width holding [mm3] at height [hUm]. */
-    private fun linesFor(mm3: Double, hUm: Long): Int = Math.ceil(mm3 / (innerW / 1000.0 * bead(hUm))).toInt()
-    /** Lines one purge needs on layer [i] at that layer's own height (banded layout). */
-    fun purgeLines(i: Int): Int = linesFor(purgeMm3, hs[i])
+    /** The line width of layer [i]: [firstLineUm] on the first, [lineUm] above. */
+    fun lineAt(i: Int): Long = if (i == 0) firstLineUm else lineUm
+    private fun spacing(hUm: Long, wUm: Long = lineUm) = Walls.spacing(wUm, hUm)
+    /** Cross-section (mm²) of a bead [wUm] wide and [hUm] high: the same bead model as every path. */
+    private fun bead(hUm: Long, wUm: Long = lineUm): Double { val h = hUm / 1000.0; val w = wUm / 1000.0; return h * (w - h * (1 - Math.PI / 4)) }
+    /** Lines across the inside of the outline wall (its width less a [wUm] line each side) holding [mm3] at height [hUm]. */
+    private fun linesFor(mm3: Double, hUm: Long, wUm: Long = lineUm): Int = Math.ceil(mm3 / ((widthUm - 2 * wUm) / 1000.0 * bead(hUm, wUm))).toInt()
+    /** Lines one purge needs on layer [i] at that layer's own height and line width (banded layout). */
+    fun purgeLines(i: Int): Int = linesFor(purgeMm3, hs[i], lineAt(i))
     private val bands: Int = Math.max(1, changesPerLayer.maxOrNull() ?: 0)
 
     /** Per layer 0..top: the height each band is printed at (0 = not printed), and the wall's. */
@@ -80,9 +85,9 @@ class PurgeTower(
     /** Band depth for the purge alone: the most any purge needs (thinner prints need more lines). */
     private val purgeBandUm: Long = when {
         top < 0 -> 0
-        !compact -> (0..top).maxOf { purgeLines(it) * spacing(hs[it]) }
-        else -> (0..top).maxOf { i -> (0 until changesPerLayer[i]).maxOfOrNull { k -> linesFor(purgeMm3, bandH[i][k]) * spacing(bandH[i][k]) } ?: 0L }
-            .coerceAtLeast(spacing(hs[0]))
+        !compact -> (0..top).maxOf { purgeLines(it) * spacing(hs[it], lineAt(it)) }
+        else -> (0..top).maxOf { i -> (0 until changesPerLayer[i]).maxOfOrNull { k -> linesFor(purgeMm3, bandH[i][k], lineAt(i)) * spacing(bandH[i][k], lineAt(i)) } ?: 0L }
+            .coerceAtLeast(spacing(hs[0], firstLineUm))
     }
     /** The least side ([minSideShare] of the tower's height). */
     val minSideUm: Long = if (top < 0) 0 else Math.round(minSideShare * layerTopsUm[top])
@@ -100,8 +105,9 @@ class PurgeTower(
          * wall, and is the least slender across its narrowest side, where a tall tower would sway.
          */
         fun square(xUm: Long, yUm: Long, purgeMm3: Double, lineUm: Long, sparseSpacingUm: Long, changesPerLayer: IntArray, layerTopsUm: LongArray,
-                   compact: Boolean = false, maxGapUm: Long = Long.MAX_VALUE, minSideShare: Double = 0.0, brimUm: Long = 0, brimLineUm: Long = lineUm, brimOverlapUm: Long = 0): PurgeTower {
-            fun at(w: Long) = PurgeTower(xUm, yUm, w, purgeMm3, lineUm, sparseSpacingUm, changesPerLayer, layerTopsUm, compact, maxGapUm, minSideShare, brimUm, brimLineUm, brimOverlapUm)
+                   compact: Boolean = false, maxGapUm: Long = Long.MAX_VALUE, minSideShare: Double = 0.0, brimUm: Long = 0, brimLineUm: Long = lineUm, brimOverlapUm: Long = 0,
+                   firstLineUm: Long = lineUm): PurgeTower {
+            fun at(w: Long) = PurgeTower(xUm, yUm, w, purgeMm3, lineUm, sparseSpacingUm, changesPerLayer, layerTopsUm, compact, maxGapUm, minSideShare, brimUm, brimLineUm, brimOverlapUm, firstLineUm)
             var lo = 3 * lineUm; var hi = lo
             while (at(hi).depthUm > hi) hi *= 2                 // the depth only falls as the width grows
             while (hi - lo > 1) { val mid = (lo + hi) / 2; if (at(mid).depthUm > mid) lo = mid else hi = mid }
@@ -136,10 +142,11 @@ class PurgeTower(
         require(i in 0..top) { "layer $i is above the tower (top $top)" }
         require(changes <= bands) { "$changes changes on layer $i, tower has $bands bands" }
         require(needs == null || needs.size == changes) { "${needs?.size} purge needs for $changes changes on layer $i" }
-        val half = lineUm / 2
+        val w = lineAt(i)
+        val half = w / 2
         val wall = if (wallH[i] > 0) ToolPath(Feature.TOWER, longArrayOf(xUm + half, yUm + half, xUm + widthUm - half, yUm + half,
-            xUm + widthUm - half, yUm + depthUm - half, xUm + half, yUm + depthUm - half), true, lineUm, wallH[i]) else null
-        val x0 = xUm + lineUm; val x1 = xUm + widthUm - lineUm
+            xUm + widthUm - half, yUm + depthUm - half, xUm + half, yUm + depthUm - half), true, w, wallH[i]) else null
+        val x0 = xUm + w; val x1 = xUm + widthUm - w
         /** Lines across [yFrom, yTo] [step] apart, [count] at most; from [yFrom] up (or from [yTo] down with [down]), the first from the left (or the right with [fromRight]). */
         fun zigzag(yFrom: Long, yTo: Long, step: Long, h: Long, count: Int? = null, down: Boolean = false, fromRight: Boolean = false): ToolPath? {
             val pts = ArrayList<Long>()
@@ -148,9 +155,9 @@ class PurgeTower(
                 if (leftToRight) { pts += x0; pts += y; pts += x1; pts += y } else { pts += x1; pts += y; pts += x0; pts += y }
                 leftToRight = !leftToRight; y += if (down) -step else step; k++
             }
-            return if (pts.size >= 4) ToolPath(Feature.TOWER, pts.toLongArray(), false, lineUm, h) else null
+            return if (pts.size >= 4) ToolPath(Feature.TOWER, pts.toLongArray(), false, w, h) else null
         }
-        val wallMm3 = if (wall == null) 0.0 else 2.0 * ((widthUm - lineUm) + (depthUm - lineUm)) / 1000.0 * bead(wallH[i])
+        val wallMm3 = if (wall == null) 0.0 else 2.0 * ((widthUm - w) + (depthUm - w)) / 1000.0 * bead(wallH[i], w)
         val purges = (0 until changes).map { k ->
             val h = bandH[i][k]
             val y0 = yUm + lineUm + k * bandUm
@@ -161,27 +168,27 @@ class PurgeTower(
             // edge (every change starting the wall at one corner piled a blob there each time, and that corner peeled off)
             val ownWall = compact && k == 0 && wall != null
             if (ownWall) need = Math.max(0.0, need - wallMm3)
-            val n = if (compact || needs != null) linesFor(need, h) else purgeLines(i)
+            val n = if (compact || needs != null) linesFor(need, h, w) else purgeLines(i)
             // where the change starts: one of the band's four corners, turning layer by layer and change by change, so the
             // first plastic of a nozzle back from the dock does not land on one spot every time (all 188 changes of a
             // two-color nameplate started at one point, by the corner that peeled)
             val turn = (i + k) % 4
             val down = turn >= 2; val fromRight = turn % 2 == 1
-            if (n > 0) zigzag(y0, y0 + bandUm, spacing(h), h, n, down, fromRight)?.let { group += it }
+            if (n > 0) zigzag(y0, y0 + bandUm, spacing(h, w), h, n, down, fromRight)?.let { group += it }
             // the band's rest, where the purge took fewer lines than the band holds: on the first layer solid (the tower's
             // hold on the bed, and the floor the next layers' purges land on, which may take more lines than a thicker
             // first layer's), above it at the sparse spacing; on the side of the band the purge did not reach
-            val restStep = if (i == 0) spacing(h) else sparseSpacingUm
+            val restStep = if (i == 0) spacing(h, w) else sparseSpacingUm
             if (i == 0 || needs != null || padded) {
-                if (!down) { val yEnd = y0 + n * spacing(h); if (yEnd + restStep < y0 + bandUm) zigzag(yEnd, y0 + bandUm, restStep, h)?.let { group += it } }
-                else { val yEnd = y0 + bandUm - n * spacing(h); if (y0 + restStep < yEnd) zigzag(y0, yEnd, restStep, h, down = true)?.let { group += it } }
+                if (!down) { val yEnd = y0 + n * spacing(h, w); if (yEnd + restStep < y0 + bandUm) zigzag(yEnd, y0 + bandUm, restStep, h)?.let { group += it } }
+                else { val yEnd = y0 + bandUm - n * spacing(h, w); if (y0 + restStep < yEnd) zigzag(y0, yEnd, restStep, h, down = true)?.let { group += it } }
             }
             if (ownWall) group += wall
             group
         }
         val idle = (changes until bands).filter { bandH[i][it] > 0 }.mapNotNull { k ->
             val h = bandH[i][k]; val y0 = yUm + lineUm + k * bandUm
-            zigzag(y0, y0 + bandUm, if (i == 0) spacing(h) else sparseSpacingUm, h)
+            zigzag(y0, y0 + bandUm, if (i == 0) spacing(h, w) else sparseSpacingUm, h)
         }
         val wallInBase = wall != null && !(compact && changes > 0)
         // the brim, on the first layer before anything of the tower, innermost first

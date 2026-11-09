@@ -15,6 +15,9 @@ section the release's version and date.
   change by change), where every change started at one point: a nozzle back from the dock lays its first plastic there,
   and on a two-color nameplate all 188 changes put it in one spot, by the tower corner that peeled. Each change purges as
   much as before; the rest of its band fills from the other side.
+- A purge tower's first layer is laid at the first layer's line width and spacing, as the object's is: it was laid at
+  the tower's own (the nozzle's) width, narrower and with less plastic per millimeter than the object's first layer
+  beside it (0.4 mm against 0.5 mm, 0.038 against 0.051 mm of filament per mm, on a two-color nameplate).
 
 ## [0.20261109.0] - 2026-11-09
 

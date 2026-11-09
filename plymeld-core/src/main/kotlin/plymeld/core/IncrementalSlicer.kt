@@ -859,9 +859,11 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         val brimOverlap = if (brim <= 0) 0L else
             Resolver.resolveOrNull(setup, "plan.mechanism.purge.tower.brim.overlap", ctx)?.let { Math.round((it.value as Number).toDouble() * 1000) } ?: 0L
         val t = if (towerW != null) PurgeTower(um("plan.mechanism.purge.tower.x"), um("plan.mechanism.purge.tower.y"), towerW, purge, st.nozzleDiameterUm, sparseSpacing, perLayer, tops,
-                compact = layout == "compact", maxGapUm = maxGap, minSideShare = minSide, brimUm = brim, brimLineUm = st.firstLayerWidthUm, brimOverlapUm = brimOverlap)
+                compact = layout == "compact", maxGapUm = maxGap, minSideShare = minSide, brimUm = brim, brimLineUm = st.firstLayerWidthUm, brimOverlapUm = brimOverlap,
+                firstLineUm = st.firstLayerWidthUm)
             else PurgeTower.square(um("plan.mechanism.purge.tower.x"), um("plan.mechanism.purge.tower.y"), purge, st.nozzleDiameterUm, sparseSpacing, perLayer, tops,
-                compact = layout == "compact", maxGapUm = maxGap, minSideShare = minSide, brimUm = brim, brimLineUm = st.firstLayerWidthUm, brimOverlapUm = brimOverlap)
+                compact = layout == "compact", maxGapUm = maxGap, minSideShare = minSide, brimUm = brim, brimLineUm = st.firstLayerWidthUm, brimOverlapUm = brimOverlap,
+                firstLineUm = st.firstLayerWidthUm)
         val f = t.footprint
         val bx = listOf("hardware.machine.build.left", "hardware.machine.build.front", "hardware.machine.build.right", "hardware.machine.build.back").map { um(it) }
         require(f.xy.withIndex().all { (k, v) -> if (k % 2 == 0) v in bx[0]..bx[2] else v in bx[1]..bx[3] }) {
