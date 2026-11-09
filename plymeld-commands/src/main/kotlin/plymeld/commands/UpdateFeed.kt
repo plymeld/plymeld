@@ -23,7 +23,8 @@ import java.time.Instant
  * as it opens, and the command line as it runs any command: at most once per [CHECK_EVERY] over the network, in the
  * background (a command never waits for it), and a newer release is said in one line on stderr after the command,
  * again at most once per [CHECK_EVERY], only in a terminal (never into a pipe or a script's output). The command line
- * never updates itself; the window can install an update ([Pref.Mode.INSTALL] at its next start, or on a click).
+ * installs nothing by itself (`plymeld update` does, when run); the window can install an update ([Pref.Mode.INSTALL] at its
+ * next start, or on a click).
  */
 object UpdateFeed {
     /** One entry of the feed; [sha256] empty when the feed has none (older Velopack feeds carry SHA1 only). */

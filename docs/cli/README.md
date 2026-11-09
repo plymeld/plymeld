@@ -138,7 +138,20 @@ release feed in the background, at most once a day, and after the command says i
 release is out, again at most once a day; a script's output and a pipe never get it. `--set install` does the same,
 and the window also installs the update at its next start; `--set off` turns it off. It is one setting for the
 command line and the window (whose settings offer the same three). `plymeld updates` shows the setting and what the
-last check found; `--check` asks the feed now. The command line never updates itself.
+last check found; `--check` asks the feed now. None of this installs anything.
+
+```
+plymeld update
+plymeld update --stop-others
+```
+
+`plymeld update` installs the newest release over this one, whatever the setting above. An install from the Windows
+installer, the portable zip or the AppImage is updated by its own updater as the command exits, the window included.
+The Linux command line's download (`plymeld-linux-x64.tar.gz`) has its files replaced where you unpacked it, once the
+download matches the checksum published with it and the new `plymeld --version` says the expected version; otherwise
+nothing is changed. On Windows a running program's files cannot be replaced, so when other plymeld processes are
+running from the install (a window, a command in another terminal) the update names them and stops;
+`--stop-others` stops them first. A build from source is updated from source.
 
 ## Calibrate
 
