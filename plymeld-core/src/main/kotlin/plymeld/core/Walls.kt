@@ -3,6 +3,7 @@ package plymeld.core
 import plymeld.geom.Booleans
 import plymeld.geom.Offset
 import plymeld.geom.Polygon
+import plymeld.geom.Polygons
 
 /**
  * Wall (perimeter) generation for one layer: `loops` nested centerlines.
@@ -44,7 +45,14 @@ object Walls {
      * > 1), bead-count transitions along a band (wall_transition_*), thin walls of the outer loop.
      */
     fun arachne(outline: List<Polygon>, loops: Int, outerWidthUm: Long, innerWidthUm: Long, layerHeightUm: Long,
-                minBeadUm: Long, minFeatureUm: Long, minLengthFactor: Double, transitionUm: Long): LayerWalls {
+                minBeadUm: Long, minFeatureUm: Long, minLengthFactor: Double, transitionUm: Long,
+                /**
+                 * Close what the walls leave (the first layer, the bottom a viewer may see): a piece too thin for infill whose
+                 * skeleton gives no center line (a compact piece, a small square: its skeleton is a point) gets lines of its own
+                 * ([compactLines]). Left empty, every small square's middle was a hole in the bottom (a QR code laid on the
+                 * bed: 283 holes, 60 mm²).
+                 */
+                closeCompact: Boolean = false): LayerWalls {
         val so = spacing(outerWidthUm, layerHeightUm)
         val si = spacing(innerWidthUm, layerHeightUm)
         val walls = ArrayList<List<Polygon>>(loops)
@@ -77,8 +85,52 @@ object Walls {
         // unfilled, as classic walls leave them (infill anchors reach into them).
         val thin = if (thin0.isEmpty() || thick.isEmpty()) thin0 else Booleans.difference(thin0, Offset.offset(thick, innerWidthUm, Offset.Join.ROUND))
         val center = if (thin.isEmpty()) emptyList() else centerLines(thin, minBeadUm, minFeatureUm, 2 * innerWidthUm, minLengthFactor, transitionUm, outline)
-        return LayerWalls(walls, thick, center)
+        if (!closeCompact || thin.isEmpty()) return LayerWalls(walls, thick, center)
+        // the pieces of the thin area no center line reaches: lines of their own
+        val extra = ArrayList<CenterLine>()
+        for ((outer, holes) in Polygons.group(thin)) {
+            // a piece with a hole is a ring, not compact: a line across it crossed the hole (outside the model)
+            if (outer.signedAreaMm2() <= 0.0 || holes.isNotEmpty()) continue
+            val reached = center.any { c -> (0 until c.xy.size / 2).any { k -> Polygons.contains(outer, c.xy[2 * k], c.xy[2 * k + 1]) } }
+            if (!reached) extra += compactLines(outer, innerWidthUm, minBeadUm, minFeatureUm)
+        }
+        return LayerWalls(walls, thick, center + extra)
     }
+
+    /**
+     * Lines covering a compact piece [p] (no center line of its own): along its bounding box's longer side, as many as fit
+     * across its shorter side at most [maxWidthUm] wide each, their width the shorter side shared among them, each ending
+     * half its width from the box's ends (at least a quarter of its width long). Only for a piece that fills most of its box
+     * ([COMPACT_SHARE]: a square, a short bar), and only lines whose ends and middle lie at least half their width inside
+     * it: a thin curved piece's box reaches outside it, and lines from it ran outside the model (the pre-print check
+     * refused them). None for a piece narrower than [minFeatureUm], or whose lines would be narrower than [minBeadUm].
+     */
+    fun compactLines(p: Polygon, maxWidthUm: Long, minBeadUm: Long, minFeatureUm: Long): List<CenterLine> {
+        val b = p.bounds()
+        val wx = b[2] - b[0]; val wy = b[3] - b[1]
+        val short = minOf(wx, wy); val long = maxOf(wx, wy)
+        if (short < minFeatureUm || short <= 0) return emptyList()
+        if (p.signedArea2() / 2.0 < COMPACT_SHARE * wx.toDouble() * wy) return emptyList()
+        val n = Math.max(1, Math.ceil(short.toDouble() / maxWidthUm).toInt())
+        val w = short / n
+        if (w < minBeadUm) return emptyList()
+        val len = maxOf(long - w, w / 4)
+        val mid = (if (wx >= wy) (b[0] + b[2]) else (b[1] + b[3])) / 2
+        val out = ArrayList<CenterLine>(n)
+        // where a line's ends and middle may lie: half its width inside the piece (a little slack for the box's rounding)
+        val room = Offset.offset(listOf(p), -(w / 2 - minOf(w / 4, 20L)), Offset.Join.MITER)
+        fun fits(x: Long, y: Long) = room.count { Polygons.contains(it, x, y) } % 2 == 1
+        for (k in 0 until n) {
+            val across = (if (wx >= wy) b[1] else b[0]) + w / 2 + k * w
+            val a = mid - len / 2; val z = mid + len / 2
+            val xy = if (wx >= wy) longArrayOf(a, across, z, across) else longArrayOf(across, a, across, z)
+            if (fits(xy[0], xy[1]) && fits(xy[2], xy[3]) && fits((xy[0] + xy[2]) / 2, (xy[1] + xy[3]) / 2)) out += CenterLine(xy, longArrayOf(w, w))
+        }
+        return out
+    }
+
+    /** A piece filling at least this share of its bounding box is compact enough for [compactLines]: a square fills all of it, a disc 79 %. */
+    private const val COMPACT_SHARE = 0.6
 
     /**
      * Whether a center line ([xy], its width per vertex [widths]) runs along the outline [outline]: more than half its

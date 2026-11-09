@@ -217,7 +217,7 @@ object Planner {
             val (wo, wi) = if (first) s.firstLayerWidthUm to s.firstLayerWidthUm else s.outerWallWidthUm to s.innerWallWidthUm
             o to when (if (reference) "classic" else s.wallGenerator) {
                 "classic" -> Walls.generate(o, s.wallLoops, wo, wi, h)
-                "arachne" -> Walls.arachne(o, s.wallLoops, wo, wi, h, s.minBeadUm, s.minFeatureUm, s.minLengthFactor, s.transitionLengthUm)
+                "arachne" -> Walls.arachne(o, s.wallLoops, wo, wi, h, s.minBeadUm, s.minFeatureUm, s.minLengthFactor, s.transitionLengthUm, closeCompact = first)
                 else -> error("wall style '${s.wallGenerator}' is not known (fixed_width or variable_width; classic or arachne in another slicer's file)")
             }
             }

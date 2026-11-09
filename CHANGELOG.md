@@ -23,6 +23,10 @@ section the release's version and date.
 
 ### Fixed
 
+- The first layer is closed where a small region's walls leave a compact piece in its middle (a small square's: its
+  skeleton is a point, so no line reached it): the piece gets lines of its own, as wide as it is across. Every small
+  square of a QR code laid on the bed had a hole in its middle, on the face a viewer sees. Thin curved pieces and rings
+  are left as before.
 - Requests to a printer are plain HTTP/1.1. They asked the printer's web server to switch to HTTP/2 on each new
   connection (an upload's included), which printers' small servers do not speak; a Creator 5 refused several uploads
   in a row ("Download failed" on its screen) where the same files had gone through before.
