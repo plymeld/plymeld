@@ -9,6 +9,28 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Added
+
+- `plan.mechanism.purge.tower.first_layer.speed`: the purge tower's first layer, its brim included, no faster than this.
+  Unset in a config of yours, it is the object's first-layer speed, as before.
+
+### Changed
+
+- The purge tower stands beside the object by default: on its right, back, left or front, the first side with room on
+  the bed, centered along it, `plan.mechanism.purge.tower.gap` (5 mm, a placeholder) clear of the object and its brim. It
+  stood at 70 % of the bed's width and depth, wherever the object was; a tower at the bed's corner, far from the object,
+  peeled off there twice. A place you set (`plan.mechanism.purge.tower.x` and `.y`, both) is kept.
+
+### Fixed
+
+- A purge tower's tool changes start their purge at a different corner of their band in turn (four, layer by layer and
+  change by change), where every change started at one point: a nozzle back from the dock lays its first plastic there,
+  and on a two-color nameplate all 188 changes put it in one spot, by the tower corner that peeled. Each change purges as
+  much as before; the rest of its band fills from the other side.
+- A purge tower's first layer is laid at the first layer's line width and spacing, as the object's is: it was laid at
+  the tower's own (the nozzle's) width, narrower and with less plastic per millimeter than the object's first layer
+  beside it (0.4 mm against 0.5 mm, 0.038 against 0.051 mm of filament per mm, on a two-color nameplate).
+
 ## [0.20261109.0] - 2026-11-09
 
 ### Added
