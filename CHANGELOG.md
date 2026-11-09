@@ -9,6 +9,13 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Fixed
+
+- A purge tower's tool changes start their purge at a different corner of their band in turn (four, layer by layer and
+  change by change), where every change started at one point: a nozzle back from the dock lays its first plastic there,
+  and on a two-color nameplate all 188 changes put it in one spot, by the tower corner that peeled. Each change purges as
+  much as before; the rest of its band fills from the other side.
+
 ## [0.20261109.0] - 2026-11-09
 
 ### Added
