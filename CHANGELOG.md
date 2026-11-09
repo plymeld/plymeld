@@ -9,6 +9,8 @@ section the release's version and date.
 
 ## [Unreleased]
 
+## [0.20261109.0] - 2026-11-09
+
 ### Added
 
 - `plymeld updates`: whether plymeld checks for a newer release, off until you turn it on (`--set notify` or
