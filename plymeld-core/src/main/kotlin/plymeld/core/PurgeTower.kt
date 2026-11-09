@@ -140,12 +140,13 @@ class PurgeTower(
         val wall = if (wallH[i] > 0) ToolPath(Feature.TOWER, longArrayOf(xUm + half, yUm + half, xUm + widthUm - half, yUm + half,
             xUm + widthUm - half, yUm + depthUm - half, xUm + half, yUm + depthUm - half), true, lineUm, wallH[i]) else null
         val x0 = xUm + lineUm; val x1 = xUm + widthUm - lineUm
-        fun zigzag(yFrom: Long, yTo: Long, step: Long, h: Long, count: Int? = null): ToolPath? {
+        /** Lines across [yFrom, yTo] [step] apart, [count] at most; from [yFrom] up (or from [yTo] down with [down]), the first from the left (or the right with [fromRight]). */
+        fun zigzag(yFrom: Long, yTo: Long, step: Long, h: Long, count: Int? = null, down: Boolean = false, fromRight: Boolean = false): ToolPath? {
             val pts = ArrayList<Long>()
-            var y = yFrom + step / 2; var k = 0; var leftToRight = true
-            while (y < yTo && (count == null || k < count)) {
+            var y = if (down) yTo - step / 2 else yFrom + step / 2; var k = 0; var leftToRight = !fromRight
+            while ((if (down) y > yFrom else y < yTo) && (count == null || k < count)) {
                 if (leftToRight) { pts += x0; pts += y; pts += x1; pts += y } else { pts += x1; pts += y; pts += x0; pts += y }
-                leftToRight = !leftToRight; y += step; k++
+                leftToRight = !leftToRight; y += if (down) -step else step; k++
             }
             return if (pts.size >= 4) ToolPath(Feature.TOWER, pts.toLongArray(), false, lineUm, h) else null
         }
@@ -161,12 +162,20 @@ class PurgeTower(
             val ownWall = compact && k == 0 && wall != null
             if (ownWall) need = Math.max(0.0, need - wallMm3)
             val n = if (compact || needs != null) linesFor(need, h) else purgeLines(i)
-            if (n > 0) zigzag(y0, y0 + bandUm, spacing(h), h, n)?.let { group += it }
+            // where the change starts: one of the band's four corners, turning layer by layer and change by change, so the
+            // first plastic of a nozzle back from the dock does not land on one spot every time (all 188 changes of a
+            // two-color nameplate started at one point, by the corner that peeled)
+            val turn = (i + k) % 4
+            val down = turn >= 2; val fromRight = turn % 2 == 1
+            if (n > 0) zigzag(y0, y0 + bandUm, spacing(h), h, n, down, fromRight)?.let { group += it }
             // the band's rest, where the purge took fewer lines than the band holds: on the first layer solid (the tower's
             // hold on the bed, and the floor the next layers' purges land on, which may take more lines than a thicker
-            // first layer's), above it at the sparse spacing
+            // first layer's), above it at the sparse spacing; on the side of the band the purge did not reach
             val restStep = if (i == 0) spacing(h) else sparseSpacingUm
-            if (i == 0 || needs != null || padded) { val yEnd = y0 + n * spacing(h); if (yEnd + restStep < y0 + bandUm) zigzag(yEnd, y0 + bandUm, restStep, h)?.let { group += it } }
+            if (i == 0 || needs != null || padded) {
+                if (!down) { val yEnd = y0 + n * spacing(h); if (yEnd + restStep < y0 + bandUm) zigzag(yEnd, y0 + bandUm, restStep, h)?.let { group += it } }
+                else { val yEnd = y0 + bandUm - n * spacing(h); if (y0 + restStep < yEnd) zigzag(y0, yEnd, restStep, h, down = true)?.let { group += it } }
+            }
             if (ownWall) group += wall
             group
         }

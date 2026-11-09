@@ -56,6 +56,20 @@ class PurgeTowerShapeTest : StringSpec({
             (x0 >= 100_000 + 400 && y0 >= 100_000 + 400) shouldBe true
         }
     }
+    "consecutive changes start their purge at different corners inside the tower, laying as much each time; control: within the wall" {
+        val t = tower(0.0, 0)
+        fun length(xy: LongArray) = (1 until xy.size / 2).sumOf { k -> Math.hypot((xy[2 * k] - xy[2 * k - 2]).toDouble(), (xy[2 * k + 1] - xy[2 * k - 1]).toDouble()) }
+        for (from in listOf(1, 100)) {
+            val groups = (from until from + 4).map { t.layer(it, 1).purges.single() }
+            val starts = groups.map { it.first().xy[0] to it.first().xy[1] }
+            println("starts from layer $from: $starts")
+            starts.toSet().size shouldBe 4                                       // four corners, not one point
+            for ((x, y) in starts) (x >= 100_000 + 400 && x <= 100_000 + t.widthUm - 400 && y >= 100_000 + 400 && y <= 100_000 + t.depthUm - 400) shouldBe true
+            // the same purge each time, whichever corner it starts from (within a line's length of rounding)
+            val purged = groups.map { g -> g.filter { !it.closed }.sumOf { length(it.xy) } }
+            (purged.max() - purged.min() <= t.widthUm.toDouble()) shouldBe true
+        }
+    }
     "the brim's inner loop reaches into the tower's outline by the overlap; control: with none it only touches" {
         fun innerGapUm(overlap: Long): Long {
             val t = PurgeTower.square(100_000, 100_000, 15.0, 400, 2_000, changes, tops, compact = true, maxGapUm = 300, brimUm = 4_800, brimLineUm = 500, brimOverlapUm = overlap)
