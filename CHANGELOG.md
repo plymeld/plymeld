@@ -29,6 +29,10 @@ section the release's version and date.
 - A printer refusing a request says why where it gives a reason: a Flashforge printer's answer other than HTTP 200 is
   quoted after the status. A refusal it cuts short (it answers, then closes the connection before its reason arrives,
   as a Creator 5 did refusing an upload) is said to be a refusal, where plymeld said it "could not reach" the printer.
+- On a model of several parts in different filaments, a part's outer-wall speck (a wall line kept only because it lines
+  the outline, where the part is too thin for a loop) shorter than a line width is left out where another part lies
+  within a line of it: the other part fills the outline there. Each was a dot of filament stopped and restarted on the
+  visible face every layer; on a two-color nameplate, 142 of them stacked into columns of blobs on the lettering's face.
 - Least-visible seams on a model of several parts in different filaments: a part's edge pressed against another part is
   covered by it and hides a seam. Each part's seams were placed seeing that part alone, so such an edge read as an
   open wall, and the seams went to corners on the visible face instead. On a two-color nameplate, the inlaid lettering's
