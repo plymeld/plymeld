@@ -26,6 +26,9 @@ section the release's version and date.
 - Requests to a printer are plain HTTP/1.1. They asked the printer's web server to switch to HTTP/2 on each new
   connection (an upload's included), which printers' small servers do not speak; a Creator 5 refused several uploads
   in a row ("Download failed" on its screen) where the same files had gone through before.
+- A printer refusing a request says why where it gives a reason: a Flashforge printer's answer other than HTTP 200 is
+  quoted after the status. A refusal it cuts short (it answers, then closes the connection before its reason arrives,
+  as a Creator 5 did refusing an upload) is said to be a refusal, where plymeld said it "could not reach" the printer.
 - Least-visible seams on a model of several parts in different filaments: a part's edge pressed against another part is
   covered by it and hides a seam. Each part's seams were placed seeing that part alone, so such an edge read as an
   open wall, and the seams went to corners on the visible face instead. On a two-color nameplate, the inlaid lettering's

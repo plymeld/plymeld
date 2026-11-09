@@ -67,8 +67,23 @@ fun Transport.sendOrRefuse(call: HttpCall, printer: String): HttpAnswer = try {
     send(call)
 } catch (e: IOException) {
     val u = URI(call.url)
+    val cut = CUT_SHORT.find(e.message ?: "")
+    // the printer reached and answering, but closing the connection before its answer's body: it refused the request, its
+    // reason lost with the body (a Flashforge Creator 5 refusing an upload: "could not reach" sent the user looking for
+    // a network fault)
+    if (cut != null) error("printer '$printer' at ${u.host}:${u.port} answered ${call.path} but closed the connection before its answer " +
+        "(${cut.groupValues[2]} of ${cut.groupValues[1]} bytes arrived): it refused the request without saying why. The printer's own screen may say; " +
+        "`plymeld printer status` shows its state")
     error("printer '$printer': could not reach ${u.host}:${u.port} (${call.path}): ${e.message ?: e.javaClass.simpleName}")
 }
+
+/** The JDK's words for an answer whose body ended before its declared length. */
+private val CUT_SHORT = Regex("fixed content-length: (\\d+), bytes received: (\\d+)")
+
+/** An answer's body as text for a refusal: its first [max] characters, one line; "" when it has none or cannot be read. */
+fun HttpAnswer.said(max: Int = 200): String = try {
+    text().replace(Regex("\\s+"), " ").trim().let { if (it.length > max) it.take(max) + "…" else it }
+} catch (_: IOException) { "" }
 
 /** A `multipart/form-data` body: text [fields] then one [file] (field name, file name, bytes), with a fixed [boundary] so tests can read it. */
 object Multipart {
