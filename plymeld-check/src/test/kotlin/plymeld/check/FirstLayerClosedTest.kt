@@ -83,6 +83,14 @@ class FirstLayerClosedTest : StringSpec({
         (without < 0.9) shouldBe true
     }
 
+    "a piece where one wider line does not fit gets two narrower ones (0.70 x 0.81 mm, a QR code's quiet-zone spot)" {
+        val p = Polygon(longArrayOf(0, 0, 696, 0, 696, 810, 0, 810))
+        val lines = plymeld.core.Walls.compactLines(p, s.firstLayerWidthUm, s.minBeadUm, s.minFeatureUm)
+        println("0.70 x 0.81 piece: ${lines.size} lines, widths ${lines.map { it.widths[0] }}")
+        // one line 0.70 wide would be 0.17 mm long, outside the room its width leaves; two of 0.35 fit
+        lines.size shouldBe 2
+    }
+
     "a 1.3 mm strip's first layer has no slit between its loop's sides; control: the same walls without the rule leave one" {
         // one loop each side leaves a gap thinner than the smallest feature along the middle
         val w = 1_300L; val len = 8_000L

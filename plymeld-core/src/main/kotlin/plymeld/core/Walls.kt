@@ -102,7 +102,8 @@ object Walls {
 
     /**
      * Lines covering a compact piece [p] (no center line of its own): along its bounding box's longer side, as many across
-     * its shorter side as make each nearest [maxWidthUm] wide (up to 1.5 x it), their width the shorter side shared among them, each ending
+     * its shorter side as make each nearest [maxWidthUm] wide (up to 1.5 x it; where those do not fit, as many as keep each at
+     * most [maxWidthUm]), their width the shorter side shared among them, each ending
      * half its width from the box's ends (at least a quarter of its width long). Only for a piece that fills most of its box
      * ([COMPACT_SHARE]: a square, a short bar), and only lines whose ends and middle lie at least half their width inside
      * it: a thin curved piece's box reaches outside it, and lines from it ran outside the model (the pre-print check
@@ -114,9 +115,22 @@ object Walls {
         val short = minOf(wx, wy); val long = maxOf(wx, wy)
         if (short < minFeatureUm || short <= 0) return emptyList()
         if (p.signedArea2() / 2.0 < COMPACT_SHARE * wx.toDouble() * wy) return emptyList()
-        // the count whose width is nearest the line width: a piece a little wider than one line gets one line a little wider
-        // (rounding up split 0.54 mm into two lines narrower than min_bead, and the piece got none)
-        val n = Math.max(1, Math.round(short.toDouble() / maxWidthUm).toInt())
+        // the count whose width is nearest the line width first (a piece a little wider than one line gets one line a little
+        // wider: rounding up split 0.54 mm into two lines narrower than min_bead, and the piece got none), then the count that
+        // keeps every line at most the line width (one wide line in a piece with a rounded end may not fit where two do)
+        val near = Math.max(1, Math.round(short.toDouble() / maxWidthUm).toInt())
+        val most = Math.max(1, Math.ceil(short.toDouble() / maxWidthUm).toInt())
+        for (n in listOf(near, most).distinct()) {
+            val lines = compactLinesOf(p, b, n, minBeadUm)
+            if (lines.isNotEmpty()) return lines
+        }
+        return emptyList()
+    }
+
+    /** [compactLines] with [n] lines across the piece [p] (its bounds [b]); none when they would be narrower than [minBeadUm]. */
+    private fun compactLinesOf(p: Polygon, b: LongArray, n: Int, minBeadUm: Long): List<CenterLine> {
+        val wx = b[2] - b[0]; val wy = b[3] - b[1]
+        val short = minOf(wx, wy); val long = maxOf(wx, wy)
         val w = short / n
         if (w < minBeadUm) return emptyList()
         val len = maxOf(long - w, w / 4)
