@@ -40,7 +40,7 @@ object Walls {
      *  2. What the loops leave uncovered is split by width: pieces at least two inner lines wide
      *     are the infill region; narrower pieces get ONE center line along their skeleton, as wide
      *     as the piece is thick there, clamped to [minBeadUm, 2 x inner width]. Pieces thinner than
-     *     [minFeatureUm] are left empty (min_feature_size).
+     *     [minFeatureUm] are left empty (min_feature_size), except where [closeCompact] closes them.
      * NOT YET (full Arachne): redistributing width over several beads (wall_distribution_count
      * > 1), bead-count transitions along a band (wall_transition_*), thin walls of the outer loop.
      */
@@ -49,8 +49,9 @@ object Walls {
                 /**
                  * Close what the walls leave (the first layer, the bottom a viewer may see): a piece too thin for infill whose
                  * skeleton gives no center line (a compact piece, a small square: its skeleton is a point) gets lines of its own
-                 * ([compactLines]). Left empty, every small square's middle was a hole in the bottom (a QR code laid on the
-                 * bed: 283 holes, 60 mm²).
+                 * ([compactLines]), and a gap between the loops thinner than [minFeatureUm] gets a line as wide as the gap
+                 * ([gapLines]). Left empty, every small square's middle was a hole in the bottom (a QR code laid on the bed:
+                 * 283 holes, 60 mm²), and its 1.3 mm strokes a slit along their middle.
                  */
                 closeCompact: Boolean = false): LayerWalls {
         val so = spacing(outerWidthUm, layerHeightUm)
@@ -89,10 +90,12 @@ object Walls {
         // the pieces of the thin area no center line reaches: lines of their own
         val extra = ArrayList<CenterLine>()
         for ((outer, holes) in Polygons.group(thin)) {
-            // a piece with a hole is a ring, not compact: a line across it crossed the hole (outside the model)
-            if (outer.signedAreaMm2() <= 0.0 || holes.isNotEmpty()) continue
+            if (outer.signedAreaMm2() <= 0.0) continue
             val reached = center.any { c -> (0 until c.xy.size / 2).any { k -> Polygons.contains(outer, c.xy[2 * k], c.xy[2 * k + 1]) } }
-            if (!reached) extra += compactLines(outer, innerWidthUm, minBeadUm, minFeatureUm)
+            if (reached) continue
+            // a piece with a hole is a ring, not compact: a line across it crossed the hole (outside the model)
+            val compact = if (holes.isEmpty()) compactLines(outer, innerWidthUm, minBeadUm, minFeatureUm) else emptyList()
+            extra += compact.ifEmpty { gapLines(listOf(outer) + holes, minBeadUm, minFeatureUm, innerWidthUm, minLengthFactor, transitionUm) }
         }
         return LayerWalls(walls, thick, center + extra)
     }
@@ -127,6 +130,20 @@ object Walls {
             if (fits(xy[0], xy[1]) && fits(xy[2], xy[3]) && fits((xy[0] + xy[2]) / 2, (xy[1] + xy[3]) / 2)) out += CenterLine(xy, longArrayOf(w, w))
         }
         return out
+    }
+
+    /**
+     * Lines along a gap [piece] thinner than [minFeatureUm] that the loops leave between them (a band a little wider than one
+     * loop: a QR code's 1.3 mm strokes left a 0.1 mm slit along their middle on the bottom). Each is as wide as the gap, not
+     * widened to [minBeadUm]: the loops beside it already lay most of that width, and a wider line there is excess plastic. As
+     * thin as the skeleton resolves; only lines at least two of [lineWidthUm] long (the void a round bead leaves in a corner
+     * between loops is shorter, and stays empty as on every layer).
+     */
+    private fun gapLines(piece: List<Polygon>, minBeadUm: Long, minFeatureUm: Long, lineWidthUm: Long, minLengthFactor: Double, transitionUm: Long): List<CenterLine> {
+        val feature = minOf(minFeatureUm, 2 * MIN_SAMPLE_UM)
+        return centerLines(piece, minOf(minBeadUm, feature), feature, 2 * lineWidthUm, minLengthFactor, transitionUm).filter { c ->
+            (1 until c.xy.size / 2).sumOf { k -> Math.hypot((c.xy[2 * k] - c.xy[2 * k - 2]).toDouble(), (c.xy[2 * k + 1] - c.xy[2 * k - 1]).toDouble()) } >= 2.0 * lineWidthUm
+        }
     }
 
     /** A piece filling at least this share of its bounding box is compact enough for [compactLines]: a square fills all of it, a disc 79 %. */

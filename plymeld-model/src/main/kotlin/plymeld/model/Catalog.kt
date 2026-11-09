@@ -237,7 +237,7 @@ object Catalog {
         s("plan.layer.walls.style", INTENT, CHOICE, "wall style: fixed_width (loops of one width) or variable_width (loops only where they fit, variable-width center lines in thin areas); another slicer's file says classic or arachne",
             "classic", "a file from another slicer without the key: fixed-width walls, what plymeld always did")
         s("plan.layer.walls.line.width.min", INTENT, LENGTH, "variable-width walls: narrowest line a thin area's center line is printed at (min_bead_width; read only with variable_width)")
-        s("plan.layer.walls.feature.min", INTENT, LENGTH, "variable-width walls: thinnest area that still gets a center line (min_feature_size; read only with variable_width)")
+        s("plan.layer.walls.feature.min", INTENT, LENGTH, "variable-width walls: thinnest area that still gets a center line (min_feature_size; read only with variable_width); on the first layer a thinner gap between wall loops gets a line as wide as the gap")
         s("plan.layer.walls.length_factor.min", INTENT, FRACTION, "variable-width walls: an open center line shorter than this times its narrowest width is dropped (min_length_factor; read only with variable_width)",
             0.0, "a profile without min_length_factor applies no such filter: 0 = off, not a chosen value")
         s("plan.layer.walls.transition_length", INTENT, LENGTH, "variable-width walls: center lines stay continuous through thinner stretches and pinches up to this long (wall_transition_length; read only with variable_width)")

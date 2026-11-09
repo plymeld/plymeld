@@ -56,6 +56,35 @@ class FirstLayerClosedTest : StringSpec({
         (closed >= 0.99) shouldBe true
         (open < 0.95) shouldBe true
     }
+
+    "a 1.3 mm strip's first layer has no slit between its loop's sides; control: the same walls without the rule leave one" {
+        // one loop each side leaves a gap thinner than the smallest feature along the middle
+        val w = 1_300L; val len = 8_000L
+        val strip = Polygon(longArrayOf(0, 0, len, 0, len, w, 0, w))
+        val tops = LongArray(3) { s.firstLayerHeightUm + it * 200L }
+        val layers = Planner.plan(s, List(3) { listOf(strip) }, tops)
+        val inset = s.elephantFootUm + 100
+        fun share(paths: List<ToolPath>): Double {
+            var n = 0; var laid = 0
+            var y = inset
+            while (y <= w - inset) { var x = inset
+                while (x <= len - inset) { n++; if (paths.any { near(it, x, y) }) laid++; x += 25 }
+                y += 25 }
+            return laid.toDouble() / n
+        }
+        val shrunk = plymeld.geom.Offset.offset(listOf(strip), -s.elephantFootUm)
+        fun wallPaths(close: Boolean): List<ToolPath> {
+            val wl = plymeld.core.Walls.arachne(shrunk, s.wallLoops, s.firstLayerWidthUm, s.firstLayerWidthUm, s.firstLayerHeightUm,
+                s.minBeadUm, s.minFeatureUm, s.minLengthFactor, s.transitionLengthUm, closeCompact = close)
+            return wl.walls.flatten().map { ToolPath(plymeld.core.Feature.INNER_WALL, it.xy, true, s.firstLayerWidthUm, s.firstLayerHeightUm) } +
+                wl.center.map { ToolPath(plymeld.core.Feature.INNER_WALL, it.xy, false, it.widths.max(), s.firstLayerHeightUm) }
+        }
+        val first = share(layers[0].paths); val closed = share(wallPaths(true)); val open = share(wallPaths(false))
+        println("strip laid: first layer %.3f; its walls with the rule %.3f, without %.3f".format(Locale.ROOT, first, closed, open))
+        (first >= 0.99) shouldBe true
+        (closed >= 0.99) shouldBe true
+        (open < 0.95) shouldBe true
+    }
 })
 
 /** Whether (x, y) lies within half of [p]'s width of one of its segments. */
