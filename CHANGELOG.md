@@ -9,6 +9,13 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Added
+
+- `plan.mechanism.motion.speed.factor`: every printing speed plymeld decides, times this, for a slower (or faster) print
+  without changing each speed: 75% for a print where finish matters more than time. Travels and retractions keep their
+  speeds; above 100% no speed goes past the machine's printing speed. The filament's melt cap, the minimum layer time
+  and the time prediction read the speeds scaled. Bundled 100%.
+
 ## [0.20261109.1] - 2026-11-09
 
 ### Added
