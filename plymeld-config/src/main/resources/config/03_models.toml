@@ -512,9 +512,11 @@ head.nozzle.y = "40 mm"
 head.nozzle.height = "4 mm"
 head.nozzle.angle = "45 deg"
 temperature.max = "320 C"
+heat.time = "15 s"
 evidence = """manufacturer_profile: Flashforge's own Creator 5 profile (in its slicer): extruder_clearance_radius 92, extruder_clearance_height_to_rod 60, extruder_clearance_height_to_lid 360; one value set for all four heads; meanings as the profile format documents them
 measured: head.size, head.nozzle.x / .y, head.nozzle.height and head.nozzle.angle, by hand on each of one machine's four heads, all alike (90 x 75 mm, the nozzle 70 mm from its left edge and 40 mm from its front, its tip 4 mm below the rest, a 45 deg cone)
-documented: temperature.max: Flashforge's Creator 5 specifications, maximum nozzle temperature 320 C"""
+documented: temperature.max: Flashforge's Creator 5 specifications, maximum nozzle temperature 320 C
+placeholder: heat.time 15 s, a starting value for how long one nozzle takes to heat from idle to print temperature; not measured"""
 
 [hardware.model.flashforge-c5.toolhead.1]
 head.radius = "92 mm"
@@ -527,9 +529,11 @@ head.nozzle.y = "40 mm"
 head.nozzle.height = "4 mm"
 head.nozzle.angle = "45 deg"
 temperature.max = "320 C"
+heat.time = "15 s"
 evidence = """manufacturer_profile: same profile values, applied to head 2 (the profile has one set for all heads)
 measured: by hand, as head 1's (each of the four heads measured, all alike)
-documented: temperature.max: as head 1's"""
+documented: temperature.max: as head 1's
+placeholder: heat.time 15 s, a starting value for how long one nozzle takes to heat from idle to print temperature; not measured"""
 
 [hardware.model.flashforge-c5.toolhead.2]
 head.radius = "92 mm"
@@ -542,9 +546,11 @@ head.nozzle.y = "40 mm"
 head.nozzle.height = "4 mm"
 head.nozzle.angle = "45 deg"
 temperature.max = "320 C"
+heat.time = "15 s"
 evidence = """manufacturer_profile: same profile values, applied to head 3 (the profile has one set for all heads)
 measured: by hand, as head 1's (each of the four heads measured, all alike)
-documented: temperature.max: as head 1's"""
+documented: temperature.max: as head 1's
+placeholder: heat.time 15 s, a starting value for how long one nozzle takes to heat from idle to print temperature; not measured"""
 
 [hardware.model.flashforge-c5.toolhead.3]
 head.radius = "92 mm"
@@ -557,9 +563,11 @@ head.nozzle.y = "40 mm"
 head.nozzle.height = "4 mm"
 head.nozzle.angle = "45 deg"
 temperature.max = "320 C"
+heat.time = "15 s"
 evidence = """manufacturer_profile: same profile values, applied to head 4 (the profile has one set for all heads)
 measured: by hand, as head 1's (each of the four heads measured, all alike)
-documented: temperature.max: as head 1's"""
+documented: temperature.max: as head 1's
+placeholder: heat.time 15 s, a starting value for how long one nozzle takes to heat from idle to print temperature; not measured"""
 
 [hardware.model.flashforge-c5.command]
 G1 = """purpose: linear move (with or without extrusion)

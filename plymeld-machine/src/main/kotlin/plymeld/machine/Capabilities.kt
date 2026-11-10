@@ -79,7 +79,9 @@ data class Fan(val name: String, val role: String, val command: String? = null, 
  *   CLEARANCE    head.radius (the head as a circle around the tip)
  *   GANTRY       gantry.height (and gantry.distance when known), lid.height
  */
-data class Toolhead(val index: Int, val geometry: Map<String, Double>, val evidence: List<Evidence>) {
+data class Toolhead(val index: Int, val geometry: Map<String, Double>, val evidence: List<Evidence>,
+                    /** How long (s) its nozzle takes to heat to print temperature: a tool's preheat when it sets none (hardware.tool.<key>.heat.time); null = not known. */
+                    val heatS: Double? = null) {
     /** [settings]: what a tool or its model's toolhead sets to give the tier, for a message naming what is missing. */
     enum class Tier(val keys: List<String>, val settings: String) {
         TIP_CONE(listOf("tip_cone_deg", "head.nozzle.height"), "head.nozzle.angle and head.nozzle.height"),

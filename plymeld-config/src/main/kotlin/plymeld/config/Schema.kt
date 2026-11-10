@@ -217,6 +217,7 @@ object Schema {
         q("$md.toolhead.<key>.gantry.height", Dimension.LENGTH, "how far the gantry's rod sits above a toolhead's nozzle tip (one object at a time keeps every object but the last below it)")
         q("$md.toolhead.<key>.gantry.distance", Dimension.LENGTH, "how far the gantry's rod sits from a toolhead's nozzle tip, across")
         q("$md.toolhead.<key>.lid.height", Dimension.LENGTH, "how far the machine's lid sits above a toolhead's nozzle tip")
+        q("$md.toolhead.<key>.heat.time", Dimension.TIME, "how long a toolhead's nozzle takes to heat to print temperature: on a multi-nozzle machine, the next nozzle heated this long (print time) before its change; a tool's heat.time wins over it")
         d("$md.toolhead.<key>.evidence", Type.Text, "where a toolhead's geometry comes from, \"kind: detail\" per line")
         // ---- hardware: plates
         val p = "hardware.plate.<key>"
@@ -251,7 +252,7 @@ object Schema {
         q("$t.gantry.height", Dimension.LENGTH, "how far the gantry sits above the nozzle tip, for clearance (not yet used)")
         q("$t.temperature.max", Dimension.TEMPERATURE, "hottest its nozzle may be set (the machine maker's figure): above it plymeld warns", feeds = true)
         q("$t.pressure_advance", Dimension.TIME, "pressure advance it prints with (Klipper's, in seconds, e.g. \"0.035 s\") unless the filament sets its own; unset = the machine's (hardware.machine.<key>.pressure_advance)", feeds = true)
-        q("$t.heat.time", Dimension.TIME, "time to heat to printing temperature", feeds = true)
+        q("$t.heat.time", Dimension.TIME, "on a multi-nozzle machine, heat the next nozzle this long (print time) before its change; unset = its machine model's toolhead's (hardware.model.<key>.toolhead.<key>.heat.time), else no preheat (the change waits for the nozzle)", feeds = true)
         q("$t.extrude.section.max", Dimension.AREA, "the largest cross-section a move may extrude (filament per mm of head motion times the filament's cross-section) as its firmware checks it: Klipper's max_extrude_cross_section, whose own default is 4 times the nozzle diameter squared. A restore spread over a path (filament retract.return.distance) stays within it; unset = not known, and every restore stands still", feeds = true)
         for (a in listOf("x", "y", "z")) q("$t.offset.$a", Dimension.LENGTH, "its nozzle's offset from the first tool's, $a (not yet used)")
         // ---- hardware: filaments
