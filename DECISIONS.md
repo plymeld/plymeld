@@ -304,3 +304,47 @@ no measurement says by how much; the setting allows it where a print needs it.
 
 **Consequences.** Prints with a tower move it next to the object (the plate's g-code changes where it has one). The
 gap's 5 mm is a placeholder. The order of the sides is plymeld's choice, untested against a print.
+
+## 14. A print is looked at from its front unless it says otherwise (2026-11-09)
+
+**Context.** `plan.view_from` was unset by default: looked at from all around, every side of a print counted alike. On a
+plain round wall no point hides a seam better than another, so each layer's seam stayed in line with the one below,
+wherever an earlier feature had put it. On a two-color nameplate the lettering on its front drew the seams there, and
+the column carried on up the plain wall above it to the top edge, on the face the nameplate is made to show.
+
+**Decision.** `plan.view_from` is `front` in plymeld's bundled defaults: the model's own front, its small-y side as
+modeled, turned with whatever pose the plan gives it. Its back counts less in quality's measures, and least-visible
+seams go there. `all_around` stays a value, for a model with no front of its own (a vase, a figure on a turntable).
+
+**Rejected.** Keeping all around and changing the seams' tie-break to fall back to the back: it moves seams without
+saying a print has a front, but the other quality measures would still count a print's back as much as its front.
+Deciding the front from the model's geometry: no rule tells a nameplate's face from its back reliably yet.
+
+**Consequences.** Least-visible seams and other quality-weighted decisions change on prints that leave `view_from`
+unset: seams move toward the back, and a decision whose benefit lies on faces turned away (a curved top on a round,
+symmetric part) may lose. A model modeled facing another way sets its own `view_from` (or `plan.object.<key>.view_from`).
+The technique samples and the curved-island tests, round and symmetric, set `all_around`.
+
+## 15. Least-visible seams are planned across layers (2026-11-09)
+
+**Context.** Least-visible seams were placed layer by layer: each loop's seam at its cheapest point, counting a jog
+from the seam below. On a plain wall no one layer saves enough to pay the move to a better side, so a seam a feature
+drew to the front low on the wall stayed in line on the front face all the way up. On a nameplate it ran from the
+lettering to the top edge, even with the print looked at from its front.
+
+**Decision.** The outer walls' least-visible seams are planned over each run of layers where a loop continues one to
+one (each loop linked to the loop below whose bounding box matches its own best, by overlap over union: by overlap
+alone, a pocket's loop linked to the outside loop round it and broke every run): the line of points through the run
+whose cost in all is least, each point as `seam_scar` charges it (how much it is seen times its blemish, a scarf's
+where the start gets one) and each move from the point below its length times the line width, times how much the new
+point is seen. A run is planned when the placement reaches its first layer, its first move from the seams placed
+below it. Each loop is then placed with its planned point as the seam below, so corners, overhangs, and the ramp are
+still judged where it is placed. A run of one layer is placed on its own. At most 160 candidate points per loop (every
+n-th and the cheapest), a bound on time.
+
+**Rejected.** Looking ahead a fixed number of layers: the move a plain wall needs may pay off only over a hundred
+layers. A penalty for the front alone: the view already says which side is seen; the fault was paying the move layer
+by layer. Planning where loops split or merge: those layers keep the placement layer by layer.
+
+**Consequences.** Seams on prints with least-visible seams move (the regression cases' outer walls start elsewhere;
+nothing else changes). Where loops split or merge, a run ends and a new one starts, so a seam may move there.

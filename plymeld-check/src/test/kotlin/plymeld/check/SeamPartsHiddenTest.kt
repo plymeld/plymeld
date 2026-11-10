@@ -44,4 +44,26 @@ class SeamPartsHiddenTest : StringSpec({
         inlaid.count(::onCoveredEdge) shouldBe inlaid.size
         alone.count(::onCoveredEdge) shouldBe 0
     }
+
+    // a scarf seam is seen along its ramp: a base with a 4 x 2 mm pocket in its front face, an inlay of the other filament in
+    // it (a letter in a nameplate's face). A point seam may hide in the pocket, against the inlay; a 10 mm scarf's ramp from
+    // there runs out of the 8 mm of pocket walls onto the face, so it stays out of the pocket
+    "a scarf seam's ramp is seen: no base seam in a pocket shorter than the ramp; control: point seams may hide there" {
+        val pocketBase = Polygon(longArrayOf(0, 0, 18_000, 0, 18_000, 2_000, 22_000, 2_000, 22_000, 0, 40_000, 0, 40_000, 20_000, 0, 20_000))
+        val letter = rect(18_000, 0, 22_000, 2_000)
+        fun baseSeams(scarf: Boolean): List<Pair<Double, Double>> {
+            val st = SliceSettings.of(testSetup("plan.seam" to "least_visible", "plan.technique.scarf_seam.enabled" to scarf,
+                *(if (scarf) arrayOf<Pair<String, Any>>("plan.technique.scarf_seam.where" to "all", "plan.technique.scarf_seam.length" to "10 mm") else emptyArray())))
+            val r = MultiFilament.plan(st, listOf(List(n) { listOf(pocketBase) }, List(n) { listOf(letter) }), listOf("spool 1", "spool 2"), listOf(0, 1), tops, "spool 1")
+            val layers = r.filaments.single { it.spool == "spool 1" }.layers
+            return (2 until n).map { i -> val w = layers[i].paths.first { it.feature == Feature.OUTER_WALL }; w.xy[0] / 1000.0 to w.xy[1] / 1000.0 }
+        }
+        /** In the pocket: its walls and floor, x 17.5..22.5 and less than 2.5 mm in from the front face. */
+        fun inPocket(p: Pair<Double, Double>) = p.first in 17.5..22.5 && p.second < 2.5
+        val scarfed = baseSeams(scarf = true)
+        val points = baseSeams(scarf = false)
+        println("base seams in the pocket: scarf ${scarfed.count(::inPocket)} of ${scarfed.size} (first ${scarfed.first()}), point ${points.count(::inPocket)} (first ${points.first()})")
+        scarfed.count(::inPocket) shouldBe 0
+        (points.count(::inPocket) > 0) shouldBe true
+    }
 })

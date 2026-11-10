@@ -507,7 +507,10 @@ object Planner {
             // one part of several ([whole]): a part's edge against another part (a letter's inlay against the base it sits in)
             // is covered by it, not an open wall; read as open, the seams went to corners on the visible face instead
             exposure = seamVis?.exposure((whole?.w?.walls ?: walls).map { it.walls.getOrNull(0).orEmpty() }, layerTopsUm),
-            shelfOf = { i -> shelfAt(i) })
+            shelfOf = { i -> shelfAt(i) },
+            // a scarf seam's ramp is seen as well as its start (plan.technique.scarf_seam.*)
+            rampUm = if (s.scarf == "none") 0 else s.scarfLengthUm ?: 0, rampOffCorners = s.scarf == "smooth",
+            scarfShare = s.seamScarfShare)
         val builtAll = Parallel.map(n, progress.Counter("paths", n)) { i ->
             // what this layer's paths are built from (LayerCache): its own walls, regions and outline, the layer below's printed
             // and sparse areas, the layer above's outline (ironing), its seams, support, cover, anchors and core, the settings, and

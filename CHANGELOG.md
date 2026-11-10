@@ -9,6 +9,26 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Changed
+
+- Prints are looked at from their front by default (`plan.view_from = "front"`: the model's own front, its small-y side
+  as modeled, turned with its pose): quality's measures count its back less, and least-visible seams go there. Looked at
+  from all around (the default before), a plain round wall's seams stayed wherever a feature first put them, on a
+  nameplate's front face from its lettering to its top edge. A model with no front of its own sets `all_around`.
+
+### Fixed
+
+- A scarf seam is judged by its whole ramp, not its start alone, where it is placed and in the seam measure: the seam
+  goes where the most-seen point of its ramp is seen least. A nameplate's seams started hidden in a letter's pocket, and
+  their 10 mm ramps ran out onto the face beside the letter.
+- Least-visible seams are planned up the whole wall, not layer by layer. Each layer's seam stayed in line with the one
+  below rather than pay the move to a better place on its own, so a seam drawn to the front by a feature low on the
+  wall ran up the front face above it to the top. Planned over all the layers a loop continues through, the move is
+  paid once where it costs least: on a round column with a slot in its front, the 118 seams above the slot went from
+  the front face to the back, in one line. Least-visible placement also counts a scarf seam's blemish as the seam
+  measure does (`method.quality.seam.scarf_share` of a point seam's); counted as a point seam's, a move to a less-seen
+  point looked worth more than it was.
+
 ## [0.20261109.1] - 2026-11-09
 
 ### Added

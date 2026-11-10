@@ -76,6 +76,7 @@ object IslandPin {
         tool.t1.filament = "pla-generic"
         [plan]
         pose = "as-given"
+        view_from = "all_around"
         [plan.technique.flat]
         heights = "one"
         layer.height = "0.2 mm"
