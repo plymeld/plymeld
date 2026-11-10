@@ -80,7 +80,11 @@ object Seams {
                */
               exposure: plymeld.core.decide.Exposure? = null, layer: Int = 0,
               /** The shelf (mm) a point of this loop sits on ([SeamScar.shelfMm]); null = none (every point on a wall). */
-              shelf: ((Long, Long) -> Double)? = null): Placed {
+              shelf: ((Long, Long) -> Double)? = null,
+              /** A scarf seam's ramp length (µm) when this loop may get one: a start is seen as its ramp's most-seen point; 0 = point seams. */
+              rampUm: Long = 0,
+              /** Scarf seams go off corners only (plan.technique.scarf_seam.where = smooth): a corner start keeps a point seam. */
+              rampOffCorners: Boolean = false): Placed {
         if (p.size < 3) return Placed(Planner.seamAtBack(p), false)
         val held: (Int) -> Boolean = if (overhangs == null || overhangs.all { it }) { _ -> true } else { i -> !overhangs[i] }
         if (leastVisible && vis != null) {
@@ -94,10 +98,25 @@ object Seams {
                 val over = overhangs != null && overhangs[i]
                 (ex?.get(i) ?: 1.0) * (if (over) vis.underside else 1.0)
             }
-            fun v(i: Int): Double = vs[i]
             val pts = (0 until n).filter(held).ifEmpty { (0 until n).toList() }
             val tv = if (cornerDeg == null) null else turns(p, spanUm)
             fun corner(i: Int) = tv != null && Math.abs(tv[i]) >= cornerDeg!!
+            // a scarf seam is seen along its ramp, not at its start alone: the most-seen point of the [rampUm] the loop runs on
+            // from the start (a corner keeps a point seam where scarf seams go off corners only). Judged at the start alone, a
+            // lettering's seams started hidden in a letter's pocket and their 10 mm ramps ran out onto the face beside it
+            val seen = if (rampUm <= 0) vs else DoubleArray(n) { i ->
+                if (rampOffCorners && corner(i)) vs[i] else {
+                    var worst = vs[i]; var run = 0.0; var j = i
+                    while (run < rampUm) {
+                        val k = (j + 1) % n
+                        run += Math.hypot((p.x(k) - p.x(j)).toDouble(), (p.y(k) - p.y(j)).toDouble())
+                        worst = maxOf(worst, vs[k]); j = k
+                        if (j == i) break
+                    }
+                    worst
+                }
+            }
+            fun v(i: Int): Double = seen[i]
             // the cost seam_scar charges this seam (SeamScar.measure): a point seam one line width squared, or a band across the shelf it sits on (the corner share in a
             // corner), plus a jog from the nearest seam below its length x the line width when further than a line, all times how
             // much it is seen. Without the jog the placement chased the least-seen point layer by layer and the seams wandered
@@ -180,7 +199,9 @@ object Seams {
                  back: Boolean = false, spanUm: (Int, Int) -> Double, leastVisible: Boolean = false, vis: plymeld.core.decide.Visibility? = null,
                  cornerShare: Double = 1.0, exposure: plymeld.core.decide.Exposure? = null,
                  /** Each layer's shelf function for its outer walls ([place]'s shelf); null = none. */
-                 shelfOf: ((Int) -> ((Long, Long) -> Double)?)? = null): List<List<List<Placed>>> {
+                 shelfOf: ((Int) -> ((Long, Long) -> Double)?)? = null,
+                 /** The outer walls' scarf ramp length (µm), when scarf seams may be laid; 0 = none ([place]). */
+                 rampUm: Long = 0, rampOffCorners: Boolean = false): List<List<List<Placed>>> {
         val out = ArrayList<List<List<Placed>>>(loops.size)
         var below: List<LongArray> = emptyList()
         // the outer walls' exposures, the layers in parallel (the placement itself runs layer by layer, each from the one below)
@@ -190,7 +211,8 @@ object Seams {
             val oh = overhangs?.get(i)
             // what hides a point nearby is read for the outer walls only (an inner wall's seam is not seen; its rays start in material)
             val placed = layer.mapIndexed { k, wall -> wall.mapIndexed { li, lp -> place(lp, cornerDeg, spanUm(i, k), below.getOrElse(k) { LongArray(0) }, oh?.get(k)?.get(li), back, leastVisible, vis, cornerShare,
-                if (k == 0) exposure else null, i, if (k == 0 && leastVisible) shelfOf?.invoke(i) else null) } }
+                if (k == 0) exposure else null, i, if (k == 0 && leastVisible) shelfOf?.invoke(i) else null,
+                if (k == 0) rampUm else 0, rampOffCorners) } }
             out += placed
             below = placed.map { wall -> LongArray(2 * wall.size) { j -> val q = wall[j / 2].loop; if (j % 2 == 0) q.x(0) else q.y(0) } }
         }

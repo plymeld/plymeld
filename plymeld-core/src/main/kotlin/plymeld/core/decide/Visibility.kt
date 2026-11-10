@@ -169,7 +169,7 @@ class Visibility(val underside: Double, val bed: Double, val source: String, val
             val a = plymeld.model.Resolver.resolveOrNull(setup, "method.quality.visibility.away", ctx)
             val v = plymeld.model.Resolver.resolveOrNull(setup, "plan.view_from", ctx)
             return Visibility((u.value as Number).toDouble(), (b?.value as Number?)?.toDouble() ?: 0.0,
-                "method.quality.visibility.under: ${u.from}; .bed: ${b?.from ?: "unset, 0"}; .away: ${a?.from ?: "unset, 1"}; plan.view_from: ${v?.let { "${it.value}, ${it.from}" } ?: "unset, all around"}",
+                "method.quality.visibility.under: ${u.from}; .bed: ${b?.from ?: "unset, 0"}; .away: ${a?.from ?: "unset, 1"}; plan.view_from: ${v?.let { "${it.value}, ${it.from}" } ?: "all around"}",
                 (a?.value as Number?)?.toDouble() ?: 1.0, viewOf(v?.value as String?), sampleOf(setup, ctx), quadrantsOf(setup, ctx))
         }
 

@@ -304,3 +304,23 @@ no measurement says by how much; the setting allows it where a print needs it.
 
 **Consequences.** Prints with a tower move it next to the object (the plate's g-code changes where it has one). The
 gap's 5 mm is a placeholder. The order of the sides is plymeld's choice, untested against a print.
+
+## 14. A print is looked at from its front unless it says otherwise (2026-11-09)
+
+**Context.** `plan.view_from` was unset by default: looked at from all around, every side of a print counted alike. On a
+plain round wall no point hides a seam better than another, so each layer's seam stayed in line with the one below,
+wherever an earlier feature had put it. On a two-color nameplate the lettering on its front drew the seams there, and
+the column carried on up the plain wall above it to the top edge, on the face the nameplate is made to show.
+
+**Decision.** `plan.view_from` is `front` in plymeld's bundled defaults: the model's own front, its small-y side as
+modeled, turned with whatever pose the plan gives it. Its back counts less in quality's measures, and least-visible
+seams go there. `all_around` stays a value, for a model with no front of its own (a vase, a figure on a turntable).
+
+**Rejected.** Keeping all around and changing the seams' tie-break to fall back to the back: it moves seams without
+saying a print has a front, but the other quality measures would still count a print's back as much as its front.
+Deciding the front from the model's geometry: no rule tells a nameplate's face from its back reliably yet.
+
+**Consequences.** Least-visible seams and other quality-weighted decisions change on prints that leave `view_from`
+unset: seams move toward the back, and a decision whose benefit lies on faces turned away (a curved top on a round,
+symmetric part) may lose. A model modeled facing another way sets its own `view_from` (or `plan.object.<key>.view_from`).
+The technique samples and the curved-island tests, round and symmetric, set `all_around`.

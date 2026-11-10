@@ -1,4 +1,4 @@
-# plymeld's bundled defaults, read before any config file (docs/user/reference/config-files.md).
+# plymeld's bundled defaults, read before any config file (`plymeld config` shows each value and where it was set).
 #
 # PLACEHOLDERS: plausible values so that a print can be made while the plan's groups are redone
 # technique by technique. Not measured, not tested on a print, and not taken from any
@@ -18,6 +18,13 @@ layer.heights = "9"
 [method.slicing]
 tolerance = "= tool.bore / 32"                 # outline simplification: far below a line's width
 close_gaps = "= tool.bore / 8"                 # gaps narrower than a quarter of the bore are closed
+
+# ---- where the finished print is looked at from: its own front (its small-y side as modeled, turned with its pose), so
+# quality's measures count its back less and least-visible seams go there; all_around counts every side alike. Most
+# prints have a front; a model with none of its own (a vase, a figure on a turntable) sets all_around. Looked at from all
+# around, a plain round wall's seams stayed in line wherever a feature first put them: on a nameplate's front face
+[plan]
+view_from = "front"
 
 # ---- flat layers: the layer height where they keep one height
 # the layer height is DECIDED (the search tries method.search.layer.heights across the tool's range);
