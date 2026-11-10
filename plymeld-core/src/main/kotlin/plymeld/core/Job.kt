@@ -233,8 +233,12 @@ class Job(val layout: Layout, setup: Setup, private val version: String) {
         // a part printing with another tool than its object's own: that part's settings for the paths of that tool
         val perObjectTool = slicers.mapIndexed { k, sl -> IncrementalSlicer.toolSettings(setup, layout.objectIndex[k], sl.printObject.name) }
             .fold(emptyMap<Pair<String, Int>, SliceSettings>()) { a, b -> a + b }
-        val w = KlipperWriter(SliceSettings.of(setup), setup.foreignTemplateVars, version, perObject, perObjectTool = perObjectTool,
-            pressureAdvance = setup.pressureAdvanceByTool(), progress = progress)
+        // the next tool heated ahead of each change, as for one object (it was left out here: a plate of several objects
+        // waited at every change)
+        val plateSettings = SliceSettings.of(setup)
+        val preheat = layout.objectIndex.firstOrNull()?.let { IncrementalSlicer.preheatS(setup, plymeld.model.Context(it), plateSettings) }
+        val w = KlipperWriter(plateSettings, setup.foreignTemplateVars, version, perObject, perObjectTool = perObjectTool,
+            preheatS = preheat, pressureAdvance = setup.pressureAdvanceByTool(), progress = progress)
         w.write(program, out)
         out.flush()
         strings = w.strings

@@ -939,6 +939,19 @@
                         }
                       }
                     },
+                    "heat": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "time": {
+                          "description": "how long a toolhead's nozzle takes to heat to print temperature: on a multi-nozzle machine, the next nozzle heated this long (print time) before its change; a tool's heat.time wins over it — a time (s); or a formula (= ...)",
+                          "type": [
+                            "string",
+                            "number"
+                          ]
+                        }
+                      }
+                    },
                     "evidence": {
                       "description": "where a toolhead's geometry comes from, \"kind: detail\" per line",
                       "type": "string"
@@ -1242,7 +1255,7 @@
                 "additionalProperties": false,
                 "properties": {
                   "time": {
-                    "description": "time to heat to printing temperature — a time (s); or a formula (= ...)",
+                    "description": "on a multi-nozzle machine, heat the next nozzle this long (print time) before its change; unset = its machine model's toolhead's (hardware.model.<key>.toolhead.<key>.heat.time), else no preheat (the change waits for the nozzle) — a time (s); or a formula (= ...)",
                     "type": [
                       "string",
                       "number"

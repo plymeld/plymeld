@@ -18,6 +18,9 @@ section the release's version and date.
 - `plan.technique.scarf_seam.speed`, `.step` and `.flow`: a scarf seam's ramp and its closing pass at their own speed
   (half the visible lines' by default) and flow (100 %), the ramp rising in steps no longer than `.step` (1 mm, the length
   that was fixed before).
+- A machine model's toolheads may carry a heat time (`hardware.model.<key>.toolhead.<key>.heat.time`): a tool that sets
+  no `heat.time` of its own heats ahead of a change by its model's. The Creator 5's is 15 s (a placeholder), so its tool
+  changes heat the next nozzle 15 s of printing ahead instead of waiting for it.
 
 ### Changed
 
@@ -42,6 +45,8 @@ section the release's version and date.
 
 ### Fixed
 
+- A plate of several objects heats the next tool ahead of a change as one object does (`hardware.tool.<key>.heat.time`);
+  it waited at every change.
 - A retraction's wipe is written under the feature it wipes: the next path's `;TYPE:` and `;WIDTH:` lines came first, so
   a wipe along an inner wall was labelled as the outer wall that followed.
 - A scarf seam is judged by its whole ramp, not its start alone, where it is placed and in the seam measure: the seam

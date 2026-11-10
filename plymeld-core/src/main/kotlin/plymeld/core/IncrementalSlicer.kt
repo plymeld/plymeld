@@ -1514,7 +1514,7 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         ran.clear(); stageMs.clear()
         if (multiFilament) {
             val program = withPauses(multiProgram(setup))
-            val preheat = (Resolver.resolveOrNull(setup, "hardware.tool.heat.time", ctx)?.value as Number?)?.toDouble()
+            val preheat = preheatS(setup, ctx, s!!)
             timed("gcode") { val w = KlipperWriter(s!!, setup.foreignTemplateVars, version, preheatS = preheat, pressureAdvance = setup.pressureAdvanceByTool(), progress = progress,
                 perObjectTool = toolSettings(setup, objectId, printObject.name)); w.write(program, out); out.flush(); lastStrings = w.strings }
             return ran.toList()
@@ -1622,6 +1622,14 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
          * writer's perObjectTool, keyed by the object's program [name] and the 0-based tool): the first such part's settings,
          * so its filament's flow, melt rate, retraction, and the rest (every part printed with the first part's).
          */
+        /**
+         * How long (s, print time) the next tool is heated before a change: the tool's hardware.tool.<key>.heat.time, else its
+         * machine model's toolheads' (the longest of them: heated early rather than late); null = no preheat.
+         */
+        fun preheatS(setup: Setup, ctx: plymeld.model.Context, s: SliceSettings): Double? =
+            (Resolver.resolveOrNull(setup, "hardware.tool.heat.time", ctx)?.value as Number?)?.toDouble()
+                ?: s.machineDescription.toolheads.mapNotNull { it.heatS }.maxOrNull()
+
         fun toolSettings(setup: Setup, objectIndex: Int, name: String): Map<Pair<String, Int>, SliceSettings> {
             val o = setup.objects[objectIndex]; val own = setup.spool(o.spool).tool
             return o.parts.withIndex().map { (pi, p) -> setup.spool(p.spool).tool to pi }.filter { it.first != own }.distinctBy { it.first }
