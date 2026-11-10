@@ -11,6 +11,10 @@ section the release's version and date.
 
 ### Changed
 
+- The bundled filaments wipe as they retract (`hardware.filament.<key>.retract.wipe.enabled = "true"`): the nozzle
+  retraces the path it just laid by the wipe distance (1 mm), so what oozes lands along the line, not in a blob where the
+  nozzle stopped. Off before; a filament of yours that sets it keeps its own.
+
 - Prints are looked at from their front by default (`plan.view_from = "front"`: the model's own front, its small-y side
   as modeled, turned with its pose): quality's measures count its back less, and least-visible seams go there. Looked at
   from all around (the default before), a plain round wall's seams stayed wherever a feature first put them, on a

@@ -348,3 +348,17 @@ by layer. Planning where loops split or merge: those layers keep the placement l
 
 **Consequences.** Seams on prints with least-visible seams move (the regression cases' outer walls start elsewhere;
 nothing else changes). Where loops split or merge, a run ends and a new one starts, so a seam may move there.
+
+## 16. A retraction wipes by default (2026-11-09)
+
+**Context.** The bundled filaments left the wipe off, with no reason recorded. On a two-color nameplate each outer
+wall's retraction stood still where its loop ended, on the visible face, and left a mark there beside the seam.
+
+**Decision.** Every bundled filament wipes as it retracts (`retract.wipe.enabled = "true"`): the path just laid is
+retraced backwards by the wipe distance, `retract_before` of the retraction first and the rest spread over the wipe.
+The distance (1 mm) and the share (70 %) stay placeholders.
+
+**Rejected.** Wiping outer walls only: the same ooze leaves a blob at the end of any line where a retraction follows, and
+a hidden line's blob can still lift the nozzle's next pass. Leaving it to a calibration: no plate reads it yet.
+
+**Consequences.** Every print that retracts changes: each retraction after a path takes the wipe's moves and time.
