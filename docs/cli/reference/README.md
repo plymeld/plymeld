@@ -56,3 +56,4 @@ Options:
 - [`plymeld report`](report.md): Make a problem report about what you are working on: a zip to attach to a GitHub issue, and the issue filled in for you to read and submit (its address printed, or opened with --open).
 - [`plymeld updates`](updates.md): Whether plymeld checks for a newer release: the setting (off until you turn it on with --set), the feed it asks, and what the last check found; --check asks now.
 - [`plymeld update`](update.md): Install the newest plymeld release over this one.
+- [`plymeld migrate`](migrate.md): Rewrite config and plan files to the settings' current names: a setting renamed in a release under its new name, its value converted (plymeld reads the old name anyway, with a warning); a removed one taken out.

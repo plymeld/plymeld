@@ -396,3 +396,30 @@ inherited and fixing only the restore: the layer's first line would still start 
 **Consequences.** Every print with three or more walls is laid in a new order; every outer wall reached by a retracted
 travel, or left with a retraction, moves its restore or wipe inside it. None of it is measured on a print yet: the next
 print of the nameplate is the test.
+
+## 18. Renamed settings are migrated; a setting's kind matches its dimension (2026-11-10)
+
+**Context.** Settings were renamed with no fallback while plymeld had no other users: a file with an old name was
+refused. With public releases, a rename breaks people's config and plan files, and every g-code's recorded settings,
+which `slice --from` replays with plymeld's own values among them (the old `inner_first`, renamed
+`plan.layer.walls.order`, made every earlier g-code unreadable by `--from`). Separately, each setting is declared twice,
+in the schema (its dimension, how a value is parsed) and in the catalog (its kind, what the pipeline gets); a share
+declared PERCENT in the catalog reached the pipeline times 100 (a scarf's flow, 100 % read as 100), and the test
+comparing the two declarations allowed either for a ratio.
+
+**Decision.** One table of changes (`Migrations`): each renamed setting's old path, its new path, how its value converts,
+and the last release that read it; each removed one with why. Every config source passes through it as it is read
+(`ConfigStack`, before the later source wins), so an old name reads as the new one, under an object's or a part's scope
+too, with a warning naming both. `plymeld migrate` rewrites config and plan files in place (`TomlEdit.rename`, comments
+kept), journaled. A g-code's recorded settings are migrated as they are read and never rewritten: they reproduce the
+print they recorded (`inner_first = false` reads as `outer_first`). An entry stays at least until a release whose version
+starts a new year. The catalog's PERCENT kind is gone: every share is FRACTION, 0 to 1, and only the two fan values the
+fan commands read are turned into percentages, where `SliceSettings` reads them; the schema test now allows FRACTION
+alone for a ratio.
+
+**Rejected.** Dropping a g-code's recorded plymeld values in favor of today's bundle on `--from`: it would no longer
+reproduce the print it recorded. Refusing old names with a message: every user would have to edit files by hand on every
+release. A fake unit (`1.2x`) for multipliers: the value was parsed right; the second declaration scaled it.
+
+**Consequences.** A rename is now a table entry plus its test, and an old file keeps working with a warning; `migrate`
+is a new command (in the window, its form). A JSON config is read with the new names but not rewritten.

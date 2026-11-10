@@ -40,6 +40,11 @@ config files (`plymeld schema -o plymeld.schema.json`).
 `plymeld edit FILE PATH=VALUE...` writes values into a config file and keeps the rest of it as it was: comments,
 order, and the other values. With `--journal`, the edit is recorded, and `plymeld journal --undo` takes it back.
 
+When a release renames a setting, plymeld still reads the old name, as the new one, and warns that it did; a g-code's
+recorded settings (`slice --from`) are read the same way. `plymeld migrate FILE...` rewrites your config and plan
+files to the current names, comments and the rest as they were, and records each file it changes for
+`plymeld journal --undo`.
+
 ## Slice
 
 ```

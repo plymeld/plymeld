@@ -102,6 +102,33 @@ object TomlEdit {
         return lines.filterIndexed { i, _ -> keep[i] }.joinToString("\n") to removed
     }
 
+    /**
+     * The line holding [oldPath] rewritten in place as [newPath] = [value], its comments (after it and above it) kept, when
+     * the table the line is under also prefixes [newPath]; else [oldPath] unset and [newPath] set ([unset], [set]). The
+     * text unchanged when the file has no such key.
+     */
+    fun rename(text: String, oldPath: String, newPath: String, value: String): String {
+        val target = segments(oldPath); val to = segments(newPath)
+        val lines = text.split("\n").toMutableList()
+        var table: List<String> = emptyList()
+        for ((i, raw) in lines.withIndex()) {
+            val t = raw.trim()
+            if (t.startsWith("[[")) { table = listOf("\u0000"); continue }
+            if (t.startsWith("[")) { table = segments(t.removePrefix("[").removeSuffix("]").trim()); continue }
+            if (t.isEmpty() || t.startsWith("#")) continue
+            val eq = keyEnd(raw); if (eq < 0) continue
+            if (table + segments(raw.substring(0, eq).trim()) != target) continue
+            if (table.size < to.size && to.subList(0, table.size) == table) {
+                val indent = raw.takeWhile { it == ' ' || it == '\t' }
+                val (_, rest) = valueAndRest(raw.substring(eq + 1))
+                lines[i] = indent + to.drop(table.size).joinToString(".") { bare(it) } + " = " + quote(value) + rest
+                return lines.joinToString("\n")
+            }
+            return set(unset(text, oldPath).first, newPath, value).text
+        }
+        return text
+    }
+
     /** The value a key line holds (unquoted), or null when the file has no such key. */
     fun get(text: String, path: String): String? {
         val target = segments(path)

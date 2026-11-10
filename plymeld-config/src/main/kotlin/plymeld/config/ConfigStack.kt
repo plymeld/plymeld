@@ -9,8 +9,14 @@ import java.nio.file.Path
  * set for an object or part wins over the general one whatever the order — see [Config.scoped].
  */
 class ConfigStack(given: List<ConfigFiles.Entry>) {
-    /** Every entry as given, in order (for a stack built from this one with some left out), a chosen value spelled the British way read the American way ([Spelling]). */
-    val all: List<ConfigFiles.Entry> = given.map(Spelling::entry)
+    /** A note for each entry read under a setting's new name or left out as removed ([Migrations]): the config's warnings. */
+    val migrated = ArrayList<String>()
+    /**
+     * Every entry as given, in order (for a stack built from this one with some left out), a chosen value spelled the British
+     * way read the American way ([Spelling]), a renamed setting under its new name ([Migrations], before the later source
+     * wins, so an old name and a new one layer by their sources' order).
+     */
+    val all: List<ConfigFiles.Entry> = given.mapNotNull { g -> Migrations.migrate(Spelling.entry(g)).let { r -> r.note?.let(migrated::add); r.entry } }
     /** Each path's value from the last source that set it, in first-seen path order. */
     val effective: Map<String, ConfigFiles.Entry> = LinkedHashMap<String, ConfigFiles.Entry>().also { m -> for (e in all) { m.remove(e.key); m[e.key] = e } }
     /** Every entry that was overridden by a later source at the same path (for `config explain`). */
