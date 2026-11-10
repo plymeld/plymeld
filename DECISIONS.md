@@ -324,3 +324,24 @@ Deciding the front from the model's geometry: no rule tells a nameplate's face f
 unset: seams move toward the back, and a decision whose benefit lies on faces turned away (a curved top on a round,
 symmetric part) may lose. A model modeled facing another way sets its own `view_from` (or `plan.object.<key>.view_from`).
 The technique samples and the curved-island tests, round and symmetric, set `all_around`.
+
+## 15. Least-visible seams are planned across layers (2026-11-09)
+
+**Context.** Least-visible seams were placed layer by layer: each loop's seam at its cheapest point, counting a jog
+from the seam below. On a plain wall no one layer saves enough to pay the move to a better side, so a seam a feature
+drew to the front low on the wall stayed in line on the front face all the way up. On a nameplate it ran from the
+lettering to the top edge, even with the print looked at from its front.
+
+**Decision.** The outer walls' least-visible seams are planned over each run of layers where a loop continues one to
+one (each loop linked to the loop below it overlaps most): the line of points through the run whose cost in all is
+least, each point as `seam_scar` charges it (how much it is seen times its blemish) and each move from the point below
+its length times the line width, times how much the new point is seen. Each loop is then placed with its planned point
+as the seam below, so corners, overhangs, and the ramp are still judged where it is placed. At most 160 candidate points
+per loop (every n-th and the cheapest), a bound on time.
+
+**Rejected.** Looking ahead a fixed number of layers: the move a plain wall needs may pay off only over a hundred
+layers. A penalty for the front alone: the view already says which side is seen; the fault was paying the move layer
+by layer. Planning where loops split or merge: those layers keep the placement layer by layer.
+
+**Consequences.** Seams on prints with least-visible seams move (the regression cases' outer walls start elsewhere;
+nothing else changes). Where loops split or merge, a run ends and a new one starts, so a seam may move there.

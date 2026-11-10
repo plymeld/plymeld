@@ -21,6 +21,11 @@ section the release's version and date.
 - A scarf seam is judged by its whole ramp, not its start alone, where it is placed and in the seam measure: the seam
   goes where the most-seen point of its ramp is seen least. A nameplate's seams started hidden in a letter's pocket, and
   their 10 mm ramps ran out onto the face beside the letter.
+- Least-visible seams are planned up the whole wall, not layer by layer. Each layer's seam stayed in line with the one
+  below rather than pay the move to a better place on its own, so a seam drawn to the front by a feature low on the
+  wall ran up the front face above it to the top. Planned over all the layers a loop continues through, the move is
+  paid once where it costs least: on a round column with a slot in its front, the 118 seams above the slot went from
+  the front face to the back, in one line.
 
 ## [0.20261109.1] - 2026-11-09
 
