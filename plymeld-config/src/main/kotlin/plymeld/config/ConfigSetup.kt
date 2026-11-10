@@ -198,14 +198,13 @@ object ConfigSetup {
     private fun value(c: Config, d: Schema.Decl, site: Site, id: String): Sourced? = valueOf(c, d, entryAt(c, d, site) ?: return null, site, id)
 
     /**
-     * [e]'s value read by decl [d]'s type for setting [id] (a choice mapped to the pipeline's word, a percent scaled), with its
+     * [e]'s value read by decl [d]'s type for setting [id] (a choice mapped to the pipeline's word), with its
      * source and the lines behind it: [e]'s own (through `like`) and every value a formula in it reads.
      */
     private fun valueOf(c: Config, d: Schema.Decl, e: ConfigFiles.Entry, site: Site, id: String): Sourced {
-        val kind = Catalog[id].kind
         val (v, reads) = c.reading {
             when (val t = d.type) {
-                is Schema.Type.Quantity -> c.quantity(e, t.dim, site).let { x -> if (kind == Kind.PERCENT) x * 100 else x }
+                is Schema.Type.Quantity -> c.quantity(e, t.dim, site)
                 is Schema.Type.Choice -> CHOICES[id]?.get(e.value as String) ?: e.value
                 is Schema.Type.Bool -> c.boolean(e, site)
                 else -> e.value
@@ -455,10 +454,10 @@ object ConfigSetup {
                 // the part fan and the minimum layer time for this object or part over the filament's (plan.mechanism.cooling.*,
                 // what bond-first cooling sets, or a config of the user's). The overhang fan is its own setting
                 // (hardware.filament.overhang.fan, the filament's cooling.fan by default) and is not changed by these.
-                pl("mechanism.cooling.fan")?.let { e -> set("hardware.filament.cooling.fan", c.quantity(e, Dimension.RATIO, site) * 100, "${e.key} (${e.source})", e) }
+                pl("mechanism.cooling.fan")?.let { e -> set("hardware.filament.cooling.fan", c.quantity(e, Dimension.RATIO, site), "${e.key} (${e.source})", e) }
                 pl("mechanism.cooling.layer.time.min")?.let { e -> set("hardware.filament.cooling.layer.time.min", c.quantity(e, Dimension.TIME, site), "${e.key} (${e.source})", e) }
                 // and over air (the arched-bridge calibration plate: half the fan over air on some specimens of a plate)
-                pl("mechanism.cooling.overhang_fan")?.let { e -> set("hardware.filament.overhang.fan", c.quantity(e, Dimension.RATIO, site) * 100, "${e.key} (${e.source})", e) }
+                pl("mechanism.cooling.overhang_fan")?.let { e -> set("hardware.filament.overhang.fan", c.quantity(e, Dimension.RATIO, site), "${e.key} (${e.source})", e) }
                 // an idle nozzle's drop: its filament's print temperature less its idle one
                 val pr = hw("filament", site.filament, "temperature.print"); val idle = hw("filament", site.filament, "temperature.idle")
                 if (pr != null && idle != null) set("hardware.filament.temperature.idle_drop", c.quantity(pr, Dimension.TEMPERATURE, site) - c.quantity(idle, Dimension.TEMPERATURE, site), idle.source, pr, idle)

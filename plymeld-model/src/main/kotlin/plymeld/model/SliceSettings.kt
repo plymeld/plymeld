@@ -307,7 +307,8 @@ class SliceSettings private constructor(r: (String) -> Any, opt: (String) -> Any
     /** The object's filament (its own spool, like every filament value here): how far its outer wall line may hang past the one below. */
     val overhang by setting { Overhang(num("hardware.filament.overhang.share"), num("plan.layer.walls.outer.line.width")) }
     /** The conditions [overhang] holds at: the part fan while a line hangs past the one below (%), and the fastest such a line prints (mm/s; null = not known: only the graded slow-down). */
-    val overhangFanPct by setting { num("hardware.filament.overhang.fan") }
+    /** The part fan while a line hangs over (percent of full speed, as the fan commands take it; the setting is a share). */
+    val overhangFanPct by setting { num("hardware.filament.overhang.fan") * 100 }
     val overhangSpeed: Double? by setting { (opt("hardware.filament.overhang.speed") as Number?)?.toDouble() }
     /** Another slicer's gaps (investigation); null = plymeld's rules (Planner): one support line to the side, one layer on top. */
     val supportXyUm: Long? by setting { (opt("plan.support.gap.side") as Number?)?.let { Math.round(it.toDouble() * 1000) } }
@@ -366,7 +367,8 @@ class SliceSettings private constructor(r: (String) -> Any, opt: (String) -> Any
     val coolingDwellLiftUm by setting { um("plan.mechanism.cooling.dwell.lift") }
     val slowDownMinSpeed by setting { num("hardware.filament.cooling.speed.min") }
     val fanOffFirstLayers by setting { int("hardware.filament.cooling.fan_off_layers") }
-    val fanMinPct by setting { num("hardware.filament.cooling.fan") }
+    /** The part fan once it is on (percent of full speed, as the fan commands take it; the setting is a share). */
+    val fanMinPct by setting { num("hardware.filament.cooling.fan") * 100 }
     val filamentDiameterMm by setting { num("hardware.filament.diameter") }
     val flowRatio by setting { num("hardware.filament.flow") }
     val nozzleTempC by setting { int("hardware.filament.temperature.print") }

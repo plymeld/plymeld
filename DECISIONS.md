@@ -379,6 +379,8 @@ and at the loop's end retracted standing on the face again, with no wipe. Both o
   The wall beside the outer one, laid after it, starts each loop at its point nearest where the outer wall ended (an
   inner wall's start is not seen), and the step onto it does not retract, as the step from an inner wall onto the outer
   wall's seam never has: kept at its own seam, the step was a travel of tens of mm with a retraction on the visible face.
+  Likewise the inner wall laid just before the outer one starts nearest the outer wall's start (left at its own seam, the
+  step onto the outer wall was an unretracted travel of 36 mm along the inside of the face).
 - An outer wall's restore after a retracted travel is made one line width inside its start, at the layer's top, and the
   head then moves onto the start with nothing pushed (`retract.return.inside`).
 - An outer wall's wipe steps one line width inside it before running back along it (`retract.wipe.inward`).

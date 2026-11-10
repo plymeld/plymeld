@@ -19,10 +19,11 @@ object ObjectDecisions {
     fun bond(setup: Setup, k: Int, name: String, parts: List<TriangleSoup>, weakestBond: Double?, lock: Pair<Boolean, String>?): Decision<BondCooling.Choice>? {
         val ctx = Context(k)
         fun num(id: String) = (Resolver.resolveOrNull(setup, id, ctx)?.value as Number?)?.toDouble()
-        val fan = num("hardware.filament.cooling.fan") ?: return null
+        // the fans as percentages of full speed (BondCooling's unit); the settings are shares
+        val fan = (num("hardware.filament.cooling.fan") ?: return null) * 100
         val minT = num("hardware.filament.cooling.layer.time.min") ?: return null
         val printC = num("hardware.filament.temperature.print") ?: return null
-        val bFan = num("plan.technique.bond_cooling.fan") ?: return null
+        val bFan = (num("plan.technique.bond_cooling.fan") ?: return null) * 100
         val bMin = num("plan.technique.bond_cooling.layer.time.min") ?: return null
         var bTemp = num("plan.technique.bond_cooling.temperature") ?: return null
         // capped at the filament's temperature.max where it has one

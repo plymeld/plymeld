@@ -563,8 +563,6 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 val startZ = (p.zs?.get(0) ?: p.zUm) / 1000.0
                 // a calibration cell is read alone (its block from its CELL line): it states its width and acceleration
                 p.exact?.let { out.write("; CELL: ${it.label}\n"); widthWritten = null; accelWritten = null }
-                if (p.feature != feature) { out.write(dialect.feature(p.feature)); feature = p.feature; widthWritten = null }
-                n(p.widthUm / 1000.0).let { wt -> if (wt != widthWritten) { out.write(dialect.width(wt)); widthWritten = wt } }
                 val sx = p.xy[0] / 1000.0; val sy = p.xy[1] / 1000.0
                 // travel
                 val d = if (x.isNaN()) Double.POSITIVE_INFINITY else Math.hypot(sx - x, sy - y)
@@ -607,6 +605,10 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                         retracted = true
                     }
                 }
+                // the path's feature and width after the retraction and its wipe, which belong to the path just laid (written
+                // before them, a wipe along an inner wall was labelled as the outer wall that followed)
+                if (p.feature != feature) { out.write(dialect.feature(p.feature)); feature = p.feature; widthWritten = null }
+                n(p.widthUm / 1000.0).let { wt -> if (wt != widthWritten) { out.write(dialect.width(wt)); widthWritten = wt } }
                 // the travel's route: TravelRouter planned it from the path's end, and a wipe left the head up to its distance back
                 // along the path, so it is planned again from there (on the regression Benchy, 77 of the 123 travels
                 // still crossing their own island's outer wall were a wipe's: its end cut back across the wall it had followed)

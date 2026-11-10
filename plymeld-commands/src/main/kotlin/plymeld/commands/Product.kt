@@ -454,7 +454,7 @@ class Product(given: ConfigStack, modelFiles: List<Path>, machine: String? = nul
             val v = result.setup.intents.getValue(plate[k].first.key)
             val c = d.value.conditions
             val why = "decided: bond-first cooling (" + (if (d.overridden) "plan.bond_cooling = on" else "weighed by the job's weights") + ")"
-            v["hardware.filament.cooling.fan"] = plymeld.model.Sourced(c.fanPct, why)
+            v["hardware.filament.cooling.fan"] = plymeld.model.Sourced(c.fanPct / 100, why)   // the setting is a share
             v["hardware.filament.cooling.layer.time.min"] = plymeld.model.Sourced(c.minLayerTimeS, why)
             v["hardware.filament.temperature.print"] = plymeld.model.Sourced(c.nozzleC, why)
         }
