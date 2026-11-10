@@ -28,6 +28,7 @@ object UiRegistry {
         Surface("plymeld init", "the window: step 2's Set up a printer (shown with no config file open): the same questions as a form in the drawer, checked and written the same way (FirstUse)"),
         Surface("plymeld edit", "the drawer: lock a band's height, keep or release a spot, decide a technique or a spot again, set a setting's value; each recorded in the job's journal; $FORM", setOf("--keep", "--unset", "--unset-under", "--journal")),
         Surface("plymeld journal", "the bar and the tray's History: undo and redo over the job's journal beside its plan file; $FORM", setOf("--undo", "--redo")),
+        Surface("plymeld migrate", FORM),
         Surface("plymeld printer status", "the window: step 2 (Ask the printer: the state's lines); $FORM", setOf("-cf", "--machine")),
         Surface("plymeld printer loadout", "the window: step 2 (Ask the printer: the loadout rows, disagreements in red); $FORM", setOf("-cf", "--machine")),
         Surface("plymeld printer camera", "the window: step 2 (Ask the printer: the frame); $FORM", setOf("-cf", "--machine", "-o")),

@@ -65,7 +65,7 @@ class Plymeld : CliktCommand(name = "plymeld") {
 object Commands {
     /** The command tree, fresh (Clikt commands hold their parsed values, so each parse gets its own). */
     fun tree(): Plymeld = Plymeld().subcommands(SliceCommand(), PlanCommand(), ShowConfigCommand(), SchemaCommand(), LayersCommand(), CalibrateCommand(),
-        RenderPlateCommand(), PrinterCommand(), InvestigateCommand(), CommandsCommand(), EditCommand(), JournalCommand(), InitCommand(), ReportCommand(), UpdatesCommand(), UpdateCommand())
+        RenderPlateCommand(), PrinterCommand(), InvestigateCommand(), CommandsCommand(), EditCommand(), JournalCommand(), InitCommand(), ReportCommand(), UpdatesCommand(), UpdateCommand(), MigrateCommand())
 
     /**
      * Runs a command line as the CLI does and returns the exit status. Refusals (plymeld's own `require` / `error`

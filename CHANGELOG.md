@@ -11,6 +11,10 @@ section the release's version and date.
 
 ### Added
 
+- Renamed settings are read under their new names: a config file, a plan file, or a g-code's recorded settings
+  (`slice --from`) that uses a name a release changed reads as the new one, its value converted, with a warning naming
+  both. `plymeld migrate FILE...` rewrites config and plan files to the current names, comments and the rest kept, each
+  change recorded for `plymeld journal --undo`.
 - `plan.technique.scarf_seam.speed`, `.step` and `.flow`: a scarf seam's ramp and its closing pass at their own speed
   (half the visible lines' by default) and flow (100 %), the ramp rising in steps no longer than `.step` (1 mm, the length
   that was fixed before).
