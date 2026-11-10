@@ -367,7 +367,7 @@ a hidden line's blob can still lift the nozzle's next pass. Leaving it to a cali
 
 **Context.** On a two-color nameplate the outer walls' scarf seams showed far more than scarf seams do, though each
 scarf was laid as planned (its ramp and closing pass making one layer). The outer wall was laid first in each contour
-(`plan.layer.walls.inner_first`, false, an inherited value with no reason recorded): the head came down from a travel
+(the old switch `inner_first`, false, an inherited value with no reason recorded): the head came down from a travel
 onto the visible face, pushed its 0.8 mm retraction back standing at the seam, where the ramp is meant to be thinnest,
 and at the loop's end retracted standing on the face again, with no wipe. Both of the scarf's ends carried a blob.
 
@@ -376,6 +376,9 @@ and at the loop's end retracted standing on the face again, with no wipe. Both o
   the outer wall, then the outer wall, then that one), so a layer's first line and the travel's arrival are on hidden
   walls and the outer wall is still laid free; inner first with fewer than three walls, or where the outer wall hangs out
   past the layer below (the overhang slow-down's start, the same rule the seams read), where it needs the wall beside it.
+  The wall beside the outer one, laid after it, starts each loop at its point nearest where the outer wall ended (an
+  inner wall's start is not seen), and the step onto it does not retract, as the step from an inner wall onto the outer
+  wall's seam never has: kept at its own seam, the step was a travel of tens of mm with a retraction on the visible face.
 - An outer wall's restore after a retracted travel is made one line width inside its start, at the layer's top, and the
   head then moves onto the start with nothing pushed (`retract.return.inside`).
 - An outer wall's wipe steps one line width inside it before running back along it (`retract.wipe.inward`).

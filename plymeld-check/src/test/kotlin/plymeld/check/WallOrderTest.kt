@@ -69,6 +69,26 @@ class WallOrderTest : StringSpec({
         w[w.size - 2] shouldBe 0
         w.dropLast(2).all { it >= 2 } shouldBe true
     }
+    "inner_outer_inner: the wall beside the outer one starts nearest where the outer wall ended and is stepped onto without a retraction" {
+        val s = SliceSettings.of(testSetup("plan.layer.walls.order" to "inner_outer_inner", "plan.layer.walls.style" to "fixed_width",
+            "plan.layer.walls.thickness" to "= 4 * plan.layer.walls.inner.line.width", "plan.mechanism.motion.no_retract_in_island" to false,
+            // a scarf seam: the outer wall ends 10 mm along from its seam (its ramp's end), away from the wall beside it's own
+            // seam, so a start left at that seam is caught
+            "plan.technique.scarf_seam.enabled" to true, "plan.technique.scarf_seam.where" to "all", "plan.technique.scarf_seam.length" to "10 mm"))
+        val n = 10
+        val tops = LongArray(n) { s.firstLayerHeightUm + it * 200L }
+        val layer = Planner.plan(s, List(n) { listOf(square(30_000, 30_000, 20_000)) }, tops)[5]
+        val walls = layer.paths.filter { it.feature == Feature.OUTER_WALL || it.feature == Feature.INNER_WALL }
+        val k = walls.indexOfFirst { it.wall == 0 }
+        val outer = walls[k]; val beside = walls[k + 1]
+        val end = plymeld.core.Scarf.endOf(outer)
+        val step = Math.hypot((beside.xy[0] - end[0]).toDouble(), (beside.xy[1] - end[1]).toDouble()) / 1000.0
+        println("from the outer wall's end (${end[0]}, ${end[1]}) to the wall beside it: %.2f mm, retract ${beside.retractBefore}".format(java.util.Locale.ROOT, step))
+        beside.wall shouldBe 1
+        // its loop lies a line inside the outer wall: started nearest, the step is about a line, under two
+        (step < 2 * 0.44) shouldBe true
+        beside.retractBefore shouldBe false
+    }
     "controls: with two walls, and where the outer wall steps out past the layer below, inner_outer_inner lays inner first" {
         val two = laid("inner_outer_inner", walls = 2)
         val over = laid("inner_outer_inner", stepOut = true)

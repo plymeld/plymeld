@@ -17,7 +17,7 @@ section the release's version and date.
 
 ### Changed
 
-- Each contour's walls are laid in the order `plan.layer.walls.order` names (it replaces `plan.layer.walls.inner_first`):
+- Each contour's walls are laid in the order `plan.layer.walls.order` names (it replaces the old switch, `inner_first`):
   `inner_outer_inner` by default, the walls past the one beside the outer wall, then the outer wall, then that one; so a
   layer's first line, its un-retraction and the travel's arrival land on hidden walls, not on the visible face, and the
   outer wall is still laid free. With fewer than three walls, or where the outer wall hangs out past the layer below,
