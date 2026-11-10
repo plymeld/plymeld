@@ -79,6 +79,9 @@ flow = "100%"
 # melt rate (docs/user/how-to/visible-motion.md, docs/user/how-to/melt-rate.md). PLACEHOLDERS: the visible cap is to be decided from the quality weight; these two are
 # stand-ins for a machine that sets none (its hardware.machine.<key>.motion.visible_*, from its motion plate, win; yours here win over that)
 [plan.mechanism.motion]
+# every printing speed plymeld decides, times this (travels and retractions as they are): 75% for a print where finish
+# matters more than time, without changing each speed
+speed.factor = "100%"
 visible.speed = "100 mm/s"
 visible.acceleration = "= machine.motion.print.acceleration / 2"
 # inner walls at the hidden lines' speed unless this says otherwise: whether their ripple shows through is not measured yet

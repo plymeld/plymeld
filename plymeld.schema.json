@@ -4524,6 +4524,13 @@
                   "type": "object",
                   "additionalProperties": false,
                   "properties": {
+                    "factor": {
+                      "description": "every printing speed plymeld decides, times this: visible and hidden lines, the first layer, bridges, overhangs, ironing, the purge tower, the techniques' own speeds (75% for a print where finish matters more than time). Travels and retractions keep their speeds. Above 100% a speed never goes past the machine's printing speed (hardware.machine.<key>.motion.print.speed); the filament's melt cap, the minimum layer time and the time prediction read the speeds scaled. Bundled: 100% — a multiplier (0.15 or 15%); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    },
                     "max": {
                       "description": "the fastest any line prints, whatever its own speed; set on a region (plan.object.<key>.region.<key>.mechanism.motion.speed.max) for the lines in it only, without laying the object in pieces; unset = no cap — a speed (mm/s); or a formula (= ...)",
                       "type": [
@@ -6555,6 +6562,13 @@
                   "type": "object",
                   "additionalProperties": false,
                   "properties": {
+                    "factor": {
+                      "description": "every printing speed plymeld decides, times this: visible and hidden lines, the first layer, bridges, overhangs, ironing, the purge tower, the techniques' own speeds (75% for a print where finish matters more than time). Travels and retractions keep their speeds. Above 100% a speed never goes past the machine's printing speed (hardware.machine.<key>.motion.print.speed); the filament's melt cap, the minimum layer time and the time prediction read the speeds scaled. Bundled: 100% — a multiplier (0.15 or 15%); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    },
                     "max": {
                       "description": "the fastest any line prints, whatever its own speed; set on a region (plan.object.<key>.region.<key>.mechanism.motion.speed.max) for the lines in it only, without laying the object in pieces; unset = no cap — a speed (mm/s); or a formula (= ...)",
                       "type": [
@@ -8705,6 +8719,13 @@
                   "type": "object",
                   "additionalProperties": false,
                   "properties": {
+                    "factor": {
+                      "description": "every printing speed plymeld decides, times this: visible and hidden lines, the first layer, bridges, overhangs, ironing, the purge tower, the techniques' own speeds (75% for a print where finish matters more than time). Travels and retractions keep their speeds. Above 100% a speed never goes past the machine's printing speed (hardware.machine.<key>.motion.print.speed); the filament's melt cap, the minimum layer time and the time prediction read the speeds scaled. Bundled: 100% — a multiplier (0.15 or 15%); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    },
                     "max": {
                       "description": "the fastest any line prints, whatever its own speed; set on a region (plan.object.<key>.region.<key>.mechanism.motion.speed.max) for the lines in it only, without laying the object in pieces; unset = no cap — a speed (mm/s); or a formula (= ...)",
                       "type": [

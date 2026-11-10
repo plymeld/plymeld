@@ -282,6 +282,7 @@ object Catalog {
         // hidden ones print at the machine's fastest move; every move is capped by the melt rate
         s("plan.mechanism.motion.visible.speed", INTENT, SPEED, "speed of visible lines: outer walls, top and bottom surfaces")
         s("plan.mechanism.motion.speed.max", INTENT, SPEED, "the fastest any line prints, whatever its own speed; unset = no cap")
+        s("plan.mechanism.motion.speed.factor", INTENT, FRACTION, "every printing speed plymeld decides, times this (travels and retractions as they are; above 100 % never past the machine's printing speed)")
         s("plan.mechanism.motion.acceleration.max", INTENT, ACCEL, "the most any line accelerates, whatever its own acceleration; unset = no cap")
         s("plan.mechanism.motion.inner_walls.as_visible", INTENT, BOOL, "inner walls at the visible lines' speed and acceleration (plan.mechanism.motion.visible.*), so their ripple does not show through the outer wall in front of them; off: at the hidden lines'")
         s("plan.mechanism.cooling.slowdown.style", INTENT, CHOICE, "how a layer is slowed to its minimum layer time: hidden_first (the hidden lines first, the visible only for the rest) or even (every line by one factor)",
