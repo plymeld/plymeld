@@ -1672,7 +1672,7 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
             "plan.layer.infill.density", "plan.layer.infill.area.min", "plan.layer.top.under_parts")
         val PATH_KEYS = arrayOf(
             "plan.mechanism.adhesion.brim.where", "plan.mechanism.adhesion.brim.width", "plan.mechanism.adhesion.brim.gap",
-            "plan.layer.walls.inner_first", "plan.seam", "plan.technique.corner_seam.corner_angle",
+            "plan.layer.walls.order", "plan.seam", "plan.technique.corner_seam.corner_angle",
             "plan.view_from", "method.quality.visibility.under", "method.quality.visibility.bed", "method.quality.visibility.away", "method.quality.seam.corner_share",
             "method.quality.seam.scarf_share",
             "method.quality.visibility.sample.azimuths", "method.quality.visibility.sample.elevations", "method.quality.visibility.sample.elevation.max",

@@ -34,7 +34,7 @@ class OrcaImportTest : StringSpec({
         s.wallLoops shouldBe 3
         s.outerWallWidthUm shouldBe 440
         s.elephantFootUm shouldBe 100
-        s.innerWallsFirst shouldBe true
+        s.wallOrder shouldBe "inner_first"
         s.topLayers shouldBe 4                                       // four layers, no thickness
         s.sparseDensity shouldBe (0.25 plusOrMinus 1e-12)
         s.sparsePattern shouldBe "grid"

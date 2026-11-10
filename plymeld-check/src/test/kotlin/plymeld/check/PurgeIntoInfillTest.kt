@@ -158,8 +158,8 @@ class PurgeIntoInfillTest : StringSpec({
         (bLayers.sumOf { l -> l.paths.count { !it.retractBefore } } > 0) shouldBe true
     }
     "on a layer where the new filament lays no infill, its inner walls come first, before its outer wall planned first; control: its planned order began with the outer wall" {
-        // outer walls planned first (plan.layer.walls.inner_first = false), as on the nameplate this was found on
-        val sOuter = plymeld.model.SliceSettings.of(testSetup("plan.layer.walls.inner_first" to false))
+        // outer walls planned first (plan.layer.walls.order = outer_first), as on the nameplate this was found on
+        val sOuter = plymeld.model.SliceSettings.of(testSetup("plan.layer.walls.order" to "outer_first"))
         val rOuter = MultiFilament.plan(sOuter, parts, listOf("spool 1", "spool 2"), listOf(0, 1), tops, "spool 1")
         val bLayers = rOuter.filaments.single { it.spool == "spool 2" }.layers
         val firsts = ArrayList<String>(); var pending = false; var inObject = false

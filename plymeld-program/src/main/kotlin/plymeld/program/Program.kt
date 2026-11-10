@@ -63,6 +63,13 @@ class Extrude(
     val speedMax: DoubleArray? = null,
     /** Each segment's most acceleration (mm/s²), a region's cap (plan.mechanism.motion.acceleration.max); NaN = none; null = no segment has one. */
     val accelMax: DoubleArray? = null,
+    /**
+     * A run of a closed wall loop laid as several open paths (a scarf seam's ramp, the rest of the loop, its closing pass:
+     * Scarf.extrudes): its material on its left, as a closed loop's, for where the writer restores and wipes.
+     */
+    val ofLoop: Boolean = false,
+    /** A scarf seam's ramp or its closing pass: laid at the scarf's own speed and flow (plan.technique.scarf_seam.speed, .flow). */
+    val scarf: Boolean = false,
 ) : Step {
     init {
         val m = xy.size / 2
@@ -86,12 +93,12 @@ class Extrude(
     val curved: Boolean get() = zs != null || heights != null
 
     /** The same path with the travel into it going through [via] (null = straight). */
-    fun withVia(via: LongArray?) = Extrude(feature, xy, closed, zUm, widthUm, heightUm, tool, overhangShare, ePerMmOverride, retractBefore, widths, exact, zs, heights, via, segmentSpeeds, hopOnly, speedMax, accelMax)
+    fun withVia(via: LongArray?) = Extrude(feature, xy, closed, zUm, widthUm, heightUm, tool, overhangShare, ePerMmOverride, retractBefore, widths, exact, zs, heights, via, segmentSpeeds, hopOnly, speedMax, accelMax, ofLoop, scarf)
     /** The same path with [hopOnly] set: false where the travel into it is not a hop after all (routed along the wall, TravelRouter.alongWall). */
-    fun withHopOnly(hop: Boolean) = Extrude(feature, xy, closed, zUm, widthUm, heightUm, tool, overhangShare, ePerMmOverride, retractBefore, widths, exact, zs, heights, via, segmentSpeeds, hop, speedMax, accelMax)
+    fun withHopOnly(hop: Boolean) = Extrude(feature, xy, closed, zUm, widthUm, heightUm, tool, overhangShare, ePerMmOverride, retractBefore, widths, exact, zs, heights, via, segmentSpeeds, hop, speedMax, accelMax, ofLoop, scarf)
     /** The same path with [retractBefore] set (the retraction decision clearing the planner's hidden travels). */
-    fun withRetract(retract: Boolean) = Extrude(feature, xy, closed, zUm, widthUm, heightUm, tool, overhangShare, ePerMmOverride, retract, widths, exact, zs, heights, via, segmentSpeeds, hopOnly, speedMax, accelMax)
-    fun withSegmentSpeeds(speeds: DoubleArray?) = Extrude(feature, xy, closed, zUm, widthUm, heightUm, tool, overhangShare, ePerMmOverride, retractBefore, widths, exact, zs, heights, via, speeds, hopOnly, speedMax, accelMax)
+    fun withRetract(retract: Boolean) = Extrude(feature, xy, closed, zUm, widthUm, heightUm, tool, overhangShare, ePerMmOverride, retract, widths, exact, zs, heights, via, segmentSpeeds, hopOnly, speedMax, accelMax, ofLoop, scarf)
+    fun withSegmentSpeeds(speeds: DoubleArray?) = Extrude(feature, xy, closed, zUm, widthUm, heightUm, tool, overhangShare, ePerMmOverride, retractBefore, widths, exact, zs, heights, via, speeds, hopOnly, speedMax, accelMax, ofLoop, scarf)
 }
 
 /** A speck's hop ([Extrude.hops]) reaches at most this many of its line widths when not combed. */

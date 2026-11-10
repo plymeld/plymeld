@@ -17,13 +17,6 @@ import plymeld.program.Extrude
  * width or flow, is printed as it is.
  */
 object Scarf {
-    /**
-     * The ramp's longest step (µm): the writer lays each segment's plastic from the mean of its ends' thickness, which
-     * overshoots the true mean by (1 - pi/4) (dt)^2 / 4 for a step dt thick; at 1 mm steps on a 10 mm ramp that is
-     * under 0.1 % of the bead. plymeld's choice.
-     */
-    const val RAMP_STEP_UM = 1000.0
-
     /** A scarf's ramp on a loop: its length (µm), the loop edge [j] holding its end Q = ([qx], [qy]), the loop's edge lengths. */
     private class Ramp(val ramp: Double, val j: Int, val qx: Long, val qy: Long, val len: DoubleArray)
 
@@ -61,15 +54,17 @@ object Scarf {
         fun x(i: Int) = p.xy[2 * (i % m)]
         fun y(i: Int) = p.xy[2 * (i % m) + 1]
         val len = r.len; val ramp = r.ramp; val j = r.j; val qx = r.qx; val qy = r.qy
-        // the ramp's vertices: the seam (vertex 0) .. vertex j, then Q, each edge split into steps of at most RAMP_STEP_UM
-        // (the writer lays a segment's plastic from the mean of its ends' thickness, exact only for short steps);
+        // the ramp's vertices: the seam (vertex 0) .. vertex j, then Q, each edge split into steps of at most the path's
+        // scarfStepUm (plan.technique.scarf_seam.step): the writer lays a segment's plastic from the mean of its ends'
+        // thickness, which overshoots the true mean by (1 - pi/4) (dt)^2 / 4 for a step dt thick (at 1 mm steps on a 10 mm
+        // ramp, under 0.1 % of the bead), and the nozzle rises in steps that long;
         // s = the distance along from the seam, edge = the loop edge each step lies on
         val pts = ArrayList<Long>(); val sl = ArrayList<Double>(); val edgeOf = ArrayList<Int>()
         var d = 0.0
         for (k in 0..j) {
             val ex = if (k == j) qx else x(k + 1); val ey = if (k == j) qy else y(k + 1)
             val el = if (k == j) ramp - d else len[k]
-            val n = maxOf(1, Math.ceil(el / RAMP_STEP_UM).toInt())
+            val n = maxOf(1, Math.ceil(el / p.scarfStepUm.coerceAtLeast(1)).toInt())
             for (i in 0 until n) {
                 pts += Math.round(x(k) + (ex - x(k)) * i.toDouble() / n); pts += Math.round(y(k) + (ey - y(k)) * i.toDouble() / n)
                 sl += d + el * i / n; edgeOf += k
@@ -104,9 +99,9 @@ object Scarf {
         val sh = p.overhangShare
         val rampShares = sh?.let { a -> IntArray(rn) { k -> a[edgeOf[k]] } }
         val restShares = sh?.let { a -> IntArray(restN) { k -> a[(j + k) % m] } }
-        val up = Extrude(p.feature.label, rampXy, false, zTopUm, p.widthUm, h, tool, rampShares, null, p.retractBefore, null, zs = upZs, heights = upHs, hopOnly = p.hopOnly)
-        val rest = Extrude(p.feature.label, restXy, false, zTopUm, p.widthUm, h, tool, restShares, null, false, null)
-        val down = Extrude(p.feature.label, rampXy, false, zTopUm, p.widthUm, downHs.max(), tool, rampShares, null, false, null, zs = downZs, heights = downHs)
+        val up = Extrude(p.feature.label, rampXy, false, zTopUm, p.widthUm, h, tool, rampShares, null, p.retractBefore, null, zs = upZs, heights = upHs, hopOnly = p.hopOnly, ofLoop = true, scarf = true)
+        val rest = Extrude(p.feature.label, restXy, false, zTopUm, p.widthUm, h, tool, restShares, null, false, null, ofLoop = true)
+        val down = Extrude(p.feature.label, rampXy, false, zTopUm, p.widthUm, downHs.max(), tool, rampShares, null, false, null, zs = downZs, heights = downHs, ofLoop = true, scarf = true)
         return listOf(up, rest, down)
     }
 }

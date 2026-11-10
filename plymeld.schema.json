@@ -1817,6 +1817,24 @@
                           "string",
                           "number"
                         ]
+                      },
+                      "inside": {
+                        "description": "after a retracted travel into a closed outer wall, the head comes down one line width inside the wall's start, restores the retraction there, and moves onto the start with nothing pushed: the push's blob lands on hidden material, not on the visible face where the seam (a scarf seam's ramp at its thinnest) starts. Not with hardware.filament.<key>.retract.return.distance (the restore then spreads over the path's start). Bundled: true — true or false; or a formula (= ...)",
+                        "anyOf": [
+                          {
+                            "type": "boolean"
+                          },
+                          {
+                            "enum": [
+                              "true",
+                              "false"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "pattern": "^\\s*="
+                          }
+                        ]
                       }
                     }
                   },
@@ -1857,6 +1875,24 @@
                     "type": "object",
                     "additionalProperties": false,
                     "properties": {
+                      "inward": {
+                        "description": "a closed outer wall's wipe (hardware.filament.<key>.retract.wipe.enabled) steps one line width inside the wall first, onto hidden material, then runs back along it there: along the wall itself, the wipe's last ooze lay on the visible face where the retraction ended. Bundled: true — true or false; or a formula (= ...)",
+                        "anyOf": [
+                          {
+                            "type": "boolean"
+                          },
+                          {
+                            "enum": [
+                              "true",
+                              "false"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "pattern": "^\\s*="
+                          }
+                        ]
+                      },
                       "enabled": {
                         "description": "wipe along the path while retracting — true or false; or a formula (= ...)",
                         "anyOf": [
@@ -4157,6 +4193,27 @@
                     "string",
                     "number"
                   ]
+                },
+                "speed": {
+                  "description": "a scarf seam's ramp and its closing pass no faster than this (the bead's thickness and the nozzle's height change along them). Bundled: half the visible lines' speed (plan.mechanism.motion.visible.speed), a placeholder until a print measures it — a speed (mm/s); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                },
+                "step": {
+                  "description": "a scarf ramp's longest step: the ramp rises, and its bead thickens, in steps no longer than this (each step's plastic from the mean of its ends' thickness, exact only for short steps). Bundled: 1 mm — a length (mm); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                },
+                "flow": {
+                  "description": "a scarf seam's ramp and its closing pass laid with this times their plastic (the two wedges, as laid, make one layer's bead). Bundled: 100% — a multiplier (0.15 or 15%); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
                 }
               }
             },
@@ -4235,22 +4292,12 @@
                     }
                   }
                 },
-                "inner_first": {
-                  "description": "INHERITED: inner walls before the outer one — true or false; or a formula (= ...)",
-                  "anyOf": [
-                    {
-                      "type": "boolean"
-                    },
-                    {
-                      "enum": [
-                        "true",
-                        "false"
-                      ]
-                    },
-                    {
-                      "type": "string",
-                      "pattern": "^\\s*="
-                    }
+                "order": {
+                  "description": "the order each contour's walls are laid in: outer_first = the outer wall, then inward (the layer's first line and its un-retraction land on the visible face); inner_first = the innermost first, the outer wall last, laid against the wall beside it (an overhanging outer wall leans on it); inner_outer_inner = the walls past the one beside the outer wall, then the outer wall, then that one: the first line and the travel's arrival land on hidden walls and the outer wall is laid free; with fewer than three walls, or where the outer wall hangs out past the layer below (as far as the overhang slow-down starts), inner_first. Bundled: inner_outer_inner",
+                  "enum": [
+                    "outer_first",
+                    "inner_first",
+                    "inner_outer_inner"
                   ]
                 }
               }
@@ -6188,6 +6235,27 @@
                     "string",
                     "number"
                   ]
+                },
+                "speed": {
+                  "description": "a scarf seam's ramp and its closing pass no faster than this (the bead's thickness and the nozzle's height change along them). Bundled: half the visible lines' speed (plan.mechanism.motion.visible.speed), a placeholder until a print measures it — a speed (mm/s); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                },
+                "step": {
+                  "description": "a scarf ramp's longest step: the ramp rises, and its bead thickens, in steps no longer than this (each step's plastic from the mean of its ends' thickness, exact only for short steps). Bundled: 1 mm — a length (mm); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                },
+                "flow": {
+                  "description": "a scarf seam's ramp and its closing pass laid with this times their plastic (the two wedges, as laid, make one layer's bead). Bundled: 100% — a multiplier (0.15 or 15%); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
                 }
               }
             },
@@ -6266,22 +6334,12 @@
                     }
                   }
                 },
-                "inner_first": {
-                  "description": "INHERITED: inner walls before the outer one — true or false; or a formula (= ...)",
-                  "anyOf": [
-                    {
-                      "type": "boolean"
-                    },
-                    {
-                      "enum": [
-                        "true",
-                        "false"
-                      ]
-                    },
-                    {
-                      "type": "string",
-                      "pattern": "^\\s*="
-                    }
+                "order": {
+                  "description": "the order each contour's walls are laid in: outer_first = the outer wall, then inward (the layer's first line and its un-retraction land on the visible face); inner_first = the innermost first, the outer wall last, laid against the wall beside it (an overhanging outer wall leans on it); inner_outer_inner = the walls past the one beside the outer wall, then the outer wall, then that one: the first line and the travel's arrival land on hidden walls and the outer wall is laid free; with fewer than three walls, or where the outer wall hangs out past the layer below (as far as the overhang slow-down starts), inner_first. Bundled: inner_outer_inner",
+                  "enum": [
+                    "outer_first",
+                    "inner_first",
+                    "inner_outer_inner"
                   ]
                 }
               }
@@ -8338,6 +8396,27 @@
                     "string",
                     "number"
                   ]
+                },
+                "speed": {
+                  "description": "a scarf seam's ramp and its closing pass no faster than this (the bead's thickness and the nozzle's height change along them). Bundled: half the visible lines' speed (plan.mechanism.motion.visible.speed), a placeholder until a print measures it — a speed (mm/s); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                },
+                "step": {
+                  "description": "a scarf ramp's longest step: the ramp rises, and its bead thickens, in steps no longer than this (each step's plastic from the mean of its ends' thickness, exact only for short steps). Bundled: 1 mm — a length (mm); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                },
+                "flow": {
+                  "description": "a scarf seam's ramp and its closing pass laid with this times their plastic (the two wedges, as laid, make one layer's bead). Bundled: 100% — a multiplier (0.15 or 15%); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
                 }
               }
             },
@@ -8416,22 +8495,12 @@
                     }
                   }
                 },
-                "inner_first": {
-                  "description": "INHERITED: inner walls before the outer one — true or false; or a formula (= ...)",
-                  "anyOf": [
-                    {
-                      "type": "boolean"
-                    },
-                    {
-                      "enum": [
-                        "true",
-                        "false"
-                      ]
-                    },
-                    {
-                      "type": "string",
-                      "pattern": "^\\s*="
-                    }
+                "order": {
+                  "description": "the order each contour's walls are laid in: outer_first = the outer wall, then inward (the layer's first line and its un-retraction land on the visible face); inner_first = the innermost first, the outer wall last, laid against the wall beside it (an overhanging outer wall leans on it); inner_outer_inner = the walls past the one beside the outer wall, then the outer wall, then that one: the first line and the travel's arrival land on hidden walls and the outer wall is laid free; with fewer than three walls, or where the outer wall hangs out past the layer below (as far as the overhang slow-down starts), inner_first. Bundled: inner_outer_inner",
+                  "enum": [
+                    "outer_first",
+                    "inner_first",
+                    "inner_outer_inner"
                   ]
                 }
               }

@@ -51,10 +51,12 @@ cooling.fan_off_layers = "1"
 retract.length = "0.8 mm"
 retract.speed = "40 mm/s"
 retract.return.speed = "= filament.retract.speed"
+retract.return.inside = "true"         # restored a line inside an outer wall's start, then onto it: the blob lands on hidden material
 retract.travel.min = "1 mm"
 retract.z_hop = "= tool.bore / 2"
 retract.wipe.enabled = "true"         # retracing the line just laid as it retracts: what oozes lands along it, not in a blob where the nozzle stops
 retract.wipe.distance = "1 mm"
+retract.wipe.inward = "true"           # an outer wall's wipe a line inside it: its ooze on hidden material, not the face
 retract.wipe.speed = "= filament.retract.speed"
 retract.wipe.retract_before = "70%"
 purge.volume = "20 mm3"
@@ -80,10 +82,12 @@ cooling.fan_off_layers = "2"
 retract.length = "1 mm"
 retract.speed = "30 mm/s"
 retract.return.speed = "= filament.retract.speed"
+retract.return.inside = "true"         # restored a line inside an outer wall's start, then onto it: the blob lands on hidden material
 retract.travel.min = "1.5 mm"
 retract.z_hop = "= tool.bore / 2"
 retract.wipe.enabled = "true"         # retracing the line just laid as it retracts: what oozes lands along it, not in a blob where the nozzle stops
 retract.wipe.distance = "1 mm"
+retract.wipe.inward = "true"           # an outer wall's wipe a line inside it: its ooze on hidden material, not the face
 retract.wipe.speed = "= filament.retract.speed"
 retract.wipe.retract_before = "70%"
 purge.volume = "30 mm3"
@@ -110,10 +114,12 @@ cooling.fan_off_layers = "1"
 retract.length = "0.4 mm"
 retract.speed = "20 mm/s"
 retract.return.speed = "= filament.retract.speed"
+retract.return.inside = "true"         # restored a line inside an outer wall's start, then onto it: the blob lands on hidden material
 retract.travel.min = "2 mm"
 retract.z_hop = "= tool.bore / 2"
 retract.wipe.enabled = "true"         # retracing the line just laid as it retracts: what oozes lands along it, not in a blob where the nozzle stops
 retract.wipe.distance = "1 mm"
+retract.wipe.inward = "true"           # an outer wall's wipe a line inside it: its ooze on hidden material, not the face
 retract.wipe.speed = "= filament.retract.speed"
 retract.wipe.retract_before = "70%"
 purge.volume = "40 mm3"
@@ -144,10 +150,12 @@ cooling.fan_off_layers = "3"
 retract.length = "0.8 mm"
 retract.speed = "40 mm/s"
 retract.return.speed = "= filament.retract.speed"
+retract.return.inside = "true"         # restored a line inside an outer wall's start, then onto it: the blob lands on hidden material
 retract.travel.min = "1 mm"
 retract.z_hop = "= tool.bore / 2"
 retract.wipe.enabled = "true"         # retracing the line just laid as it retracts: what oozes lands along it, not in a blob where the nozzle stops
 retract.wipe.distance = "1 mm"
+retract.wipe.inward = "true"           # an outer wall's wipe a line inside it: its ooze on hidden material, not the face
 retract.wipe.speed = "= filament.retract.speed"
 retract.wipe.retract_before = "70%"
 purge.volume = "30 mm3"
@@ -173,10 +181,12 @@ cooling.fan_off_layers = "3"
 retract.length = "0.8 mm"
 retract.speed = "40 mm/s"
 retract.return.speed = "= filament.retract.speed"
+retract.return.inside = "true"         # restored a line inside an outer wall's start, then onto it: the blob lands on hidden material
 retract.travel.min = "1 mm"
 retract.z_hop = "= tool.bore / 2"
 retract.wipe.enabled = "true"         # retracing the line just laid as it retracts: what oozes lands along it, not in a blob where the nozzle stops
 retract.wipe.distance = "1 mm"
+retract.wipe.inward = "true"           # an outer wall's wipe a line inside it: its ooze on hidden material, not the face
 retract.wipe.speed = "= filament.retract.speed"
 retract.wipe.retract_before = "70%"
 purge.volume = "30 mm3"
@@ -202,10 +212,12 @@ cooling.fan_off_layers = "3"
 retract.length = "0.8 mm"
 retract.speed = "40 mm/s"
 retract.return.speed = "= filament.retract.speed"
+retract.return.inside = "true"         # restored a line inside an outer wall's start, then onto it: the blob lands on hidden material
 retract.travel.min = "1 mm"
 retract.z_hop = "= tool.bore / 2"
 retract.wipe.enabled = "true"         # retracing the line just laid as it retracts: what oozes lands along it, not in a blob where the nozzle stops
 retract.wipe.distance = "1 mm"
+retract.wipe.inward = "true"           # an outer wall's wipe a line inside it: its ooze on hidden material, not the face
 retract.wipe.speed = "= filament.retract.speed"
 retract.wipe.retract_before = "70%"
 purge.volume = "40 mm3"
@@ -232,10 +244,12 @@ cooling.fan_off_layers = "3"
 retract.length = "1 mm"
 retract.speed = "40 mm/s"
 retract.return.speed = "= filament.retract.speed"
+retract.return.inside = "true"         # restored a line inside an outer wall's start, then onto it: the blob lands on hidden material
 retract.travel.min = "1.5 mm"
 retract.z_hop = "= tool.bore / 2"
 retract.wipe.enabled = "true"         # retracing the line just laid as it retracts: what oozes lands along it, not in a blob where the nozzle stops
 retract.wipe.distance = "1 mm"
+retract.wipe.inward = "true"           # an outer wall's wipe a line inside it: its ooze on hidden material, not the face
 retract.wipe.speed = "= filament.retract.speed"
 retract.wipe.retract_before = "70%"
 purge.volume = "40 mm3"
@@ -262,10 +276,12 @@ cooling.fan_off_layers = "3"
 retract.length = "0.8 mm"
 retract.speed = "40 mm/s"
 retract.return.speed = "= filament.retract.speed"
+retract.return.inside = "true"         # restored a line inside an outer wall's start, then onto it: the blob lands on hidden material
 retract.travel.min = "1 mm"
 retract.z_hop = "= tool.bore / 2"
 retract.wipe.enabled = "true"         # retracing the line just laid as it retracts: what oozes lands along it, not in a blob where the nozzle stops
 retract.wipe.distance = "1 mm"
+retract.wipe.inward = "true"           # an outer wall's wipe a line inside it: its ooze on hidden material, not the face
 retract.wipe.speed = "= filament.retract.speed"
 retract.wipe.retract_before = "70%"
 purge.volume = "30 mm3"
@@ -292,10 +308,12 @@ cooling.fan_off_layers = "1"
 retract.length = "1 mm"
 retract.speed = "30 mm/s"
 retract.return.speed = "= filament.retract.speed"
+retract.return.inside = "true"         # restored a line inside an outer wall's start, then onto it: the blob lands on hidden material
 retract.travel.min = "1.5 mm"
 retract.z_hop = "= tool.bore / 2"
 retract.wipe.enabled = "true"         # retracing the line just laid as it retracts: what oozes lands along it, not in a blob where the nozzle stops
 retract.wipe.distance = "1 mm"
+retract.wipe.inward = "true"           # an outer wall's wipe a line inside it: its ooze on hidden material, not the face
 retract.wipe.speed = "= filament.retract.speed"
 retract.wipe.retract_before = "70%"
 purge.volume = "40 mm3"

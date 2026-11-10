@@ -117,6 +117,8 @@ object Catalog {
         s("hardware.filament.retract.travel.min", MATERIAL_TOOL, LENGTH, "travels shorter than this do not retract")
         // the lift goes with the retraction (it was the plan's hardware.filament.retract.z_hop, a tool setting)
         s("hardware.filament.retract.z_hop", MATERIAL_TOOL, LENGTH, "lift the nozzle this much for a travel that retracts")
+        s("hardware.filament.retract.return.inside", MATERIAL_TOOL, BOOL, "an outer wall's restore after a retracted travel a line inside its start, then onto the start with nothing pushed")
+        s("hardware.filament.retract.wipe.inward", MATERIAL_TOOL, BOOL, "a closed outer wall's wipe a line inside it, then back along it")
         s("hardware.filament.retract.wipe.enabled", MATERIAL_TOOL, BOOL, "wipe the nozzle along the path while retracting")
         s("hardware.filament.retract.wipe.distance", MATERIAL_TOOL, LENGTH, "length of the wipe")
         s("hardware.filament.retract.wipe.speed", MATERIAL_TOOL, SPEED, "speed of the wipe")
@@ -243,7 +245,8 @@ object Catalog {
         s("plan.layer.walls.transition_length", INTENT, LENGTH, "variable-width walls: center lines stay continuous through thinner stretches and pinches up to this long (wall_transition_length; read only with variable_width)")
         s("plan.layer.walls.outer.line.width", INTENT, LENGTH, "outer wall line width")
         s("plan.layer.walls.inner.line.width", INTENT, LENGTH, "inner wall line width")
-        s("plan.layer.walls.inner_first", INTENT, BOOL, "print inner walls before the outer wall")
+        s("plan.layer.walls.order", INTENT, CHOICE, "the order each contour's walls are laid in: outer_first, inner_first, or inner_outer_inner",
+            "inner_outer_inner", "a layer's first line, its un-retraction and the travel's arrival land on hidden walls, not on the visible face, and the outer wall is still laid free (inner_first where there are fewer than three walls or the outer wall overhangs)")
         s("plan.seam", INTENT, CHOICE, "where wall loops start, a scarf seam's too (locked, or decided): corners (at a corner when the loop has one, inside corners first, each layer's seam nearest the one below), back (the back-most point) or least_visible (the point the seam measure counts least: its visibility, from the sampled viewing directions weighed by the quadrant they look from (method.quality.visibility.quadrant.*, around plan.view_from) and what hides it nearby (the object's other parts included), or an underside, times method.quality.seam.corner_share in a corner; ties to the point the viewer sees least first (a turned-away face before a front corner), then to a corner, then to the seam below, then the back); either way never on an edge hanging over the layer below when the loop has another place")
         s("plan.view_from", INTENT, CHOICE,
             "where the finished print is looked at from, for quality's measures (the visibility map): all_around (no face counts as turned away), front, back, left, right, above: the model's own sides as given (front = its small-y side, the side toward the printer's door when it prints as given), turned with whatever pose the plan gives it; a face turned away from the viewer counts method.quality.visibility.away by how squarely it faces away; a seam's viewing directions count by the quadrant they look from (method.quality.visibility.quadrant.*: front, left, right, back as the viewer sees them; alike with all_around or above); per object plan.object.<key>.view_from",
@@ -252,6 +255,9 @@ object Catalog {
         s("plan.technique.scarf_seam.where", INTENT, CHOICE, "scarf seams on outer walls (the loop starts thin and low, rising to the layer over plan.technique.scarf_seam.length, and ends re-printing that stretch thinning to nothing): none (plan.technique.scarf_seam.enabled false), smooth (only loops whose seam does not land on a corner: with plan.seam = corners, the loops with no corner), all")
         s("plan.technique.scarf_seam.length", INTENT, LENGTH, "how long a scarf seam's ramp is (at most half the loop)")
         s("plan.technique.scarf_seam.start", INTENT, FRACTION, "a scarf ramp's starting thickness, as a share of the layer")
+        s("plan.technique.scarf_seam.speed", INTENT, SPEED, "a scarf seam's ramp and its closing pass no faster than this")
+        s("plan.technique.scarf_seam.step", INTENT, LENGTH, "a scarf ramp's longest step")
+        s("plan.technique.scarf_seam.flow", INTENT, FRACTION, "a scarf seam's ramp and its closing pass laid with this times their plastic")
         s("plan.mechanism.adhesion.first_layer.line.width", INTENT, LENGTH, "line width on the first layer")
         s("plan.layer.top.under_parts", INTENT, BOOL, "a top surface that is mostly exposed runs under the OTHER parts standing on it (not under its own part rising further): its pattern unbroken, the top shell solid under those footprints too; objects of several parts only",
             true, "the top surface in the same pattern as with nothing printed on top of it")

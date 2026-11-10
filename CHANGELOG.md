@@ -9,12 +9,27 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Added
+
+- `plan.technique.scarf_seam.speed`, `.step` and `.flow`: a scarf seam's ramp and its closing pass at their own speed
+  (half the visible lines' by default) and flow (100 %), the ramp rising in steps no longer than `.step` (1 mm, the length
+  that was fixed before).
+
 ### Changed
 
+- Each contour's walls are laid in the order `plan.layer.walls.order` names (it replaces `plan.layer.walls.inner_first`):
+  `inner_outer_inner` by default, the walls past the one beside the outer wall, then the outer wall, then that one; so a
+  layer's first line, its un-retraction and the travel's arrival land on hidden walls, not on the visible face, and the
+  outer wall is still laid free. With fewer than three walls, or where the outer wall hangs out past the layer below,
+  inner first. `inner_first` and `outer_first` (the order before) stay values.
+- An outer wall's restore after a retracted travel happens a line inside its start, and the head then moves onto the
+  start with nothing pushed (`hardware.filament.<key>.retract.return.inside`, on in the bundled filaments). Restored at the
+  start, the push left a blob on the visible face, where a scarf seam's ramp is thinnest.
+- After an outer wall, the wipe steps a line inside it before running back along it (`retract.wipe.inward`, on in the
+  bundled filaments), so its last ooze lands on hidden material; no wipe follows a line lowered below its layer.
 - The bundled filaments wipe as they retract (`hardware.filament.<key>.retract.wipe.enabled = "true"`): the nozzle
   retraces the path it just laid by the wipe distance (1 mm), so what oozes lands along the line, not in a blob where the
   nozzle stopped. Off before; a filament of yours that sets it keeps its own.
-
 - Prints are looked at from their front by default (`plan.view_from = "front"`: the model's own front, its small-y side
   as modeled, turned with its pose): quality's measures count its back less, and least-visible seams go there. Looked at
   from all around (the default before), a plain round wall's seams stayed wherever a feature first put them, on a

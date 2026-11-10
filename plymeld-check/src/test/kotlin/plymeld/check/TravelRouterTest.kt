@@ -240,7 +240,9 @@ class TravelRouterTest : StringSpec({
     // (0, 15); the next path starts in the base at (25, 2): straight from (0, 0) it stays in the base (so the router leaves it), from
     // (0, 15) it crosses the notch
     "a travel after a wipe is planned from where the wipe left the head: round the notch, not across it; avoid_crossing off crosses it (the control)" {
-        val wipe = listOf("hardware.filament.pla-generic.retract.wipe.enabled" to true, "hardware.filament.pla-generic.retract.wipe.distance" to "15 mm")
+        // the wipe along the wall itself (not stepped inside it: wipe.inward), so it takes the head up the arm
+        val wipe = listOf("hardware.filament.pla-generic.retract.wipe.enabled" to true, "hardware.filament.pla-generic.retract.wipe.distance" to "15 mm",
+            "hardware.filament.pla-generic.retract.wipe.inward" to false)
         fun travelAfterWipe(on: Boolean): List<DoubleArray> {
             val steps = listOf(LayerStart(0, 200, 200), ObjectStart("box"), u, inner(25_000, 2_000, 26_000, 3_000), ObjectEnd("box"))
             val g = StringWriter().also { KlipperWriter(settings(wipe + ("plan.mechanism.motion.avoid_crossing" to on)), emptyMap(), "test").write(PrintProgram(steps, emptyList()), it) }.toString().lines()

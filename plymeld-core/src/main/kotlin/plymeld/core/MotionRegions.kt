@@ -85,7 +85,7 @@ object MotionRegions {
         val shares = e.overhangShare?.let { sh -> IntArray(n) { q -> sh[minOf(from[minOf(q, from.size - 1)], sh.size - 1)] } }
         val speeds = e.segmentSpeeds?.let { sp -> DoubleArray(nSegs) { q -> sp[from[q]] } }
         return Extrude(e.feature, xy, e.closed, zs?.max() ?: e.zUm, e.widthUm, hs?.max() ?: e.heightUm, e.tool, shares, e.ePerMmOverride,
-            e.retractBefore, ws, null, zs, hs, e.via, speeds, e.hopOnly, if (speed.all { it.isNaN() }) null else speed, if (accel.all { it.isNaN() }) null else accel)
+            e.retractBefore, ws, null, zs, hs, e.via, speeds, e.hopOnly, if (speed.all { it.isNaN() }) null else speed, if (accel.all { it.isNaN() }) null else accel, e.ofLoop, e.scarf)
     }
 
     private data class Side(val lo: Double, val hi: Double, val p0: Double, val d: Double)

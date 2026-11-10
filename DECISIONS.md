@@ -362,3 +362,32 @@ The distance (1 mm) and the share (70 %) stay placeholders.
 a hidden line's blob can still lift the nozzle's next pass. Leaving it to a calibration: no plate reads it yet.
 
 **Consequences.** Every print that retracts changes: each retraction after a path takes the wipe's moves and time.
+
+## 17. An outer wall's ends land their ooze on hidden material (2026-11-09)
+
+**Context.** On a two-color nameplate the outer walls' scarf seams showed far more than scarf seams do, though each
+scarf was laid as planned (its ramp and closing pass making one layer). The outer wall was laid first in each contour
+(`plan.layer.walls.inner_first`, false, an inherited value with no reason recorded): the head came down from a travel
+onto the visible face, pushed its 0.8 mm retraction back standing at the seam, where the ramp is meant to be thinnest,
+and at the loop's end retracted standing on the face again, with no wipe. Both of the scarf's ends carried a blob.
+
+**Decision.** Three rules, each a setting:
+- The walls' order is a choice, `plan.layer.walls.order`: `inner_outer_inner` by default (the walls past the one beside
+  the outer wall, then the outer wall, then that one), so a layer's first line and the travel's arrival are on hidden
+  walls and the outer wall is still laid free; inner first with fewer than three walls, or where the outer wall hangs out
+  past the layer below (the overhang slow-down's start, the same rule the seams read), where it needs the wall beside it.
+- An outer wall's restore after a retracted travel is made one line width inside its start, at the layer's top, and the
+  head then moves onto the start with nothing pushed (`retract.return.inside`).
+- An outer wall's wipe steps one line width inside it before running back along it (`retract.wipe.inward`).
+
+The scarf's own speed, step and flow became settings beside them (`plan.technique.scarf_seam.speed`: half the visible
+lines' speed, a placeholder; `.step`: 1 mm, the constant it was; `.flow`: 100 %).
+
+**Rejected.** `inner_first` as the default: the outer wall is then laid pressed against the wall beside it, at some cost
+to its surface, and the nozzle still arrives on it from inside, which `inner_outer_inner` keeps. Restoring during the
+travel's last stretch: the plastic would land along the travel's path, which may cross the visible face. Leaving the order
+inherited and fixing only the restore: the layer's first line would still start on the visible face.
+
+**Consequences.** Every print with three or more walls is laid in a new order; every outer wall reached by a retracted
+travel, or left with a retraction, moves its restore or wipe inside it. None of it is measured on a print yet: the next
+print of the nameplate is the test.

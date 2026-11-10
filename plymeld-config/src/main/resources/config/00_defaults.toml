@@ -49,7 +49,9 @@ thickness = "= 3 * tool.bore"                  # the number of lines follows fro
 style = "variable_width"
 outer.line.width = "= tool.bore * 1.1"         # a line a little wider than the bore presses onto the one below
 inner.line.width = "= tool.bore * 1.1"
-inner_first = "false"
+# the walls past the one beside the outer wall, then the outer wall, then that one: a layer's first line, its
+# un-retraction and the travel's arrival land on hidden walls, not on the visible face (inner_first where it cannot)
+order = "inner_outer_inner"
 
 [plan.layer.top]
 thickness = "0.8 mm"
@@ -233,6 +235,9 @@ tower.side_share.min = "0.5"
 where = "smooth"
 length = "10 mm"
 start = "0.25"
+speed = "= plan.mechanism.motion.visible.speed * 0.5"   # the ramp and its closing pass at half the visible lines' speed
+step = "1 mm"                                           # the ramp rises in steps no longer than this
+flow = "100%"                                           # the ramp and its closing pass at their own plastic, as laid
 
 [plan.technique.corner_seam]
 corner_angle = "30 deg"

@@ -60,7 +60,15 @@ class ToolPath(val feature: Feature, val xy: LongArray, val closed: Boolean, val
                 * The travel into this speck lifts over the wall it crosses but does not retract ([Planner.keepInIsland]):
                 * reached from its own outer wall, its last hop crosses that wall, which no unlifted travel may.
                 */
-               val hopOnly: Boolean = false) {
+               val hopOnly: Boolean = false,
+               /**
+                * The wall this path lays, counted from the outside (0 the outer wall, 1 the inner wall beside it, ...; an
+                * Arachne center line the innermost, past the loops); -1 = not a wall. Read by the wall order
+                * (plan.layer.walls.order = inner_outer_inner: the wall beside the outer one laid after it).
+                */
+               val wall: Int = -1,
+               /** A scarf seam's ramp's longest step (µm; plan.technique.scarf_seam.step). */
+               val scarfStepUm: Long = 1000) {
     /**
      * The same open path run end to start, every per-vertex field reversed with it. Rebuilding a
      * path field by field once dropped [widths]: a reversed center line printed at its widest
@@ -72,14 +80,14 @@ class ToolPath(val feature: Feature, val xy: LongArray, val closed: Boolean, val
         val m = xy.size / 2
         val r = LongArray(xy.size)
         for (k in 0 until m) { r[2 * k] = xy[2 * (m - 1 - k)]; r[2 * k + 1] = xy[2 * (m - 1 - k) + 1] }
-        return ToolPath(feature, r, false, widthUm, heightUm, null, ePerMmOverride, retractBefore, widths?.reversedArray(), raiseUm = raiseUm, waveFill = waveFill, climbFrom = climbFrom, afterLayer = afterLayer, sequence = sequence, speck = speck, hopOnly = hopOnly)
+        return ToolPath(feature, r, false, widthUm, heightUm, null, ePerMmOverride, retractBefore, widths?.reversedArray(), raiseUm = raiseUm, waveFill = waveFill, climbFrom = climbFrom, afterLayer = afterLayer, sequence = sequence, speck = speck, hopOnly = hopOnly, wall = wall)
     }
 
     /** The same path with [retractBefore] set ([island]: cleared by [Planner.keepInIsland]). */
-    fun withRetract(retract: Boolean, island: Boolean = false) = ToolPath(feature, xy, closed, widthUm, heightUm, overhangShare, ePerMmOverride, retract, widths, scarfUm, scarfStart, raiseUm, waveFill, climbFrom, afterLayer, islandHidden = island, sequence = sequence, speck = speck)
+    fun withRetract(retract: Boolean, island: Boolean = false) = ToolPath(feature, xy, closed, widthUm, heightUm, overhangShare, ePerMmOverride, retract, widths, scarfUm, scarfStart, raiseUm, waveFill, climbFrom, afterLayer, islandHidden = island, sequence = sequence, speck = speck, hopOnly = hopOnly, wall = wall, scarfStepUm = scarfStepUm)
 
     /** The same path entered by a lifted travel without a retraction ([hopOnly]). */
-    fun withHop() = ToolPath(feature, xy, closed, widthUm, heightUm, overhangShare, ePerMmOverride, true, widths, scarfUm, scarfStart, raiseUm, waveFill, climbFrom, afterLayer, islandHidden, sequence, speck, hopOnly = true)
+    fun withHop() = ToolPath(feature, xy, closed, widthUm, heightUm, overhangShare, ePerMmOverride, true, widths, scarfUm, scarfStart, raiseUm, waveFill, climbFrom, afterLayer, islandHidden, sequence, speck, hopOnly = true, wall = wall, scarfStepUm = scarfStepUm)
 }
 
 /**
@@ -936,7 +944,8 @@ object Planner {
             }
             /** A wall's runs outside what the waves cover (the whole loop, closed, when none of it is over the waves). */
             fun overWaves(xy: LongArray, closed: Boolean): List<LongArray>? = if (waveCovered.isEmpty()) null else plymeld.geom.Clip.outside(xy, closed, waveCovered).takeIf { it.size != 1 || it[0] !== xy }
-            // walls: inner walls first (last loop inward-most) then outer, per wall_sequence
+            // walls: the outer first, then inward; or the innermost first, the outer last (plan.layer.walls.order; the contour
+            // order below lays each contour's walls in it)
             val ws = walls[i].walls
             val order = if (s.innerWallsFirst) ws.indices.reversed() else ws.indices
             // arachne center lines are the innermost walls: first with inner walls first, else last. One that runs along the
@@ -947,7 +956,7 @@ object Planner {
                 val outer = Walls.alongOutline(c.xy, c.widths, effOutlines[i])
                 val f = if (outer) Feature.OUTER_WALL else Feature.INNER_WALL
                 val runs = overWaves(c.xy, false)
-                if (runs != null) { for (rn in runs) if (rn.size >= 4) paths.add(ToolPath(f, rn, false, c.maxWidthUm, h)); continue }
+                if (runs != null) { for (rn in runs) if (rn.size >= 4) paths.add(ToolPath(f, rn, false, c.maxWidthUm, h, wall = if (outer) 0 else ws.size)); continue }
                 // a speck: an outer-wall line kept only because it lines the outline (shorter than two of its widths, the
                 // threshold Walls keeps it under) prints without a retraction and prime of its own wherever the travel to it
                 // stays in its island and crosses no wall, whatever the in-island switch (keepInIsland): a restart for a dot
@@ -958,7 +967,7 @@ object Planner {
                 // face every layer, made a column of blobs (on a two-color nameplate, 142 such starts on the lettering's face),
                 // and the part behind fills the outline there within less than a line
                 if (speck && whole != null && Planner.polylineLength(c.xy) < c.maxWidthUm && otherPartNear(c)) continue
-                paths.add(ToolPath(f, c.xy, false, c.maxWidthUm, h, widths = c.widths, speck = speck)) } }
+                paths.add(ToolPath(f, c.xy, false, c.maxWidthUm, h, widths = c.widths, speck = speck, wall = if (outer) 0 else ws.size)) } }
             if (s.innerWallsFirst) center()
             if (s.fuzzySkin != "none") require(s.fuzzyMode == "displacement" && s.fuzzyNoise == "classic") {
                 "fuzzy skin mode '${s.fuzzyMode}' / noise '${s.fuzzyNoise}' is not implemented yet (only displacement + classic)" }
@@ -998,8 +1007,8 @@ object Planner {
                     }
                     // over the waves the loop is open runs on supported material, no seam or scarf (the beads carry the edge over air)
                     val runs = overWaves(xy, true)
-                    if (runs != null) { for (rn in runs) if (rn.size >= 4) paths.add(ToolPath(feature, rn, false, w, h)); continue }
-                    paths.add(ToolPath(feature, xy, true, w, h, shares, scarfUm = scarfUm, scarfStart = s.scarfStart ?: 0.0))
+                    if (runs != null) { for (rn in runs) if (rn.size >= 4) paths.add(ToolPath(feature, rn, false, w, h, wall = k)); continue }
+                    paths.add(ToolPath(feature, xy, true, w, h, shares, scarfUm = scarfUm, scarfStart = s.scarfStart ?: 0.0, wall = k, scarfStepUm = s.scarfStepUm))
                 }
             }
             if (!s.innerWallsFirst) center()
@@ -1494,13 +1503,21 @@ object Planner {
                     for (p in seq) { t += Math.hypot((p.xy[0] - x).toDouble(), (p.xy[1] - y).toDouble()); x = endX(p); y = endY(p) }
                     return t + Math.hypot((sx - x).toDouble(), (sy - y).toDouble())
                 }
-                val forward = Ordering.order(inner, lastX, lastY, wallExtra)
-                val backward = Ordering.order(inner, sx, sy, wallExtra).asReversed().map { if (it.closed) it else it.reversed() }
+                // inner_outer_inner: the walls past the one beside the outer wall first, then the outer wall, then that one,
+                // so the layer's first line, its un-retraction and the travel's arrival land on hidden walls and the outer wall
+                // is still laid free. Fewer than three walls (no wall past the one beside the outer), or an outer wall that
+                // hangs out past the layer below (Overhangs: where the overhang slow-down starts), lay inner first: the outer
+                // wall then has a wall beside it to lean on
+                val split = s.wallOrder == "inner_outer_inner" && outer[0].overhangShare == null && inner.any { it.wall >= 2 } && inner.any { it.wall == 1 }
+                val before = if (split) inner.filter { it.wall != 1 } else inner
+                val forward = Ordering.order(before, lastX, lastY, wallExtra)
+                val backward = Ordering.order(before, sx, sy, wallExtra).asReversed().map { if (it.closed) it else it.reversed() }
                 val seq = if (cost(backward) < cost(forward)) backward else forward
                 ordered.addAll(seq)
                 lastX = endX(seq.last()); lastY = endY(seq.last())
                 emit(outer)
                 emitSpecks(outer, specks)
+                if (split) emit(inner.filter { it.wall == 1 })
             }
             fun emitWalls(ws: List<ToolPath>) {
                 val allOuters = ws.filter { it.feature == Feature.OUTER_WALL }
