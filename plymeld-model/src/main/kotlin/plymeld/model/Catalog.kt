@@ -15,7 +15,6 @@ import plymeld.model.Kind.COUNT
 import plymeld.model.Kind.FLOW
 import plymeld.model.Kind.FRACTION
 import plymeld.model.Kind.LENGTH
-import plymeld.model.Kind.PERCENT
 import plymeld.model.Kind.SPEED
 import plymeld.model.Kind.TEMP
 import plymeld.model.Kind.TEXT
@@ -94,7 +93,7 @@ object Catalog {
         s("hardware.filament.cooling.layer.time.min", MATERIAL, TIME, "a layer should take at least this long, so it cools")
         s("hardware.filament.cooling.speed.min", MATERIAL, SPEED, "never slow below this for layer cooling")
         s("hardware.filament.cooling.fan_off_layers", MATERIAL, COUNT, "part fan stays off for this many first layers")
-        s("hardware.filament.cooling.fan", MATERIAL, PERCENT, "part fan speed once it is on")
+        s("hardware.filament.cooling.fan", MATERIAL, FRACTION, "part fan speed once it is on, a share of its full speed")
         // ---- spool: one physical reel
         s("hardware.filament.color", SPOOL, TEXT, "filament color as #RRGGBB")
         // ---- material x tool: values that depend on both the plastic and the hotend
@@ -107,7 +106,7 @@ object Catalog {
         s("hardware.filament.melt.flow.max", MATERIAL_TOOL, FLOW, "fastest the hotend can melt this plastic; every move is capped to it")
         s("hardware.filament.bridge.span.max", MATERIAL_TOOL, LENGTH, "the longest span this filament bridges cleanly between two anchors (mm): a bridge longer than this needs support under its middle")
         s("hardware.filament.overhang.share", MATERIAL_TOOL, FRACTION, "how far this filament's outer wall line may hang past the line below and hold, as a share of the line's width, cooled as it prints in this tool; the flattest face that holds follows from each layer's height (flatter faces get support, with support on, and count as unsupported in planning)")
-        s("hardware.filament.overhang.fan", MATERIAL_TOOL, PERCENT, "part fan while a line hangs past the one below: the cooling hardware.filament.overhang.share holds at; the fan returns to the layer's own after")
+        s("hardware.filament.overhang.fan", MATERIAL_TOOL, FRACTION, "part fan (a share of its full speed) while a line hangs past the one below: the cooling hardware.filament.overhang.share holds at; the fan returns to the layer's own after")
         s("hardware.filament.overhang.speed", MATERIAL_TOOL, SPEED, "fastest a line that hangs past the one below prints: the speed hardware.filament.overhang.share holds at; unset = not known (only the slow-down graded toward the bridge speed)")
         s("hardware.filament.retract.length", MATERIAL_TOOL, LENGTH, "filament pulled back before a travel")
         s("hardware.filament.retract.speed", MATERIAL_TOOL, SPEED, "retraction speed")
@@ -441,7 +440,7 @@ object Catalog {
         s("plan.technique.ironing.flow", INTENT, FRACTION, "ironing flow, as a share of a full line")
         // bond-first cooling: what an object gets when the search (or plan.bond_cooling = on) chooses the bond between
         // its layers over the filament's own cooling; bundled as shares of the filament's values, placeholders
-        s("plan.technique.bond_cooling.fan", INTENT, PERCENT, "bond-first cooling: the part fan for the object's lines (overhangs keep the filament's overhang fan)")
+        s("plan.technique.bond_cooling.fan", INTENT, FRACTION, "bond-first cooling: the part fan (a share of its full speed) for the object's lines (overhangs keep the filament's overhang fan)")
         s("plan.technique.bond_cooling.layer.time.min", INTENT, TIME, "bond-first cooling: the object's minimum layer time (its layers stretched to it less than the filament's asks)")
         s("plan.technique.bond_cooling.temperature", INTENT, TEMP, "bond-first cooling: the object's nozzle temperature after the first layer (capped at the filament's temperature.max where set)")
         s("plan.technique.ironing.inset", INTENT, LENGTH, "keep ironing this far inside the edge (on top of half a line)")

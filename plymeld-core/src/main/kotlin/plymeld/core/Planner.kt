@@ -1555,7 +1555,11 @@ object Planner {
                 val before = if (split) inner.filter { it.wall != 1 } else inner
                 val forward = Ordering.order(before, lastX, lastY, wallExtra)
                 val backward = Ordering.order(before, sx, sy, wallExtra).asReversed().map { if (it.closed) it else it.reversed() }
-                val seq = if (cost(backward) < cost(forward)) backward else forward
+                val chosen = if (cost(backward) < cost(forward)) backward else forward
+                // the inner wall laid just before the outer one, a loop, starts (and so ends) nearest the outer wall's start (an
+                // inner wall's start is not seen): left at its own seam, the step onto the outer wall was a travel of tens of mm
+                // along the inside of the visible face (36 mm on a nameplate)
+                val seq = chosen.mapIndexed { q, w -> if (q == chosen.size - 1 && w.closed) w.startingNear(sx, sy) else w }
                 ordered.addAll(seq)
                 lastX = endX(seq.last()); lastY = endY(seq.last())
                 emit(outer)

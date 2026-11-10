@@ -21,7 +21,8 @@ section the release's version and date.
   `inner_outer_inner` by default, the walls past the one beside the outer wall, then the outer wall, then that one; so a
   layer's first line, its un-retraction and the travel's arrival land on hidden walls, not on the visible face, and the
   outer wall is still laid free. With fewer than three walls, or where the outer wall hangs out past the layer below,
-  inner first. `inner_first` and `outer_first` (the order before) stay values.
+  inner first. The inner wall laid just before the outer one, and the one laid just after it, start nearest the outer
+  wall's start and end, so the head steps between them and the outer wall without a long travel. `inner_first` and `outer_first` (the order before) stay values.
 - An outer wall's restore after a retracted travel happens a line inside its start, and the head then moves onto the
   start with nothing pushed (`hardware.filament.<key>.retract.return.inside`, on in the bundled filaments). Restored at the
   start, the push left a blob on the visible face, where a scarf seam's ramp is thinnest.
@@ -37,6 +38,8 @@ section the release's version and date.
 
 ### Fixed
 
+- A retraction's wipe is written under the feature it wipes: the next path's `;TYPE:` and `;WIDTH:` lines came first, so
+  a wipe along an inner wall was labelled as the outer wall that followed.
 - A scarf seam is judged by its whole ramp, not its start alone, where it is placed and in the seam measure: the seam
   goes where the most-seen point of its ramp is seen least. A nameplate's seams started hidden in a letter's pocket, and
   their 10 mm ramps ran out onto the face beside the letter.
