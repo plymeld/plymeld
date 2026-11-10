@@ -25,7 +25,9 @@ section the release's version and date.
   below rather than pay the move to a better place on its own, so a seam drawn to the front by a feature low on the
   wall ran up the front face above it to the top. Planned over all the layers a loop continues through, the move is
   paid once where it costs least: on a round column with a slot in its front, the 118 seams above the slot went from
-  the front face to the back, in one line.
+  the front face to the back, in one line. Least-visible placement also counts a scarf seam's blemish as the seam
+  measure does (`method.quality.seam.scarf_share` of a point seam's); counted as a point seam's, a move to a less-seen
+  point looked worth more than it was.
 
 ## [0.20261109.1] - 2026-11-09
 

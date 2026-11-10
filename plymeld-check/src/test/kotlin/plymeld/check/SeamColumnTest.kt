@@ -44,4 +44,19 @@ class SeamColumnTest : StringSpec({
         // placed layer by layer they stayed on the front, in line (118 of 118 there); planned, they stay in line at the back
         (jogs < 10.0) shouldBe true
     }
+
+    // the same column with a pocket inside it above the slot (a square hole 10 mm across, near its middle): its loop is in
+    // the outer walls beside the outside loop's, and overlaps the outside loop below as much as the pocket below. Linked by
+    // overlap alone, it linked to the outside loop, which then had two loops over it: every run ended after a layer, and
+    // each layer placed on its own kept its seam in line on the front (118 of 118)
+    "a pocket inside the column leaves the plan in one line: no seam on the front above the slot" {
+        val hole = Polygon(longArrayOf(45_000, 45_000, 45_000, 55_000, 55_000, 55_000, 55_000, 45_000)) // clockwise: a hole
+        val pocketed = Planner.plan(s, List(n) { i -> if (i < 10) listOf(circle(slot = true)) else listOf(circle(slot = false), hole) }, tops)
+        val outside = (12 until n).map { i -> pocketed[i].paths.filter { it.feature == Feature.OUTER_WALL }.maxBy { it.xy.size }.xy.let { it[0] to it[1] } }
+        val front = outside.count { it.second < 50_000 }
+        val jogs = outside.zipWithNext { a, b -> Math.hypot((a.first - b.first).toDouble(), (a.second - b.second).toDouble()) / 1000.0 }.sum()
+        println("with a pocket: ${front} of ${outside.size} seams on the front half, %.1f mm of jogs".format(java.util.Locale.ROOT, jogs))
+        front shouldBe 0
+        (jogs < 10.0) shouldBe true
+    }
 })

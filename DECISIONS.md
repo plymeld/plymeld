@@ -333,11 +333,14 @@ drew to the front low on the wall stayed in line on the front face all the way u
 lettering to the top edge, even with the print looked at from its front.
 
 **Decision.** The outer walls' least-visible seams are planned over each run of layers where a loop continues one to
-one (each loop linked to the loop below it overlaps most): the line of points through the run whose cost in all is
-least, each point as `seam_scar` charges it (how much it is seen times its blemish) and each move from the point below
-its length times the line width, times how much the new point is seen. Each loop is then placed with its planned point
-as the seam below, so corners, overhangs, and the ramp are still judged where it is placed. At most 160 candidate points
-per loop (every n-th and the cheapest), a bound on time.
+one (each loop linked to the loop below whose bounding box matches its own best, by overlap over union: by overlap
+alone, a pocket's loop linked to the outside loop round it and broke every run): the line of points through the run
+whose cost in all is least, each point as `seam_scar` charges it (how much it is seen times its blemish, a scarf's
+where the start gets one) and each move from the point below its length times the line width, times how much the new
+point is seen. A run is planned when the placement reaches its first layer, its first move from the seams placed
+below it. Each loop is then placed with its planned point as the seam below, so corners, overhangs, and the ramp are
+still judged where it is placed. A run of one layer is placed on its own. At most 160 candidate points per loop (every
+n-th and the cheapest), a bound on time.
 
 **Rejected.** Looking ahead a fixed number of layers: the move a plain wall needs may pay off only over a hundred
 layers. A penalty for the front alone: the view already says which side is seen; the fault was paying the move layer
