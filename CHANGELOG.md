@@ -11,6 +11,10 @@ section the release's version and date.
 
 ### Added
 
+- A section of a model printed on its own: `model.object.<key>.section.min` and `.max` give a box in the model's own
+  coordinates, and only what is inside it prints, its cut faces closed, standing on the bed. For trying a detail of a
+  large model (one face, a line of lettering) without the hours of the whole. A part of a 3MF with nothing in the box
+  is left out.
 - Renamed settings are read under their new names: a config file, a plan file, or a g-code's recorded settings
   (`slice --from`) that uses a name a release changed reads as the new one, its value converted, with a warning naming
   both. `plymeld migrate FILE...` rewrites config and plan files to the current names, comments and the rest kept, each
