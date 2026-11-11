@@ -11,6 +11,11 @@ section the release's version and date.
 
 ### Added
 
+- Several multi-color objects on one plate: an object on several filaments was sliced on its own or refused. On each
+  layer each filament now lays its lines of every object in turn, so the plate changes tool no more often than one of
+  its objects would, with one purge tower beside them all. Copies of an object (`model.object.<key>.count`) can each
+  take settings of their own (`plan.object."<key>#2".…`), for trying variations side by side. The objects print
+  together, by height, each on its own flat layers; one object at a time is not written for such a plate yet.
 - A section of a model printed on its own: `model.object.<key>.section.min` and `.max` give a box in the model's own
   coordinates, and only what is inside it prints, its cut faces closed, standing on the bed. For trying a detail of a
   large model (one face, a line of lettering) without the hours of the whole. A part of a 3MF with nothing in the box
