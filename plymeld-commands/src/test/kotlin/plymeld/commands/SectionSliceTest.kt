@@ -153,6 +153,25 @@ class SectionSliceTest : StringSpec({
         // control: the whole object is twice as wide and reaches its top
         (all[0] > 18 && all[2] > 11) shouldBe true
     }
+    "a section on a small footprint with no brim is warned about, by its area or its height; controls: a larger one, and one with a brim, are not" {
+        // a 6 mm corner of the block, 2 mm tall: 36 mm² at most, under the bundled 100 mm²
+        val small = arrayOf("$key.min=${b[0] - 1} ${b[1] - 1} ${b[2] - 1} mm", "$key.max=${b[0] + 6} ${b[1] + 6} $midZ mm")
+        for (faces in listOf("open", "closed")) {
+            val (code, said, _) = slice(*small, "$key.faces=$faces")
+            println(said.lines().filter { "small footprint" in it }.joinToString("\n"))
+            code shouldBe 0
+            said shouldContain "the section stands on a small footprint with no brim: its first layer is"
+            // control: with a brim, no warning
+            slice(*small, "$key.faces=$faces", "plan.mechanism.adhesion.brim.enabled=true").second.contains("small footprint") shouldBe false
+        }
+        // control: the quarter block (about 15 x 15 mm, 2 mm tall) is neither small nor tall for its footprint
+        val quarter = arrayOf("$key.min=${b[0] - 1} ${b[1] - 1} ${b[2] - 1} mm", "$key.max=$midX $midY $midZ mm")
+        slice(*quarter).second.contains("small footprint") shouldBe false
+        // ... until a ratio under its own (2 mm on 15 mm) calls it tall
+        val (_, tall, _) = slice(*quarter, "plan.mechanism.adhesion.small_footprint.height_ratio=0.1")
+        tall shouldContain "mm tall on a first layer"
+        tall.contains("its first layer is") shouldBe false
+    }
     "control: an open section from above the model's bottom is refused" {
         val (code, said, g) = slice("$key.min=${b[0] - 1} ${b[1] - 1} $midZ mm", "$key.max=$midX $midY ${b[5] + 1} mm")
         (code != 0) shouldBe true

@@ -320,6 +320,8 @@ object Catalog {
         s("plan.mechanism.adhesion.brim.where", INTENT, CHOICE, "brim placement: no_brim (plan.mechanism.adhesion.brim.enabled off) or outer_only")
         s("plan.mechanism.adhesion.brim.width", INTENT, LENGTH, "brim width")
         s("plan.mechanism.adhesion.brim.gap", INTENT, LENGTH, "gap between brim and object")
+        s("plan.mechanism.adhesion.small_footprint.area", INTENT, AREA, "a first layer under this area is a small footprint: a section standing on one with no brim is warned about")
+        s("plan.mechanism.adhesion.small_footprint.height_ratio", INTENT, FRACTION, "a footprint is small for its height when the print is taller than this many times the footprint's narrower side")
         s("plan.mechanism.adhesion.prime.line", INTENT, CHOICE, "the prime line: near the print, near it on a peel tab (alongside the brim), or none (plan.mechanism.adhesion.prime.enabled off); unset = by the print: none with a prime tower, tab otherwise")
         s("plan.mechanism.adhesion.prime.length", INTENT, LENGTH, "the prime line's length")
         s("plan.mechanism.adhesion.prime.gap", INTENT, LENGTH, "how far the prime line lies from the print")

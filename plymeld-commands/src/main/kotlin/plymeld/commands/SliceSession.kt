@@ -37,6 +37,41 @@ class SliceSession {
         "${pl.name}@${pl.cx},${pl.cy}:$mesh;bands=$bands;h=${t.layerHeightMm};cd=${t.curvedDepthAuto};sup=$support;ins=${t.inserts.size};isl=$islands"
     } + "|order=${plan.layout.order}|pauses=" + pauses.joinToString(",") { it.toString() }
 
+    /**
+     * A section of a model (model.object.<key>.section) that stands on a small footprint with no brim, one line per object: its
+     * first layer's area under plan.mechanism.adhesion.small_footprint.area, or the section taller than
+     * small_footprint.height_ratio times the narrower side of the box round its first layer. A section is what is left of a
+     * model made to stand as a whole: a strip of a wide base can come loose where the whole would not. The first layer is
+     * the placed parts cut half a first layer up, inside the box of a section left open.
+     */
+    private fun smallFootprints(pr: Product, plan: plymeld.core.decide.Plan, setup: plymeld.model.Setup): List<String> =
+        plan.layout.placed.withIndex().mapNotNull { (j, pl) ->
+            val o = pr.plate[j].first
+            val head = listOf("model", "object", o.base, "section")
+            if (pr.config.entry(head + "min") == null && pr.config.entry(head + "max") == null) return@mapNotNull null
+            val s = plymeld.model.SliceSettings.of(setup, plymeld.model.Context(j))
+            if (s.brimType != "no_brim") return@mapNotNull null
+            val bs = pl.parts.map { it.bounds() }
+            val z0 = bs.minOf { it[2] }; val x0 = bs.minOf { it[0] }; val y0 = bs.minOf { it[1] }
+            val open = plan.layout.techniques[j].regions.firstOrNull { it.section }?.region
+            val rect = open?.let { g -> listOf(plymeld.geom.Polygon(longArrayOf(Math.round((x0 + g.x0) * 1000), Math.round((y0 + g.y0) * 1000), Math.round((x0 + g.x1) * 1000), Math.round((y0 + g.y0) * 1000),
+                Math.round((x0 + g.x1) * 1000), Math.round((y0 + g.y1) * 1000), Math.round((x0 + g.x0) * 1000), Math.round((y0 + g.y1) * 1000)))) }
+            val loops = pl.parts.flatMap { p -> plymeld.mesh.Slicer.slice(p, doubleArrayOf(z0 + s.firstLayerHeightUm / 2000.0))[0].loops
+                .let { if (rect == null || it.isEmpty()) it else plymeld.geom.Booleans.intersection(it, rect) } }
+            if (loops.isEmpty()) return@mapNotNull null
+            val area = Math.abs(loops.sumOf { it.signedAreaMm2() })
+            var lx = Long.MAX_VALUE; var hx = Long.MIN_VALUE; var ly = Long.MAX_VALUE; var hy = Long.MIN_VALUE
+            for (p in loops) for (k in 0 until p.size) { lx = minOf(lx, p.x(k)); hx = maxOf(hx, p.x(k)); ly = minOf(ly, p.y(k)); hy = maxOf(hy, p.y(k)) }
+            val narrow = minOf(hx - lx, hy - ly) / 1000.0
+            val height = open?.toMm ?: (bs.maxOf { it[5] } - z0)
+            fun f(v: Double) = plymeld.core.decide.Control.fmt(v)
+            val why = listOfNotNull(
+                if (area < s.smallFootprintAreaMm2) "its first layer is ${f(area)} mm², under plan.mechanism.adhesion.small_footprint.area (${f(s.smallFootprintAreaMm2)} mm²)" else null,
+                if (narrow > 0 && height > s.smallFootprintHeightRatio * narrow) "it is ${f(height)} mm tall on a first layer ${f(narrow)} mm across its narrower side, over plan.mechanism.adhesion.small_footprint.height_ratio (${f(s.smallFootprintHeightRatio)})" else null)
+            if (why.isEmpty()) null
+            else "'${o.key}': the section stands on a small footprint with no brim: ${why.joinToString("; and ")}. It may come loose from the bed; a brim (plan.mechanism.adhesion.brim.enabled) holds it"
+        }
+
     /** Slices [pr]'s plan to [output]: the decisions echoed as `slice` prints them, the file written with its header. */
     fun write(pr: Product, output: Path, echo: (String) -> Unit, progress: Progress = Progress.NONE,
               /** A second writer every byte of the g-code also goes to, as it is written (the window's stage), closed with the file. */
@@ -49,6 +84,7 @@ class SliceSession {
         plan.warnings.forEach { echo("warning: $it") }
         output.parent?.let { Files.createDirectories(it) }
         val setup = pr.result.setup
+        smallFootprints(pr, plan, setup).forEach { echo("warning: $it") }
         // nozzle temperatures against each filament's range and each tool's limit: warned about, not refused
         plymeld.core.check.TemperatureLimits.warnings(setup).forEach { echo("warning: $it") }
         // the pauses asked for, and one above each planned insert's top: the insert is placed before the layer over it
