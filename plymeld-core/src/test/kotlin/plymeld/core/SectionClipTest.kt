@@ -51,6 +51,12 @@ class SectionClipTest : StringSpec({
         after.map { it.retractBefore } shouldBe listOf(false, true, false, true, false)
         after[0] shouldBeSameInstanceAs inside
         after[4] shouldBeSameInstanceAs inside
+        // a path whose travel lifts but does not retract (a speck reached from its own outer wall): after a cut path it retracts
+        // like any other (it was laid 40 mm away, lifted and unretracted, along the face); control: after a whole path it keeps its marks
+        val speck = ToolPath(Feature.OUTER_WALL, longArrayOf(2_000, 2_000, 2_300, 2_000), false, 400, 200, speck = true, hopOnly = true, wall = 0)
+        val afterCut = SectionClip.paths(listOf(loop, speck), -1_000, 5_000, -1_000, 11_000).last()
+        (afterCut.retractBefore && !afterCut.speck && !afterCut.hopOnly) shouldBe true
+        SectionClip.paths(listOf(inside, speck), -1_000, 5_000, -1_000, 11_000).last() shouldBeSameInstanceAs speck
     }
     "layers topping above the box are left out" {
         val layers = (1..5).map { LayerPlanOut(it - 1, it * 200L, 200, listOf(inside)) }
