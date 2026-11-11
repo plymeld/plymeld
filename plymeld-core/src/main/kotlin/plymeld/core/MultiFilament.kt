@@ -25,8 +25,6 @@ object MultiFilament {
     val PURGE_INTO = listOf("tower", "infill", "infill_and_object")
     /** What a filament lays first after a change on a layer: its infill, hidden inside the model (sparse and internal solid). */
     private val HIDDEN_FIRST = setOf(Feature.SPARSE, Feature.SOLID)
-    /** ... and on a layer where it lays no infill: its inner walls, before any outer wall. */
-    private val HIDDEN_FIRST_NO_INFILL = setOf(Feature.INNER_WALL)
     /**
      * One filament's share of the object, or one settings group's share of a filament ([unit]:
      * parts on one spool with the same own settings), with its layers' areas and planned paths.
@@ -356,12 +354,13 @@ object MultiFilament {
                     // internal solid), in their planned order, then everything else in its order: a nozzle back from the dock
                     // (from its idle temperature, past the purge) lays its first, least even lines where they do not show. Its
                     // outer wall had come first: on a two-color nameplate every change back to the base color began on the
-                    // lettering's visible face. On a layer where it lays no infill, its inner walls come first (hidden, though next
-                    // to the face), before any outer wall; with neither, its first line is whatever comes first.
+                    // lettering's visible face. The walls stay in their planned order among themselves, so the wall order
+                    // (plan.layer.walls.order) holds; on a layer where it lays no infill nothing is moved, and its first line is
+                    // the wall order's (hidden with inner walls first; all its inner walls laid ahead of its outer walls there
+                    // had made every wall order print inner-first on about half of a two-color nameplate's layers).
                     if (!changed && !swapped) { for (p in planned) if (p !in purged) extrude(p, i, t) } else {
                         val rest = planned.filter { it !in purged }
-                        val firstKind = if (rest.any { it.feature in HIDDEN_FIRST }) HIDDEN_FIRST else HIDDEN_FIRST_NO_INFILL
-                        val laid = rest.filter { it.feature in firstKind } + rest.filter { it.feature !in firstKind }
+                        val laid = rest.filter { it.feature in HIDDEN_FIRST } + rest.filter { it.feature !in HIDDEN_FIRST }
                         // a line whose predecessor is not the one it was planned after retracts on the travel into it: whether that
                         // travel retracts was decided for the planned order (inside an island, crossing no wall), and moved lines'
                         // travels can cross open air (unretracted, they quadrupled the strings over air on that nameplate)
