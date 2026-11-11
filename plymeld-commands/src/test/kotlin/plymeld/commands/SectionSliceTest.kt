@@ -14,8 +14,9 @@ import java.nio.file.Path
  * nothing above its height.
  *
  * Closed (faces = "closed"): the model itself is cut, so the section is an object of its own, with walls up its cut faces.
- * Open (the default): the whole block is planned and placed, and its lines inside the box are laid: the section's corner
- * is where the whole block's is, no line runs along its cut faces, and its last layer is not a top surface.
+ * Open (the default): the whole block is planned, and its lines inside the box are laid: no line runs along its cut
+ * faces, and its last layer is not a top surface. It is laid out on the bed by its box (what prints of it), as the closed
+ * section is by its own size, not where that part of the whole block would lie.
  *
  * An object laid part by part (two parts in a 3MF, one with a setting of its own: the path a multi-filament object takes)
  * is cut the same way: each part's lines inside the box, the layers above its top left out, the check passing.
@@ -92,7 +93,7 @@ class SectionSliceTest : StringSpec({
         // control: the whole block is larger on every axis
         (all[0] > e[0] + 1 && all[1] > e[1] + 1 && all[2] > e[2] + 1) shouldBe true
     }
-    "a section left open (the default) lays the whole block's lines inside the box: where the whole block's are, no walls or top on its cut faces" {
+    "a section left open (the default) lays the whole block's lines inside the box, laid out by the box: no walls or top on its cut faces" {
         val box = arrayOf("$key.min=${b[0] - 1} ${b[1] - 1} ${b[2] - 1} mm", "$key.max=$midX $midY $midZ mm")
         val (code, said, g) = slice(*box)
         val (codeClosed, _, gClosed) = slice(*box, "$key.faces=closed")
@@ -109,9 +110,9 @@ class SectionSliceTest : StringSpec({
         // the section, within its size and height
         (e[0] <= midX - b[0] + 1e-3 && e[1] <= midY - b[1] + 1e-3 && e[2] <= midZ - b[2] + 1e-3) shouldBe true
         (e[0] > (midX - b[0]) * 0.8 && e[2] > (midZ - b[2]) * 0.8) shouldBe true
-        // placed as the whole block is: its lines start at the whole block's corner (control: the closed section, centered on its own, does not)
-        (Math.abs(e[3] - all[3]) < 0.02 && Math.abs(e[4] - all[4]) < 0.02) shouldBe true         // to 0.02 mm: the whole block's least y may lie on a line outside the box
-        (Math.abs(closed[3] - all[3]) > 1) shouldBe true
+        // laid out by its box: centered on the bed as the closed section is (control: not where the whole block's corner lies)
+        (Math.abs(e[3] - closed[3]) < 0.3 && Math.abs(e[4] - closed[4]) < 0.3) shouldBe true
+        (Math.abs(e[3] - all[3]) > 1) shouldBe true
         // nothing runs along the cut face (control: the closed section's walls do, layer after layer)
         (along < 1.0) shouldBe true
         (alongClosed > 50) shouldBe true

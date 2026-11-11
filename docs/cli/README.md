@@ -86,9 +86,10 @@ faces = "open"                          # the default; "closed" for a section pr
 
 `faces` says what the section's cut faces are:
 
-- `open` (the default): the section prints as that part of the whole print would. plymeld plans, poses, and places the
-  whole model as it would without the section, then lays only the lines inside the box, up to the box's top: the same
-  walls, seams, infill, speeds, and filament changes, in the same place on the bed. Nothing is added where the model is
+- `open` (the default): the section prints as that part of the whole print would. plymeld plans and poses the whole
+  model as it would without the section, then lays only the lines inside the box, up to the box's top: the same walls,
+  seams, infill, speeds, and filament changes. On the bed the object is laid out by its box, what prints of it, so
+  several copies fit where the whole models would not. Nothing is added where the model is
   cut: no walls up the cut sides and no top surface on the last layer, so the infill shows there. A line the box cuts
   ends on the box's side. The box must reach down to the model's bottom, and the object must print on flat layers
   (no curved layers or lifted bridges).
