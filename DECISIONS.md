@@ -429,27 +429,42 @@ release. A fake unit (`1.2x`) for multipliers: the value was parsed right; the s
 **Consequences.** A rename is now a table entry plus its test, and an old file keeps working with a warning; `migrate`
 is a new command (in the window, its form). A JSON config is read with the new names but not rewritten.
 
-## 19. A section of a model is cut from the mesh as it is read (2026-11-10)
+## 19. A section of a model: its planned lines cut to a box, or the mesh cut as it is read (2026-11-10)
 
 **Context.** Judging a change to how a detail prints (a line of lettering on a nameplate's face) took a print of the
 whole model, hours each time. A section of the model, printed with the same settings, shows the same lines in a
 fraction of the time.
 
-**Decision.** `model.object.<key>.section.min` / `.max` give a box in the model's own coordinates. The model's parts are
-cut to it as they are read (`SectionCut`): triangles a side crosses are cut, and each cut face is closed with a cap
-triangulated from the cut's own points (hole bridging and ear cutting, no point added on an edge, so the result is a
-closed mesh sharing its edges exactly). Everything after reads the section as the object: the plan, the layout (it
-stands on the bed), the slice, the pre-print check, the preview. A part with nothing in the box is left out, and the
-config is read again over the object as cut. A model not closed where the box cuts it is refused.
+**Decision.** `model.object.<key>.section.min` / `.max` give a box in the model's own coordinates, and
+`section.faces` says what its cut faces are.
 
-**Rejected.** Clipping each layer's outlines to the box: the mesh is cut in more than twenty places (the search, the
-supports, the check, the curved techniques), each of which would need the same clip, and a section starting above the
-model's bottom would still need moving to the bed. A separate command writing a cut model file: the section would
-drift from the model it samples, and a 3MF's parts and filaments would have to be written back.
+*Open* (the default) answers "how will this part of the print come out": the model stays whole through the plan, the
+pose, the layout, and the slice, and the object's planned lines are cut to the box last (`SectionClip`), the layers
+above the box's top left out. A line wholly inside is laid as planned; a line the box cuts is laid as its pieces
+inside, ending on the box's side, the travel into each later piece (and into the line after a cut one) retracted. The
+box travels to the slice as a region of the object, so it is posed with it. The pre-print check reads the model inside
+the box only, and asks for no wall along the box's sides. A multi-filament object's lines are cut per filament before
+its filament order and purge tower are worked out.
 
-**Consequences.** The section is planned as an object of its own: a plan made for the whole model still applies as
-locks (with the note that the model changed), and unlocked decisions are made for the section. Its layers take less
-time than the whole model's, so it cools less between layers; its cut faces get walls.
+*Closed* cuts the model's parts as they are read (`SectionCut`): triangles a side crosses are cut, and each cut face
+is closed with a cap triangulated from the cut's own points (hole bridging and ear cutting, no point added on an edge,
+so the result is a closed mesh sharing its edges exactly). Everything after reads the section as the object: the plan,
+the layout (it stands on the bed), the slice, the pre-print check, the preview. A part with nothing in the box is left
+out, and the config is read again over the object as cut. A model not closed where the box cuts it is refused.
+
+**Rejected.** Closed only: a closed section's cut faces get walls and its cut-off top a top surface, with the seams,
+wall order, and infill of a different object, so it does not show what the whole print would do there. Clipping each
+layer's outlines to the box before planning: the same objection (the planner walls whatever outline it is given), and
+the mesh is cut in more than twenty places, each of which would need the clip. A separate command writing a cut model
+file: the section would drift from the model it samples, and a 3MF's parts and filaments would have to be written
+back.
+
+**Consequences.** An open section starts at the model's bottom (what is under a higher one would not be printed: that
+is a closed section) and prints on flat layers; with a curved band, a curved island, or a lifted bridge it is refused
+until those are cut too. The predicted time and the
+measures are of the lines laid. A closed section is planned as an object of its own: a plan made for the whole model
+still applies as locks (with the note that the model changed), and unlocked decisions are made for the section. In
+both, the layers take less time than the whole model's, so the section cools less between layers.
 
 ## 20. A plate with multi-filament objects is laid per filament (2026-11-10)
 

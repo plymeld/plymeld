@@ -33,7 +33,9 @@ import plymeld.mesh.TriangleSoup
  */
 object PlateCheck {
     /** One placed object: its parts (bed coordinates), each part's tool (null: not judged), its curved band (null: none). */
-    class Obj(val name: String, val parts: List<TriangleSoup>, val partTools: List<Int>?, val curved: CurvedCheck.Spec? = null)
+    class Obj(val name: String, val parts: List<TriangleSoup>, val partTools: List<Int>?, val curved: CurvedCheck.Spec? = null,
+              /** The object's section left open ([ModelCheck.Surface]'s cut); null = the whole object. */
+              val cut: DoubleArray? = null)
     /** [surfaces]: each run's (each frame's) model surface, for GcodeCheck's travel rule ([ModelCheck.Surfaces]). */
     class Result(val text: String, val parts: List<TriangleSoup>, val problems: List<String>, val curvedLayers: Int, val surfaces: List<ModelCheck.Surface> = emptyList())
 
@@ -171,7 +173,7 @@ object PlateCheck {
         for (fr in frames ?: listOf(CurvedCheck.Frame("", runText, checkParts[k].indices.toList(), checkParts[k]))) {
             val z = if (fr.flat) zaa else null
             val planar = pre + (if (headText == null) fr.text else withoutEmptyLayers(fr.text))
-            val sf = ModelCheck.Surface(fr.parts, zBase, planar, zaaMinMm = z?.minMm).also { surfaces += it }
+            val sf = ModelCheck.Surface(fr.parts, zBase, planar, zaaMinMm = z?.minMm, cut = o.cut).also { surfaces += it }
             val where = if (fr.name.isEmpty()) "'${o.name}'" else "'${o.name}' ${fr.name}"
             problems += ModelCheck.check(planar, fr.parts, zBase, imagesDir = if (fr.name.isEmpty()) dir else dir?.resolve(fr.name.replace(' ', '_'))?.also { java.nio.file.Files.createDirectories(it) },
                 surface = sf, partTools = o.partTools?.let { t -> fr.partIndex.map { t[it] } }, zaa = z).map { "$where: $it" }

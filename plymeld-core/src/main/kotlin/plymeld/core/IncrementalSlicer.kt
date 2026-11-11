@@ -625,7 +625,10 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
             if (lifted) require(s!!.bridgeLayerHeightUm == null || s!!.bridgeLayerHeightUm == s!!.layerHeightUm) {
                 "'$objectName': a lone lifted bridge shares the object's layers; plan.technique.bridge.layer.height (${s!!.bridgeLayerHeightUm!! / 1000.0} mm) is for an object with several lifted bridges" }
             if (lifted) flat.filter { isBridgeLayer(it) && it.paths.isNotEmpty() }.takeIf { it.size > 1 }?.let { bridgeTops[it.last()] = true }
-            return flat
+            // a section left open: the whole object's lines, laid inside its box only
+            val box = sectionBox ?: return flat
+            require(!lifted && warpFor(s!!) == null) { "'$objectName': a section left open is cut from flat layers; with a curved band or a lifted bridge it is not written yet (a section with faces = \"closed\" is)" }
+            return openSection.getOrPut(flat) { SectionClip.layers(flat, box[0], box[1], box[2], box[3], box[4], ::sameLayer) }
         }
         val bands = bandsStage.get()
         bandOf.clear()
@@ -640,6 +643,30 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         }
         return out
     }
+    /**
+     * The object's section left open (TechniquePlan.regions' section) in the frame its paths are in: x0, x1, y0, y1 placed
+     * and its top from the object's bottom, µm; null = the whole object prints.
+     */
+    private val sectionBox: LongArray? by lazy {
+        technique.regions.firstOrNull { it.section }?.let { r -> val g = r.region; val b = soup.bounds()
+            require(islands.isEmpty() && !banded) { "'$objectName': a section left open is cut from flat layers; with a curved island or several lifted bridges it is not written yet (a section with faces = \"closed\" is)" }
+            longArrayOf(Math.round((b[0] + g.x0) * 1000), Math.round((b[0] + g.x1) * 1000), Math.round((b[1] + g.y0) * 1000), Math.round((b[1] + g.y1) * 1000), Math.round(g.toMm * 1000)) }
+    }
+    /** The planned layers cut to [sectionBox], by the layers they were cut from (the stage's own list: cut once). */
+    private val openSection = java.util.IdentityHashMap<List<LayerPlanOut>, List<LayerPlanOut>>()
+    /** A per-filament plan cut to [sectionBox] (its layers above the box's top left out, every filament's and the supports' lines cut), by the plan it was cut from. */
+    private val openFilaments = java.util.IdentityHashMap<MultiFilament.Result, Pair<MultiFilament.Result, LongArray>>()
+    private fun sectioned(planned: Pair<MultiFilament.Result, LongArray>): Pair<MultiFilament.Result, LongArray> {
+        val box = sectionBox ?: return planned
+        return openFilaments.getOrPut(planned.first) {
+            val (r, tops) = planned
+            val n = tops.count { it <= box[4] + 1 }
+            fun cut(ps: List<ToolPath>) = SectionClip.paths(ps, box[0], box[1], box[2], box[3])
+            MultiFilament.Result(r.filaments.map { f -> MultiFilament.FilamentPlan(f.spool, f.areas.take(n), SectionClip.layers(f.layers, box[0], box[1], box[2], box[3], box[4]), f.unit) },
+                r.overlapUm2PerLayer.copyOf(n), r.whole, r.timingMs, r.support.take(n).map(::cut), r.supportInterface.take(n).map(::cut)) to tops.copyOf(n)
+        }
+    }
+
     /** For several lifted bridges: which bridge each of [plannedLayers]' bridge layers is (none for the rest). */
     private val bandOf = java.util.IdentityHashMap<LayerPlanOut, Int>()
     /** The warp planned layer [l] is laid back through: its own bridge's for several lifted bridges. */
@@ -765,7 +792,7 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         s = SliceSettings.of(setup, ctx)
         ran.clear(); stageMs.clear()
         require(multiFilament) { "object '$objectName' is on one filament with no part settings" }
-        return filamentsStage.get()
+        return sectioned(filamentsStage.get())
     }
 
     /**
@@ -1503,7 +1530,7 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
      * and each island layer's island; the slicer's own island marks ([islandOf], the writer's) are left as they are.
      */
     private fun multiLayers(): Pair<List<LayerPlanOut>, Map<LayerPlanOut, Int>> {
-        val (r, tops) = filamentsStage.get()
+        val (r, tops) = sectioned(filamentsStage.get())
         val flat = tops.indices.map { i -> LayerPlanOut(i, tops[i], r.filaments.firstOrNull()?.layers?.get(i)?.heightUm ?: 0L, r.filaments.flatMap { it.layers[i].paths }) }
         val stack = HashMap<LayerPlanOut, Int>()
         if (islands.isEmpty()) return flat to stack
