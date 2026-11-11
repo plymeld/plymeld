@@ -492,6 +492,9 @@ object Schema {
         d("$ad.brim.where", Type.Choice(listOf("outer")), "INHERITED: where the brim goes: outer = around the outside of the first layer")
         q("$ad.brim.width", Dimension.LENGTH, "INHERITED: brim width", feeds = true)
         q("$ad.brim.gap", Dimension.LENGTH, "INHERITED: gap between brim and object", feeds = true)
+        q("plan.layer.sliver.width", Dimension.LENGTH, "INHERITED: on an object of several filaments, an area of one filament thinner than this where it touches another filament's goes to that neighbor, which prints it; the boundary between the two moves by up to this much, and a thin feature of either filament beside the other (a letter's thin stroke) goes the same way. Unset = the thinnest area the walls print", feeds = true)
+        q("plan.mechanism.motion.short_walls.length", Dimension.LENGTH, "INHERITED: a wall line or loop shorter than this is a short wall, printed no faster than short_walls.speed (a short piece is mostly its start and its stop). Unset = none", feeds = true)
+        q("plan.mechanism.motion.short_walls.speed", Dimension.SPEED, "INHERITED: the fastest a short wall prints (short_walls.length); bundled: half the visible lines' speed", feeds = true)
         q("$ad.small_footprint.area", Dimension.AREA, "INHERITED: a first layer under this area is a small footprint: an object standing on one with no brim gets a note when it is sliced (a brim may help it hold the bed); nothing else changes", feeds = true)
         q("$ad.small_footprint.height_ratio", Dimension.RATIO, "INHERITED: a footprint is small for its height, too, when the object is taller than this many times the footprint's narrower side (of the box round its first layer): noted as under small_footprint.area", feeds = true)
         // the prime line: plymeld's own, near the print, so it is easy to remember to peel off

@@ -85,7 +85,8 @@ object MultiFilament {
         // Variable-width walls print an area down to the smallest feature (with a line of the narrowest width); handing
         // over everything under the narrowest LINE split a two-color Benchy's thin cabin strips so neither color
         // printed them
-        val narrowest = if (s.wallGenerator == "arachne") s.minFeatureUm else s.outerWallWidthUm
+        // (plan.layer.sliver.width asks for more)
+        val narrowest = maxOf(s.sliverWidthUm ?: 0L, if (s.wallGenerator == "arachne") s.minFeatureUm else s.outerWallWidthUm)
         val splits = timed("split") { Parallel.map(n, progress.Counter("filament areas", n)) { i -> FilamentAreas.split(partLayers.map { it[i] }, units, precedence, narrowest) } }
         // The parts' union, closed like any slice (slice_closing_radius): parts sliced one by one meet
         // at hairline seams, which read as "exposed from below" and, grown two nozzle widths as bridge

@@ -912,12 +912,21 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
     }
 
     /** Feature speed capped by the filament's max volumetric speed for this bead (w, h). */
+    /** The length of [p] as laid (mm): a loop closed back to its start. */
+    private fun lengthMm(p: Extrude): Double {
+        val m = p.xy.size / 2; var sum = 0.0
+        for (k in 0 until (if (p.closed) m else m - 1)) { val j = (k + 1) % m; sum += Math.hypot((p.xy[2 * j] - p.xy[2 * k]).toDouble(), (p.xy[2 * j + 1] - p.xy[2 * k + 1]).toDouble()) }
+        return sum / 1000.0
+    }
+
     private fun pathSpeed(p: Extrude, first: Boolean): Double {
         val ps = pathSettings[p] ?: s
         val area = p.heightUm / 1000.0 * (p.widthUm / 1000.0 - p.heightUm / 1000.0 * (1 - Math.PI / 4))   // mm²
         // a scarf seam's ramp and closing pass: no faster than the scarf's own speed (plan.technique.scarf_seam.speed)
         val scarf = if (p.scarf) ps.scarfSpeed else Double.POSITIVE_INFINITY
-        return minOf(speedFor(ps, p.feature, first), ps.maxVolumetric / area, ps.speedMax ?: Double.POSITIVE_INFINITY, scarf)
+        // a short wall (plan.mechanism.motion.short_walls.length): no faster than the short walls' speed
+        val short = ps.shortWallLengthMm?.let { len -> if ((p.feature == "Outer wall" || p.feature == "Inner wall") && lengthMm(p) < len) ps.shortWallSpeed else null } ?: Double.POSITIVE_INFINITY
+        return minOf(speedFor(ps, p.feature, first), ps.maxVolumetric / area, ps.speedMax ?: Double.POSITIVE_INFINITY, minOf(scarf, short))
     }
 
     /**
