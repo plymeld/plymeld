@@ -87,6 +87,8 @@ class JobFacts(
     val zHopMm: Double,
     /** How far each object's first layer reaches beyond its outline (brim width + gap; 0 without brim). */
     val brimReachMm: Double = 0.0,
+    /** The widest outer wall line of the objects (mm): a section left open ends its lines on its box's sides, half of this beyond them. */
+    val wallWidthMm: Double = togetherGapMm,
 )
 
 private fun tiersFact(i: Int, h: Toolhead?) = "toolhead ${i + 1}: " + if (h == null) "no geometry described" else
@@ -168,8 +170,8 @@ object ObjectOrderDecision {
             "weights: $weights") + heads.map { (i, h) -> tiersFact(i, h) }
         val layouts = LinkedHashMap<ObjectOrder, Layout>(); val rejected = LinkedHashMap<ObjectOrder, String>()
         // an object with a section left open is laid out by the section's box: what prints of it
-        // (its lines end on the box's sides, half a line beyond them: the box is taken half the gap wider each way, so the gap is between beads as it is between whole objects' faces)
-        val half = jf.togetherGapMm / 2
+        // (its lines end on the box's sides, half a line beyond them: the box is taken half a wall line wider each way, so the gap is between beads as it is between whole objects' faces)
+        val half = jf.wallWidthMm / 2
         fun sections(ts: List<TechniquePlan>) = ts.map { t -> t.regions.firstOrNull { it.section }?.region?.let { g -> doubleArrayOf(g.x0 - half, g.x1 + half, g.y0 - half, g.y1 + half) } }
         val secs = sections(techniques)
         for (o in ObjectOrder.entries) {

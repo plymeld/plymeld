@@ -48,6 +48,8 @@ class Plan(/** Every decision, in the order made: each object's pose and techniq
         class Overrides(val pose: Pose? = null, val technique: PrintTechnique? = null, val order: ObjectOrder? = null, val objects: List<ObjectLocks> = emptyList(),
                         /** One object at a time in the order the objects are given (plan.objects.order = as_given), not shortest first. */
                         val sequenceAsGiven: Boolean = false,
+                        /** The least distance between objects laid out on the bed (plan.objects.gap, mm); null = one outer wall width. */
+                        val gapMm: Double? = null,
                         /**
                          * Decide each object's flat layer height unless locked: flat layers' layer height ranges over the tool's
                          * thinnest to thickest layer, sampled coarse to fine up to method.search.layer.heights heights; false =
@@ -555,9 +557,11 @@ class Plan(/** Every decision, in the order made: each object's pose and techniq
                 if (Resolver.resolve(setup, "plan.mechanism.adhesion.brim.where", plymeld.model.Context(k)).value as String == "no_brim") 0.0
                 else (Resolver.resolve(setup, "plan.mechanism.adhesion.brim.width", plymeld.model.Context(k)).value as Number).toDouble() +
                     (Resolver.resolve(setup, "plan.mechanism.adhesion.brim.gap", plymeld.model.Context(k)).value as Number).toDouble() }
-            val jf = JobFacts(pf, each("plan.layer.walls.outer.line.width").max(),
-                "stand-in: one outer-wall width (the widest of the objects') so neighboring objects' walls cannot fuse (brims may merge)",
-                each("plan.technique.flat.layer.height").min(), each("hardware.filament.retract.z_hop").max(), brimReach)
+            val wallW = each("plan.layer.walls.outer.line.width").max()
+            val jf = JobFacts(pf, maxOf(o.gapMm ?: wallW, wallW),
+                if (o.gapMm != null && o.gapMm > wallW) "plan.objects.gap"
+                else "stand-in: one outer-wall width (the widest of the objects') so neighboring objects' walls cannot fuse (brims may merge)",
+                each("plan.technique.flat.layer.height").min(), each("hardware.filament.retract.z_hop").max(), brimReach, wallW)
             // every tool the plate prints with: each object's own spool and its parts' spools (multi-color)
             val tools = setup.objects.flatMap { ob -> listOf(ob.spool) + ob.parts.map { it.spool } }.map { setup.spool(it).tool }.toSet()
             val keep = o.pose != null && o.pose.label == "as given"

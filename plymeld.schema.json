@@ -3419,6 +3419,13 @@
                 "one_at_a_time"
               ]
             },
+            "gap": {
+              "description": "the least distance between objects laid out on the bed (between the boxes round them), when plymeld arranges them; unset = one outer wall width, so neighbors' walls cannot fuse; never less than that, and one at a time the head's reach still applies — a length (mm); or a formula (= ...)",
+              "type": [
+                "string",
+                "number"
+              ]
+            },
             "order": {
               "description": "the order objects printed one at a time (plan.objects.printing = one_at_a_time) go in: shortest_first (unset) = the shortest first; as_given = the order the objects are given (the models in the order loaded); the head's reach and the nozzle-to-rod height are checked against the objects already printed either way",
               "enum": [

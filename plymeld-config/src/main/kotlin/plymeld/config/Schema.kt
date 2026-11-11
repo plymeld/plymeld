@@ -59,7 +59,7 @@ object Schema {
         val p = segments.joinToString(".")
         fun under(vararg heads: String) = heads.any { p == it || p.startsWith("$it.") }
         return when {
-            under("plan.pause", "plan.objects.printing", "plan.objects.order", "plan.bridge_order", "plan.placement", "plan.pose", "plan.source_fingerprint", "plan.mechanism.purge.tower") -> setOf(Scope.PLATE)
+            under("plan.pause", "plan.objects.printing", "plan.objects.order", "plan.objects.gap", "plan.bridge_order", "plan.placement", "plan.pose", "plan.source_fingerprint", "plan.mechanism.purge.tower") -> setOf(Scope.PLATE)
             under("plan.insert") -> setOf(Scope.PLATE, Scope.OBJECT)
             p in REGION_VALUES -> setOf(Scope.PLATE, Scope.OBJECT, Scope.PART, Scope.REGION)
             segments[0] == "plan" -> setOf(Scope.PLATE, Scope.OBJECT, Scope.PART)
@@ -379,6 +379,7 @@ object Schema {
         d("plan.pose", Type.Choice(listOf("derive", "as-given")), "how each object sits: decided, or the model's own orientation")
         d("plan.placement", Type.Choice(listOf("center", "as-given")), "where objects sit")
         d("plan.objects.printing", Type.Choice(listOf("together", "one_at_a_time")), "objects printed together or one after another")
+        q("plan.objects.gap", Dimension.LENGTH, "the least distance between objects laid out on the bed (between the boxes round them), when plymeld arranges them; unset = one outer wall width, so neighbors' walls cannot fuse; never less than that, and one at a time the head's reach still applies")
         d("plan.objects.order", Type.Choice(listOf("shortest_first", "as_given")), "the order objects printed one at a time (plan.objects.printing = one_at_a_time) go in: shortest_first (unset) = the shortest first; as_given = the order the objects are given (the models in the order loaded); the head's reach and the nozzle-to-rod height are checked against the objects already printed either way")
         // the arched-bridge calibration plate: every foot first, at one temperature, then the bridges hot to cold, one
         // temperature at a time

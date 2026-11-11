@@ -11,6 +11,8 @@ section the release's version and date.
 
 ### Added
 
+- `plan.objects.gap`: the least distance between objects plymeld lays out on the bed. Unset, it is one outer wall
+  width, as before.
 - A note when an object stands on a small footprint with no brim: its first layer under
   `plan.mechanism.adhesion.small_footprint.area` (100 mm², a placeholder), or the object taller than
   `small_footprint.height_ratio` (3, a placeholder) times its first layer's narrower side. `plymeld slice` says so in
