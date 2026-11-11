@@ -768,6 +768,24 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         return filamentsStage.get()
     }
 
+    /**
+     * This object's lines for a plate of several objects (Job): laid per part ([plannedFilaments]) when it is on several
+     * filaments or part settings, else its planned layers under its one spool; with its layers' tops. Flat layers only so
+     * far: a curved island, a curved band, or a lifted bridge on such a plate is refused.
+     */
+    fun laidForPlate(setup: Setup): Pair<MultiFilament.Laid, LongArray> {
+        if (isMultiFilament(setup)) {
+            val (r, tops) = plannedFilaments(setup)
+            require(islands.isEmpty()) { "'$objectName' has a curved island and is laid per part: on a plate of several objects that is not written yet; slice it on its own" }
+            val (sup, itf) = supportSpools()
+            return MultiFilament.Laid(obj.name, r.filaments, r.support, r.supportInterface, sup, itf) to tops
+        }
+        val planned = planned(setup)
+        require(planned.none { islandKeyOf(it) != null || isBridgeLayer(it) } && planned.withIndex().all { (i, l) -> l.index == i }) {
+            "'$objectName' has layers of its own (a curved island or band, or a lifted bridge): on a plate with an object laid per part that is not written yet; slice it on its own" }
+        return MultiFilament.Laid(obj.name, listOf(MultiFilament.FilamentPlan(setup.objects[objectId].spool, emptyList(), planned))) to LongArray(planned.size) { planned[it].topZUm }
+    }
+
     /** A multi-filament object as a print program: filament order per layer, tool changes between object blocks. */
     private fun multiProgram(setup: Setup): PrintProgram {
         val (r, tops) = plannedFilaments(setup)
@@ -838,7 +856,9 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
      * changes never need them). Purge lines are the nozzle's width (as bridges); spare bands use the
      * intent's own sparse spacing. The tower must stand on the bed clear of the object.
      */
-    private fun purgeTower(setup: Setup, perLayer: IntArray, tops: LongArray): PurgeTower {
+    fun purgeTower(setup: Setup, perLayer: IntArray, tops: LongArray,
+                   /** The plate's other objects (Job): the tower stands beside all of them, clear of each. */
+                   others: List<plymeld.program.PrintObject> = emptyList()): PurgeTower {
         fun r(id: String) = Resolver.resolve(setup, id, ctx).value
         require(r("plan.mechanism.purge.tower.enabled") as Boolean) { "this print changes filament ${perLayer.sum()} times but the purge tower is off (plan.mechanism.purge.tower.enabled); purging elsewhere is not implemented" }
         val st = s!!
@@ -867,7 +887,11 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
                 compact = layout == "compact", maxGapUm = maxGap, minSideShare = minSide, brimUm = brim, brimLineUm = st.firstLayerWidthUm, brimOverlapUm = brimOverlap,
                 firstLineUm = st.firstLayerWidthUm, firstLayerSpeed = firstSpeed)
         val bx = listOf("hardware.machine.build.left", "hardware.machine.build.front", "hardware.machine.build.right", "hardware.machine.build.back").map { um(it) }
-        val hull = plymeld.geom.Polygon(LongArray(obj.footprint.size) { Math.round(obj.footprint[it] * 1000) }).let { if (it.isCcw()) it else it.reversed() }
+        val hulls = (listOf(obj) + others).map { o -> plymeld.geom.Polygon(LongArray(o.footprint.size) { Math.round(o.footprint[it] * 1000) }).let { if (it.isCcw()) it else it.reversed() } }
+        // beside the object; on a plate, beside the box round every object
+        val hull = if (others.isEmpty()) hulls[0] else hulls.map { it.bounds() }.let { bs ->
+            val x0 = bs.minOf { it[0] }; val y0 = bs.minOf { it[1] }; val x1 = bs.maxOf { it[2] }; val y1 = bs.maxOf { it[3] }
+            plymeld.geom.Polygon(longArrayOf(x0, y0, x1, y0, x1, y1, x0, y1)) }
         val setX = Resolver.resolveOrNull(setup, "plan.mechanism.purge.tower.x", ctx)
         val setY = Resolver.resolveOrNull(setup, "plan.mechanism.purge.tower.y", ctx)
         require((setX == null) == (setY == null)) {
@@ -897,9 +921,9 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         val f = t.footprint
         require(f.xy.withIndex().all { (k, v) -> if (k % 2 == 0) v in bx[0]..bx[2] else v in bx[1]..bx[3] }) {
             f.bounds().let { fb -> "purge tower (%.1f..%.1f, %.1f..%.1f mm, its brim included) is off the bed".format(java.util.Locale.ROOT, fb[0] / 1e3, fb[2] / 1e3, fb[1] / 1e3, fb[3] / 1e3) } }
-        require(plymeld.geom.Booleans.intersection(listOf(f), listOf(hull)).isEmpty()) {
+        for ((k, h) in hulls.withIndex()) require(plymeld.geom.Booleans.intersection(listOf(f), listOf(h)).isEmpty()) {
             f.bounds().let { fb -> "purge tower at (%.1f, %.1f), %.1f x %.1f mm (its brim included), overlaps '%s': move the tower (plan.mechanism.purge.tower.x / plan.mechanism.purge.tower.y)".format(java.util.Locale.ROOT,
-                fb[0] / 1e3, fb[1] / 1e3, (fb[2] - fb[0]) / 1e3, (fb[3] - fb[1]) / 1e3, objectName) } }
+                fb[0] / 1e3, fb[1] / 1e3, (fb[2] - fb[0]) / 1e3, (fb[3] - fb[1]) / 1e3, if (k == 0) objectName else others[k - 1].name) } }
         return t
     }
 
@@ -1390,7 +1414,7 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         this.setup = setup
         s = SliceSettings.of(setup, ctx)
         ran.clear(); stageMs.clear()
-        require(!multiFilament) { "object '$objectName' uses several filaments or part settings (${partUnits().distinct().joinToString()}): plates with such objects are not planned yet; slice it on its own" }
+        require(!multiFilament) { "object '$objectName' uses several filaments or part settings (${partUnits().distinct().joinToString()}): it is laid per part (plannedFilaments, laidForPlate), not as one object's layers" }
         return decideRetraction(plannedLayers(), setup).also { lastPlanned = it }
     }
 

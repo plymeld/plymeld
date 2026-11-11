@@ -12,8 +12,9 @@ import java.util.zip.ZipOutputStream
  * The plan's full prediction of an object laid part group by part group (here: a part with
  * settings of its own): written as `slice` writes it, by the object's own slicer (Job.write), so the finalists are
  * predicted from their g-code (such objects were refused there, and the pose, technique, and curved-island
- * decisions fell back to quick estimates or were skipped). Control: on a plate of two objects such an object is still
- * refused, and the plan says so.
+ * decisions fell back to quick estimates or were skipped). On a plate beside another object (a shorter one, on layers of
+ * its own) it is laid per filament (Job.perPartProgram) and predicted the same way. Control: the same plate printed one
+ * object at a time is not written yet, and the plan says so for that order.
  */
 class MultiPartPredictTest : StringSpec({
     val machine = """
@@ -87,11 +88,16 @@ class MultiPartPredictTest : StringSpec({
         return pr.decide().decisions.flatMap { listOf(it.why) + it.facts }
     }
 
-    "an object with a part of its own settings, alone on the plate: its finalists predicted from their g-code; control: beside another object, still refused and said" {
+    "an object with a part of its own settings: its finalists predicted from their g-code, alone and beside another object" {
         val alone = planned(listOf(stack))
         alone.any { "finalists through the full pipeline" in it } shouldBe true
         alone.none { "cannot be generated yet" in it } shouldBe true
+        // beside a plain, shorter object, each on the layers the plan gives it: the plate is laid per filament, so its g-code is
+        // there to predict from (such a plate was refused, and the plan said "cannot be generated yet")
         val plate = planned(listOf(stack, d.resolve("box.stl")))
-        plate.any { "cannot be generated yet" in it && "several filaments or part settings" in it } shouldBe true
+        plate.any { "finalists through the full pipeline" in it } shouldBe true
+        // control: printed one object at a time, such a plate is not written yet, and the plan says so for that order alone
+        val not = plate.filter { "cannot be generated yet" in it }
+        (not.isNotEmpty() && not.all { "one at a time is not written yet" in it }) shouldBe true
     }
 })

@@ -451,3 +451,26 @@ drift from the model it samples, and a 3MF's parts and filaments would have to b
 locks (with the note that the model changed), and unlocked decisions are made for the section. Its layers take less
 time than the whole model's, so it cools less between layers; its cut faces get walls.
 
+## 20. A plate with multi-filament objects is laid per filament (2026-11-10)
+
+**Context.** An object on several filaments was planned and written by its own slicer, alone: a plate of two was
+refused. Comparing two settings on such an object (a two-color nameplate's lettering) meant a print each, every one
+paying all its tool changes.
+
+**Decision.** `MultiFilament.steps`, which put one object's filaments in order layer by layer, became `plateSteps` over
+several objects: on each layer each filament in turn lays its lines of every object (each in its own object block), so
+a layer costs one change per filament whatever the number of objects. `Job` uses it when any object on the plate is
+laid per part; an object on one filament joins with its planned layers under its spool. The objects' layers are merged
+by height as on any plate: layers topping at one height, as thick, are one layer of the plate, and an object on other
+heights has layers of its own between; layers topping at one height share one layer of the tower. One purge tower, sized
+by the plate's changes, stands beside the box round every object (or where it is placed), clear of each. Each object keeps
+its own settings (the writer's per-object and per-part settings, as on any plate).
+
+**Rejected.** Each object's layer complete before the next object's (an object's two filaments, then the next object's):
+two changes per object per layer. Requiring every object on the same layers: a shorter object's last layer already
+differs from the taller's at that height, so only copies of one object would have passed.
+
+**Consequences.** Such a plate prints together, by height, on flat layers; a curved island, a curved band or a lifted
+bridge on it is refused, as is one object at a time (each object would need a tower of its own from the bed). Objects each on one filament but not the same one
+are still refused. One object on several filaments is written as before, by the same code with one object.
+
