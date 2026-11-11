@@ -4551,6 +4551,19 @@
                   ]
                 }
               }
+            },
+            "sliver": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "width": {
+                  "description": "INHERITED: on an object of several filaments, an area of one filament thinner than this where it touches another filament's goes to that neighbor, which prints it; the boundary between the two moves by up to this much, and a thin feature of either filament beside the other (a letter's thin stroke) goes the same way. Unset = the thinnest area the walls print — a length (mm); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                }
+              }
             }
           }
         },
@@ -4784,6 +4797,26 @@
                       "pattern": "^\\s*="
                     }
                   ]
+                },
+                "short_walls": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "length": {
+                      "description": "INHERITED: a wall line or loop shorter than this is a short wall, printed no faster than short_walls.speed (a short piece is mostly its start and its stop). Unset = none — a length (mm); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    },
+                    "speed": {
+                      "description": "INHERITED: the fastest a short wall prints (short_walls.length); bundled: half the visible lines' speed — a speed (mm/s); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    }
+                  }
                 }
               }
             },
@@ -6613,6 +6646,19 @@
                   ]
                 }
               }
+            },
+            "sliver": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "width": {
+                  "description": "INHERITED: on an object of several filaments, an area of one filament thinner than this where it touches another filament's goes to that neighbor, which prints it; the boundary between the two moves by up to this much, and a thin feature of either filament beside the other (a letter's thin stroke) goes the same way. Unset = the thinnest area the walls print — a length (mm); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                }
+              }
             }
           }
         },
@@ -6846,6 +6892,26 @@
                       "pattern": "^\\s*="
                     }
                   ]
+                },
+                "short_walls": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "length": {
+                      "description": "INHERITED: a wall line or loop shorter than this is a short wall, printed no faster than short_walls.speed (a short piece is mostly its start and its stop). Unset = none — a length (mm); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    },
+                    "speed": {
+                      "description": "INHERITED: the fastest a short wall prints (short_walls.length); bundled: half the visible lines' speed — a speed (mm/s); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    }
+                  }
                 }
               }
             },
@@ -8794,6 +8860,19 @@
                   ]
                 }
               }
+            },
+            "sliver": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "width": {
+                  "description": "INHERITED: on an object of several filaments, an area of one filament thinner than this where it touches another filament's goes to that neighbor, which prints it; the boundary between the two moves by up to this much, and a thin feature of either filament beside the other (a letter's thin stroke) goes the same way. Unset = the thinnest area the walls print — a length (mm); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                }
+              }
             }
           }
         },
@@ -9027,6 +9106,26 @@
                       "pattern": "^\\s*="
                     }
                   ]
+                },
+                "short_walls": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "length": {
+                      "description": "INHERITED: a wall line or loop shorter than this is a short wall, printed no faster than short_walls.speed (a short piece is mostly its start and its stop). Unset = none — a length (mm); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    },
+                    "speed": {
+                      "description": "INHERITED: the fastest a short wall prints (short_walls.length); bundled: half the visible lines' speed — a speed (mm/s); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    }
+                  }
                 }
               }
             },

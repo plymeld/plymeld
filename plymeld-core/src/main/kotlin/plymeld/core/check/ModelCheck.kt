@@ -51,11 +51,13 @@ object ModelCheck {
      * [imagesDir]: when given, a picture of each layer with a problem (ModelCheckPlot). [surface]: the
      * model cut at this g-code's layers, when already made (shared with GcodeCheck's travel rule).
      * [partTools]: the tool (0-based, T0 = the tool of index 1) the config's loadout assigns each of [parts], in their
-     * order; null: the tool is not judged.
+     * order; null: the tool is not judged. [handOverMm]: how thin an area of one filament the config hands to the
+     * neighboring filament (plan.layer.sliver.width, when set over the walls' own thinnest): a line of one tool may lie that
+     * much further from its own tool's part.
      */
     fun check(text: String, parts: List<TriangleSoup>, zBaseMm: Double, tolUm: Long = 100, maxProblems: Int = 30,
               imagesDir: java.nio.file.Path? = null, surface: Surface? = null, partTools: List<Int>? = null, zaa: ZaaRule? = null,
-              progress: plymeld.program.Progress = plymeld.program.Progress.NONE): List<String> {
+              progress: plymeld.program.Progress = plymeld.program.Progress.NONE, handOverMm: Double = 0.0): List<String> {
         require(partTools == null || partTools.size == parts.size) { "${partTools!!.size} part tools for ${parts.size} parts" }
         val sf = surface ?: Surface(parts, zBaseMm, text, zaaMinMm = zaa?.minMm)
         val layers = sf.layerLines
@@ -68,7 +70,7 @@ object ModelCheck {
         if (imagesDir != null) System.setProperty("java.awt.headless", "true")
         // every layer on its own, in parallel; the problems in layer order
         return plymeld.core.Parallel.map(layers.size, progress.Counter("model check", layers.size)) { k ->
-            layerProblems(sf, k, tol, imagesDir, zaa) + airProblems(sf, k, tol, imagesDir) + toolProblems(sf, k, tol, partTools) }.flatten().take(maxProblems)
+            layerProblems(sf, k, tol, imagesDir, zaa) + airProblems(sf, k, tol, imagesDir) + toolProblems(sf, k, tol + handOverMm, partTools) }.flatten().take(maxProblems)
     }
 
     /** The unlaid area over air a waved layer may leave (mm2): a few sampling cells, so a corner's rounding is not one. */

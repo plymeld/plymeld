@@ -145,6 +145,11 @@ gap = "0 mm"
 area = "100 mm2"
 height_ratio = "3"
 
+# A short wall (plan.mechanism.motion.short_walls.length, unset: none) prints no faster than this. PLACEHOLDER, not
+# measured: half the visible lines' speed.
+[plan.mechanism.motion.short_walls]
+speed = "= plan.mechanism.motion.visible.speed * 0.5"
+
 # The prime line: plymeld's own, laid before the first layer within 1 cm of the first object. enabled and line
 # unset: none with a prime tower, else on a peel tab, a partial brim joining the line to the print (against the brim's edge
 # when there is a brim). PLACEHOLDERS: length and gap, not measured.

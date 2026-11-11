@@ -11,6 +11,11 @@ section the release's version and date.
 
 ### Added
 
+- Short walls slower: with `plan.mechanism.motion.short_walls.length` set, a wall line or loop shorter than it prints
+  no faster than `short_walls.speed` (bundled: half the visible lines' speed, a placeholder). Unset, nothing changes.
+- `plan.layer.sliver.width`: on an object of several filaments, how thin an area of one filament is handed to the
+  filament beside it. Unset, it is the thinnest area the walls print, as before. The pre-print check allows a line that
+  much further from its own tool's part.
 - `plan.objects.gap`: the least distance between objects plymeld lays out on the bed. Unset, it is one outer wall
   width, as before.
 - A note when an object stands on a small footprint with no brim: its first layer under
