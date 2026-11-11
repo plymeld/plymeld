@@ -491,8 +491,8 @@ object Schema {
         d("$ad.brim.where", Type.Choice(listOf("outer")), "INHERITED: where the brim goes: outer = around the outside of the first layer")
         q("$ad.brim.width", Dimension.LENGTH, "INHERITED: brim width", feeds = true)
         q("$ad.brim.gap", Dimension.LENGTH, "INHERITED: gap between brim and object", feeds = true)
-        q("$ad.small_footprint.area", Dimension.AREA, "INHERITED: a first layer under this area is a small footprint: a section of a model (model.object.<key>.section) standing on one with no brim is warned about, as it may come loose from the bed", feeds = true)
-        q("$ad.small_footprint.height_ratio", Dimension.RATIO, "INHERITED: a footprint is small for its height, too, when the print is taller than this many times the footprint's narrower side (of the box round its first layer): warned about as under small_footprint.area", feeds = true)
+        q("$ad.small_footprint.area", Dimension.AREA, "INHERITED: a first layer under this area is a small footprint: an object standing on one with no brim gets a note when it is sliced (a brim may help it hold the bed); nothing else changes", feeds = true)
+        q("$ad.small_footprint.height_ratio", Dimension.RATIO, "INHERITED: a footprint is small for its height, too, when the object is taller than this many times the footprint's narrower side (of the box round its first layer): noted as under small_footprint.area", feeds = true)
         // the prime line: plymeld's own, near the print, so it is easy to remember to peel off
         d("$ad.prime.enabled", Type.Bool,
             "a separate prime line before the first layer. Unset: on when prime.line is set, else off with a prime tower and on otherwise")

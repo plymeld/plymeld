@@ -4969,14 +4969,14 @@
                   "additionalProperties": false,
                   "properties": {
                     "area": {
-                      "description": "INHERITED: a first layer under this area is a small footprint: a section of a model (model.object.<key>.section) standing on one with no brim is warned about, as it may come loose from the bed — a area (mm2); or a formula (= ...)",
+                      "description": "INHERITED: a first layer under this area is a small footprint: an object standing on one with no brim gets a note when it is sliced (a brim may help it hold the bed); nothing else changes — a area (mm2); or a formula (= ...)",
                       "type": [
                         "string",
                         "number"
                       ]
                     },
                     "height_ratio": {
-                      "description": "INHERITED: a footprint is small for its height, too, when the print is taller than this many times the footprint's narrower side (of the box round its first layer): warned about as under small_footprint.area — a multiplier (0.15 or 15%); or a formula (= ...)",
+                      "description": "INHERITED: a footprint is small for its height, too, when the object is taller than this many times the footprint's narrower side (of the box round its first layer): noted as under small_footprint.area — a multiplier (0.15 or 15%); or a formula (= ...)",
                       "type": [
                         "string",
                         "number"
@@ -7031,14 +7031,14 @@
                   "additionalProperties": false,
                   "properties": {
                     "area": {
-                      "description": "INHERITED: a first layer under this area is a small footprint: a section of a model (model.object.<key>.section) standing on one with no brim is warned about, as it may come loose from the bed — a area (mm2); or a formula (= ...)",
+                      "description": "INHERITED: a first layer under this area is a small footprint: an object standing on one with no brim gets a note when it is sliced (a brim may help it hold the bed); nothing else changes — a area (mm2); or a formula (= ...)",
                       "type": [
                         "string",
                         "number"
                       ]
                     },
                     "height_ratio": {
-                      "description": "INHERITED: a footprint is small for its height, too, when the print is taller than this many times the footprint's narrower side (of the box round its first layer): warned about as under small_footprint.area — a multiplier (0.15 or 15%); or a formula (= ...)",
+                      "description": "INHERITED: a footprint is small for its height, too, when the object is taller than this many times the footprint's narrower side (of the box round its first layer): noted as under small_footprint.area — a multiplier (0.15 or 15%); or a formula (= ...)",
                       "type": [
                         "string",
                         "number"
@@ -9212,14 +9212,14 @@
                   "additionalProperties": false,
                   "properties": {
                     "area": {
-                      "description": "INHERITED: a first layer under this area is a small footprint: a section of a model (model.object.<key>.section) standing on one with no brim is warned about, as it may come loose from the bed — a area (mm2); or a formula (= ...)",
+                      "description": "INHERITED: a first layer under this area is a small footprint: an object standing on one with no brim gets a note when it is sliced (a brim may help it hold the bed); nothing else changes — a area (mm2); or a formula (= ...)",
                       "type": [
                         "string",
                         "number"
                       ]
                     },
                     "height_ratio": {
-                      "description": "INHERITED: a footprint is small for its height, too, when the print is taller than this many times the footprint's narrower side (of the box round its first layer): warned about as under small_footprint.area — a multiplier (0.15 or 15%); or a formula (= ...)",
+                      "description": "INHERITED: a footprint is small for its height, too, when the object is taller than this many times the footprint's narrower side (of the box round its first layer): noted as under small_footprint.area — a multiplier (0.15 or 15%); or a formula (= ...)",
                       "type": [
                         "string",
                         "number"

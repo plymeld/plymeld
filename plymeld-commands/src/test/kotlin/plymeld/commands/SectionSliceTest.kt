@@ -153,14 +153,15 @@ class SectionSliceTest : StringSpec({
         // control: the whole object is twice as wide and reaches its top
         (all[0] > 18 && all[2] > 11) shouldBe true
     }
-    "a section on a small footprint with no brim is warned about, by its area or its height; controls: a larger one, and one with a brim, are not" {
+    "an object on a small footprint with no brim gets a note, by its area or its height (a section, and a whole model); controls: a larger one, and one with a brim, do not" {
         // a 6 mm corner of the block, 2 mm tall: 36 mm² at most, under the bundled 100 mm²
         val small = arrayOf("$key.min=${b[0] - 1} ${b[1] - 1} ${b[2] - 1} mm", "$key.max=${b[0] + 6} ${b[1] + 6} $midZ mm")
         for (faces in listOf("open", "closed")) {
             val (code, said, _) = slice(*small, "$key.faces=$faces")
             println(said.lines().filter { "small footprint" in it }.joinToString("\n"))
             code shouldBe 0
-            said shouldContain "the section stands on a small footprint with no brim: its first layer is"
+            said shouldContain "note: 'holeblock.stl' stands on a small footprint with no brim: its first layer is"
+            said.contains("warning: 'holeblock.stl' stands") shouldBe false                        // a note, not a warning
             // control: with a brim, no warning
             slice(*small, "$key.faces=$faces", "plan.mechanism.adhesion.brim.enabled=true").second.contains("small footprint") shouldBe false
         }
@@ -171,6 +172,9 @@ class SectionSliceTest : StringSpec({
         val (_, tall, _) = slice(*quarter, "plan.mechanism.adhesion.small_footprint.height_ratio=0.1")
         tall shouldContain "mm tall on a first layer"
         tall.contains("its first layer is") shouldBe false
+        // a whole model, no section: the block (30 x 30 mm, 4 mm tall) gets no note, and one once an area over its own calls it small
+        slice().second.contains("small footprint") shouldBe false
+        slice("plan.mechanism.adhesion.small_footprint.area=2000 mm2").second shouldContain "note: 'holeblock.stl' stands on a small footprint with no brim"
     }
     "control: an open section from above the model's bottom is refused" {
         val (code, said, g) = slice("$key.min=${b[0] - 1} ${b[1] - 1} $midZ mm", "$key.max=$midX $midY ${b[5] + 1} mm")

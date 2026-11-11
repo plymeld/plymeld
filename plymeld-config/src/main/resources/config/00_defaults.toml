@@ -139,7 +139,7 @@ where = "outer"                                # where a brim goes when enabled
 width = "= 12 * tool.bore"
 gap = "0 mm"
 
-# What counts as a small footprint (a section of a model standing on one with no brim is warned about). PLACEHOLDERS, not
+# What counts as a small footprint (an object standing on one with no brim gets a note when sliced). PLACEHOLDERS, not
 # measured: under the area of a 10 mm square, or more than three times as tall as the footprint's narrower side.
 [plan.mechanism.adhesion.small_footprint]
 area = "100 mm2"
