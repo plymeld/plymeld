@@ -11,9 +11,10 @@ section the release's version and date.
 
 ### Added
 
-- A section of a model that stands on a small footprint with no brim is warned about: its first layer under
-  `plan.mechanism.adhesion.small_footprint.area` (100 mm², a placeholder), or the section taller than
-  `small_footprint.height_ratio` (3, a placeholder) times its first layer's narrower side.
+- A note when an object stands on a small footprint with no brim: its first layer under
+  `plan.mechanism.adhesion.small_footprint.area` (100 mm², a placeholder), or the object taller than
+  `small_footprint.height_ratio` (3, a placeholder) times its first layer's narrower side. `plymeld slice` says so in
+  one line per object; nothing is refused or changed.
 - No wipe back along a line the head leaves below the line's highest point (a line or an edge strip laid sloping down
   over a waved bridge): the wipe ran at the head's height, into the line where it rises. A waved bridge's last bead on
   a layer is retracted and wiped before the layer change, on the layer it was laid on.

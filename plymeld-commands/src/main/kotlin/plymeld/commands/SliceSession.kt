@@ -38,17 +38,15 @@ class SliceSession {
     } + "|order=${plan.layout.order}|pauses=" + pauses.joinToString(",") { it.toString() }
 
     /**
-     * A section of a model (model.object.<key>.section) that stands on a small footprint with no brim, one line per object: its
-     * first layer's area under plan.mechanism.adhesion.small_footprint.area, or the section taller than
-     * small_footprint.height_ratio times the narrower side of the box round its first layer. A section is what is left of a
-     * model made to stand as a whole: a strip of a wide base can come loose where the whole would not. The first layer is
-     * the placed parts cut half a first layer up, inside the box of a section left open.
+     * The objects that stand on a small footprint with no brim, one line each, said as a note (nothing is refused or
+     * changed): its first layer's area under plan.mechanism.adhesion.small_footprint.area, or the object taller than
+     * small_footprint.height_ratio times the narrower side of the box round its first layer. The first layer is the placed
+     * parts cut half a first layer up; of a section left open (model.object.<key>.section), what lies inside its box, and
+     * its height the box's top.
      */
     private fun smallFootprints(pr: Product, plan: plymeld.core.decide.Plan, setup: plymeld.model.Setup): List<String> =
         plan.layout.placed.withIndex().mapNotNull { (j, pl) ->
             val o = pr.plate[j].first
-            val head = listOf("model", "object", o.base, "section")
-            if (pr.config.entry(head + "min") == null && pr.config.entry(head + "max") == null) return@mapNotNull null
             val s = plymeld.model.SliceSettings.of(setup, plymeld.model.Context(j))
             if (s.brimType != "no_brim") return@mapNotNull null
             val bs = pl.parts.map { it.bounds() }
@@ -69,7 +67,7 @@ class SliceSession {
                 if (area < s.smallFootprintAreaMm2) "its first layer is ${f(area)} mm², under plan.mechanism.adhesion.small_footprint.area (${f(s.smallFootprintAreaMm2)} mm²)" else null,
                 if (narrow > 0 && height > s.smallFootprintHeightRatio * narrow) "it is ${f(height)} mm tall on a first layer ${f(narrow)} mm across its narrower side, over plan.mechanism.adhesion.small_footprint.height_ratio (${f(s.smallFootprintHeightRatio)})" else null)
             if (why.isEmpty()) null
-            else "'${o.key}': the section stands on a small footprint with no brim: ${why.joinToString("; and ")}. It may come loose from the bed; a brim (plan.mechanism.adhesion.brim.enabled) holds it"
+            else "'${o.key}' stands on a small footprint with no brim: ${why.joinToString("; and ")}. A brim (plan.mechanism.adhesion.brim.enabled) may help it hold the bed"
         }
 
     /** Slices [pr]'s plan to [output]: the decisions echoed as `slice` prints them, the file written with its header. */
@@ -84,7 +82,7 @@ class SliceSession {
         plan.warnings.forEach { echo("warning: $it") }
         output.parent?.let { Files.createDirectories(it) }
         val setup = pr.result.setup
-        smallFootprints(pr, plan, setup).forEach { echo("warning: $it") }
+        smallFootprints(pr, plan, setup).forEach { echo("note: $it") }
         // nozzle temperatures against each filament's range and each tool's limit: warned about, not refused
         plymeld.core.check.TemperatureLimits.warnings(setup).forEach { echo("warning: $it") }
         // the pauses asked for, and one above each planned insert's top: the insert is placed before the layer over it
