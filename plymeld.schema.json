@@ -1889,7 +1889,7 @@
                     "additionalProperties": false,
                     "properties": {
                       "inward": {
-                        "description": "a closed outer wall's wipe (hardware.filament.<key>.retract.wipe.enabled) steps one line width inside the wall first, onto hidden material, then runs back along it there: along the wall itself, the wipe's last ooze lay on the visible face where the retraction ended. Bundled: true — true or false; or a formula (= ...)",
+                        "description": "a wall loop's wipe (hardware.filament.<key>.retract.wipe.enabled), the outer wall's and the inner walls', steps one line width inside the wall first, onto hidden material, then runs back along it there, all of the retraction spread over its moves (none of retract_before standing where the loop ended): along the outer wall, the wipe's last ooze lay on the visible face; at the end of the wall beside it, the retraction stood just behind the face and showed through. Bundled: true — true or false; or a formula (= ...)",
                         "anyOf": [
                           {
                             "type": "boolean"

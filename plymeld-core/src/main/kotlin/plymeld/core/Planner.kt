@@ -1645,7 +1645,9 @@ object Planner {
                     val ax = aEnd[0]; val ay = aEnd[1]
                     val bx = b.xy[0]; val by = b.xy[1]
                     val p0 = plymeld.geom.IntPoint(ax, ay); val p1 = plymeld.geom.IntPoint(bx, by)
-                    if (seamStep) { if (!ontoOuterWallInside(p0, p1)) continue }
+                    // a step between a wall and the outer one keeps its retraction unless it is a step, two line widths at most:
+                    // in a letter's narrow stroke the steps of 2 to 5 mm crossed the pocket's edge unretracted and drew strands
+                    if (seamStep) { if (Math.hypot((bx - ax).toDouble(), (by - ay).toDouble()) > 2.0 * s.outerWallWidthUm || !ontoOuterWallInside(p0, p1)) continue }
                     else if (!staysHidden(ax, ay, bx, by) || crossesOuterWall(p0, p1)) continue
                     ordered[k] = b.withRetract(false)
                 }

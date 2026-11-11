@@ -80,6 +80,29 @@ class OuterWallEndsTest : StringSpec({
         next.contains('E') shouldBe false
         atOff shouldBe (150.0 to 100.0)
     }
+    "an inner wall loop's wipe steps inward too, with no part of the retraction standing where the loop ended; control: off, along it, part standing" {
+        /** The g-code after an inner-wall square then a far outer-wall square: the moves between the inner wall's last line and the travel. */
+        fun after(inward: Boolean): List<Map<String, String>> {
+            val all = ConfigFiles.bundled() + (machine + listOf("hardware.filament.pla-generic.retract.wipe.enabled" to true,
+                "hardware.filament.pla-generic.retract.wipe.inward" to inward)).map { (k, v) -> ConfigFiles.Entry(k.split('.'), v, "test") }
+            val setup = ConfigSetup.setup(Config(ConfigStack(all), listOf(box))).setup
+            val inner = square(100.0, 100.0).let { Extrude("Inner wall", it.xy, true, 400, 440, 200) }
+            val g = StringWriter().also { KlipperWriter(SliceSettings.of(setup), setup.foreignTemplateVars, "test")
+                .write(PrintProgram(listOf(LayerStart(0, 200, 200, 0), LayerStart(1, 400, 200, 1), inner, square(150.0, 100.0)), emptyList()), it) }.toString()
+            val ls = g.lines().map { it.substringBefore(';').trim() }.filter { it.startsWith("G1 ") }.map { words(it) }
+            // after the inner wall's last line (the last extruding move in the first square, x under 140 mm)
+            val lastInner = ls.indexOfLast { (it["E"]?.toDoubleOrNull() ?: 0.0) > 0 && it.containsKey("X") && it["X"]!!.toDouble() < 140 }
+            return ls.drop(lastInner + 1).takeWhile { (it["E"]?.toDoubleOrNull() ?: 0.0) < 0 }
+        }
+        val inward = after(true)
+        val along = after(false)
+        println("inner wall's end, inward: $inward; along: $along")
+        // inward: every retracting move moves (none standing), each point inside the inner square
+        inward.all { it.containsKey("X") || it.containsKey("Y") } shouldBe true
+        inward.filter { it.containsKey("X") }.all { val px = it["X"]!!.toDouble(); val py = it["Y"]!!.toDouble(); px > 100.3 && px < 109.7 && py > 100.3 && py < 109.7 } shouldBe true
+        // control: off, the retract_before share stands still first
+        along.first().containsKey("X") shouldBe false
+    }
     "the outer wall's wipe inside the square; control: off, along its edge" {
         val inward = wipe(true)
         val along = wipe(false)

@@ -383,7 +383,12 @@ and at the loop's end retracted standing on the face again, with no wipe. Both o
   step onto the outer wall was an unretracted travel of 36 mm along the inside of the face).
 - An outer wall's restore after a retracted travel is made one line width inside its start, at the layer's top, and the
   head then moves onto the start with nothing pushed (`retract.return.inside`).
-- An outer wall's wipe steps one line width inside it before running back along it (`retract.wipe.inward`).
+- A wall loop's wipe steps one line width inside it before running back along it (`retract.wipe.inward`), with the whole
+  retraction spread over its moves. The outer wall's wipe first; then the inner walls' too, once a print showed a
+  column of scars beside a nameplate's lettering: the wall beside the outer one ended right behind the outer wall's
+  scarf, in line with the seams, and its retraction stood there, 0.4 mm behind the face, every layer.
+- A step between an inner wall and the outer wall goes unretracted only within two line widths: in a letter's narrow
+  stroke, steps of 2 to 5 mm crossed the pocket's edge unretracted and drew strands.
 
 The scarf's own speed, step and flow became settings beside them (`plan.technique.scarf_seam.speed`: half the visible
 lines' speed, a placeholder; `.step`: 1 mm, the constant it was; `.flow`: 100 %).

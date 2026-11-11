@@ -33,8 +33,9 @@ section the release's version and date.
 - An outer wall's restore after a retracted travel happens a line inside its start, and the head then moves onto the
   start with nothing pushed (`hardware.filament.<key>.retract.return.inside`, on in the bundled filaments). Restored at the
   start, the push left a blob on the visible face, where a scarf seam's ramp is thinnest.
-- After an outer wall, the wipe steps a line inside it before running back along it (`retract.wipe.inward`, on in the
-  bundled filaments), so its last ooze lands on hidden material; no wipe follows a line lowered below its layer.
+- After a wall loop, the outer wall or an inner one, the wipe steps a line inside it before running back along it, the
+  whole retraction spread over its moves (`retract.wipe.inward`, on in the bundled filaments), so its last ooze lands on
+  hidden material; no wipe follows a line lowered below its layer.
 - The bundled filaments wipe as they retract (`hardware.filament.<key>.retract.wipe.enabled = "true"`): the nozzle
   retraces the path it just laid by the wipe distance (1 mm), so what oozes lands along the line, not in a blob where the
   nozzle stopped. Off before; a filament of yours that sets it keeps its own.
@@ -45,6 +46,8 @@ section the release's version and date.
 
 ### Fixed
 
+- The step from an inner wall onto the outer wall's start, and from it onto the wall beside it, goes unretracted only
+  within two line widths: in a letter's narrow stroke, steps of 2 to 5 mm crossed the pocket's edge and drew strands.
 - A plate of several objects heats the next tool ahead of a change as one object does (`hardware.tool.<key>.heat.time`);
   it waited at every change.
 - A retraction's wipe is written under the feature it wipes: the next path's `;TYPE:` and `;WIDTH:` lines came first, so

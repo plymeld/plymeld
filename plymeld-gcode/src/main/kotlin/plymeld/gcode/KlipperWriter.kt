@@ -582,11 +582,15 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                             // Wipe: retrace the last path backwards while retracting (retract_before_wipe
                             // of the retraction happens first, the rest spread over the wipe).
                             retractedMm = len
-                            val pre = len * s.retractBeforeWipe
+                            // a wall loop's wipe inside it (hardware.filament.retract.wipe.inward), the outer wall's and the inner walls':
+                            // along the outer wall, the wipe's last ooze lay on the visible face; at the end of the wall beside it
+                            // (laid after the outer one, inner_outer_inner), the retraction stood 0.4 mm behind the face, in line
+                            // with the seam layer after layer, and showed through as a column of scars. Stepping inward, all of the
+                            // retraction is spread over the wipe, none of it standing where the loop ended
+                            val inward = s.wipeInward && (lp.closed || lp.ofLoop) && (lp.feature == "Outer wall" || lp.feature == "Inner wall")
+                            val pre = if (inward) 0.0 else len * s.retractBeforeWipe
                             if (pre > 0) out.write("G1 E-${n(pre)} F${f(s.retractSpeed)}\n")
-                            // a closed outer wall's wipe inside it (hardware.filament.retract.wipe.inward): along the visible face,
-                            // the wipe's last ooze lay on it where the retraction ended
-                            val pts = if (s.wipeInward && (lp.closed || lp.ofLoop) && lp.feature == "Outer wall") inwardWipePoints(lp, x, y, s.wipeDistanceMm) else wipePoints(lp, x, y, s.wipeDistanceMm)
+                            val pts = if (inward) inwardWipePoints(lp, x, y, s.wipeDistanceMm) else wipePoints(lp, x, y, s.wipeDistanceMm)
                             var wx = x; var wy = y
                             val total = pts.windowed(2, 2).sumOf { (a, b) -> Math.hypot(a - wx, b - wy).also { wx = a; wy = b } }
                             wx = x; wy = y
