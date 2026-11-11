@@ -126,6 +126,7 @@ class Product(given: ConfigStack, modelFiles: List<Path>, machine: String? = nul
         // flat layers are the only technique the search tries, so allowing only them locks nothing
         return Plan.Companion.Overrides(pose = pose, technique = allowed?.singleOrNull()?.takeIf { it != PrintTechnique.FLAT_LAYERS }, order = order,
             sequenceAsGiven = plan("objects.order") == "as_given",
+            gapMm = config.entry(listOf("plan", "objects", "gap"))?.let { config.quantity(it, Dimension.LENGTH, Site()) },
             objects = plate.map { (o, _) -> locks(o) },
             decideLayerHeight = true, decidedInfillAngle = plate.map { (o, _) -> !lockedInfillAngle(o) },
             weighedSurfaceTechniques = plate.map { (o, _) -> unlockedSurfaceTechniques(o) })
