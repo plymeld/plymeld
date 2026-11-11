@@ -11,7 +11,9 @@ import io.kotest.matchers.string.shouldContain
  * its sides), a square tube (a cap with a hole), a ball whose equator's vertices lie on the cutting plane (the plane moved
  * off them), and a block with two posts (two outlines on one cap). Closed is checked edge by edge: every directed edge of
  * the result has its reverse exactly once. References: volumes worked by hand; the ball's half from the mesh's own
- * symmetry. Controls: a box round the whole mesh changes nothing; a cube with a face missing, cut across the opening, is
+ * symmetry. A cut outline that crosses itself by a float's step (two points that close together, from a real model) is
+ * still closed, and one crossing itself by half a millimetre is refused. Controls: a box round the whole mesh changes
+ * nothing; a cube with a face missing, cut across the opening, is
  * refused.
  */
 class SectionCutTest : StringSpec({
@@ -81,6 +83,30 @@ class SectionCutTest : StringSpec({
         val cut = SectionCut.cut(soup(m), doubleArrayOf(-inf, inf, -inf, inf, -inf, 8.0))
         unpaired(cut) shouldBe 0
         cut.signedVolume() shouldBe (20.0 * 10 * 2 + 2 * (4.0 * 4 * 3) plusOrMinus 1e-3)
+    }
+    // what was left of a real model's cut outline (46,728 points) when the triangulation stopped: two needles whose tips are
+    // two points a float's step apart, their sides swapped there, so the outline crosses itself by 0.000004 mm
+    "an outline crossing itself by a float's step at a needle's tip is still closed; control: one truly crossing itself is refused" {
+        val needles = doubleArrayOf(54.641090393066406, -20.027002334594727, 55.16203689575195, -17.6484432220459, 71.58467102050781, -17.943384170532227,
+            72.80488586425781, -20.63744354248047, 72.80487823486328, -20.63744354248047, 72.68623352050781, -17.90029525756836,
+            54.73697280883789, -17.617311477661133, 54.64109420776367, -20.027002334594727)
+        fun area2(l: DoubleArray): Double { var s = 0.0; val k = l.size / 2; for (i in 0 until k) { val j = (i + 1) % k; s += l[2 * i] * l[2 * j + 1] - l[2 * j] * l[2 * i + 1] }; return s }
+        var tris = 0; var sum = 0.0
+        val edges = HashMap<List<Double>, Int>()
+        SectionCut.triangulate(needles, emptyList(), 1.0) { ax, ay, bx, by, cx, cy ->
+            tris++; sum += (bx - ax) * (cy - ay) - (by - ay) * (cx - ax)
+            for (e in listOf(listOf(ax, ay, bx, by), listOf(bx, by, cx, cy), listOf(cx, cy, ax, ay))) edges.merge(e, 1, Int::plus)
+        }
+        tris shouldBe 6                                              // n - 2: every point used, none added
+        sum shouldBe (area2(needles) plusOrMinus 1e-6)                // the triangles' areas add up to the outline's
+        // every edge inside is shared by two triangles, one each way; the outline's own edges are there once
+        val k = needles.size / 2
+        val outline = (0 until k).map { i -> val j = (i + 1) % k; listOf(needles[2 * i], needles[2 * i + 1], needles[2 * j], needles[2 * j + 1]) }.toSet()
+        edges.all { (e, c) -> c == 1 && (e in outline || edges[listOf(e[2], e[3], e[0], e[1])] == 1) } shouldBe true
+        outline.all { it in edges } shouldBe true
+        // control: the same needles with their tips' two points half a millimetre apart: the sides cross for real
+        val crossed = needles.copyOf().also { it[0] -= 0.5; it[6] += 0.5 }
+        shouldThrow<IllegalArgumentException> { SectionCut.triangulate(crossed, emptyList(), 1.0) { _, _, _, _, _, _ -> } }.message!! shouldContain "crosses itself"
     }
     "controls: a box round the whole mesh changes nothing; an open mesh cut across its opening is refused; a box beside the mesh leaves nothing" {
         val cube = soup(box(0f, 0f, 0f, 10f, 10f, 10f))
