@@ -117,7 +117,7 @@ object Catalog {
         // the lift goes with the retraction (it was the plan's hardware.filament.retract.z_hop, a tool setting)
         s("hardware.filament.retract.z_hop", MATERIAL_TOOL, LENGTH, "lift the nozzle this much for a travel that retracts")
         s("hardware.filament.retract.return.inside", MATERIAL_TOOL, BOOL, "an outer wall's restore after a retracted travel a line inside its start, then onto the start with nothing pushed")
-        s("hardware.filament.retract.wipe.inward", MATERIAL_TOOL, BOOL, "a closed outer wall's wipe a line inside it, then back along it")
+        s("hardware.filament.retract.wipe.inward", MATERIAL_TOOL, BOOL, "a wall loop's wipe a line inside it, then back along it, the whole retraction spread over it")
         s("hardware.filament.retract.wipe.enabled", MATERIAL_TOOL, BOOL, "wipe the nozzle along the path while retracting")
         s("hardware.filament.retract.wipe.distance", MATERIAL_TOOL, LENGTH, "length of the wipe")
         s("hardware.filament.retract.wipe.speed", MATERIAL_TOOL, SPEED, "speed of the wipe")
