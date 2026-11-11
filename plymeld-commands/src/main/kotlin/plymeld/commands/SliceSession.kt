@@ -128,11 +128,16 @@ class SliceSession {
         val lifted = plan.layout.placed.indices.any { curvedSpec(plan, setup, it)?.follows == plymeld.core.check.CurvedCheck.Follows.LIFT }
         // Z anti-aliasing: lines below their flat layer only on the model's own top (the rule from the model and the config)
         val zaa = plymeld.core.check.Expectations.forZaa(setup, plan.parts, zBase, lifted)
+        // a section left open: the box object j's lines are laid in, in the file's frame (its sides, and its top's height)
+        fun cutOf(j: Int): DoubleArray? = plan.layout.techniques[j].regions.firstOrNull { it.section }?.let { r ->
+            val pl = plan.layout.placed[j]; val g = r.region
+            val bx = pl.parts.minOf { it.bounds()[0] }; val by = pl.parts.minOf { it.bounds()[1] }
+            doubleArrayOf(bx + g.x0, bx + g.x1, by + g.y0, by + g.y1, pl.parts.minOf { it.bounds()[2] } + g.toMm) }
         val plate = if (!several) null else {
             var at = 0
             val objs = plan.layout.placed.withIndex().map { (j, pl) ->
                 val tools = partTools.subList(at, at + pl.parts.size).also { at += pl.parts.size }
-                plymeld.core.check.PlateCheck.Obj(pl.name, pl.parts, tools, curvedSpec(plan, setup, j))
+                plymeld.core.check.PlateCheck.Obj(pl.name, pl.parts, tools, curvedSpec(plan, setup, j), cutOf(j))
             }
             if (sequential) plymeld.core.check.PlateCheck.oneAtATime(text, objs, zBase, Path.of("$output.check"), zaa)
             else plymeld.core.check.PlateCheck.together(text, objs, zBase, Path.of("$output.check"), zaa)
@@ -143,7 +148,7 @@ class SliceSession {
         // several lifted bridges in a lone object: each frame (what stands on the bed, each bridge) read against its own parts
         val frames = curved?.frames
         val frameSurfaces = frames?.map { plymeld.core.check.ModelCheck.Surface(it.parts, zBase, it.text, zaaMinMm = if (it.flat) zaa?.minMm else null, clip = it.clip) }
-        val surface = if (frames == null) plymeld.core.check.ModelCheck.Surface(checkParts, zBase, checkText, zaaMinMm = zaa?.minMm) else null
+        val surface = if (frames == null) plymeld.core.check.ModelCheck.Surface(checkParts, zBase, checkText, zaaMinMm = zaa?.minMm, cut = if (several) null else cutOf(0)) else null
         val onSurface: (Double, Double, Double, Double) -> Boolean = when {
             plate != null -> plymeld.core.check.ModelCheck.Surfaces(plate.surfaces)::at
             frameSurfaces != null -> plymeld.core.check.ModelCheck.Surfaces(frameSurfaces)::at

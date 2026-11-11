@@ -17,9 +17,12 @@ section the release's version and date.
   take settings of their own (`plan.object."<key>#2".…`), for trying variations side by side. The objects print
   together, by height, each on its own flat layers; one object at a time is not written for such a plate yet.
 - A section of a model printed on its own: `model.object.<key>.section.min` and `.max` give a box in the model's own
-  coordinates, and only what is inside it prints, its cut faces closed, standing on the bed. For trying a detail of a
-  large model (one face, a line of lettering) without the hours of the whole. A part of a 3MF with nothing in the box
-  is left out.
+  coordinates, and only what is inside it prints. For trying a detail of a large model (one face, a line of lettering)
+  without the hours of the whole. By default its cut faces are left open (`section.faces = "open"`): the whole model is
+  planned and placed as it would be, and only its lines inside the box are laid, so the section prints as that part of
+  the whole print would, with no walls or top added where it is cut. With `faces = "closed"` the model itself is cut
+  and its cut faces closed, and the section prints as an object of its own, standing on the bed; a part of a 3MF with
+  nothing in the box is left out.
 - Renamed settings are read under their new names: a config file, a plan file, or a g-code's recorded settings
   (`slice --from`) that uses a name a release changed reads as the new one, its value converted, with a warning naming
   both. `plymeld migrate FILE...` rewrites config and plan files to the current names, comments and the rest kept, each

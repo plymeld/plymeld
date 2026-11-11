@@ -218,7 +218,8 @@ object ModelCheck {
                         val len = Math.hypot(bx - ax, by - ay); val n = maxOf(1, Math.ceil(len / 0.5).toInt())
                         for (j in 0 until n) {
                             val px = ax + (bx - ax) * (j + 0.5) / n; val py = ay + (by - ay) * (j + 0.5) / n
-                            val near = wallGrid.nearest(px, py, w + tol) <= w + tol
+                            // a section left open: its cut sides are not walled, by intent
+                            val near = wallGrid.nearest(px, py, w + tol) <= w + tol || sf.onCut(px, py, tol)
                             val wallable = !near && centerGrid.nearest(px, py, w) <= w / 2 + tol
                             if (!near && wallable) { uncovered += len / n; run += len / n; pts += doubleArrayOf(px, py); if (run > longest) { longest = run; ux = px; uy = py } } else run = 0.0
                         }
@@ -273,11 +274,26 @@ object ModelCheck {
                    * without the islands' loops above their starts, an island's layers with its loops only): given the cut's height
                    * in the parts' frame and its loops, the loops kept. Null: all of them.
                    */
-                  private val clip: ((Double, List<Polygon>) -> List<Polygon>)? = null) {
+                  private val clip: ((Double, List<Polygon>) -> List<Polygon>)? = null,
+                  /**
+                   * A section left open (model.object.<key>.section, faces = "open"): the box the object's lines are laid in (x0,
+                   * x1, y0, y1 and its top's z, mm, in the g-code's frame). Each cut is judged inside it only (nothing above
+                   * its top), and its outline along the box's sides is the cut, where no wall is asked for ([onCut]).
+                   */
+                  val cut: DoubleArray? = null) {
+        /** Whether an outline point lies on the open section's cut (within [tolMm] of a side of the box). */
+        fun onCut(x: Double, y: Double, tolMm: Double): Boolean = cut != null &&
+            (Math.abs(x - cut[0]) <= tolMm || Math.abs(x - cut[1]) <= tolMm || Math.abs(y - cut[2]) <= tolMm || Math.abs(y - cut[3]) <= tolMm)
+        private val cutRect: List<Polygon>? = cut?.let { c -> listOf(Polygon(longArrayOf(Math.round(c[0] * 1000), Math.round(c[2] * 1000), Math.round(c[1] * 1000), Math.round(c[2] * 1000),
+            Math.round(c[1] * 1000), Math.round(c[3] * 1000), Math.round(c[0] * 1000), Math.round(c[3] * 1000)))) }
+        /** [loops], the model cut at [z] mm, inside the open section's box (as they are with none; none above its top). */
+        private fun inCut(z: Double, loops: List<Polygon>): List<Polygon> = if (cutRect == null || loops.isEmpty()) loops
+            else if (z > cut!![4] + 1e-6) emptyList() else plymeld.geom.Booleans.intersection(loops, cutRect)
         internal val layerLines: List<LayerLines> = layers(text)
         private val cutZ = DoubleArray(layerLines.size) { k -> layerLines[k].z - layerLines[k].h / 2 + zBaseMm }
         private val sections = if (layerLines.isEmpty()) emptyList() else
-            parts.map { p -> Slicer.slice(p, cutZ).let { ls -> if (clip == null) ls else ls.mapIndexed { k, l -> plymeld.mesh.Layer(l.z, clip.invoke(cutZ[k], l.loops), l.openChains) } } }
+            parts.map { p -> Slicer.slice(p, cutZ).let { ls -> if (clip == null && cutRect == null) ls else ls.mapIndexed { k, l ->
+                plymeld.mesh.Layer(l.z, inCut(cutZ[k], if (clip == null) l.loops else clip.invoke(cutZ[k], l.loops)), l.openChains) } } }
         // each layer's union of the parts, all layers at once in parallel (the union is the slow part)
         private val unions: List<List<Polygon>> by lazy {
             plymeld.core.Parallel.map(layerLines.size) { k -> sections.flatMap { it[k].loops }.let { if (it.size > 1) plymeld.geom.Booleans.unionPositive(it) else it }

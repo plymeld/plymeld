@@ -2029,7 +2029,7 @@
                 "additionalProperties": false,
                 "properties": {
                   "min": {
-                    "description": "print only the part of the object inside a box: the box's least corner, in the model's own coordinates as its file gives them; with max. The model is cut to the box as it is read, each cut face closed, so the section is planned, laid out, sliced, and checked as an object of its own (its bottom on the bed, walls on its cut faces); a part with nothing in the box is left out; every copy of the object is cut alike. The model must be a closed surface where the box cuts it — a point, x y z and a unit (\"10 20 5 mm\"); or an array of 3 numbers (mm)",
+                    "description": "print only the part of the object inside a box: the box's least corner, in the model's own coordinates as its file gives them; with max. What its cut faces are is section.faces; every copy of the object is cut alike — a point, x y z and a unit (\"10 20 5 mm\"); or an array of 3 numbers (mm)",
                     "anyOf": [
                       {
                         "type": "string"
@@ -2058,6 +2058,13 @@
                         "minItems": 3,
                         "maxItems": 3
                       }
+                    ]
+                  },
+                  "faces": {
+                    "description": "a section's cut faces. open (unset): the whole object is planned, posed, and placed as it would be without the section, and only its lines inside the box are laid, up to the box's top: the section prints as that part of the whole print would (the same walls, seams, infill, speeds, and filament changes), with no walls, top, or bottom added where it is cut, so the infill shows there; the box must reach down to the model's bottom, and the object must print on flat layers. closed: the model is cut to the box as it is read, each cut face closed, so the section is planned, laid out, sliced, and checked as an object of its own (its bottom on the bed, walls and top surfaces on its cut faces); a part with nothing in the box is left out; the model must be a closed surface where the box cuts it",
+                    "enum": [
+                      "open",
+                      "closed"
                     ]
                   }
                 }

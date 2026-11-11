@@ -264,7 +264,23 @@ class Product(given: ConfigStack, modelFiles: List<Path>, machine: String? = nul
                         support = e("support")?.value as String?)
                 } catch (x: IllegalArgumentException) { throw UsageError(x.message ?: "bad region") }
             }
-        }.distinctBy { it.key }
+        }.distinctBy { it.key } + listOfNotNull(openSection(o))
+    }
+
+    /** [o]'s section left open (`model.object.<key>.section`, faces unset or "open") as the region that carries its box to the slice; null with none, or a closed one. */
+    private fun openSection(o: plymeld.config.PlateObject): plymeld.core.decide.Region? {
+        val head = listOf("model", "object", o.base, "section")
+        val b = sectionBox(config, head) ?: return null
+        if (config.entry(head + "faces")?.value == "closed") return null
+        return plymeld.core.decide.Region("(section)", b, null, null, null, null, null, ConfigFiles.pathText(head), section = true)
+    }
+
+    /** The box of a section under [head] in [cfg] (x0, x1, y0, y1, z0, z1 mm, the model's own coordinates); null with none set. */
+    private fun sectionBox(cfg: Config, head: List<String>): DoubleArray? {
+        if (cfg.entry(head + "min") == null && cfg.entry(head + "max") == null) return null
+        val b = box(head, listOfNotNull(cfg.entry(head + "min"), cfg.entry(head + "max")))
+        if (!(b[0] < b[1] && b[2] < b[3] && b[4] < b[5])) throw UsageError("${ConfigFiles.pathText(head)}: each of min must be below max (x ${b[0]}..${b[1]}, y ${b[2]}..${b[3]}, z ${b[4]}..${b[5]} mm)")
+        return b
     }
 
     /** The curved islands a plan locks for [o] (`plan.object.<key>.island.<key>`: x and y required, start and layer.height optional). */
@@ -281,20 +297,24 @@ class Product(given: ConfigStack, modelFiles: List<Path>, machine: String? = nul
     }
 
     /**
-     * [input] cut to its object's section (`model.object.<key>.section.min` / `.max` in [cfg], by the object's key: every
-     * copy of it), each part's cut faces closed (SectionCut), the parts with nothing in the box left out; [input] itself with
-     * none set. Said once: the box, how much of the model is in it, and the parts left out. Refused when nothing of the
-     * object lies in the box, or the model is not closed where the box cuts it.
+     * [input] cut to its object's closed section (`model.object.<key>.section.min` / `.max` in [cfg] with faces = "closed",
+     * by the object's key: every copy of it), each part's cut faces closed (SectionCut), the parts with nothing in the box
+     * left out; [input] itself with none set, or with a section left open (the model stays whole: [openSection] carries its
+     * box to the slice). Said once: the box, how much of the model is in it, and the parts left out. Refused when nothing of
+     * the object lies in the box, or the model is not closed where the box cuts it.
      */
     private fun sectioned(cfg: Config, o: plymeld.config.PlateObject, input: ModelInput): ModelInput {
         val head = listOf("model", "object", o.base, "section")
-        if (cfg.entry(head + "min") == null && cfg.entry(head + "max") == null) return input
-        val b = box(head, listOfNotNull(cfg.entry(head + "min"), cfg.entry(head + "max")))
-        if (!(b[0] < b[1] && b[2] < b[3] && b[4] < b[5])) throw UsageError("${ConfigFiles.pathText(head)}: each of min must be below max (x ${b[0]}..${b[1]}, y ${b[2]}..${b[3]}, z ${b[4]}..${b[5]} mm)")
+        val b = sectionBox(cfg, head) ?: return input
         fun f(v: Double) = plymeld.core.decide.Control.fmt(v)
-        synchronized(sectionCache) { sectionCache.firstOrNull { it.first === input && it.second.contentEquals(b) }?.let { return it.third } }
         val all = input.parts.map { it.bounds() }
         val whole = "the model spans x ${f(all.minOf { it[0] })}..${f(all.maxOf { it[3] })}, y ${f(all.minOf { it[1] })}..${f(all.maxOf { it[4] })}, z ${f(all.minOf { it[2] })}..${f(all.maxOf { it[5] })} mm"
+        if (cfg.entry(head + "faces")?.value != "closed") {
+            say("'${o.base}': only its section prints, x ${f(b[0])}..${f(b[1])}, y ${f(b[2])}..${f(b[3])} mm up to z ${f(b[5])} mm in the model's own coordinates " +
+                "(${ConfigFiles.pathText(head)}; $whole), its cut faces left open: the whole object is planned, and its lines inside the box are laid")
+            return input
+        }
+        synchronized(sectionCache) { sectionCache.firstOrNull { it.first === input && it.second.contentEquals(b) }?.let { return it.third } }
         val cut = try { input.parts.map { plymeld.mesh.SectionCut.cut(it, b) } }
             catch (x: IllegalArgumentException) { throw UsageError("'${o.base}' (${ConfigFiles.pathText(head)}): ${x.message}") }
         val keep = cut.indices.filter { cut[it].count > 0 }

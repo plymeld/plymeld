@@ -75,17 +75,31 @@ OLD.gcode -m bracket.stl -o NEW.gcode` slices again from them, with any `-cf` an
 ## Print a section of a model
 
 To try a detail of a large model without printing all of it, give the object a section: a box in the model file's own
-coordinates. plymeld cuts the model to the box as it reads it and closes the cut faces, so the section is planned,
-sliced, and checked as an object of its own, standing on the bed. A part of a 3MF with nothing in the box is left out.
+coordinates. Only what is inside the box prints.
 
 ```toml
 [model.object."nameplate.3mf".section]
 min = "38 -30 -1 mm"                    # the box's corners; a side beyond the model cuts nothing
 max = "96 -9 12.5 mm"
+faces = "open"                          # the default; "closed" for a section printed as an object of its own
 ```
 
-`plymeld slice` says what the model spans when it reads a section, and names the model's extent when the box misses it.
-The model must be a closed surface where the box cuts it.
+`faces` says what the section's cut faces are:
+
+- `open` (the default): the section prints as that part of the whole print would. plymeld plans, poses, and places the
+  whole model as it would without the section, then lays only the lines inside the box, up to the box's top: the same
+  walls, seams, infill, speeds, and filament changes, in the same place on the bed. Nothing is added where the model is
+  cut: no walls up the cut sides and no top surface on the last layer, so the infill shows there. A line the box cuts
+  ends on the box's side. The box must reach down to the model's bottom, and the object must print on flat layers
+  (no curved layers or lifted bridges).
+- `closed`: plymeld cuts the model itself to the box as it reads it and closes the cut faces, so the section is planned,
+  sliced, and checked as an object of its own, standing on the bed, with walls on its cut sides and a top surface where
+  it is cut off. A part of a 3MF with nothing in the box is left out. The model must be a closed surface where the box
+  cuts it. Use it for a section from higher up the model, or one that should print as a solid piece.
+
+`plymeld slice` says what the model spans when it reads a section, and a closed section names the model's extent when
+the box misses it. An open section still takes each layer's share of the print's fixed costs (a purge tower's layer,
+a filament change), and its layers are shorter than the whole model's, so they cool less between layers.
 
 ## Settings for one object, part, or region
 
