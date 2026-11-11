@@ -461,7 +461,9 @@ back.
 
 **Consequences.** An open section starts at the model's bottom (what is under a higher one would not be printed: that
 is a closed section) and prints on flat layers; with a curved band, a curved island, or a lifted bridge it is refused
-until those are cut too. The predicted time and the
+until those are cut too. The string measure reads an open section too high: it takes a layer's islands from its closed
+outer walls, and a cut outer wall is an open line, so every unretracted travel inside the section counts as over open
+air. The predicted time and the
 measures are of the lines laid. A closed section is planned as an object of its own: a plan made for the whole model
 still applies as locks (with the note that the model changed), and unlocked decisions are made for the section. In
 both, the layers take less time than the whole model's, so the section cools less between layers.
