@@ -204,10 +204,16 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         for (p in parts) { System.arraycopy(p.coords, 0, c, w, p.count * 9); w += p.count * 9 }
         TriangleSoup(c, total)
     }
-    /** Exclude-object footprint: convex hull of the mesh's XY projection; center = bbox center. */
+    /**
+     * Exclude-object footprint: convex hull of the mesh's XY projection; center = bbox center. Of a section left open
+     * ([sectionBox]), the section's box: what prints of the object, which the purge tower stands beside.
+     */
     private val obj: PrintObject by lazy {
         val b = soup.bounds()
-        PrintObject(programName(objectName, objectId), Footprint.hull(soup), (b[0] + b[3]) / 2, (b[1] + b[4]) / 2)
+        val sb = sectionBox
+        if (sb == null) PrintObject(programName(objectName, objectId), Footprint.hull(soup), (b[0] + b[3]) / 2, (b[1] + b[4]) / 2)
+        else { val x0 = sb[0] / 1000.0; val x1 = sb[1] / 1000.0; val y0 = sb[2] / 1000.0; val y1 = sb[3] / 1000.0
+            PrintObject(programName(objectName, objectId), doubleArrayOf(x0, y0, x1, y0, x1, y1, x0, y1), (x0 + x1) / 2, (y0 + y1) / 2) }
     }
     val printObject: PrintObject get() = obj
     private val meshKey: String = "mesh:" + parts.joinToString("+") { "${it.count}:${it.coords.contentHashCode()}" }

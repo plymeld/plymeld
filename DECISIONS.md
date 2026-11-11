@@ -439,11 +439,14 @@ fraction of the time.
 `section.faces` says what its cut faces are.
 
 *Open* (the default) answers "how will this part of the print come out": the model stays whole through the plan, the
-pose, the layout, and the slice, and the object's planned lines are cut to the box last (`SectionClip`), the layers
-above the box's top left out. A line wholly inside is laid as planned; a line the box cuts is laid as its pieces
+pose, and the slice, and the object's planned lines are cut to the box last (`SectionClip`), the layers above the
+box's top left out. On the bed the object is laid out, spaced, and held to the bed by its box, what prints of it
+(`Placed.printed`): the rest of its model may lie over other objects or off the bed, so six sections of a model fit
+where two whole models did. The purge tower stands beside the boxes. A line wholly inside is laid as planned; a line the box cuts is laid as its pieces
 inside, ending on the box's side, the travel into each later piece (and into the line after a cut one) retracted. The
 box travels to the slice as a region of the object, so it is posed with it. The pre-print check reads the model inside
-the box only, and asks for no wall along the box's sides. A multi-filament object's lines are cut per filament before
+the box only, from the parts cut to it (`SectionCut`, a mesh the size of what prints), and asks for no wall along the
+box's sides. A multi-filament object's lines are cut per filament before
 its filament order and purge tower are worked out.
 
 *Closed* cuts the model's parts as they are read (`SectionCut`): triangles a side crosses are cut, and each cut face

@@ -167,18 +167,33 @@ class SliceSession {
             val pl = plan.layout.placed[j]; val g = r.region
             val bx = pl.parts.minOf { it.bounds()[0] }; val by = pl.parts.minOf { it.bounds()[1] }
             doubleArrayOf(bx + g.x0, bx + g.x1, by + g.y0, by + g.y1, pl.parts.minOf { it.bounds()[2] } + g.toMm) }
+        // ... and its parts cut to that box, each cut face closed (SectionCut): inside the box their cross-sections are the
+        // whole model's, and the check reads a mesh the size of what prints (six copies of a 3.9-million-triangle model, read
+        // whole, ran out of memory). A part with nothing in the box is left out, its tool with it. A model the cut refuses
+        // (not closed where the box cuts it) is read whole.
+        fun cutParts(j: Int, parts: List<plymeld.mesh.TriangleSoup>, tools: List<Int>): Pair<List<plymeld.mesh.TriangleSoup>, List<Int>> {
+            val c = cutOf(j) ?: return parts to tools
+            val z0 = parts.minOf { it.bounds()[2] }
+            val cut = try { parts.map { plymeld.mesh.SectionCut.cut(it, doubleArrayOf(c[0], c[1], c[2], c[3], z0 - 1.0, c[4])) } }
+                catch (x: IllegalArgumentException) { return parts to tools }
+            val keep = cut.indices.filter { cut[it].count > 0 }
+            return if (keep.isEmpty()) parts to tools else keep.map { cut[it] } to keep.map { tools[it] }
+        }
         val plate = if (!several) null else {
             var at = 0
             val objs = plan.layout.placed.withIndex().map { (j, pl) ->
                 val tools = partTools.subList(at, at + pl.parts.size).also { at += pl.parts.size }
-                plymeld.core.check.PlateCheck.Obj(pl.name, pl.parts, tools, curvedSpec(plan, setup, j), cutOf(j))
+                val (ps, ts) = if (curvedSpec(plan, setup, j) == null) cutParts(j, pl.parts, tools) else pl.parts to tools
+                plymeld.core.check.PlateCheck.Obj(pl.name, ps, ts, curvedSpec(plan, setup, j), cutOf(j))
             }
             if (sequential) plymeld.core.check.PlateCheck.oneAtATime(text, objs, zBase, Path.of("$output.check"), zaa)
             else plymeld.core.check.PlateCheck.together(text, objs, zBase, Path.of("$output.check"), zaa)
         }
         val curved = if (several) null else curvedRead(text, plan, setup, zBase)
         val checkText = plate?.text ?: curved?.text ?: text
-        val checkParts = plate?.parts ?: curved?.parts ?: plan.parts
+        val lone = if (!several && curved == null) cutParts(0, plan.parts, partTools) else null
+        val checkParts = plate?.parts ?: curved?.parts ?: lone?.first ?: plan.parts
+        val checkTools = lone?.second ?: partTools
         // several lifted bridges in a lone object: each frame (what stands on the bed, each bridge) read against its own parts
         val frames = curved?.frames
         val frameSurfaces = frames?.map { plymeld.core.check.ModelCheck.Surface(it.parts, zBase, it.text, zaaMinMm = if (it.flat) zaa?.minMm else null, clip = it.clip) }
@@ -208,7 +223,7 @@ class SliceSession {
             else if (frames != null) frames.flatMapIndexed { i, fr ->
                 plymeld.core.check.ModelCheck.check(fr.text, fr.parts, zBase, imagesDir = Path.of("$output.check", fr.name.replace(' ', '_')).also { Files.createDirectories(it) },
                     surface = frameSurfaces!![i], partTools = fr.partIndex.map { partTools[it] }, zaa = if (fr.flat) zaa else null, progress = progress).map { "${fr.name}: $it" } }
-            else plymeld.core.check.ModelCheck.check(checkText, checkParts, zBase, imagesDir = Path.of("$output.check"), surface = surface, partTools = partTools, zaa = zaa, progress = progress))
+            else plymeld.core.check.ModelCheck.check(checkText, checkParts, zBase, imagesDir = Path.of("$output.check"), surface = surface, partTools = checkTools, zaa = zaa, progress = progress))
         plate?.let { echo("check: ${plan.layout.placed.size} objects, ${if (sequential) "one at a time: each object's run of layers" else "together: each object's lines, by the file's object markers,"} read against that object alone") }
         (plate?.curvedLayers ?: curved?.curvedLayers)?.takeIf { it > 0 }?.let { echo("check: $it curved layer(s) read in warped space (the check's own warp, from the model)") }
         val took = (System.nanoTime() - t1) / 1_000_000
