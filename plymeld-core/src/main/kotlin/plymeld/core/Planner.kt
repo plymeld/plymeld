@@ -83,9 +83,13 @@ class ToolPath(val feature: Feature, val xy: LongArray, val closed: Boolean, val
         return ToolPath(feature, r, false, widthUm, heightUm, null, ePerMmOverride, retractBefore, widths?.reversedArray(), raiseUm = raiseUm, waveFill = waveFill, climbFrom = climbFrom, afterLayer = afterLayer, sequence = sequence, speck = speck, hopOnly = hopOnly, wall = wall)
     }
 
-    /** The same path reached by a retracted travel (itself when it is already): what it followed is no longer where it was planned from. */
-    fun retracted(): ToolPath = if (retractBefore) this else ToolPath(feature, xy, closed, widthUm, heightUm, overhangShare, ePerMmOverride, true, widths, scarfUm, scarfStart,
-        raiseUm, waveFill, climbFrom, afterLayer, false, sequence, speck, hopOnly, wall, scarfStepUm)
+    /**
+     * The same path reached by a retracted travel (itself when it is already): what it followed is no longer where it was
+     * planned from. Its speck and hop-only marks go too: both leave the travel unretracted (a speck's wherever it crosses
+     * no wall, a hop-only one lifted over the wall), which held for the travel it was planned with.
+     */
+    fun retracted(): ToolPath = if (retractBefore && !speck && !hopOnly) this else ToolPath(feature, xy, closed, widthUm, heightUm, overhangShare, ePerMmOverride, true, widths, scarfUm, scarfStart,
+        raiseUm, waveFill, climbFrom, afterLayer, false, sequence, false, false, wall, scarfStepUm)
 
     /**
      * The same closed loop started at its point nearest (x, y) (µm), a new vertex there when it falls inside an edge (the
