@@ -98,7 +98,9 @@ faces = "open"                          # the default; "closed" for a section pr
   cuts it. Use it for a section from higher up the model, or one that should print as a solid piece.
 
 `plymeld slice` says what the model spans when it reads a section, and a closed section names the model's extent when
-the box misses it. An open section still takes each layer's share of the print's fixed costs (a purge tower's layer,
+the box misses it. It warns when a section stands on a small footprint with no brim (its first layer under
+`plan.mechanism.adhesion.small_footprint.area`, or the section taller than `small_footprint.height_ratio` times its first
+layer's narrower side): a strip of a model can come loose from the bed where the whole model would not. An open section still takes each layer's share of the print's fixed costs (a purge tower's layer,
 a filament change), and its layers are shorter than the whole model's, so they cool less between layers.
 
 ## Settings for one object, part, or region

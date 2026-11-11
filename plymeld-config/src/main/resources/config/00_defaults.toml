@@ -139,6 +139,12 @@ where = "outer"                                # where a brim goes when enabled
 width = "= 12 * tool.bore"
 gap = "0 mm"
 
+# What counts as a small footprint (a section of a model standing on one with no brim is warned about). PLACEHOLDERS, not
+# measured: under the area of a 10 mm square, or more than three times as tall as the footprint's narrower side.
+[plan.mechanism.adhesion.small_footprint]
+area = "100 mm2"
+height_ratio = "3"
+
 # The prime line: plymeld's own, laid before the first layer within 1 cm of the first object. enabled and line
 # unset: none with a prime tower, else on a peel tab, a partial brim joining the line to the print (against the brim's edge
 # when there is a brim). PLACEHOLDERS: length and gap, not measured.
