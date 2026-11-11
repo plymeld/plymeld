@@ -157,8 +157,9 @@ class PurgeIntoInfillTest : StringSpec({
         // control: the planned order has lines that do not retract, which the reorder would otherwise have carried along
         (bLayers.sumOf { l -> l.paths.count { !it.retractBefore } } > 0) shouldBe true
     }
-    "on a layer where the new filament lays no infill, its inner walls come first, before its outer wall planned first; control: its planned order began with the outer wall" {
-        // outer walls planned first (plan.layer.walls.order = outer_first), as on the nameplate this was found on
+    "on a layer where the new filament lays no infill, its walls keep their planned order (the wall order holds); control: with infill, the infill comes first" {
+        // outer walls planned first (plan.layer.walls.order = outer_first): after a change they are still first where there is no
+        // infill to lay ahead of them (all the inner walls had been moved ahead, which printed every wall order inner-first there)
         val sOuter = plymeld.model.SliceSettings.of(testSetup("plan.layer.walls.order" to "outer_first"))
         val rOuter = MultiFilament.plan(sOuter, parts, listOf("spool 1", "spool 2"), listOf(0, 1), tops, "spool 1")
         val bLayers = rOuter.filaments.single { it.spool == "spool 2" }.layers
@@ -174,7 +175,11 @@ class PurgeIntoInfillTest : StringSpec({
         val noInfill = changeLayers.withIndex().filter { (_, i) -> bLayers[i].paths.none { it.feature == Feature.SPARSE || it.feature == Feature.SOLID } && bLayers[i].paths.any { it.feature == Feature.INNER_WALL } }
         (noInfill.size >= 1) shouldBe true
         noInfill.count { (_, i) -> bLayers[i].paths.first().feature == Feature.OUTER_WALL } shouldBe noInfill.size
-        for ((k, _) in noInfill) firsts[k] shouldBe Feature.INNER_WALL.label
+        for ((k, _) in noInfill) firsts[k] shouldBe Feature.OUTER_WALL.label
+        // control: on a change layer where it does lay infill, planned behind its outer wall, the infill is its first line
+        val withInfill = changeLayers.withIndex().filter { (_, i) -> bLayers[i].paths.any { it.feature == Feature.SPARSE || it.feature == Feature.SOLID } }
+        (withInfill.isNotEmpty() && withInfill.all { (_, i) -> bLayers[i].paths.first().feature == Feature.OUTER_WALL }) shouldBe true
+        for ((k, _) in withInfill) (firsts[k] == Feature.SPARSE.label || firsts[k] == Feature.SOLID.label) shouldBe true
     }
     "an unknown value is refused" {
         shouldThrow<IllegalArgumentException> { steps("object", 40.0) }

@@ -11,6 +11,10 @@ section the release's version and date.
 
 ### Added
 
+- The wall order holds after a tool change: on a layer where the incoming filament lays no infill, all its inner walls
+  were laid ahead of its outer walls, whatever `plan.layer.walls.order` said (about half of a two-color nameplate's
+  layers printed inner walls first). Its lines now keep their planned order there; where it lays infill, the infill
+  still comes first and the walls follow in their order.
 - Several multi-color objects on one plate: an object on several filaments was sliced on its own or refused. On each
   layer each filament now lays its lines of every object in turn, so the plate changes tool no more often than one of
   its objects would, with one purge tower beside them all. Copies of an object (`model.object.<key>.count`) can each
