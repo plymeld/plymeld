@@ -153,7 +153,7 @@ object SectionCut {
      * (two edges, there and back, between a hole's point furthest along u and a point of the outline it sees), then ears
      * cut off one by one. Only the given points are used.
      */
-    private fun triangulate(outer: DoubleArray, holes: List<DoubleArray>, sign: Double, tri: (Double, Double, Double, Double, Double, Double) -> Unit) {
+    internal fun triangulate(outer: DoubleArray, holes: List<DoubleArray>, sign: Double, tri: (Double, Double, Double, Double, Double, Double) -> Unit) {
         val total = outer.size / 2 + holes.sumOf { it.size / 2 + 2 }
         val x = DoubleArray(total); val y = DoubleArray(total); val prev = IntArray(total); val next = IntArray(total)
         var n = 0
@@ -167,7 +167,9 @@ object SectionCut {
             return d1 >= 0 && d2 >= 0 && d3 >= 0
         }
         // holes, the one reaching furthest along u first: each is joined to the outline as it stands (earlier holes already in it)
-        val holeStarts = holes.map { ring(it) }.map { s -> var best = s; var i = next[s]; while (i != s) { if (x[i] > x[best]) best = i; i = next[i] }; best }.sortedByDescending { x[it] }
+        val holeRings = holes.map { ring(it) }
+        fun out(a: Int, b: Int, c: Int) = tri(x[a], sign * y[a], x[b], sign * y[b], x[c], sign * y[c])
+        val holeStarts = holeRings.map { s -> var best = s; var i = next[s]; while (i != s) { if (x[i] > x[best]) best = i; i = next[i] }; best }.sortedByDescending { x[it] }
         for (mNode in holeStarts) {
             val mx = x[mNode]; val my = y[mNode]
             // the outline's edge the ray from the hole's point along +u meets first
@@ -225,6 +227,12 @@ object SectionCut {
             val d1 = (bx - ax) * (py - ay) - (by - ay) * (px - ax); val d2 = (cx - bx) * (py - by) - (cy - by) * (px - bx); val d3 = (ax - cx) * (py - cy) - (ay - cy) * (px - cx)
             return d1 > 0 && d2 > 0 && d3 > 0
         }
+        // the area a float's step makes over the outline's size: a few steps at its largest coordinate times its extent
+        val sliver = run {
+            var lo = Double.MAX_VALUE; var hi = -Double.MAX_VALUE; var big = 0.0
+            for (i in 0 until n) { lo = minOf(lo, x[i], y[i]); hi = maxOf(hi, x[i], y[i]); big = maxOf(big, Math.abs(x[i]), Math.abs(y[i])) }
+            8.0 * Math.ulp(big.toFloat()) * (hi - lo)
+        }
         var at = start; var sinceCut = 0; var loose = false
         while (left > 3) {
             val a = prev[at]; val b = at; val c = next[at]
@@ -240,17 +248,26 @@ object SectionCut {
                 }
             }
             if (ear) {
-                tri(x[a], sign * y[a], x[b], sign * y[b], x[c], sign * y[c])
+                out(a, b, c)
                 next[a] = c; prev[c] = a; left--; at = c; sinceCut = 0; loose = false
             } else {
                 at = c; sinceCut++
                 if (sinceCut > left) {
-                    require(!loose) { "the section's cut could not be closed (its outline crosses itself): the model's surface is not a clean closed surface there" }
-                    loose = true; sinceCut = 0
+                    if (!loose) { loose = true; sinceCut = 0; continue }
+                    // still none: two of the cut's points a float's step apart can cross the outline over itself by that much
+                    // (a needle whose two sides swap at its tip). The corner of least area, when that area is within what
+                    // such a step makes over the outline's size, is cut off as it is (a sliver, either way round); a corner
+                    // of real area means the outline truly crosses itself, which is refused
+                    var k = at; var least = at; var leastTurn = Double.MAX_VALUE
+                    do { val t = Math.abs(cross(prev[k], k, next[k])); if (t < leastTurn) { leastTurn = t; least = k }; k = next[k] } while (k != at)
+                    require(leastTurn <= sliver) { "the section's cut could not be closed (its outline crosses itself): the model's surface is not a clean closed surface there" }
+                    val a2 = prev[least]; val c3 = next[least]
+                    out(a2, least, c3)
+                    next[a2] = c3; prev[c3] = a2; left--; at = c3; sinceCut = 0; loose = false
                 }
             }
         }
         val a = prev[at]; val c = next[at]
-        tri(x[a], sign * y[a], x[at], sign * y[at], x[c], sign * y[c])
+        out(a, at, c)
     }
 }
