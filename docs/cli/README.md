@@ -72,6 +72,21 @@ among your config files. `plymeld slice --explain` prints how each object's tech
 A g-code file that `plymeld slice` wrote records the config and plan it was made from: `plymeld slice --from
 OLD.gcode -m bracket.stl -o NEW.gcode` slices again from them, with any `-cf` and `-cv` added.
 
+## Print a section of a model
+
+To try a detail of a large model without printing all of it, give the object a section: a box in the model file's own
+coordinates. plymeld cuts the model to the box as it reads it and closes the cut faces, so the section is planned,
+sliced, and checked as an object of its own, standing on the bed. A part of a 3MF with nothing in the box is left out.
+
+```toml
+[model.object."nameplate.3mf".section]
+min = "38 -30 -1 mm"                    # the box's corners; a side beyond the model cuts nothing
+max = "96 -9 12.5 mm"
+```
+
+`plymeld slice` says what the model spans when it reads a section, and names the model's extent when the box misses it.
+The model must be a closed surface where the box cuts it.
+
 ## Settings for one object, part, or region
 
 A setting under `plan` applies to every object unless a narrower scope sets it: `plan.object.<key>.…` for one object

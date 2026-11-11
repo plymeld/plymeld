@@ -327,6 +327,9 @@ object Schema {
         q("$o.part.<key>.slot", Dimension.COUNT, "the slot this part takes: a number of the machine's loadout, a tool's index, or a slot's (over what the model says and over the slot map)")
         q("model.slots.<key>", Dimension.COUNT, "the slot map: the loadout's slot that prints the parts the model file puts on filament <key> (its number; \"*\" = every number), e.g. model.slots = { 4 = 1, 5 = 2 }, or { \"*\" = 1 } to print a multi-color model in one filament; a number not in the map prints from the model's own")
         q("$o.slots.<key>", Dimension.COUNT, "this object's slot map, over model.slots: the slot that prints its parts the model file puts on filament <key> (\"*\" = every number)")
+        // a section of the object printed on its own: a sample of a larger print (a face, a detail) without the hours of the whole
+        d("$o.section.min", Type.Point(Dimension.LENGTH), "print only the part of the object inside a box: the box's least corner, in the model's own coordinates as its file gives them; with max. The model is cut to the box as it is read, each cut face closed, so the section is planned, laid out, sliced, and checked as an object of its own (its bottom on the bed, walls on its cut faces); a part with nothing in the box is left out; every copy of the object is cut alike. The model must be a closed surface where the box cuts it")
+        d("$o.section.max", Type.Point(Dimension.LENGTH), "the section's box's greatest corner (above min on every axis), in the model's own coordinates")
         q("$o.place.x", Dimension.LENGTH, "locked position, X (not yet used)")
         q("$o.place.y", Dimension.LENGTH, "locked position, Y (not yet used)")
         q("$o.place.turn", Dimension.ANGLE, "locked turn about Z (not yet used)")

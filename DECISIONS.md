@@ -428,3 +428,26 @@ release. A fake unit (`1.2x`) for multipliers: the value was parsed right; the s
 
 **Consequences.** A rename is now a table entry plus its test, and an old file keeps working with a warning; `migrate`
 is a new command (in the window, its form). A JSON config is read with the new names but not rewritten.
+
+## 19. A section of a model is cut from the mesh as it is read (2026-11-10)
+
+**Context.** Judging a change to how a detail prints (a line of lettering on a nameplate's face) took a print of the
+whole model, hours each time. A section of the model, printed with the same settings, shows the same lines in a
+fraction of the time.
+
+**Decision.** `model.object.<key>.section.min` / `.max` give a box in the model's own coordinates. The model's parts are
+cut to it as they are read (`SectionCut`): triangles a side crosses are cut, and each cut face is closed with a cap
+triangulated from the cut's own points (hole bridging and ear cutting, no point added on an edge, so the result is a
+closed mesh sharing its edges exactly). Everything after reads the section as the object: the plan, the layout (it
+stands on the bed), the slice, the pre-print check, the preview. A part with nothing in the box is left out, and the
+config is read again over the object as cut. A model not closed where the box cuts it is refused.
+
+**Rejected.** Clipping each layer's outlines to the box: the mesh is cut in more than twenty places (the search, the
+supports, the check, the curved techniques), each of which would need the same clip, and a section starting above the
+model's bottom would still need moving to the bed. A separate command writing a cut model file: the section would
+drift from the model it samples, and a 3MF's parts and filaments would have to be written back.
+
+**Consequences.** The section is planned as an object of its own: a plan made for the whole model still applies as
+locks (with the note that the model changed), and unlocked decisions are made for the section. Its layers take less
+time than the whole model's, so it cools less between layers; its cut faces get walls.
+
