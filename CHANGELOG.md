@@ -11,6 +11,9 @@ section the release's version and date.
 
 ### Added
 
+- No wipe back along a line the head leaves below the line's highest point (a line or an edge strip laid sloping down
+  over a waved bridge): the wipe ran at the head's height, into the line where it rises. A waved bridge's last bead on
+  a layer is retracted and wiped before the layer change, on the layer it was laid on.
 - The wall order holds after a tool change: on a layer where the incoming filament lays no infill, all its inner walls
   were laid ahead of its outer walls, whatever `plan.layer.walls.order` said (about half of a two-color nameplate's
   layers printed inner walls first). Its lines now keep their planned order there; where it lays infill, the infill

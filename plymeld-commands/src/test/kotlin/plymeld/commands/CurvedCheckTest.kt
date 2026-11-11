@@ -231,8 +231,11 @@ class CurvedCheckTest : StringSpec({
         val z = Regex(" Z([0-9.]+)").find(lines[k])!!.groupValues[1].toDouble()
         lines[k] = lines[k].replace(Regex(" Z[0-9.]+"), " Z" + "%.3f".format(java.util.Locale.ROOT, z + 0.05))
         val r = curvedRead(lines.joinToString("\n"), plan, product.result.setup, zBase)!!
-        // the lifted end ends that line and starts the next: two line ends, the first named
-        r.problems.any { "2 line end(s) off the layer's surface, up to 0.05" in it && "line ${k + 1}," in it } shouldBe true
+        // the lifted end ends that line and starts the next: two line ends, the first named; the distance the check reads for a
+        // point lifted 0.05 mm is not always 0.0500 (0.0495 on this line, on the pillow's slope), so it is read as a number
+        println("tampered line ${k + 1}: ${lines[k]}; problems: ${r.problems.take(4)}")
+        val found = r.problems.firstNotNullOfOrNull { p -> Regex("2 line end\\(s\\) off the layer's surface, up to ([0-9.]+) mm \\(line ${k + 1},").find(p)?.groupValues?.get(1)?.toDouble() }
+        (found != null && Math.abs(found - 0.05) <= 0.002) shouldBe true
     }
     "control: with no nozzle angle and height the band is refused" {
         val s = plymeld.model.SliceSettings.of(product.result.setup, plymeld.model.Context(0))

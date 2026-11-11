@@ -348,7 +348,10 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
             val lp = lastPath
             val bead = leavingBead(lp)
             val len = nextRetract ?: (if (bead) s.bridgeWaveRetractMm else null) ?: s.retractMm
-            if (bead && lp != null && ((s.bridgeWaveWipe ?: s.wipe)) && !exact && s.wipeDistanceMm > 0 && !x.isNaN()) {
+            // no wipe after a line the head leaves below its highest point (an X or an edge strip laid sloping down to the
+            // span's edge): the wipe retraces it at the head's height, under the line where the line rises
+            val endsLow = lp != null && leftLow(lp, x, y)
+            if (bead && lp != null && ((s.bridgeWaveWipe ?: s.wipe)) && !exact && s.wipeDistanceMm > 0 && !x.isNaN() && !endsLow) {
                 // retrace the bead backwards while retracting (retract_before_wipe of it first, the rest spread over the wipe)
                 val pre = len * s.retractBeforeWipe
                 if (pre > 0) out.write("G1 E-${n(pre)} F${f(s.retractSpeed)}\n")
@@ -501,6 +504,9 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 }
             }
             is LayerStart -> {
+                // a waved bridge's last bead on its layer: its retraction and wipe now, on the layer it was laid on (written after
+                // the layer change, the wipe back along the bead read as a move below the next layer)
+                if (!retracted && !exact && leavingBead(lastPath)) retract()
                 flushLift()
                 layersWritten.tick()
                 lz = step.zUm / 1000.0
@@ -576,8 +582,9 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                         val lp = lastPath
                         val len = nextRetract ?: s.retractMm
                         // no wipe after a path some of whose points lie below its top (a line Z anti-aliasing lowers, a curved
-                        // layer's): the wipe retraces it at the head's height, under the line where the line rises
-                        val lowered = lp?.zs?.let { zs -> zs.min() < lp.zUm } ?: false
+                        // layer's), or after an open line the head leaves below its highest point (a line laid sloping down):
+                        // the wipe retraces it at the head's height, under the line where the line rises
+                        val lowered = lp?.zs?.let { zs -> zs.min() < lp.zUm || leftLow(lp, x, y) } ?: false
                         if (s.wipe && !exact && lp != null && s.wipeDistanceMm > 0 && !leavingBead(lp) && !lowered) {
                             // Wipe: retrace the last path backwards while retracting (retract_before_wipe
                             // of the retraction happens first, the rest spread over the wipe).
@@ -994,6 +1001,21 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
         val nx = sx / ln * step; val ny = sy / ln * step
         val back = wipePoints(p, x, y, dist - step)
         return listOf(x + nx, y + ny) + back.mapIndexed { i, v -> v + if (i % 2 == 0) nx else ny }
+    }
+
+    /**
+     * Whether the head at (x, y) (mm) leaves the line [p] below the line's highest point: an open line at the nearer of its
+     * two ends (it may be laid from either), a loop at its first point, where it closes (an edge strip laid over an arch and
+     * back); that point's height against the highest of the line's. False for a level line, and for a scarf's loop, whose
+     * closing pass ends at the layer's top over its ramp's start.
+     */
+    private fun leftLow(p: Extrude, x: Double, y: Double): Boolean {
+        val zs = p.zs ?: return false
+        if (p.closed) return !p.scarf && zs[0] < zs.max()
+        if (x.isNaN()) return false
+        val m = p.xy.size / 2
+        val dFirst = Math.hypot(p.xy[0] / 1000.0 - x, p.xy[1] / 1000.0 - y); val dLast = Math.hypot(p.xy[2 * m - 2] / 1000.0 - x, p.xy[2 * m - 1] / 1000.0 - y)
+        return (if (dFirst < dLast) zs[0] else zs[m - 1]) < zs.max()
     }
 
     private fun wipePoints(p: Extrude, x: Double, y: Double, dist: Double): List<Double> {

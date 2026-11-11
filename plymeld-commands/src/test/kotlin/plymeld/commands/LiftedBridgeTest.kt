@@ -1074,13 +1074,17 @@ class LiftedBridgeTest : StringSpec({
         withClue("control: crossing over stays within the strip") { (altM.travelY.getValue("wa") < 2.6) shouldBe true }
         val beside = moves(sliced("wave_overhang", "wave_beside.gcode", "alternate", extra = "wave.crossing = \"beside\""))
         withClue("beside: out past the edge") { (beside.travelY.getValue("wa") > 5.0) shouldBe true }
-        // the crossings' own retraction and wipe; control: the filament's retraction, no wipe
-        val ret = moves(sliced("wave_overhang", "wave_retract.gcode", "alternate", extra = "wave.retract = \"1.7 mm\""))
+        // the crossings' own retraction and wipe (unset, the wipe is the filament's, on in the bundled filaments: part of the
+        // retraction then goes over the wipe, so the retraction is read with the wipe off); controls: the filament's
+        // retraction, and no wiping moves with wave.wipe off
+        val ret = moves(sliced("wave_overhang", "wave_retract.gcode", "alternate", extra = "wave.retract = \"1.7 mm\"\nwave.wipe = \"false\""))
         withClue("wave.retract 1.7 mm") { ret.retracts.getValue("wa") shouldBe setOf(1.7) }
         withClue("control: the filament's retraction") { (1.7 in altM.retracts.getValue("wa")) shouldBe false }
         val wipe = moves(sliced("wave_overhang", "wave_wipe.gcode", "alternate", extra = "wave.wipe = \"true\""))
         withClue("wave.wipe: wiping moves after beads") { (wipe.wipes["wa"] ?: 0) shouldBeGreaterThan 10 }
-        withClue("control: no wipe") { (altM.wipes["wa"] ?: 0) shouldBe 0 }
+        withClue("unset: the filament's wipe") { (altM.wipes["wa"] ?: 0) shouldBeGreaterThan 10 }
+        val noWipe = moves(sliced("wave_overhang", "wave_nowipe.gcode", "alternate", extra = "wave.wipe = \"false\""))
+        withClue("control: wave.wipe off, no wipe") { (noWipe.wipes["wa"] ?: 0) shouldBe 0 }
         // a wait before each bead but the first
         val wait = moves(sliced("wave_overhang", "wave_wait.gcode", "alternate", extra = "wave.wait = \"3 s\""))
         withClue("wave.wait: a wait before each bead but the first") { wait.waits.getValue("wa") shouldBe wait.starts.getValue("wa").size - 1 }
