@@ -2,6 +2,8 @@ package plymeld.core
 
 import plymeld.core.decide.Coordination
 import plymeld.program.Extrude
+import plymeld.program.ObjectEnd
+import plymeld.program.ObjectStart
 import plymeld.program.Step
 
 /**
@@ -36,6 +38,24 @@ object MotionRegions {
     fun apply(steps: List<Step>, boxes: List<Box>): List<Step> {
         if (boxes.isEmpty()) return steps
         return steps.map { st -> if (st is Extrude && st.exact == null) capped(st, boxes) else st }
+    }
+
+    /**
+     * [steps] of objects laid per part (MultiFilament: one object, or a plate of several) with every path in an object's block
+     * (between its [ObjectStart] and [ObjectEnd]) capped by that object's boxes in [boxesOf] (by its program name); paths
+     * outside every block (the purge tower's) as they are.
+     */
+    fun applyByObject(steps: List<Step>, boxesOf: Map<String, List<Box>>): List<Step> {
+        if (boxesOf.values.all { it.isEmpty() }) return steps
+        var boxes: List<Box> = emptyList()
+        return steps.map { st ->
+            when (st) {
+                is ObjectStart -> { boxes = boxesOf[st.name].orEmpty(); st }
+                is ObjectEnd -> { boxes = emptyList(); st }
+                is Extrude -> if (boxes.isNotEmpty() && st.exact == null) capped(st, boxes) else st
+                else -> st
+            }
+        }
     }
 
     /** [e] with a vertex where it crosses a side of [boxes], and each segment's caps; [e] itself when no segment is in one. */
