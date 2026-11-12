@@ -3262,7 +3262,7 @@
               "additionalProperties": false,
               "properties": {
                 "technique": {
-                  "description": "the surface technique locked on the sloped tops: z_antialiasing = the stair-steps removed: in flat layers, where the model's top lies within a layer, its lines are lowered onto the top with less plastic (never thinner than the tool's thinnest layer, hardware.tool.<key>.layer.height.min), and the layer reaches out to where the top is that far above its bottom; curved and lifted layers follow their own surfaces; as_laid = as laid. Unset = as laid (Z anti-aliasing until a print decides it)",
+                  "description": "the surface technique locked on the sloped tops: z_antialiasing = the stair-steps removed: in flat layers, where the model's top lies within a layer, its lines are lowered onto the top with less plastic (never thinner than the tool's thinnest layer, hardware.tool.<key>.layer.height.min), and the layer reaches out to where the top is that far above its bottom; curved and lifted layers follow their own surfaces; not yet on an object printed in several filaments (it is laid as set there, as laid); as_laid = as laid. Unset = as laid (Z anti-aliasing until a print decides it)",
                   "enum": [
                     "z_antialiasing",
                     "as_laid"
@@ -5453,7 +5453,7 @@
               "additionalProperties": false,
               "properties": {
                 "technique": {
-                  "description": "the surface technique locked on the sloped tops: z_antialiasing = the stair-steps removed: in flat layers, where the model's top lies within a layer, its lines are lowered onto the top with less plastic (never thinner than the tool's thinnest layer, hardware.tool.<key>.layer.height.min), and the layer reaches out to where the top is that far above its bottom; curved and lifted layers follow their own surfaces; as_laid = as laid. Unset = as laid (Z anti-aliasing until a print decides it)",
+                  "description": "the surface technique locked on the sloped tops: z_antialiasing = the stair-steps removed: in flat layers, where the model's top lies within a layer, its lines are lowered onto the top with less plastic (never thinner than the tool's thinnest layer, hardware.tool.<key>.layer.height.min), and the layer reaches out to where the top is that far above its bottom; curved and lifted layers follow their own surfaces; not yet on an object printed in several filaments (it is laid as set there, as laid); as_laid = as laid. Unset = as laid (Z anti-aliasing until a print decides it)",
                   "enum": [
                     "z_antialiasing",
                     "as_laid"
@@ -7716,7 +7716,7 @@
               "additionalProperties": false,
               "properties": {
                 "technique": {
-                  "description": "the surface technique locked on the sloped tops: z_antialiasing = the stair-steps removed: in flat layers, where the model's top lies within a layer, its lines are lowered onto the top with less plastic (never thinner than the tool's thinnest layer, hardware.tool.<key>.layer.height.min), and the layer reaches out to where the top is that far above its bottom; curved and lifted layers follow their own surfaces; as_laid = as laid. Unset = as laid (Z anti-aliasing until a print decides it)",
+                  "description": "the surface technique locked on the sloped tops: z_antialiasing = the stair-steps removed: in flat layers, where the model's top lies within a layer, its lines are lowered onto the top with less plastic (never thinner than the tool's thinnest layer, hardware.tool.<key>.layer.height.min), and the layer reaches out to where the top is that far above its bottom; curved and lifted layers follow their own surfaces; not yet on an object printed in several filaments (it is laid as set there, as laid); as_laid = as laid. Unset = as laid (Z anti-aliasing until a print decides it)",
                   "enum": [
                     "z_antialiasing",
                     "as_laid"
