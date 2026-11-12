@@ -160,8 +160,9 @@ class SliceSession {
         val several = plan.layout.placed.size > 1
         val sequential = several && plan.layout.order == plymeld.core.decide.ObjectOrder.ONE_AT_A_TIME
         val lifted = plan.layout.placed.indices.any { curvedSpec(plan, setup, it)?.follows == plymeld.core.check.CurvedCheck.Follows.LIFT }
-        // Z anti-aliasing: lines below their flat layer only on the model's own top (the rule from the model and the config)
-        val zaa = plymeld.core.check.Expectations.forZaa(setup, plan.parts, zBase, lifted)
+        // Z anti-aliasing: lines below their flat layer only on the model's own top (the rule from the model and the config):
+        // the tops of the objects that have it on, each over all its parts
+        val zaa = plymeld.core.check.Expectations.forZaa(setup, plan.layout.placed.mapIndexed { j, pl -> plan.layout.objectIndex[j] to pl.parts }, zBase, lifted)
         // a section left open: the box object j's lines are laid in, in the file's frame (its sides, and its top's height)
         fun cutOf(j: Int): DoubleArray? = plan.layout.techniques[j].regions.firstOrNull { it.section }?.let { r ->
             val pl = plan.layout.placed[j]; val g = r.region

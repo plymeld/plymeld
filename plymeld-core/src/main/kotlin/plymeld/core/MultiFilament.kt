@@ -190,10 +190,12 @@ object MultiFilament {
     /**
      * One object's lines for [plateSteps]: its [filaments] (each a spool's layers, by layer index; an object shorter than the
      * plate has fewer), its support and interface paths per layer with the spools that print them (null = whichever
-     * filament is loaded), under its program [name].
+     * filament is loaded), under its program [name]; [zaa], its whole top (all its parts) its lines are lowered onto with Z
+     * anti-aliasing (ZAntiAlias.Top), null when it has that off.
      */
     class Laid(val name: String, val filaments: List<FilamentPlan>, val support: List<List<ToolPath>> = emptyList(),
-               val supportInterface: List<List<ToolPath>> = emptyList(), val supportSpool: String? = null, val interfaceSpool: String? = null) {
+               val supportInterface: List<List<ToolPath>> = emptyList(), val supportSpool: String? = null, val interfaceSpool: String? = null,
+               val zaa: ZAntiAlias.Top? = null) {
         /** The spools with paths on layer [i] ([present], for one object of a plate). */
         fun present(i: Int): Set<String> = filaments.filter { it.layers.getOrNull(i)?.paths?.isNotEmpty() == true }.map { it.spool }.toSet() +
             listOfNotNull(supportSpool?.takeIf { support.getOrNull(i)?.isNotEmpty() == true }, interfaceSpool?.takeIf { supportInterface.getOrNull(i)?.isNotEmpty() == true })
@@ -205,15 +207,15 @@ object MultiFilament {
      */
     fun towerLayers(layerTopsUm: LongArray): IntArray { var t = -1; return IntArray(layerTopsUm.size) { i -> if (i == 0 || layerTopsUm[i] != layerTopsUm[i - 1]) t++; t } }
 
-    /** One multi-filament object as print steps ([plateSteps] with that one object). */
+    /** One multi-filament object as print steps ([plateSteps] with that one object; [zaa], its top for Z anti-aliasing, as [Laid.zaa]). */
     fun steps(r: Result, order: List<List<String>>, toolOf: (String) -> Int, objectName: String, layerTopsUm: LongArray, startTool: Int,
               tower: PurgeTower? = null,
               tempOf: (String, Int) -> Int? = { _, _ -> null }, idleOf: (String, Int) -> Int? = { _, _ -> null },
               supportSpool: String? = null, interfaceSpool: String? = null,
               numberOf: (String) -> Int = { sp -> sp.removePrefix("spool ").trim().toIntOrNull() ?: 0 },
               loadedOn: Map<Int, String> = emptyMap(),
-              purgeInto: String = "tower"): List<plymeld.program.Step> =
-        plateSteps(listOf(Laid(objectName, r.filaments, r.support, r.supportInterface, supportSpool, interfaceSpool)), order, toolOf, layerTopsUm, startTool, tower,
+              purgeInto: String = "tower", zaa: ZAntiAlias.Top? = null): List<plymeld.program.Step> =
+        plateSteps(listOf(Laid(objectName, r.filaments, r.support, r.supportInterface, supportSpool, interfaceSpool, zaa)), order, toolOf, layerTopsUm, startTool, tower,
             tempOf, idleOf, numberOf, loadedOn, purgeInto)
 
     /**
@@ -226,7 +228,8 @@ object MultiFilament {
      * spare bands, as its layout gives them) are printed at the layer's first visit (before its first
      * change) or, on a layer without a change, at the layer's end — up to the tower's top. After a change, the new
      * filament's first lines on each object are its infill on the layer, hidden inside it (its inner walls where it has no
-     * infill there); then the rest in its order.
+     * infill there); then the rest in its order. An object with Z anti-aliasing on ([Laid.zaa]) has its lines on its layers
+     * above the first lowered onto its whole top (ZAntiAlias.Head), whichever filament lays them.
      */
     fun plateSteps(objects: List<Laid>, order: List<List<String>>, toolOf: (String) -> Int, layerTopsUm: LongArray, startTool: Int,
               tower: PurgeTower? = null,
@@ -259,13 +262,19 @@ object MultiFilament {
         val out = ArrayList<plymeld.program.Step>()
         var tool = startTool; var spoolNow: String? = null
         val spoolOnTool = HashMap<Int, String>(loadedOn)      // the spool each tool holds: the loadout's, then what it last printed with
-        fun extrude(p: ToolPath, i: Int, t: Int) {
-            out += Scarf.extrudes(p, layerTopsUm[i], t)
-        }
+        // the head laying the objects' paths (ZAntiAlias.Head): each object's lowered onto its own top where it has Z
+        // anti-aliasing on (Laid.zaa; on the layer's own top and thickness, its object's), and lifted back to the layer's top
+        // before the block it went low in ends ([endBlock]), so it never leaves an object's block below its layer: what follows
+        // (another object's block, the tower, a tool change) starts from the layer's top, and with exclude-object a skipped
+        // block does not leave the head low
+        val head = ZAntiAlias.Head()
+        /** Path [p] of object [o] on layer [i], laid with tool [t]. */
+        fun extrude(p: ToolPath, i: Int, t: Int, o: Int) = head.lay(out, p, layerTopsUm[i], hs[i], t, objects[o].zaa, layerTopsUm[i])
+        fun endBlock(name: String) { head.lift(out); out += plymeld.program.ObjectEnd(name) }
         /** A path of the tower: on its first layer (its brim included) no faster than the tower's first-layer speed, when set. */
         fun towerExtrude(p: ToolPath, i: Int, t: Int) {
             val cap = tower?.firstLayerSpeed
-            if (towerOf[i] != 0 || cap == null) { extrude(p, i, t); return }
+            if (towerOf[i] != 0 || cap == null) { out += Scarf.extrudes(p, layerTopsUm[i], t); return }
             val m = p.xy.size / 2
             out += plymeld.program.Extrude(p.feature.label, p.xy, p.closed, layerTopsUm[i], p.widthUm, p.heightUm, t, p.overhangShare, p.ePerMmOverride,
                 p.retractBefore, p.widths, hopOnly = p.hopOnly, speedMax = DoubleArray(if (p.closed) m else m - 1) { cap })
@@ -334,8 +343,8 @@ object MultiFilament {
                         val into = purgePaths(o, sp, i)
                         if (into.isEmpty()) continue
                         out += plymeld.program.ObjectStart(obj.name)
-                        for (p in into) { extrude(p, i, t); purged += p }
-                        out += plymeld.program.ObjectEnd(obj.name)
+                        for (p in into) { extrude(p, i, t, o); purged += p }
+                        endBlock(obj.name)
                     }
                     tlNow?.purges?.get(k)?.forEach { towerExtrude(it, i, t) }
                     k++
@@ -349,8 +358,8 @@ object MultiFilament {
                     if (objects.size > 1 && planned.isEmpty() && !(supHere && sup.isNotEmpty()) && !(itfHere && itf.isNotEmpty())) continue
                     out += plymeld.program.ObjectStart(obj.name)
                     // support first on the layer (it holds up what this layer's model prints over)
-                    if (supHere) for (p in sup) extrude(p, i, t)
-                    if (itfHere) for (p in itf) extrude(p, i, t)
+                    if (supHere) for (p in sup) extrude(p, i, t, o)
+                    if (itfHere) for (p in itf) extrude(p, i, t, o)
                     // after a change (or a swap by hand), the new filament's first lines on the model are its hidden infill (sparse and
                     // internal solid), in their planned order, then everything else in its order: a nozzle back from the dock
                     // (from its idle temperature, past the purge) lays its first, least even lines where they do not show. Its
@@ -359,7 +368,7 @@ object MultiFilament {
                     // (plan.layer.walls.order) holds; on a layer where it lays no infill nothing is moved, and its first line is
                     // the wall order's (hidden with inner walls first; all its inner walls laid ahead of its outer walls there
                     // had made every wall order print inner-first on about half of a two-color nameplate's layers).
-                    if (!changed && !swapped) { for (p in planned) if (p !in purged) extrude(p, i, t) } else {
+                    if (!changed && !swapped) { for (p in planned) if (p !in purged) extrude(p, i, t, o) } else {
                         val rest = planned.filter { it !in purged }
                         val laid = rest.filter { it.feature in HIDDEN_FIRST } + rest.filter { it.feature !in HIDDEN_FIRST }
                         // a line whose predecessor is not the one it was planned after retracts on the travel into it: whether that
@@ -369,21 +378,21 @@ object MultiFilament {
                         for ((q, p) in planned.withIndex()) plannedBefore[p] = planned.getOrNull(q - 1)
                         for ((q, p) in laid.withIndex()) {
                             val before = laid.getOrNull(q - 1)
-                            extrude(if (plannedBefore[p] === before || p.retractBefore) p else p.withRetract(true), i, t)
+                            extrude(if (plannedBefore[p] === before || p.retractBefore) p else p.withRetract(true), i, t, o)
                         }
                     }
-                    out += plymeld.program.ObjectEnd(obj.name)
+                    endBlock(obj.name)
                 }
                 first = false
             }
             // a layer with support but no model paths: print it with whatever is loaded
-            if (first) for (obj in objects) {
+            if (first) for ((o, obj) in objects.withIndex()) {
                 val sup = obj.support.getOrNull(i).orEmpty(); val itf = obj.supportInterface.getOrNull(i).orEmpty()
                 if (obj.supportSpool == null && sup.isNotEmpty() || obj.interfaceSpool == null && itf.isNotEmpty()) {
                     out += plymeld.program.ObjectStart(obj.name)
-                    if (obj.supportSpool == null) for (p in sup) extrude(p, i, tool)
-                    if (obj.interfaceSpool == null) for (p in itf) extrude(p, i, tool)
-                    out += plymeld.program.ObjectEnd(obj.name)
+                    if (obj.supportSpool == null) for (p in sup) extrude(p, i, tool, o)
+                    if (obj.interfaceSpool == null) for (p in itf) extrude(p, i, tool, o)
+                    endBlock(obj.name)
                 }
             }
             // the tower's base on a layer of it with no change: at the end of the last layer topping there

@@ -203,7 +203,8 @@ class Job(val layout: Layout, setup: Setup, private val version: String) {
      * object (MultiFilament.plateSteps): one change per filament per layer however many objects, and one purge tower beside
      * them all. The objects' layers are merged by height as [program] merges them: layers topping at one height, as thick,
      * and alike in being a first layer are one layer of the plate; objects on other heights have layers of their own
-     * between. They print together, by height.
+     * between. They print together, by height. Each object's lines are lowered onto its own top where it has Z anti-aliasing
+     * on (MultiFilament.Laid.zaa), at its own layers' tops and thicknesses.
      */
     private fun perPartProgram(): PrintProgram {
         require(layout.order == ObjectOrder.TOGETHER) { "a plate with an object on several filaments prints its objects together, by height; one at a time is not written yet for it" }
@@ -230,7 +231,7 @@ class Job(val layout: Layout, setup: Setup, private val version: String) {
         fun <T> byPlate(k: Int, own: List<T>, none: (Int) -> T): List<T> = groups.mapIndexed { g, gr -> gr.members[k]?.let { own.getOrNull(it) } ?: none(g) }
         val objects = laid.mapIndexed { k, (l, _) ->
             MultiFilament.Laid(l.name, l.filaments.map { f -> MultiFilament.FilamentPlan(f.spool, emptyList(), byPlate(k, f.layers) { g -> LayerPlanOut(g, tops[g], groups[g].heightUm, emptyList()) }, f.unit) },
-                byPlate(k, l.support) { emptyList() }, byPlate(k, l.supportInterface) { emptyList() }, l.supportSpool, l.interfaceSpool) }
+                byPlate(k, l.support) { emptyList() }, byPlate(k, l.supportInterface) { emptyList() }, l.supportSpool, l.interfaceSpool, l.zaa) }
         val first = layout.objectIndex[0]
         val order = MultiFilament.layerOrder(tops.indices.map { i -> objects.flatMap { it.present(i) }.toSet() }, setup.spools.map { it.id }, setup.objects[first].spool)
         val toolOf = { sp: String -> setup.spool(sp).tool }

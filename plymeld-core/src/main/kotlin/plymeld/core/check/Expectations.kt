@@ -46,18 +46,21 @@ object Expectations {
     }
 
     /**
-     * The Z anti-aliasing rule for a print of [parts] (placed, all of them, the bed at [zBase] in their frame) when any object
-     * has the sloped tops' surface technique Z anti-aliasing (plan.faces.sloped_top.technique = "z_antialiasing"), else null: the thinnest layer of those objects' tools, the plate's slicing resolution; runs
-     * of solid closer than that resolution are one, for a print with a lifted bridge ([liftedBridge]) closer than where a
-     * bridge counts as resting on a support (as the slicer joins them).
+     * The Z anti-aliasing rule for a print of [objects] (each a setup object's index and its parts as placed, the bed at [zBase]
+     * in their frame) when any object has the sloped tops' surface technique Z anti-aliasing
+     * (plan.faces.sloped_top.technique = "z_antialiasing"), else null. Its top is the union of the parts of the objects that
+     * have it on, every part of each (a part's face another part of its object covers is not a top), so a line lowered in an
+     * object that has it off is refused; the thinnest lowered line, the least of those objects' (plymeld.core.ZAntiAlias.minMm);
+     * the plate's slicing resolution; runs of solid closer than that resolution are one, for a print with a lifted bridge
+     * ([liftedBridge]) closer than where a bridge counts as resting on a support (as the slicer joins them).
      */
-    fun forZaa(setup: Setup, parts: List<plymeld.mesh.TriangleSoup>, zBase: Double, liftedBridge: Boolean): ZaaRule? {
-        val on = setup.objects.indices.filter { o -> Resolver.resolveOrNull(setup, "plan.faces.sloped_top.z_antialiasing", Context(o))?.value == true }
+    fun forZaa(setup: Setup, objects: List<Pair<Int, List<plymeld.mesh.TriangleSoup>>>, zBase: Double, liftedBridge: Boolean): ZaaRule? {
+        val on = objects.filter { (o, _) -> Resolver.resolveOrNull(setup, "plan.faces.sloped_top.z_antialiasing", Context(o))?.value == true }
         if (on.isEmpty()) return null
-        val min = on.minOf { o -> (Resolver.resolveOrNull(setup, "hardware.tool.layer.height.min", Context(o))?.value as Number?)?.toDouble()
+        val min = on.minOf { (o, _) -> plymeld.core.ZAntiAlias.minMm(setup, o)
             ?: error("Z anti-aliasing needs hardware.tool.<key>.layer.height.min (the thinnest a lowered line may be)") }
         val res = SliceSettings.of(setup).resolutionUm / 1000.0
         val join = if (liftedBridge) maxOf(res, plymeld.mesh.LiftWarp.CONTACT_MM) else res
-        return ZaaRule(parts, zBase, min, res, join)
+        return ZaaRule(on.flatMap { it.second }, zBase, min, res, join)
     }
 }

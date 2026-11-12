@@ -39,7 +39,7 @@ enum class SurfaceTechnique(val short: String, val label: String, val character:
     /** ZAntiAlias: flat layers only; the first layer never; a curved band's and a lifted bridge's own layers left alone. */
     Z_ANTIALIASING("z_antialiasing", "Z anti-aliasing: the lines under a sloped top lowered onto it, with less plastic", "stair-steps removed",
         setOf(Coordination.Facing.SLOPED_TOP), "anywhere: any part of the sloped tops",
-        "flat layers' lines, above the first layer (a curved band's and a lifted bridge's own layers follow their own surface and are left alone), and the tool's thinnest layer (hardware.tool.<key>.layer.height.min)"),
+        "flat layers' lines, above the first layer (a curved band's and a lifted bridge's own layers follow their own surface and are left alone), and the thinnest layer of the object's tools (hardware.tool.<key>.layer.height.min)"),
     /** Planner: by plan.technique.fuzzy_skin.where; FlatLayers.followBlocked: not with layers following the surfaces. */
     FUZZY_SKIN("fuzzy_skin", "fuzzy skin: walls jittered in and out into a texture", "rough", setOf(Coordination.Facing.WALL),
         "by wall loop", "walls laid at one layer height: its texture depends on it, so flat layers following the surfaces are refused with it; the first layer only with plan.technique.fuzzy_skin.first_layer"),
