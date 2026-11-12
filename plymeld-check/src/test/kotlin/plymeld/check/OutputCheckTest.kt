@@ -152,6 +152,17 @@ class OutputCheckTest : StringSpec({
     "a scarf ramp from a quarter of the layer up passes when the config scarfs outer walls (scarf.start 0.25)" {
         GcodeCheck.check(file(layer2 = scarfLayer(0.4, 0.25)), scarfExpect).shouldBeEmpty()
     }
+    // with Z anti-aliasing on too: a ramp's piece whose plastic rounds to nothing (E0) is the ramp's, not a line lowered
+    // onto the model's top (the box has no top within these layers, so the anti-aliasing rule would refuse it)
+    val zaaRule = plymeld.core.check.ZaaRule(model, 0.0, 0.04, 0.0125, 0.0)
+    val scarfZaaExpect = GcodeCheck.Expect(0.0, 0.0, 256.0, 256.0, 256.0, maxPrintSpeed = 300.0, maxTravelSpeed = 500.0, maxAccel = 10000.0,
+        retractLengths = setOf(0.8), startTemplate = start, endTemplate = end, scarfStart = 0.25, zaa = zaaRule)
+    "with Z anti-aliasing on, a scarf ramp's E0 piece within the ramp passes; control: an E0 piece under the ramp's lowest is refused" {
+        val ramp = scarfLayer(0.4, 0.25).replace("G1 X105 Y100.22 Z0.325 E0.08\n", "G1 X105 Y100.22 Z0.325 E0.08\nG1 X105.001 Y100.22 E0\n")
+        GcodeCheck.check(file(layer2 = ramp), scarfZaaExpect).shouldBeEmpty()
+        val under = scarfLayer(0.4, 0.25).replace("G1 X105 Y100.22 Z0.325 E0.08\n", "G1 X105 Y100.22 Z0.325 E0.08\nG1 Z0.22\nG1 X105.001 Y100.22 E0\nG1 Z0.325\n")
+        GcodeCheck.check(file(layer2 = under), scarfZaaExpect).any { it.contains("off the model's top") } shouldBe true
+    }
     "control: the same ramp without a scarf in the config is printing below the layer" {
         GcodeCheck.check(file(layer2 = scarfLayer(0.4, 0.25)), expect).any { it.contains("printing at Z0.325 on the layer at 0.400") } shouldBe true
     }

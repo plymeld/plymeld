@@ -253,9 +253,11 @@ object GcodeCheck {
                             // the print's top: its layers', or a line printed above its layer (a melt strip standing on its floor)
                             maxLayerZ = maxOf(maxLayerZ, nz)
                         } else if (ev == 0.0 && xy && num('E') != null && e.zaa != null && !printZ.isNaN() && !z.isNaN() && own == null &&
-                            (nz < printZ - 1e-6 || z < printZ - 1e-6) && nz <= printZ + 1e-6 && z <= printZ + 1e-6) {
+                            (nz < printZ - 1e-6 || z < printZ - 1e-6) && nz <= printZ + 1e-6 && z <= printZ + 1e-6 &&
+                            !(!scarfLow.isNaN() && z >= scarfLow - 1e-6 && nz >= scarfLow - 1e-6)) {
                             // a line's piece whose plastic rounds to nothing (E0, written as part of its path: a travel has no E),
-                            // below its flat layer: on the model's top like the rest of the line (Z anti-aliasing)
+                            // below its flat layer: on the model's top like the rest of the line (Z anti-aliasing). A scarf ramp's
+                            // piece is the ramp's (within its band), as its printed lines are
                             zaaMove = true
                             e.zaa.off(x, y, z, nx, ny, nz, layerZ - layerH, layerZ)?.let { o -> bad(ln, "a line below its layer (Z${fmt(z, 3)} to Z${fmt(nz, 3)} on the layer at ${fmt(layerZ, 3)}) off the model's top: Z${fmt(o[2], 3)} at (${fmt(o[0], 2)}, ${fmt(o[1], 2)}), where the model puts it at Z${fmt(o[3], 3)} (Z anti-aliasing lowers a line only onto the model's top within its layer)") }
                         } else if (ev < 0) {
