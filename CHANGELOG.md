@@ -51,6 +51,11 @@ section the release's version and date.
 - A machine model's toolheads may carry a heat time (`hardware.model.<key>.toolhead.<key>.heat.time`): a tool that sets
   no `heat.time` of its own heats ahead of a change by its model's. The Creator 5's is 15 s (a placeholder), so its tool
   changes heat the next nozzle 15 s of printing ahead instead of waiting for it.
+- Z anti-aliasing (`plan.faces.sloped_top.technique = "z_antialiasing"`) on an object printed in several filaments or laid
+  part by part (part settings), alone and on a plate; it was laid as laid there. Every filament's lines are lowered onto
+  the object's whole top, all its parts together, so a part's face that another part covers is not lowered onto; on a
+  plate each object as its own setting says, on its own layers. A lowered line is never thinner than the thinnest layer
+  (`hardware.tool.<key>.layer.height.min`) of any tool the object's parts print with.
 
 ### Changed
 

@@ -17,7 +17,7 @@ import java.util.Locale
  *    them (a wall or a feature missing). Parts of the outline in places narrower than a line (slivers,
  *    a feature's tip) are left out: no slicer could wall them. Gaps in the cross-section narrower than
  *    [tolUm] are not outline (it is closed by half the tolerance first): two pieces that close are one;
- *  - Z anti-aliasing (a [ZaaRule]): a layer's outline also takes in its cut at the tool's thinnest layer above its bottom
+ *  - Z anti-aliasing (a [ZaaRule]): a layer's outline also takes in its cut at the thinnest lowered line (ZaaRule.minMm) above its bottom
  *    (the layer reaches out over a slope to there), and a point of a line below its layer, on the model's top within the
  *    layer, is not outside;
  *  - over air (a layer with wave beads): each piece of the layer's cross-section where the model has none under it (its
@@ -266,7 +266,7 @@ object ModelCheck {
      */
     class Surface(private val parts: List<TriangleSoup>, private val zBaseMm: Double, text: String, private val withinMm: Double = 0.6,
                   /**
-                   * Z anti-aliasing (plan.faces.sloped_top.technique = "z_antialiasing"): the tool's thinnest layer (mm). A layer above the bed then reaches out
+                   * Z anti-aliasing (plan.faces.sloped_top.technique = "z_antialiasing"): the thinnest lowered line (ZaaRule.minMm). A layer above the bed then reaches out
                    * to where the model's top is that far above its bottom: its outline, which its walls must cover, is also cut
                    * there ([wallLoops]). Null: the outline is the cut at the layer's middle.
                    */

@@ -109,7 +109,10 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
             .also { bandWarpCache = key to it }
     }
 
-    /** The tool's thinnest layer (mm): where flat layers of one height land on the top, and the thinnest a line Z anti-aliasing lowers may be. */
+    /**
+     * The tool's thinnest layer (mm): where flat layers of one height land on the top, and, with Z anti-aliasing, where a layer
+     * holds a lifted bridge's support top ([zaaHold]). The thinnest a line Z anti-aliasing lowers may be is [zaaMinMm].
+     */
     private fun minLayerMm(): Double = (Resolver.resolveOrNull(setup!!, "hardware.tool.layer.height.min", ctx)?.value as Number?)?.toDouble()
         ?: error("layers need hardware.tool.<key>.layer.height.min (flat layers of one height land their last layer on the top within it; flat layers following the surfaces stay above it)")
 
@@ -129,13 +132,28 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
     private var columnsCache: Pair<Double, plymeld.mesh.SolidColumns>? = null
 
     /**
+     * Z anti-aliasing's top for this object's flat layers (ZAntiAlias.Top): its [columns] over all its parts, its bottom, its
+     * thinnest lowered line ([zaaMinMm]); null when the object has it off or its layers follow the underside. One for every
+     * way the object's layers are laid: whole ([layerStepsAsPlanned]), per part ([multiProgram]), on a plate ([laidForPlate]).
+     */
+    private fun zaaTop(st: SliceSettings): ZAntiAlias.Top? =
+        if (!st.zAntialias || underside) null else ZAntiAlias.Top(columns(st), soup.bounds()[2], zaaMinMm(), st.resolutionUm / 1000.0)
+
+    /** The thinnest a line Z anti-aliasing lowers may be, and the height over a layer's bottom its layer reaches out to (ZAntiAlias.minMm). */
+    private fun zaaMinMm(): Double = ZAntiAlias.minMm(setup!!, objectId)
+        ?: error("Z anti-aliasing needs hardware.tool.<key>.layer.height.min (the thinnest a lowered line may be)")
+    /** For the slice stages' keys: the thinnest lowered line, which reads the tools of every part (with Z anti-aliasing on). */
+    private fun zaaKey(): String = if (s?.zAntialias == true) "|zaaMin=" + ZAntiAlias.minMm(setup!!, objectId) else ""
+
+    /**
      * Z anti-aliasing (ZAntiAlias): each flat layer above the first ([flat], by its absolute top) also cut where the top is the
-     * tool's thinnest layer above its bottom, when that is below the layer's middle, and the two cuts joined, so the layer
-     * reaches out over a slope to where its lines can be lowered to. A cut lower than the middle is smaller where the model
-     * grows upward (an overhang), so only a top that ends within the layer adds anything.
+     * thinnest lowered line ([zaaMinMm]) above its bottom, when that is below the layer's middle, and the two cuts joined, so
+     * the layer reaches out over a slope to where its lines can be lowered to. A cut lower than the middle is smaller where the
+     * model grows upward (an overhang), so only a top that ends within the layer adds anything. [layers] are the cuts of
+     * [sliced] (an object laid whole: all its parts; laid per part: one part's).
      */
     private fun zaaExtend(layers: List<Layer>, sliced: List<TriangleSoup>, plan: LayerPlan, flat: (Double) -> Boolean): List<Layer> {
-        val min = minLayerMm()
+        val min = zaaMinMm()
         val idx = (1 until plan.count).filter { i -> flat(plan.tops[i]) && plan.tops[i - 1] + min < plan.slices[i] - 1e-9 }
         if (idx.isEmpty()) return layers
         val hs = DoubleArray(idx.size) { plan.tops[idx[it] - 1] + min }
@@ -249,7 +267,7 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         return plymeld.mesh.Warp(zs, b[5], top::top)
     }
 
-    private val sliceStage = Stage("slice", { meshKey + "|" + key(*SLICE_KEYS) + landingKey() }) {
+    private val sliceStage = Stage("slice", { meshKey + "|" + key(*SLICE_KEYS) + landingKey() + zaaKey() }) {
         timed("slice") {
             progress.at("slice", 0, 0)
             val st = s!!
@@ -759,7 +777,7 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
 
     // Multi-color: each part sliced and cleaned on its own, then planned per filament. The plan
     // stage reads every wall/region/path setting, the parts' spools, and the overlap rule.
-    private val partSliceStage = Stage("slice parts", { meshKey + "|" + key(*SLICE_KEYS) + landingKey() }) {
+    private val partSliceStage = Stage("slice parts", { meshKey + "|" + key(*SLICE_KEYS) + landingKey() + zaaKey() }) {
         timed("slice parts") {
             progress.at("slice", 0, 0)
             val st = s!!
@@ -770,7 +788,10 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
             // over and beside the island reads its material there); their paths are left out (filamentsStage, islandOmit), as for
             // an object laid whole. taken out here, the layers under an island's start read its ground as empty and
             // laid a hidden top surface there (a dome laid per part: 1563 s against 1400 laid whole)
-            parts.map { p -> cleanUp(Slicer.slice(p, plan.slices), st).map { it.loops } } to tops
+            // Z anti-aliasing: each part's layers reach out over its own slope, as an object laid whole does (its layers are
+            // flat, none warped)
+            val zaa = st.zAntialias && !underside
+            parts.map { p -> Slicer.slice(p, plan.slices).let { if (zaa) zaaExtend(it, listOf(p), plan) { true } else it }.let { cleanUp(it, st) }.map { it.loops } } to tops
         }
     }
     private val filamentsStage = Stage("filaments", {
@@ -803,20 +824,23 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
 
     /**
      * This object's lines for a plate of several objects (Job): laid per part ([plannedFilaments]) when it is on several
-     * filaments or part settings, else its planned layers under its one spool; with its layers' tops. Flat layers only so
-     * far: a curved island, a curved band, or a lifted bridge on such a plate is refused.
+     * filaments or part settings, else its planned layers under its one spool; with its layers' tops, and its top for Z
+     * anti-aliasing ([zaaTop]; its lines are lowered as the plate's steps are laid). Flat layers only so far: a curved
+     * island, a curved band, or a lifted bridge on such a plate is refused.
      */
     fun laidForPlate(setup: Setup): Pair<MultiFilament.Laid, LongArray> {
         if (isMultiFilament(setup)) {
             val (r, tops) = plannedFilaments(setup)
             require(islands.isEmpty()) { "'$objectName' has a curved island and is laid per part: on a plate of several objects that is not written yet; slice it on its own" }
             val (sup, itf) = supportSpools()
-            return MultiFilament.Laid(obj.name, r.filaments, r.support, r.supportInterface, sup, itf) to tops
+            return MultiFilament.Laid(obj.name, r.filaments, r.support, r.supportInterface, sup, itf, zaaTop(s!!)) to tops
         }
         val planned = planned(setup)
         require(planned.none { islandKeyOf(it) != null || isBridgeLayer(it) } && planned.withIndex().all { (i, l) -> l.index == i }) {
             "'$objectName' has layers of its own (a curved island or band, or a lifted bridge): on a plate with an object laid per part that is not written yet; slice it on its own" }
-        return MultiFilament.Laid(obj.name, listOf(MultiFilament.FilamentPlan(setup.objects[objectId].spool, emptyList(), planned))) to LongArray(planned.size) { planned[it].topZUm }
+        // Z anti-aliasing lowers lines on flat layers only: none for an object with a curved band (its layers are not told apart here)
+        return MultiFilament.Laid(obj.name, listOf(MultiFilament.FilamentPlan(setup.objects[objectId].spool, emptyList(), planned)),
+            zaa = if (curvedFrom == null) zaaTop(s!!) else null) to LongArray(planned.size) { planned[it].topZUm }
     }
 
     /** A multi-filament object as a print program: filament order per layer, tool changes between object blocks. */
@@ -845,8 +869,9 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         val drop = if (perLayer.all { it == 0 }) null else (Resolver.resolveOrNull(setup, "hardware.filament.temperature.idle_drop", ctx)?.value as Number?)?.toInt()
         val idleOf = { sp: String, layer: Int -> tempOf(sp, layer)?.let { t -> drop?.takeIf { it > 0 }?.let { t - it } } }
         // the regions' caps on the object's lines, the tower's left alone (its curved islands' layers get them in layerSteps)
+        // Z anti-aliasing: every filament's lines lowered onto the object's whole top (all its parts)
         val steps = MotionRegions.applyByObject(MultiFilament.steps(r, order, toolOf, obj.name, tops, startTool, tower, tempOf, idleOf, supSpool, itfSpool,
-            loadedOn = loadedOn, purgeInto = s!!.purgeInto), mapOf(obj.name to regionBoxes))
+            loadedOn = loadedOn, purgeInto = s!!.purgeInto, zaa = zaaTop(s!!)), mapOf(obj.name to regionBoxes))
         return PrintProgram(if (islands.isEmpty()) steps else withIslandLayers(steps, setup), listOf(obj))
     }
 
@@ -1017,23 +1042,11 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         val bottom = soup.bounds()[2]
         val topW = bottom + l.topZUm / 1000.0
         if (warp == null || topW <= warp.zStart + 1e-9) {
-            // Z anti-aliasing (ZAntiAlias): a flat layer above the first, its lines lowered onto the model's top within it
-            val st = s!!
-            val zaa = st.zAntialias && !underside && l.topZUm - l.heightUm > 0
-            val cols = if (zaa) columns(st) else null
-            val min = if (zaa) minLayerMm() else 0.0
-            var below = false                       // the head left a lowered path below the layer's top
-            for (p in l.paths) {
-                val low = cols?.let { ZAntiAlias.lower(p, l.topZUm, l.heightUm, tool, it, bottom, min, st.resolutionUm / 1000.0) }
-                // from a lowered end, back up to the layer's top before moving on (a short or hidden travel would otherwise
-                // run sideways through the layer's lines at the lowered height)
-                if (below && (p.xy[0] / 1000.0 != last[0] || p.xy[1] / 1000.0 != last[1])) out.add(LiftTo(l.topZUm))
-                if (low != null) {
-                    out.add(low); endOf(low.xy, p.closed)
-                    val lz = low.zs!!
-                    below = lz[if (p.closed) 0 else lz.size - 1] < l.topZUm
-                } else { out.addAll(Scarf.extrudes(p, l.topZUm + p.raiseUm, tool)); endOf(p.xy, p.closed); below = false }
-            }
+            // Z anti-aliasing (ZAntiAlias): a flat layer above the first, its lines lowered onto the model's top within it, the
+            // head back up to the layer's top after a lowered end
+            val top = zaaTop(s!!)
+            val head = ZAntiAlias.Head(last)
+            for (p in l.paths) head.lay(out, p, l.topZUm, l.heightUm, tool, top, l.topZUm + p.raiseUm)
             waveRamp(l, out)
             return l.topZUm to out
         }
