@@ -256,7 +256,9 @@ class Job(val layout: Layout, setup: Setup, private val version: String) {
         val idleOf = { sp: String, layer: Int -> tempOf(sp, layer)?.let { t -> drop?.takeIf { it > 0 }?.let { t - it } } }
         val steps = MultiFilament.plateSteps(objects, order, toolOf, tops, startTool, tower, tempOf, idleOf, loadedOn = loadedOn, purgeInto = SliceSettings.of(setup, ctx0).purgeInto,
             heightsUm = LongArray(groups.size) { groups[it].heightUm }, objectLayers = IntArray(groups.size) { groups[it].members.values.min() })
-        return PrintProgram(steps, slicers.map { it.printObject })
+        // each object's regions' caps on its own lines, in its own blocks (two copies of a model may have different regions); the
+        // tower's lines left alone
+        return PrintProgram(MotionRegions.applyByObject(steps, slicers.associate { it.printObject.name to it.regionBoxes }), slicers.map { it.printObject })
     }
 
     /** A support column of object [k] printed first ([box]: the placed frame, µm): the support paths taken from its layers, by layer index. */

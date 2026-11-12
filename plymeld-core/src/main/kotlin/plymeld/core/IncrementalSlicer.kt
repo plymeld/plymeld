@@ -844,7 +844,9 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         val tempOf = { sp: String, layer: Int -> bySpool[sp]?.let { if (layer == 0) it.nozzleTempFirstC else it.nozzleTempC } }
         val drop = if (perLayer.all { it == 0 }) null else (Resolver.resolveOrNull(setup, "hardware.filament.temperature.idle_drop", ctx)?.value as Number?)?.toInt()
         val idleOf = { sp: String, layer: Int -> tempOf(sp, layer)?.let { t -> drop?.takeIf { it > 0 }?.let { t - it } } }
-        val steps = MultiFilament.steps(r, order, toolOf, obj.name, tops, startTool, tower, tempOf, idleOf, supSpool, itfSpool, loadedOn = loadedOn, purgeInto = s!!.purgeInto)
+        // the regions' caps on the object's lines, the tower's left alone (its curved islands' layers get them in layerSteps)
+        val steps = MotionRegions.applyByObject(MultiFilament.steps(r, order, toolOf, obj.name, tops, startTool, tower, tempOf, idleOf, supSpool, itfSpool,
+            loadedOn = loadedOn, purgeInto = s!!.purgeInto), mapOf(obj.name to regionBoxes))
         return PrintProgram(if (islands.isEmpty()) steps else withIslandLayers(steps, setup), listOf(obj))
     }
 
@@ -994,9 +996,10 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
 
     /**
      * The object's regions (TechniquePlan.regions) in the frame its paths are in: x and y placed, z from the object's bottom,
-     * µm; the lines each holds by their feature, and its caps.
+     * µm; the lines each holds by their feature, and its caps. Applied here per layer ([layerSteps]), to an object laid per part
+     * in [multiProgram], and by Job to its object's blocks on a plate with an object laid per part.
      */
-    private val regionBoxes: List<MotionRegions.Box> by lazy {
+    val regionBoxes: List<MotionRegions.Box> by lazy {
         val b = soup.bounds()
         technique.regions.filter { it.speedMax != null || it.accelMax != null }.map { r -> val g = r.region
             MotionRegions.Box(r.key, (b[0] + g.x0) * 1000, (b[0] + g.x1) * 1000, (b[1] + g.y0) * 1000, (b[1] + g.y1) * 1000, g.fromMm * 1000, g.toMm * 1000,

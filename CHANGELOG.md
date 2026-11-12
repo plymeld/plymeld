@@ -76,6 +76,9 @@ section the release's version and date.
 
 ### Fixed
 
+- A region's speed and acceleration caps (`mechanism.motion.speed.max` and `.acceleration.max` under
+  `plan.object.<key>.region.<key>`) apply to an object printed in several filaments, alone or on a plate, and to the other
+  objects on such a plate; they were ignored there.
 - The step from an inner wall onto the outer wall's start, and from it onto the wall beside it, goes unretracted only
   within two line widths: in a letter's narrow stroke, steps of 2 to 5 mm crossed the pocket's edge and drew strands.
 - A plate of several objects heats the next tool ahead of a change as one object does (`hardware.tool.<key>.heat.time`);
