@@ -100,6 +100,13 @@ class OutputCheckTest : StringSpec({
         GcodeCheck.check(file(tail = "G1 E-0.8 F2400\nG1 X150 Y150 F6000\nM104 S0\n"), expect).any { it.contains("not above the print") } shouldBe true
     }
 
+    "the last line's last segment written with E0 (its filament rounded to nothing) is part of the line; control: the same move without E is a travel" {
+        // a micron on along the infill line's end, its share of filament rounded to E0, before the end lifts as usual
+        GcodeCheck.check(file(tail = "G1 X109.001 Y105 E0\nG1 E-0.8 F2400\nG1 Z2 F600\nG1 X150 Y150 F6000\nM104 S0\n"), expect).shouldBeEmpty()
+        GcodeCheck.check(file(tail = "G1 X109.001 Y105\nG1 E-0.8 F2400\nG1 Z2 F600\nG1 X150 Y150 F6000\nM104 S0\n"), expect)
+            .any { it.contains("not above the print") } shouldBe true
+    }
+
     "control: printing faster than the machine prints" {
         GcodeCheck.check(file().replaceFirst("G1 F3000", "G1 F30000"), expect).any { it.contains("over the machine's 300") } shouldBe true
     }

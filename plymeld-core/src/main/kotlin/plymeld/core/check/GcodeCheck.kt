@@ -111,7 +111,9 @@ object GcodeCheck {
         val lines = text.lines()
         val firstLayer = lines.indexOfFirst { isLayer(it) }
         if (firstLayer < 0) return listOf("no layer markers: not a layered print")
-        val lastExtrusion = lines.indices.last { isExtrusion(lines[it]) }
+        // the last line printed: a path's last segment may carry E0, its share of filament rounded to nothing in the file's
+        // steps (a scarf's closing pass ending a micron on), and is still part of that line, not a move after it
+        val lastExtrusion = lines.indices.last { isExtrusion(lines[it], orZero = true) }
 
         // start template: its own lines (no placeholders) in order before the first layer
         inOrder(e.startTemplate, lines.subList(0, firstLayer))?.let { bad(1, "start template line '$it' missing or out of order before the first layer") }
@@ -340,11 +342,13 @@ object GcodeCheck {
     private val VISIBLE = setOf("Outer wall", "Overhang wall", "Top surface", "Bottom surface", "Ironing")
     private fun layerHeight(l: String) = when { l.startsWith(";Z:") -> l.removePrefix(";Z:"); l.startsWith("; Z_HEIGHT:") -> l.removePrefix("; Z_HEIGHT:"); else -> null }?.trim()?.toDoubleOrNull()
     private fun widthOf(l: String) = when { l.startsWith(";WIDTH:") -> l.removePrefix(";WIDTH:"); l.startsWith("; LINE_WIDTH:") -> l.removePrefix("; LINE_WIDTH:"); else -> null }?.trim()?.toDoubleOrNull()
-    private fun isExtrusion(l: String): Boolean {
+    /** A sideways move that extrudes ([orZero]: or carries E0, a segment of a line whose filament rounds to nothing). */
+    private fun isExtrusion(l: String, orZero: Boolean = false): Boolean {
         val c = l.substringBefore(';').trim()
         if (!(c.startsWith("G1 ") || c.startsWith("G2 ") || c.startsWith("G3 "))) return false
         val w = c.split(Regex("\\s+"))
-        return w.any { it.startsWith("X") || it.startsWith("Y") } && (w.firstOrNull { it.startsWith("E") }?.substring(1)?.toDoubleOrNull() ?: 0.0) > 0
+        val e = w.firstOrNull { it.startsWith("E") }?.substring(1)?.toDoubleOrNull() ?: return false
+        return w.any { it.startsWith("X") || it.startsWith("Y") } && (e > 0 || (orZero && e == 0.0))
     }
 
     /** Where the travel a->b at height [z] crosses the center of a line printed at [z] or above (away from the travel's own ends) at a point [counts], or null. */
