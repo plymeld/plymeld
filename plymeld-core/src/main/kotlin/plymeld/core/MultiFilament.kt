@@ -25,8 +25,6 @@ object MultiFilament {
     val PURGE_INTO = listOf("tower", "infill", "infill_and_object")
     /** What a filament lays first after a change on a layer: its infill, hidden inside the model (sparse and internal solid). */
     private val HIDDEN_FIRST = setOf(Feature.SPARSE, Feature.SOLID)
-    /** ... and on a layer where it lays no infill: its inner walls, before any outer wall. */
-    private val HIDDEN_FIRST_NO_INFILL = setOf(Feature.INNER_WALL)
     /**
      * One filament's share of the object, or one settings group's share of a filament ([unit]:
      * parts on one spool with the same own settings), with its layers' areas and planned paths.
@@ -52,6 +50,15 @@ object MultiFilament {
                 listOfNotNull(supportSpool?.takeIf { r.support.getOrNull(i)?.isNotEmpty() == true },
                     interfaceSpool?.takeIf { r.supportInterface.getOrNull(i)?.isNotEmpty() == true })
         }
+
+    /**
+     * The object's other parts beside group [unit]'s on one layer ([split]): the other groups' areas, as they are laid
+     * (Planner.paths' otherParts: what covers a speck or a seam). Not the object's outline less the group's: that outline
+     * is closed (method.slicing.close_gaps), and along a part's open edges the closing leaves hairline slivers outside it,
+     * which read as another part there.
+     */
+    fun otherParts(split: FilamentAreas.Split, unit: String): List<Polygon> =
+        split.bySpool.filterKeys { it != unit }.values.flatten().let { if (it.isEmpty()) it else Booleans.normalize(it) }
 
     /**
      * [partLayers]: per part, per layer, its (cleaned) outline; [spools]: each part's spool;
@@ -87,7 +94,8 @@ object MultiFilament {
         // Variable-width walls print an area down to the smallest feature (with a line of the narrowest width); handing
         // over everything under the narrowest LINE split a two-color Benchy's thin cabin strips so neither color
         // printed them
-        val narrowest = if (s.wallGenerator == "arachne") s.minFeatureUm else s.outerWallWidthUm
+        // (plan.layer.sliver.width asks for more)
+        val narrowest = maxOf(s.sliverWidthUm ?: 0L, if (s.wallGenerator == "arachne") s.minFeatureUm else s.outerWallWidthUm)
         val splits = timed("split") { Parallel.map(n, progress.Counter("filament areas", n)) { i -> FilamentAreas.split(partLayers.map { it[i] }, units, precedence, narrowest) } }
         // The parts' union, closed like any slice (slice_closing_radius): parts sliced one by one meet
         // at hairline seams, which read as "exposed from below" and, grown two nozzle widths as bridge
@@ -134,7 +142,8 @@ object MultiFilament {
         val support = MutableList<List<ToolPath>>(n) { emptyList() }
         val supportInterface = MutableList<List<ToolPath>>(n) { emptyList() }
         val plans = mids.map { m ->
-            var layers = timed("paths") { Planner.paths(m.st, m.areas, m.w, m.r, layerTopsUm, whole, objectWide = m.u == objectSpool, support = supportSpots, covers = covers, standsOn = standsOn, progress = progress, omit = omit) }
+            var layers = timed("paths") { Planner.paths(m.st, m.areas, m.w, m.r, layerTopsUm, whole, objectWide = m.u == objectSpool, support = supportSpots, covers = covers, standsOn = standsOn, progress = progress, omit = omit,
+                otherParts = { i -> otherParts(splits[i], m.u) }) }
             if (m.u == objectSpool) layers = layers.mapIndexed { i, l ->
                 // supports leave the object-wide unit: the filament that prints them is chosen per layer
                 support[i] = l.paths.filter { it.feature == Feature.SUPPORT }
@@ -189,25 +198,53 @@ object MultiFilament {
     }
 
     /**
-     * One multi-filament object as print steps, layer by layer in [order] (from [layerOrder]). A
+     * One object's lines for [plateSteps]: its [filaments] (each a spool's layers, by layer index; an object shorter than the
+     * plate has fewer), its support and interface paths per layer with the spools that print them (null = whichever
+     * filament is loaded), under its program [name]; [zaa], its whole top (all its parts) its lines are lowered onto with Z
+     * anti-aliasing (ZAntiAlias.Top), null when it has that off.
+     */
+    class Laid(val name: String, val filaments: List<FilamentPlan>, val support: List<List<ToolPath>> = emptyList(),
+               val supportInterface: List<List<ToolPath>> = emptyList(), val supportSpool: String? = null, val interfaceSpool: String? = null,
+               val zaa: ZAntiAlias.Top? = null) {
+        /** The spools with paths on layer [i] ([present], for one object of a plate). */
+        fun present(i: Int): Set<String> = filaments.filter { it.layers.getOrNull(i)?.paths?.isNotEmpty() == true }.map { it.spool }.toSet() +
+            listOfNotNull(supportSpool?.takeIf { support.getOrNull(i)?.isNotEmpty() == true }, interfaceSpool?.takeIf { supportInterface.getOrNull(i)?.isNotEmpty() == true })
+    }
+
+    /**
+     * The tower's layer each of the layers topping at [layerTopsUm] is printed with: layers topping at one height (objects on
+     * different layer heights meeting there) share one, so the tower has a layer per height.
+     */
+    fun towerLayers(layerTopsUm: LongArray): IntArray { var t = -1; return IntArray(layerTopsUm.size) { i -> if (i == 0 || layerTopsUm[i] != layerTopsUm[i - 1]) t++; t } }
+
+    /** One multi-filament object as print steps ([plateSteps] with that one object; [zaa], its top for Z anti-aliasing, as [Laid.zaa]). */
+    fun steps(r: Result, order: List<List<String>>, toolOf: (String) -> Int, objectName: String, layerTopsUm: LongArray, startTool: Int,
+              tower: PurgeTower? = null,
+              tempOf: (String, Int) -> Int? = { _, _ -> null }, idleOf: (String, Int) -> Int? = { _, _ -> null },
+              supportSpool: String? = null, interfaceSpool: String? = null,
+              numberOf: (String) -> Int = { sp -> sp.removePrefix("spool ").trim().toIntOrNull() ?: 0 },
+              loadedOn: Map<Int, String> = emptyMap(),
+              purgeInto: String = "tower", zaa: ZAntiAlias.Top? = null): List<plymeld.program.Step> =
+        plateSteps(listOf(Laid(objectName, r.filaments, r.support, r.supportInterface, supportSpool, interfaceSpool, zaa)), order, toolOf, layerTopsUm, startTool, tower,
+            tempOf, idleOf, numberOf, loadedOn, purgeInto)
+
+    /**
+     * Objects laid per filament as print steps, layer by layer in [order] (from [layerOrder] over every object's spools):
+     * on each layer each filament in turn lays its lines of every object, object after object, so a layer costs one change
+     * per filament however many objects stand on the plate. A
      * tool change goes BETWEEN object blocks, never inside one: with exclude-object, moves inside a
      * canceled object's block are skipped, and a tool change must not be.
      * [tower]: after each change the NEW tool purges its band; the tower's base paths (wall and
      * spare bands, as its layout gives them) are printed at the layer's first visit (before its first
      * change) or, on a layer without a change, at the layer's end — up to the tower's top. After a change, the new
-     * filament's first lines on the model are its infill on the layer, hidden inside it (its inner walls where it has no
-     * infill there); then the rest in its order.
+     * filament's first lines on each object are its infill on the layer, hidden inside it (its inner walls where it has no
+     * infill there); then the rest in its order. An object with Z anti-aliasing on ([Laid.zaa]) has its lines on its layers
+     * above the first lowered onto its whole top (ZAntiAlias.Head), whichever filament lays them.
      */
-    fun steps(r: Result, order: List<List<String>>, toolOf: (String) -> Int, objectName: String, layerTopsUm: LongArray, startTool: Int,
+    fun plateSteps(objects: List<Laid>, order: List<List<String>>, toolOf: (String) -> Int, layerTopsUm: LongArray, startTool: Int,
               tower: PurgeTower? = null,
               /** Printing temperature of a spool on a layer, and the idle temperature of the tool put down (null = no command). */
               tempOf: (String, Int) -> Int? = { _, _ -> null }, idleOf: (String, Int) -> Int? = { _, _ -> null },
-              /**
-               * Which spool prints the support / interface; null (the default) =
-               * whichever filament is loaded: printed in the layer's first block, so it never causes a
-               * tool change of its own. A named spool must be in the layer's [order] (see [present]).
-               */
-              supportSpool: String? = null, interfaceSpool: String? = null,
               /** A spool's filament number (the loadout's slot: "spool 5" is filament 5), for a FilamentSwap's note. */
               numberOf: (String) -> Int = { sp -> sp.removePrefix("spool ").trim().toIntOrNull() ?: 0 },
               /** The spool each tool holds when the print starts (the loadout's own filament per tool): a tool whose first spool differs swaps before its first line. */
@@ -218,29 +255,46 @@ object MultiFilament {
                * plastic hidden), its volume counted against the purge, and the tower takes what is left; "infill_and_object" =
                * its sparse, then its hidden solid infill, then the tower.
                */
-              purgeInto: String = "tower"): List<plymeld.program.Step> {
+              purgeInto: String = "tower",
+              /**
+               * Each layer's thickness (µm), when not the step from the layer before (a plate of objects on different layer
+               * heights: [layerTopsUm] then holds a height more than once, a layer of each thickness that tops there), and the
+               * layer of its object(s) it is (for the layer start); null = one stack of layers.
+               */
+              heightsUm: LongArray? = null, objectLayers: IntArray? = null): List<plymeld.program.Step> {
         require(purgeInto in PURGE_INTO) { "plan.mechanism.purge.into '$purgeInto' is not known (${PURGE_INTO.joinToString()})" }
-        val hs = Planner.heights(layerTopsUm)
-        val byspool = r.filaments.groupBy { it.spool }
+        val hs = heightsUm ?: Planner.heights(layerTopsUm)
+        val byspool = objects.map { o -> o.filaments.groupBy { it.spool } }
         val perLayer = purgesPerLayer(order, toolOf, startTool, loadedOn)
+        // layers topping at one height share one layer of the tower ([towerLayers]): its base once, their purges in turn
+        val towerOf = towerLayers(layerTopsUm)
+        val perTower = IntArray((towerOf.lastOrNull() ?: -1) + 1).also { a -> for (i in perLayer.indices) a[towerOf[i]] += perLayer[i] }
         val out = ArrayList<plymeld.program.Step>()
         var tool = startTool; var spoolNow: String? = null
         val spoolOnTool = HashMap<Int, String>(loadedOn)      // the spool each tool holds: the loadout's, then what it last printed with
-        fun extrude(p: ToolPath, i: Int, t: Int) {
-            out += Scarf.extrudes(p, layerTopsUm[i], t)
-        }
+        // the head laying the objects' paths (ZAntiAlias.Head): each object's lowered onto its own top where it has Z
+        // anti-aliasing on (Laid.zaa; on the layer's own top and thickness, its object's), and lifted back to the layer's top
+        // before the block it went low in ends ([endBlock]), so it never leaves an object's block below its layer: what follows
+        // (another object's block, the tower, a tool change) starts from the layer's top, and with exclude-object a skipped
+        // block does not leave the head low
+        val head = ZAntiAlias.Head()
+        /** Path [p] of object [o] on layer [i], laid with tool [t]. */
+        fun extrude(p: ToolPath, i: Int, t: Int, o: Int) = head.lay(out, p, layerTopsUm[i], hs[i], t, objects[o].zaa, layerTopsUm[i])
+        fun endBlock(name: String) { head.lift(out); out += plymeld.program.ObjectEnd(name) }
         /** A path of the tower: on its first layer (its brim included) no faster than the tower's first-layer speed, when set. */
         fun towerExtrude(p: ToolPath, i: Int, t: Int) {
             val cap = tower?.firstLayerSpeed
-            if (i != 0 || cap == null) { extrude(p, i, t); return }
+            if (towerOf[i] != 0 || cap == null) { out += Scarf.extrudes(p, layerTopsUm[i], t); return }
             val m = p.xy.size / 2
             out += plymeld.program.Extrude(p.feature.label, p.xy, p.closed, layerTopsUm[i], p.widthUm, p.heightUm, t, p.overhangShare, p.ePerMmOverride,
                 p.retractBefore, p.widths, hopOnly = p.hopOnly, speedMax = DoubleArray(if (p.closed) m else m - 1) { cap })
         }
-        /** The paths of [sp] on layer [i] that take the purge first (none with the tower alone). */
-        fun purgePaths(sp: String, i: Int): List<ToolPath> = if (purgeInto == "tower") emptyList() else {
+        /** Object [o]'s planned paths of [sp] on layer [i]. */
+        fun pathsOf(o: Int, sp: String, i: Int): List<ToolPath> = byspool[o][sp].orEmpty().flatMap { f -> f.layers.getOrNull(i)?.paths.orEmpty() }
+        /** The paths of [sp] on layer [i] in object [o] that take the purge first (none with the tower alone). */
+        fun purgePaths(o: Int, sp: String, i: Int): List<ToolPath> = if (purgeInto == "tower") emptyList() else {
             val into = if (purgeInto == "infill") setOf(Feature.SPARSE) else setOf(Feature.SPARSE, Feature.SOLID)
-            byspool[sp].orEmpty().flatMap { f -> f.layers[i].paths.filter { it.feature in into } }
+            pathsOf(o, sp, i).filter { it.feature in into }
         }
         /** Plastic (mm³) in [ps]: each bead's cross-section (as the tower sizes its own lines) times its length. */
         fun mm3(ps: List<ToolPath>) = ps.sumOf { p ->
@@ -249,22 +303,31 @@ object MultiFilament {
             val h = p.heightUm / 1000.0; val w = p.widthUm / 1000.0
             len * h * (w - h * (1 - Math.PI / 4))
         }
+        var tl: PurgeTower.Layer? = null; var baseDone = true; var k = 0
         for (i in layerTopsUm.indices) {
-            out += plymeld.program.LayerStart(i, layerTopsUm[i], hs[i])
-            // what each change on this layer still purges into the tower after the new spool's own infill took its share
-            val needs: List<Double>? = if (tower == null || purgeInto == "tower") null else {
-                var tl0 = tool; val held = HashMap(spoolOnTool); val ns = ArrayList<Double>()
-                for (sp in order[i]) {
-                    val t = toolOf(sp); val last = held[t]
-                    if (t != tl0 || (last != null && last != sp)) ns += Math.max(0.0, tower.purgeMm3 - mm3(purgePaths(sp, i)))
-                    tl0 = t; held[t] = sp
+            out += plymeld.program.LayerStart(i, layerTopsUm[i], hs[i], objectLayer = objectLayers?.get(i) ?: i)
+            val ti = towerOf[i]
+            if (i == 0 || towerOf[i - 1] != ti) {
+                // what each change on this layer of the tower (every layer topping here) still purges into the tower after
+                // the new spool's own infill took its share
+                val needs: List<Double>? = if (tower == null || purgeInto == "tower") null else {
+                    var tl0 = tool; val held = HashMap(spoolOnTool); val ns = ArrayList<Double>()
+                    var j = i
+                    while (j < layerTopsUm.size && towerOf[j] == ti) {
+                        for (sp in order[j]) {
+                            val t = toolOf(sp); val last = held[t]
+                            if (t != tl0 || (last != null && last != sp)) ns += Math.max(0.0, tower.purgeMm3 - objects.indices.sumOf { o -> mm3(purgePaths(o, sp, j)) })
+                            tl0 = t; held[t] = sp
+                        }
+                        j++
+                    }
+                    ns
                 }
-                ns
+                tl = if (tower != null && ti <= tower.top) tower.layer(ti, perTower[ti], needs) else null
+                baseDone = tl == null; k = 0
             }
-            val tl = if (tower != null && i <= tower.top) tower.layer(i, perLayer[i], needs) else null
-            var baseDone = tl == null; var k = 0
-            fun base() { if (!baseDone) { tl!!.base.forEach { towerExtrude(it, i, tool) }; baseDone = true } }
-            val sup = r.support.getOrNull(i).orEmpty(); val itf = r.supportInterface.getOrNull(i).orEmpty()
+            val tlNow = tl
+            fun base() { if (!baseDone) { tlNow!!.base.forEach { towerExtrude(it, i, tool) }; baseDone = true } }
             var first = true
             for (sp in order[i]) {
                 val t = toolOf(sp)
@@ -285,52 +348,65 @@ object MultiFilament {
                 if (changed || swapped) {
                     // the purge after a change, and after a swap by hand (the old filament is in the nozzle
                     // as after a change): after the swap's note, so the note stays at the pause; into the new
-                    // spool's own infill first, in its object block (plan.mechanism.purge.into), then the tower's share
-                    val into = purgePaths(sp, i)
-                    if (into.isNotEmpty()) {
-                        out += plymeld.program.ObjectStart(objectName)
-                        for (p in into) { extrude(p, i, t); purged += p }
-                        out += plymeld.program.ObjectEnd(objectName)
+                    // spool's own infill first, each in its object's block (plan.mechanism.purge.into), then the tower's share
+                    for ((o, obj) in objects.withIndex()) {
+                        val into = purgePaths(o, sp, i)
+                        if (into.isEmpty()) continue
+                        out += plymeld.program.ObjectStart(obj.name)
+                        for (p in into) { extrude(p, i, t, o); purged += p }
+                        endBlock(obj.name)
                     }
-                    tl?.purges?.get(k)?.forEach { towerExtrude(it, i, t) }
+                    tlNow?.purges?.get(k)?.forEach { towerExtrude(it, i, t) }
                     k++
                 }
-                out += plymeld.program.ObjectStart(objectName)
-                // support first on the layer (it holds up what this layer's model prints over)
-                if (supportSpool == sp || (supportSpool == null && first)) for (p in sup) extrude(p, i, t)
-                if (interfaceSpool == sp || (interfaceSpool == null && first)) for (p in itf) extrude(p, i, t)
-                // after a change (or a swap by hand), the new filament's first lines on the model are its hidden infill (sparse and
-                // internal solid), in their planned order, then everything else in its order: a nozzle back from the dock
-                // (from its idle temperature, past the purge) lays its first, least even lines where they do not show. Its
-                // outer wall had come first: on a two-color nameplate every change back to the base color began on the
-                // lettering's visible face. On a layer where it lays no infill, its inner walls come first (hidden, though next
-                // to the face), before any outer wall; with neither, its first line is whatever comes first.
-                val planned = byspool[sp].orEmpty().flatMap { f -> f.layers[i].paths }
-                if (!changed && !swapped) { for (p in planned) if (p !in purged) extrude(p, i, t) } else {
-                    val rest = planned.filter { it !in purged }
-                    val firstKind = if (rest.any { it.feature in HIDDEN_FIRST }) HIDDEN_FIRST else HIDDEN_FIRST_NO_INFILL
-                    val laid = rest.filter { it.feature in firstKind } + rest.filter { it.feature !in firstKind }
-                    // a line whose predecessor is not the one it was planned after retracts on the travel into it: whether that
-                    // travel retracts was decided for the planned order (inside an island, crossing no wall), and moved lines'
-                    // travels can cross open air (unretracted, they quadrupled the strings over air on that nameplate)
-                    val plannedBefore = java.util.IdentityHashMap<ToolPath, ToolPath?>()
-                    for ((k, p) in planned.withIndex()) plannedBefore[p] = planned.getOrNull(k - 1)
-                    for ((k, p) in laid.withIndex()) {
-                        val before = laid.getOrNull(k - 1)
-                        extrude(if (plannedBefore[p] === before || p.retractBefore) p else p.withRetract(true), i, t)
+                for ((o, obj) in objects.withIndex()) {
+                    val sup = obj.support.getOrNull(i).orEmpty(); val itf = obj.supportInterface.getOrNull(i).orEmpty()
+                    val supHere = obj.supportSpool == sp || (obj.supportSpool == null && first)
+                    val itfHere = obj.interfaceSpool == sp || (obj.interfaceSpool == null && first)
+                    val planned = pathsOf(o, sp, i)
+                    // on a plate, an object with nothing of this filament on the layer gets no block
+                    if (objects.size > 1 && planned.isEmpty() && !(supHere && sup.isNotEmpty()) && !(itfHere && itf.isNotEmpty())) continue
+                    out += plymeld.program.ObjectStart(obj.name)
+                    // support first on the layer (it holds up what this layer's model prints over)
+                    if (supHere) for (p in sup) extrude(p, i, t, o)
+                    if (itfHere) for (p in itf) extrude(p, i, t, o)
+                    // after a change (or a swap by hand), the new filament's first lines on the model are its hidden infill (sparse and
+                    // internal solid), in their planned order, then everything else in its order: a nozzle back from the dock
+                    // (from its idle temperature, past the purge) lays its first, least even lines where they do not show. Its
+                    // outer wall had come first: on a two-color nameplate every change back to the base color began on the
+                    // lettering's visible face. The walls stay in their planned order among themselves, so the wall order
+                    // (plan.layer.walls.order) holds; on a layer where it lays no infill nothing is moved, and its first line is
+                    // the wall order's (hidden with inner walls first; all its inner walls laid ahead of its outer walls there
+                    // had made every wall order print inner-first on about half of a two-color nameplate's layers).
+                    if (!changed && !swapped) { for (p in planned) if (p !in purged) extrude(p, i, t, o) } else {
+                        val rest = planned.filter { it !in purged }
+                        val laid = rest.filter { it.feature in HIDDEN_FIRST } + rest.filter { it.feature !in HIDDEN_FIRST }
+                        // a line whose predecessor is not the one it was planned after retracts on the travel into it: whether that
+                        // travel retracts was decided for the planned order (inside an island, crossing no wall), and moved lines'
+                        // travels can cross open air (unretracted, they quadrupled the strings over air on that nameplate)
+                        val plannedBefore = java.util.IdentityHashMap<ToolPath, ToolPath?>()
+                        for ((q, p) in planned.withIndex()) plannedBefore[p] = planned.getOrNull(q - 1)
+                        for ((q, p) in laid.withIndex()) {
+                            val before = laid.getOrNull(q - 1)
+                            extrude(if (plannedBefore[p] === before || p.retractBefore) p else p.withRetract(true), i, t, o)
+                        }
                     }
+                    endBlock(obj.name)
                 }
-                out += plymeld.program.ObjectEnd(objectName)
                 first = false
             }
             // a layer with support but no model paths: print it with whatever is loaded
-            if (first && (supportSpool == null && sup.isNotEmpty() || interfaceSpool == null && itf.isNotEmpty())) {
-                out += plymeld.program.ObjectStart(objectName)
-                if (supportSpool == null) for (p in sup) extrude(p, i, tool)
-                if (interfaceSpool == null) for (p in itf) extrude(p, i, tool)
-                out += plymeld.program.ObjectEnd(objectName)
+            if (first) for ((o, obj) in objects.withIndex()) {
+                val sup = obj.support.getOrNull(i).orEmpty(); val itf = obj.supportInterface.getOrNull(i).orEmpty()
+                if (obj.supportSpool == null && sup.isNotEmpty() || obj.interfaceSpool == null && itf.isNotEmpty()) {
+                    out += plymeld.program.ObjectStart(obj.name)
+                    if (obj.supportSpool == null) for (p in sup) extrude(p, i, tool, o)
+                    if (obj.interfaceSpool == null) for (p in itf) extrude(p, i, tool, o)
+                    endBlock(obj.name)
+                }
             }
-            base()
+            // the tower's base on a layer of it with no change: at the end of the last layer topping there
+            if (i == layerTopsUm.size - 1 || towerOf[i + 1] != ti) base()
         }
         return out
     }

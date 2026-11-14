@@ -64,7 +64,8 @@ class TravelClearanceTest : StringSpec({
             val m = w.findAll(c).associate { it.groupValues[1] to it.groupValues[2].toDouble() }
             val nx = m["X"] ?: x; val ny = m["Y"] ?: y; val nz = m["Z"] ?: z; val e = m["E"] ?: 0.0
             if (e > 0 && Math.abs(nx - from.first) < 1e-3 && Math.abs(ny - from.second) < 1e-3) { inTravel = true; low = Double.POSITIVE_INFINITY }
-            else if (inTravel && (nx != x || ny != y)) {
+            // a wipe (a move that retracts, E < 0) retraces the line just laid at its height: not the travel
+            else if (inTravel && e >= 0 && (nx != x || ny != y)) {
                 low = minOf(low, z, nz)                                       // the move starts at z and ends at nz
                 if (Math.abs(nx - to.first) < 1e-3 && Math.abs(ny - to.second) < 1e-3) return low
             }

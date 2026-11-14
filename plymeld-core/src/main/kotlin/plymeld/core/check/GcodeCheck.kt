@@ -25,6 +25,9 @@ import java.util.Locale
  *    refuses it;
  *  - travels: none at or below the height of a visible line (outer wall, top or bottom surface, ironing)
  *    already printed on that layer, across it;
+ *  - numbers ([unreadable], BadNumbers), every line, the templates' too: every parameter a finite number where one stands,
+ *    every move's feed rate above 0 (a printer stops the print at F0), no temperature, fan, or wait below 0, no
+ *    acceleration of 0 or below; no NaN or Infinity where plymeld's comments hold a number (a broken estimate);
  *  - start: the start template's own lines in order before the first layer, no placeholder left in
  *    any command, the nozzle heated (M109) before the first line is printed, relative extrusion (M83) set
  *    before anything is extruded;
@@ -111,12 +114,15 @@ object GcodeCheck {
         val lines = text.lines()
         val firstLayer = lines.indexOfFirst { isLayer(it) }
         if (firstLayer < 0) return listOf("no layer markers: not a layered print")
-        val lastExtrusion = lines.indices.last { isExtrusion(lines[it]) }
+        // the last line printed: a path's last segment may carry E0, its share of filament rounded to nothing in the file's
+        // steps (a scarf's closing pass ending a micron on), and is still part of that line, not a move after it
+        val lastExtrusion = lines.indices.last { isExtrusion(lines[it], orZero = true) }
 
         // start template: its own lines (no placeholders) in order before the first layer
         inOrder(e.startTemplate, lines.subList(0, firstLayer))?.let { bad(1, "start template line '$it' missing or out of order before the first layer") }
         inOrder(e.endTemplate, lines.subList(lastExtrusion + 1, lines.size))?.let { bad(lastExtrusion + 2, "end template line '$it' missing or out of order after the last line printed") }
         for ((i, l) in lines.withIndex()) { if (PLACEHOLDER.containsMatchIn(l.substringBefore(';'))) bad(i + 1, "placeholder left in a command: '${l.trim()}'") }
+        unreadable(lines).forEach { (ln, s) -> bad(ln, s) }
 
         var x = Double.NaN; var y = Double.NaN; var z = Double.NaN; var f = 0.0
         var layerZ = Double.NaN; var maxLayerZ = 0.0; var layerH = 0.2
@@ -251,9 +257,11 @@ object GcodeCheck {
                             // the print's top: its layers', or a line printed above its layer (a melt strip standing on its floor)
                             maxLayerZ = maxOf(maxLayerZ, nz)
                         } else if (ev == 0.0 && xy && num('E') != null && e.zaa != null && !printZ.isNaN() && !z.isNaN() && own == null &&
-                            (nz < printZ - 1e-6 || z < printZ - 1e-6) && nz <= printZ + 1e-6 && z <= printZ + 1e-6) {
+                            (nz < printZ - 1e-6 || z < printZ - 1e-6) && nz <= printZ + 1e-6 && z <= printZ + 1e-6 &&
+                            !(!scarfLow.isNaN() && z >= scarfLow - 1e-6 && nz >= scarfLow - 1e-6)) {
                             // a line's piece whose plastic rounds to nothing (E0, written as part of its path: a travel has no E),
-                            // below its flat layer: on the model's top like the rest of the line (Z anti-aliasing)
+                            // below its flat layer: on the model's top like the rest of the line (Z anti-aliasing). A scarf ramp's
+                            // piece is the ramp's (within its band), as its printed lines are
                             zaaMove = true
                             e.zaa.off(x, y, z, nx, ny, nz, layerZ - layerH, layerZ)?.let { o -> bad(ln, "a line below its layer (Z${fmt(z, 3)} to Z${fmt(nz, 3)} on the layer at ${fmt(layerZ, 3)}) off the model's top: Z${fmt(o[2], 3)} at (${fmt(o[0], 2)}, ${fmt(o[1], 2)}), where the model puts it at Z${fmt(o[3], 3)} (Z anti-aliasing lowers a line only onto the model's top within its layer)") }
                         } else if (ev < 0) {
@@ -291,6 +299,15 @@ object GcodeCheck {
         headerProblems(lines, netE).forEach { (ln, s) -> bad(ln, s) }
         return out
     }
+
+    /**
+     * The numbers in every line as a printer's firmware reads them, and those plymeld writes in its comments (BadNumbers, the
+     * one rule the writer and `plymeld printer send` apply too), by line (1-based) with what is wrong: a parameter that is not
+     * a finite number or has no value where one is needed, a move at a feed rate of 0 or below (a printer stops the print at
+     * F0), a temperature, fan, or wait below 0, an acceleration of 0 or below, and NaN or Infinity where a comment holds a
+     * number (a broken estimate). The source block at the file's end (the config it was made from, as text) is not read.
+     */
+    fun unreadable(lines: List<String>): List<Pair<Int, String>> = plymeld.gcode.BadNumbers.scan(lines.asSequence(), comments = true)
 
     /**
      * A filament-use header (the Creator 5's: `; filament used [mm] = a, b, ...` and `; <filament id="n" ... used_m="x" />`,
@@ -340,11 +357,13 @@ object GcodeCheck {
     private val VISIBLE = setOf("Outer wall", "Overhang wall", "Top surface", "Bottom surface", "Ironing")
     private fun layerHeight(l: String) = when { l.startsWith(";Z:") -> l.removePrefix(";Z:"); l.startsWith("; Z_HEIGHT:") -> l.removePrefix("; Z_HEIGHT:"); else -> null }?.trim()?.toDoubleOrNull()
     private fun widthOf(l: String) = when { l.startsWith(";WIDTH:") -> l.removePrefix(";WIDTH:"); l.startsWith("; LINE_WIDTH:") -> l.removePrefix("; LINE_WIDTH:"); else -> null }?.trim()?.toDoubleOrNull()
-    private fun isExtrusion(l: String): Boolean {
+    /** A sideways move that extrudes ([orZero]: or carries E0, a segment of a line whose filament rounds to nothing). */
+    private fun isExtrusion(l: String, orZero: Boolean = false): Boolean {
         val c = l.substringBefore(';').trim()
         if (!(c.startsWith("G1 ") || c.startsWith("G2 ") || c.startsWith("G3 "))) return false
         val w = c.split(Regex("\\s+"))
-        return w.any { it.startsWith("X") || it.startsWith("Y") } && (w.firstOrNull { it.startsWith("E") }?.substring(1)?.toDoubleOrNull() ?: 0.0) > 0
+        val e = w.firstOrNull { it.startsWith("E") }?.substring(1)?.toDoubleOrNull() ?: return false
+        return w.any { it.startsWith("X") || it.startsWith("Y") } && (e > 0 || (orZero && e == 0.0))
     }
 
     /** Where the travel a->b at height [z] crosses the center of a line printed at [z] or above (away from the travel's own ends) at a point [counts], or null. */

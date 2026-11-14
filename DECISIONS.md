@@ -304,3 +304,340 @@ no measurement says by how much; the setting allows it where a print needs it.
 
 **Consequences.** Prints with a tower move it next to the object (the plate's g-code changes where it has one). The
 gap's 5 mm is a placeholder. The order of the sides is plymeld's choice, untested against a print.
+
+## 14. A print is looked at from its front unless it says otherwise (2026-11-09)
+
+**Context.** `plan.view_from` was unset by default: looked at from all around, every side of a print counted alike. On a
+plain round wall no point hides a seam better than another, so each layer's seam stayed in line with the one below,
+wherever an earlier feature had put it. On a two-color nameplate the lettering on its front drew the seams there, and
+the column carried on up the plain wall above it to the top edge, on the face the nameplate is made to show.
+
+**Decision.** `plan.view_from` is `front` in plymeld's bundled defaults: the model's own front, its small-y side as
+modeled, turned with whatever pose the plan gives it. Its back counts less in quality's measures, and least-visible
+seams go there. `all_around` stays a value, for a model with no front of its own (a vase, a figure on a turntable).
+
+**Rejected.** Keeping all around and changing the seams' tie-break to fall back to the back: it moves seams without
+saying a print has a front, but the other quality measures would still count a print's back as much as its front.
+Deciding the front from the model's geometry: no rule tells a nameplate's face from its back reliably yet.
+
+**Consequences.** Least-visible seams and other quality-weighted decisions change on prints that leave `view_from`
+unset: seams move toward the back, and a decision whose benefit lies on faces turned away (a curved top on a round,
+symmetric part) may lose. A model modeled facing another way sets its own `view_from` (or `plan.object.<key>.view_from`).
+The technique samples and the curved-island tests, round and symmetric, set `all_around`.
+
+## 15. Least-visible seams are planned across layers (2026-11-09)
+
+**Context.** Least-visible seams were placed layer by layer: each loop's seam at its cheapest point, counting a jog
+from the seam below. On a plain wall no one layer saves enough to pay the move to a better side, so a seam a feature
+drew to the front low on the wall stayed in line on the front face all the way up. On a nameplate it ran from the
+lettering to the top edge, even with the print looked at from its front.
+
+**Decision.** The outer walls' least-visible seams are planned over each run of layers where a loop continues one to
+one (each loop linked to the loop below whose bounding box matches its own best, by overlap over union: by overlap
+alone, a pocket's loop linked to the outside loop round it and broke every run): the line of points through the run
+whose cost in all is least, each point as `seam_scar` charges it (how much it is seen times its blemish, a scarf's
+where the start gets one) and each move from the point below its length times the line width, times how much the new
+point is seen. A run is planned when the placement reaches its first layer, its first move from the seams placed
+below it. Each loop is then placed with its planned point as the seam below, so corners, overhangs, and the ramp are
+still judged where it is placed. A run of one layer is placed on its own. At most 160 candidate points per loop (every
+n-th and the cheapest), a bound on time.
+
+**Rejected.** Looking ahead a fixed number of layers: the move a plain wall needs may pay off only over a hundred
+layers. A penalty for the front alone: the view already says which side is seen; the fault was paying the move layer
+by layer. Planning where loops split or merge: those layers keep the placement layer by layer.
+
+**Consequences.** Seams on prints with least-visible seams move (the regression cases' outer walls start elsewhere;
+nothing else changes). Where loops split or merge, a run ends and a new one starts, so a seam may move there.
+
+## 16. A retraction wipes by default (2026-11-09)
+
+**Context.** The bundled filaments left the wipe off, with no reason recorded. On a two-color nameplate each outer
+wall's retraction stood still where its loop ended, on the visible face, and left a mark there beside the seam.
+
+**Decision.** Every bundled filament wipes as it retracts (`retract.wipe.enabled = "true"`): the path just laid is
+retraced backwards by the wipe distance, `retract_before` of the retraction first and the rest spread over the wipe.
+The distance (1 mm) and the share (70 %) stay placeholders.
+
+**Rejected.** Wiping outer walls only: the same ooze leaves a blob at the end of any line where a retraction follows, and
+a hidden line's blob can still lift the nozzle's next pass. Leaving it to a calibration: no plate reads it yet.
+
+**Consequences.** Every print that retracts changes: each retraction after a path takes the wipe's moves and time.
+
+## 17. An outer wall's ends land their ooze on hidden material (2026-11-09)
+
+**Context.** On a two-color nameplate the outer walls' scarf seams showed far more than scarf seams do, though each
+scarf was laid as planned (its ramp and closing pass making one layer). The outer wall was laid first in each contour
+(the old switch `inner_first`, false, an inherited value with no reason recorded): the head came down from a travel
+onto the visible face, pushed its 0.8 mm retraction back standing at the seam, where the ramp is meant to be thinnest,
+and at the loop's end retracted standing on the face again, with no wipe. Both of the scarf's ends carried a blob.
+
+**Decision.** Three rules, each a setting:
+- The walls' order is a choice, `plan.layer.walls.order`: `inner_outer_inner` by default (the walls past the one beside
+  the outer wall, then the outer wall, then that one), so a layer's first line and the travel's arrival are on hidden
+  walls and the outer wall is still laid free; inner first with fewer than three walls, or where the outer wall hangs out
+  past the layer below (the overhang slow-down's start, the same rule the seams read), where it needs the wall beside it.
+  The wall beside the outer one, laid after it, starts each loop at its point nearest where the outer wall ended (an
+  inner wall's start is not seen), and the step onto it does not retract, as the step from an inner wall onto the outer
+  wall's seam never has: kept at its own seam, the step was a travel of tens of mm with a retraction on the visible face.
+  Likewise the inner wall laid just before the outer one starts nearest the outer wall's start (left at its own seam, the
+  step onto the outer wall was an unretracted travel of 36 mm along the inside of the face).
+- An outer wall's restore after a retracted travel is made one line width inside its start, at the layer's top, and the
+  head then moves onto the start with nothing pushed (`retract.return.inside`).
+- A wall loop's wipe steps one line width inside it before running back along it (`retract.wipe.inward`), with the whole
+  retraction spread over its moves. The outer wall's wipe first; then the inner walls' too, once a print showed a
+  column of scars beside a nameplate's lettering: the wall beside the outer one ended right behind the outer wall's
+  scarf, in line with the seams, and its retraction stood there, 0.4 mm behind the face, every layer.
+- A step between an inner wall and the outer wall goes unretracted only within two line widths: in a letter's narrow
+  stroke, steps of 2 to 5 mm crossed the pocket's edge unretracted and drew strands.
+
+The scarf's own speed, step and flow became settings beside them (`plan.technique.scarf_seam.speed`: half the visible
+lines' speed, a placeholder; `.step`: 1 mm, the constant it was; `.flow`: 100 %).
+
+**Rejected.** `inner_first` as the default: the outer wall is then laid pressed against the wall beside it, at some cost
+to its surface, and the nozzle still arrives on it from inside, which `inner_outer_inner` keeps. Restoring during the
+travel's last stretch: the plastic would land along the travel's path, which may cross the visible face. Leaving the order
+inherited and fixing only the restore: the layer's first line would still start on the visible face.
+
+**Consequences.** Every print with three or more walls is laid in a new order; every outer wall reached by a retracted
+travel, or left with a retraction, moves its restore or wipe inside it. None of it is measured on a print yet: the next
+print of the nameplate is the test.
+
+## 18. Renamed settings are migrated; a setting's kind matches its dimension (2026-11-10)
+
+**Context.** Settings were renamed with no fallback while plymeld had no other users: a file with an old name was
+refused. With public releases, a rename breaks people's config and plan files, and every g-code's recorded settings,
+which `slice --from` replays with plymeld's own values among them (the old `inner_first`, renamed
+`plan.layer.walls.order`, made every earlier g-code unreadable by `--from`). Separately, each setting is declared twice,
+in the schema (its dimension, how a value is parsed) and in the catalog (its kind, what the pipeline gets); a share
+declared PERCENT in the catalog reached the pipeline times 100 (a scarf's flow, 100 % read as 100), and the test
+comparing the two declarations allowed either for a ratio.
+
+**Decision.** One table of changes (`Migrations`): each renamed setting's old path, its new path, how its value converts,
+and the last release that read it; each removed one with why. Every config source passes through it as it is read
+(`ConfigStack`, before the later source wins), so an old name reads as the new one, under an object's or a part's scope
+too, with a warning naming both. `plymeld migrate` rewrites config and plan files in place (`TomlEdit.rename`, comments
+kept), journaled. A g-code's recorded settings are migrated as they are read and never rewritten: they reproduce the
+print they recorded (`inner_first = false` reads as `outer_first`). An entry stays at least until a release whose version
+starts a new year. The catalog's PERCENT kind is gone: every share is FRACTION, 0 to 1, and only the two fan values the
+fan commands read are turned into percentages, where `SliceSettings` reads them; the schema test now allows FRACTION
+alone for a ratio.
+
+**Rejected.** Dropping a g-code's recorded plymeld values in favor of today's bundle on `--from`: it would no longer
+reproduce the print it recorded. Refusing old names with a message: every user would have to edit files by hand on every
+release. A fake unit (`1.2x`) for multipliers: the value was parsed right; the second declaration scaled it.
+
+**Consequences.** A rename is now a table entry plus its test, and an old file keeps working with a warning; `migrate`
+is a new command (in the window, its form). A JSON config is read with the new names but not rewritten.
+
+## 19. A section of a model: its planned lines cut to a box, or the mesh cut as it is read (2026-11-10)
+
+**Context.** Judging a change to how a detail prints (a line of lettering on a nameplate's face) took a print of the
+whole model, hours each time. A section of the model, printed with the same settings, shows the same lines in a
+fraction of the time.
+
+**Decision.** `model.object.<key>.section.min` / `.max` give a box in the model's own coordinates, and
+`section.faces` says what its cut faces are.
+
+*Open* (the default) answers "how will this part of the print come out": the model stays whole through the plan, the
+pose, and the slice, and the object's planned lines are cut to the box last (`SectionClip`), the layers above the
+box's top left out. On the bed the object is laid out, spaced, and held to the bed by its box, what prints of it
+(`Placed.printed`): the rest of its model may lie over other objects or off the bed, so six sections of a model fit
+where two whole models did. The purge tower stands beside the boxes. A line wholly inside is laid as planned; a line the box cuts is laid as its pieces
+inside, ending on the box's side, the travel into each later piece (and into the line after a cut one) retracted. The
+box travels to the slice as a region of the object, so it is posed with it. The pre-print check reads the model inside
+the box only, from the parts cut to it (`SectionCut`, a mesh the size of what prints), and asks for no wall along the
+box's sides. A multi-filament object's lines are cut per filament before
+its filament order and purge tower are worked out.
+
+*Closed* cuts the model's parts as they are read (`SectionCut`): triangles a side crosses are cut, and each cut face
+is closed with a cap triangulated from the cut's own points (hole bridging and ear cutting, no point added on an edge,
+so the result is a closed mesh sharing its edges exactly). Everything after reads the section as the object: the plan,
+the layout (it stands on the bed), the slice, the pre-print check, the preview. A part with nothing in the box is left
+out, and the config is read again over the object as cut. A model not closed where the box cuts it is refused.
+
+**Rejected.** Closed only: a closed section's cut faces get walls and its cut-off top a top surface, with the seams,
+wall order, and infill of a different object, so it does not show what the whole print would do there. Clipping each
+layer's outlines to the box before planning: the same objection (the planner walls whatever outline it is given), and
+the mesh is cut in more than twenty places, each of which would need the clip. A separate command writing a cut model
+file: the section would drift from the model it samples, and a 3MF's parts and filaments would have to be written
+back.
+
+**Consequences.** An open section starts at the model's bottom (what is under a higher one would not be printed: that
+is a closed section) and prints on flat layers; with a curved band, a curved island, or a lifted bridge it is refused
+until those are cut too. The string measure reads an open section too high: it takes a layer's islands from its closed
+outer walls, and a cut outer wall is an open line, so every unretracted travel inside the section counts as over open
+air. The predicted time and the
+measures are of the lines laid. A closed section is planned as an object of its own: a plan made for the whole model
+still applies as locks (with the note that the model changed), and unlocked decisions are made for the section. In
+both, the layers take less time than the whole model's, so the section cools less between layers.
+
+## 20. A plate with multi-filament objects is laid per filament (2026-11-10)
+
+**Context.** An object on several filaments was planned and written by its own slicer, alone: a plate of two was
+refused. Comparing two settings on such an object (a two-color nameplate's lettering) meant a print each, every one
+paying all its tool changes.
+
+**Decision.** `MultiFilament.steps`, which put one object's filaments in order layer by layer, became `plateSteps` over
+several objects: on each layer each filament in turn lays its lines of every object (each in its own object block), so
+a layer costs one change per filament whatever the number of objects. `Job` uses it when any object on the plate is
+laid per part; an object on one filament joins with its planned layers under its spool. The objects' layers are merged
+by height as on any plate: layers topping at one height, as thick, are one layer of the plate, and an object on other
+heights has layers of its own between; layers topping at one height share one layer of the tower. One purge tower, sized
+by the plate's changes, stands beside the box round every object (or where it is placed), clear of each. Each object keeps
+its own settings (the writer's per-object and per-part settings, as on any plate).
+
+**Rejected.** Each object's layer complete before the next object's (an object's two filaments, then the next object's):
+two changes per object per layer. Requiring every object on the same layers: a shorter object's last layer already
+differs from the taller's at that height, so only copies of one object would have passed.
+
+**Consequences.** Such a plate prints together, by height, on flat layers; a curved island, a curved band or a lifted
+bridge on it is refused, as is one object at a time (each object would need a tower of its own from the bed). Objects each on one filament but not the same one
+are still refused. One object on several filaments is written as before, by the same code with one object.
+
+## 21. A tool change is made over where the incoming filament first prints (2026-11-14)
+
+**Context.** A tool or filament change was written with the nozzle standing where the outgoing filament's last line
+ended, on the part, at print height: between the last printing move and the T command there was only a standing
+retraction and the outgoing tool's idle temperature, and the travel to the incoming filament's first line came after
+the change. On a plate printed per filament the outgoing filament's last line on a layer is on the last object, so
+every change stood on that object's face; on three test prints of two-color plates (of two and of four objects), the last
+object was the one with strings and blobs. The nozzle that stops there and is pulled away leaves its ooze on the face,
+and on machines that bring the new tool back to where the old one was, the incoming nozzle arrives there too and
+waits for its temperature over the part.
+
+**Decision.** Before a change the outgoing tool leaves the part as it leaves for any retracted travel: the same
+retraction and wipe (the writer's one departure, `departForTravel`: the inward wipe after a wall loop, none after a line
+left below its highest point, by the settings the outgoing line was laid with), then the lift (the outgoing filament's
+`retract.z_hop`), then the travel to where the incoming filament's first line starts (its purge on the purge tower, or,
+with the purge into infill or no tower, its first line on the part), routed and cleared like any other lifted travel
+(`travelTo`). The change (the outgoing tool's idle temperature, the T command, the incoming tool's wait) is written
+there, with the head still lifted. The incoming line then starts as before: the head's place after a change is not
+known, so it rises clear of what is printed, goes over the line's start, and comes down. Where no line follows the change
+directly (a wait, a pause, a swap by hand) or the head's place is not known (the print's first tool selection), the change
+is made where the head is, retracted, as before.
+
+**Rejected.** A fixed park position: a setting nobody can choose well for every plate, and a travel away from where the
+tool is needed next. Changing in place with only a lift: the incoming nozzle still arrives over the part, and waits for
+its temperature there, on machines that return to the old position. A setting to choose the old behavior: no case for it
+is known.
+
+**Consequences.** Every print that changes tools changes: the travel from the part to the incoming line moves ahead of
+the change, and the outgoing tool wipes before it (no change wiped before). After the change the head rises and returns
+over the same point, a move of no length on a machine that brings the head back, a travel on one that leaves it
+elsewhere. The predicted time reads the g-code, so it counts the travel and the wipe where they now are; what the
+machine itself moves during a change is its `tool_change.time`, as before. The incoming tool's wait happens over the tower, or over
+the part's hidden infill where the purge goes into infill.
+
+## 22. A seam another part covers is a point seam (2026-11-14)
+
+**Context.** A scarf seam lays a closed outer wall as a ramp climbing from a share of the layer to its full thickness,
+the loop, and a closing pass back over the ramp: it softens a seam on a wall that shows. On an object of several parts,
+a part's seam can land on an edge pressed against another part, where it is hidden. The scarf was decided by whether the
+seam lands on a corner (`plan.technique.scarf_seam.where`), not by where its ramp and closing pass run, so such a seam was
+scarfed like any other, and from the hidden point the ramp and closing pass ran on along the loop onto the faces that
+show. On a printed nameplate, a gray island about 2.1 by 2.4 mm inside a white letter started its wall against the letter,
+then ramped round its front corner and across its whole front: its only visible faces got a thin line with a second over
+it, and the print showed a hump there. The point needed no softening; the scarf put a double pass on the faces that show.
+
+**Decision.** Where a closed outer wall's seam is covered, another part of the object within one line width of the seam
+on that layer, the wall gets a point seam: it starts and ends there, with no ramp and no closing pass. "Another part" is
+the object's other parts as laid on the layer (the other filament groups' areas), the one definition the planner already
+judges a speck of outer wall in front of another part by (`Planner.near`). It is the default and a setting,
+`plan.technique.scarf_seam.covered`: `point`, or `scarf` for a scarf there too, as before; per object or part like the
+other scarf values, so a test print can lay both on one plate. The least-visible placement costs a covered point as the
+point seam it is laid as (seen at the point itself, a point seam's blemish), not as a scarf seen along its ramp.
+
+**Rejected.** Keeping the scarf but confining its ramp to the hidden stretch: it needs the loop's direction and the hidden
+stretch's length, and a short loop may have no room for a ramp there at all. No scarf on any short loop: length is not
+what makes the scarf wrong here; a long loop's ramp from a covered seam runs onto the faces that show as well. Judging the
+whole stretch the ramp and closing pass run over in the seam's cost, and laying a scarf only where all of it is hidden: a
+larger change to the planner, for what a point seam at a covered point already gives. "Another part" as the object's
+outline less the part's own: that outline is closed (`method.slicing.close_gaps`), and along a round open edge the closing
+leaves hairline slivers outside the part, which read as another part covering points of an open wall.
+
+**Consequences.** Only objects of several parts change, and only their walls whose seam is covered: an object of one part,
+and a seam not covered, are laid as before. With least-visible seams, a part's seams go more readily to edges another
+part covers (they cost a point seam's blemish there, hidden, with no ramp seen), where before a scarf's ramp counted
+against them. A covered seam is a point seam whatever its loop's length, so its blemish, hidden, is a point's; the seam
+measure counts it as one. The speck rule now reads the other parts as laid too, not the closed outline less the part.
+
+## 23. Two speed caps by a line's length, one speed for the whole line (2026-11-14)
+
+**Context.** A line laid fast is laid at its set speed only once the head has reached it: it starts at rest, accelerates,
+and brakes to a stop at its end. A short line set fast is mostly its start and its stop, and its plastic is laid at
+speeds that change from one end to the other. The short walls' cap (`plan.mechanism.motion.short_walls.length` and
+`.speed`) was a single step: a wall just under the length printed at the short walls' speed and one just over it at its
+own, a jump between two walls of nearly the same length. Nothing capped the other kinds of line by their length.
+
+**Decision.** Two caps, both off until set, each a cap: it never raises a speed, and the lowest of it and every other
+speed and cap wins (the region caps, the first layer's, the melt cap, a scarf seam's ramp).
+
+- Short walls slide: with `short_walls.full_length` set, a wall of length L between `length` and `full_length` prints no
+  faster than `speed + (own - speed) * (L - length) / (full_length - length)`, own being the wall's speed without the
+  cap; at `full_length` and over, no cap. Unset, `full_length` is `length`, the single step as before. A `full_length`
+  under `length` is refused. A scarfed loop's length is its loop's, the closing pass left out (the wall is the loop).
+- A line's steady share (`plan.mechanism.motion.steady.share`): starting and stopping at rest at acceleration a, a line
+  takes v²/(2a) of its length to reach v and as much to stop, so at v it is laid steadily over L − v²/a. It is laid no
+  faster than the speed at which that is at least the share of L: v ≤ sqrt(a · L · (1 − share)), with L the line as laid
+  (from where it starts pushing plastic to where it stops: a scarfed loop with its ramp and closing pass; the piece laid
+  inside an open section's box) and a the lowest acceleration it is laid at (its feature's, under its object's and its
+  regions' caps). Every kind of line, except the purge tower and the prime line (purges, laid to push filament through at
+  speeds of their own), a lifted bridge's own speeds over air (laid exactly as set), and a calibration plate's lines
+  (printed as specified).
+
+The writer applies both, after the program is planned, cut to an open section, and capped by region: they read each line
+as it is laid. The whole line gets the one capped speed: a cap is what the line's length allows, so it holds for all of
+the line, and a speed changed inside the line would add a change of speed where the cap is meant to remove them.
+Within that, the line's own variations stay (a scarf ramp's own speed, a wall slowed where it hangs over air), each no
+faster than the cap. The time predicted reads the g-code, so it counts the capped speeds; the minimum layer time's
+slow-down is figured from them.
+
+**Rejected.** A cap at the speed the line can reach (v ≤ sqrt(a · L), the share 0): the head reaches that speed only at
+the line's middle and brakes at once, so the line prints as it would with no cap. A speed that changes along the line
+(slow at its ends, fast in its middle): that is the firmware's own acceleration, already there. The steady share as a
+length (every line under it capped): one line holds its speed on a machine that accelerates hard and not on one that
+does not, so the acceleration is in the formula and one share means the same on both. A floor under the caps (the
+filament's `cooling.speed.min`, which bounds only the slow-down for the minimum layer time): it would let the shortest
+lines, the ones the caps are for, print faster than they can hold.
+
+**Consequences.** Unset, nothing changes. Set, short lines print slower and the print takes longer; there is no floor,
+so a line a few mm long may be capped far below its own speed. The pose search's quick time estimate does not count
+either cap; the time of the written file does. The caps read the plate's, the object's, or the part's tool's settings
+as the writer does: a value set on a part that prints with the object's own tool is the object's.
+
+## 24. No number a printer may refuse leaves plymeld: one rule, where it writes, checks, and sends (2026-11-14)
+
+Amends 23: a line of no length gets no steady-share cap.
+
+**Context.** A program can hold a line of no length: its points all one, so it lays nothing (a thin area's center line
+along the outline whose points come out as one, at a lettering's or a star's sharp tips). Its steady-share cap was
+sqrt(a · 0 · (1 − share)) = 0, written `G1 F0`, and its time in the preheat's walk back was 0 / 0, written "NaN s". The
+printer's firmware stopped the job at the zero feed, mid-print, and the pre-print check had passed the file: it read
+feeds only to compare them with the machine's top speeds.
+
+**Decision.** Three layers, each enough on its own for a dead feed:
+- At the source: a line of no length gets no steady-share cap (a cap for a length it does not have), and takes 0 s in
+  every time estimate (the minimum layer time's, the preheat's), whatever its speed.
+- Where plymeld writes: one rule for the numbers of a g-code line (BadNumbers): a parameter that is not a finite
+  number where a number stands, a value missing where one is needed, a move at a feed of 0 or below, a temperature, fan,
+  or wait below 0, an acceleration of 0 or below. Every line the writer emits passes it (CommandCheck, the templates'
+  lines too), or the write fails at that line, naming the feature, object, and layer. Numbers the writer rounds to a
+  whole one (a fan's speed, a wait, an acceleration) are refused before rounding when not finite (rounded, NaN reads 0,
+  a wrong command that looks right); a feed rate that is not above 0 is refused where it is formatted; a feed above 0
+  that rounds to F0 is written F1, the slowest the format writes; a template placeholder that is not finite fails the
+  render. A comment of plymeld's that holds NaN or Infinity where a number stands is refused too: a broken estimate.
+- Where plymeld checks and sends: the pre-print check applies the same rule to every line of the file, and `plymeld
+  printer send` applies it to the commands of the file it is given, of any origin (an older build's, another
+  slicer's), before it reads the config or reaches the printer. The window sends through the same command.
+
+**Rejected.** A floor under the steady share's cap (the slowest feed, or the filament's minimum speed): an invented
+number, and a line of no length has no length to cap by. Removing lines of no length from the program: it changes every
+print that has them, a change of its own to weigh (where they come from is the walls' center lines). A send that
+refuses comments too: a firmware ignores them, and a file that would print right would be refused. A separate rule per
+place (the writer's, the check's, the send's): three rules drift apart, and the send would refuse what the check passed.
+
+**Consequences.** A slice that would write a bad number fails, its message naming the line, where a file used to come
+out; the g-code written up to that line stays on disk, unfinished, and the message says not to print it. With the
+steady share unset, the g-code is unchanged. A command the rule does not know is judged only where its values are
+written as numbers, so a macro's text arguments, lists, and names pass.
+

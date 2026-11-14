@@ -109,7 +109,10 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
             .also { bandWarpCache = key to it }
     }
 
-    /** The tool's thinnest layer (mm): where flat layers of one height land on the top, and the thinnest a line Z anti-aliasing lowers may be. */
+    /**
+     * The tool's thinnest layer (mm): where flat layers of one height land on the top, and, with Z anti-aliasing, where a layer
+     * holds a lifted bridge's support top ([zaaHold]). The thinnest a line Z anti-aliasing lowers may be is [zaaMinMm].
+     */
     private fun minLayerMm(): Double = (Resolver.resolveOrNull(setup!!, "hardware.tool.layer.height.min", ctx)?.value as Number?)?.toDouble()
         ?: error("layers need hardware.tool.<key>.layer.height.min (flat layers of one height land their last layer on the top within it; flat layers following the surfaces stay above it)")
 
@@ -129,13 +132,28 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
     private var columnsCache: Pair<Double, plymeld.mesh.SolidColumns>? = null
 
     /**
+     * Z anti-aliasing's top for this object's flat layers (ZAntiAlias.Top): its [columns] over all its parts, its bottom, its
+     * thinnest lowered line ([zaaMinMm]); null when the object has it off or its layers follow the underside. One for every
+     * way the object's layers are laid: whole ([layerStepsAsPlanned]), per part ([multiProgram]), on a plate ([laidForPlate]).
+     */
+    private fun zaaTop(st: SliceSettings): ZAntiAlias.Top? =
+        if (!st.zAntialias || underside) null else ZAntiAlias.Top(columns(st), soup.bounds()[2], zaaMinMm(), st.resolutionUm / 1000.0)
+
+    /** The thinnest a line Z anti-aliasing lowers may be, and the height over a layer's bottom its layer reaches out to (ZAntiAlias.minMm). */
+    private fun zaaMinMm(): Double = ZAntiAlias.minMm(setup!!, objectId)
+        ?: error("Z anti-aliasing needs hardware.tool.<key>.layer.height.min (the thinnest a lowered line may be)")
+    /** For the slice stages' keys: the thinnest lowered line, which reads the tools of every part (with Z anti-aliasing on). */
+    private fun zaaKey(): String = if (s?.zAntialias == true) "|zaaMin=" + ZAntiAlias.minMm(setup!!, objectId) else ""
+
+    /**
      * Z anti-aliasing (ZAntiAlias): each flat layer above the first ([flat], by its absolute top) also cut where the top is the
-     * tool's thinnest layer above its bottom, when that is below the layer's middle, and the two cuts joined, so the layer
-     * reaches out over a slope to where its lines can be lowered to. A cut lower than the middle is smaller where the model
-     * grows upward (an overhang), so only a top that ends within the layer adds anything.
+     * thinnest lowered line ([zaaMinMm]) above its bottom, when that is below the layer's middle, and the two cuts joined, so
+     * the layer reaches out over a slope to where its lines can be lowered to. A cut lower than the middle is smaller where the
+     * model grows upward (an overhang), so only a top that ends within the layer adds anything. [layers] are the cuts of
+     * [sliced] (an object laid whole: all its parts; laid per part: one part's).
      */
     private fun zaaExtend(layers: List<Layer>, sliced: List<TriangleSoup>, plan: LayerPlan, flat: (Double) -> Boolean): List<Layer> {
-        val min = minLayerMm()
+        val min = zaaMinMm()
         val idx = (1 until plan.count).filter { i -> flat(plan.tops[i]) && plan.tops[i - 1] + min < plan.slices[i] - 1e-9 }
         if (idx.isEmpty()) return layers
         val hs = DoubleArray(idx.size) { plan.tops[idx[it] - 1] + min }
@@ -204,10 +222,16 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         for (p in parts) { System.arraycopy(p.coords, 0, c, w, p.count * 9); w += p.count * 9 }
         TriangleSoup(c, total)
     }
-    /** Exclude-object footprint: convex hull of the mesh's XY projection; center = bbox center. */
+    /**
+     * Exclude-object footprint: convex hull of the mesh's XY projection; center = bbox center. Of a section left open
+     * ([sectionBox]), the section's box: what prints of the object, which the purge tower stands beside.
+     */
     private val obj: PrintObject by lazy {
         val b = soup.bounds()
-        PrintObject(programName(objectName, objectId), Footprint.hull(soup), (b[0] + b[3]) / 2, (b[1] + b[4]) / 2)
+        val sb = sectionBox
+        if (sb == null) PrintObject(programName(objectName, objectId), Footprint.hull(soup), (b[0] + b[3]) / 2, (b[1] + b[4]) / 2)
+        else { val x0 = sb[0] / 1000.0; val x1 = sb[1] / 1000.0; val y0 = sb[2] / 1000.0; val y1 = sb[3] / 1000.0
+            PrintObject(programName(objectName, objectId), doubleArrayOf(x0, y0, x1, y0, x1, y1, x0, y1), (x0 + x1) / 2, (y0 + y1) / 2) }
     }
     val printObject: PrintObject get() = obj
     private val meshKey: String = "mesh:" + parts.joinToString("+") { "${it.count}:${it.coords.contentHashCode()}" }
@@ -243,7 +267,7 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         return plymeld.mesh.Warp(zs, b[5], top::top)
     }
 
-    private val sliceStage = Stage("slice", { meshKey + "|" + key(*SLICE_KEYS) + landingKey() }) {
+    private val sliceStage = Stage("slice", { meshKey + "|" + key(*SLICE_KEYS) + landingKey() + zaaKey() }) {
         timed("slice") {
             progress.at("slice", 0, 0)
             val st = s!!
@@ -625,7 +649,10 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
             if (lifted) require(s!!.bridgeLayerHeightUm == null || s!!.bridgeLayerHeightUm == s!!.layerHeightUm) {
                 "'$objectName': a lone lifted bridge shares the object's layers; plan.technique.bridge.layer.height (${s!!.bridgeLayerHeightUm!! / 1000.0} mm) is for an object with several lifted bridges" }
             if (lifted) flat.filter { isBridgeLayer(it) && it.paths.isNotEmpty() }.takeIf { it.size > 1 }?.let { bridgeTops[it.last()] = true }
-            return flat
+            // a section left open: the whole object's lines, laid inside its box only
+            val box = sectionBox ?: return flat
+            require(!lifted && warpFor(s!!) == null) { "'$objectName': a section left open is cut from flat layers; with a curved band or a lifted bridge it is not written yet (a section with faces = \"closed\" is)" }
+            return openSection.getOrPut(flat) { SectionClip.layers(flat, box[0], box[1], box[2], box[3], box[4], ::sameLayer) }
         }
         val bands = bandsStage.get()
         bandOf.clear()
@@ -640,6 +667,30 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         }
         return out
     }
+    /**
+     * The object's section left open (TechniquePlan.regions' section) in the frame its paths are in: x0, x1, y0, y1 placed
+     * and its top from the object's bottom, µm; null = the whole object prints.
+     */
+    private val sectionBox: LongArray? by lazy {
+        technique.regions.firstOrNull { it.section }?.let { r -> val g = r.region; val b = soup.bounds()
+            require(islands.isEmpty() && !banded) { "'$objectName': a section left open is cut from flat layers; with a curved island or several lifted bridges it is not written yet (a section with faces = \"closed\" is)" }
+            longArrayOf(Math.round((b[0] + g.x0) * 1000), Math.round((b[0] + g.x1) * 1000), Math.round((b[1] + g.y0) * 1000), Math.round((b[1] + g.y1) * 1000), Math.round(g.toMm * 1000)) }
+    }
+    /** The planned layers cut to [sectionBox], by the layers they were cut from (the stage's own list: cut once). */
+    private val openSection = java.util.IdentityHashMap<List<LayerPlanOut>, List<LayerPlanOut>>()
+    /** A per-filament plan cut to [sectionBox] (its layers above the box's top left out, every filament's and the supports' lines cut), by the plan it was cut from. */
+    private val openFilaments = java.util.IdentityHashMap<MultiFilament.Result, Pair<MultiFilament.Result, LongArray>>()
+    private fun sectioned(planned: Pair<MultiFilament.Result, LongArray>): Pair<MultiFilament.Result, LongArray> {
+        val box = sectionBox ?: return planned
+        return openFilaments.getOrPut(planned.first) {
+            val (r, tops) = planned
+            val n = tops.count { it <= box[4] + 1 }
+            fun cut(ps: List<ToolPath>) = SectionClip.paths(ps, box[0], box[1], box[2], box[3])
+            MultiFilament.Result(r.filaments.map { f -> MultiFilament.FilamentPlan(f.spool, f.areas.take(n), SectionClip.layers(f.layers, box[0], box[1], box[2], box[3], box[4]), f.unit) },
+                r.overlapUm2PerLayer.copyOf(n), r.whole, r.timingMs, r.support.take(n).map(::cut), r.supportInterface.take(n).map(::cut)) to tops.copyOf(n)
+        }
+    }
+
     /** For several lifted bridges: which bridge each of [plannedLayers]' bridge layers is (none for the rest). */
     private val bandOf = java.util.IdentityHashMap<LayerPlanOut, Int>()
     /** The warp planned layer [l] is laid back through: its own bridge's for several lifted bridges. */
@@ -726,7 +777,7 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
 
     // Multi-color: each part sliced and cleaned on its own, then planned per filament. The plan
     // stage reads every wall/region/path setting, the parts' spools, and the overlap rule.
-    private val partSliceStage = Stage("slice parts", { meshKey + "|" + key(*SLICE_KEYS) + landingKey() }) {
+    private val partSliceStage = Stage("slice parts", { meshKey + "|" + key(*SLICE_KEYS) + landingKey() + zaaKey() }) {
         timed("slice parts") {
             progress.at("slice", 0, 0)
             val st = s!!
@@ -737,7 +788,10 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
             // over and beside the island reads its material there); their paths are left out (filamentsStage, islandOmit), as for
             // an object laid whole. taken out here, the layers under an island's start read its ground as empty and
             // laid a hidden top surface there (a dome laid per part: 1563 s against 1400 laid whole)
-            parts.map { p -> cleanUp(Slicer.slice(p, plan.slices), st).map { it.loops } } to tops
+            // Z anti-aliasing: each part's layers reach out over its own slope, as an object laid whole does (its layers are
+            // flat, none warped)
+            val zaa = st.zAntialias && !underside
+            parts.map { p -> Slicer.slice(p, plan.slices).let { if (zaa) zaaExtend(it, listOf(p), plan) { true } else it }.let { cleanUp(it, st) }.map { it.loops } } to tops
         }
     }
     private val filamentsStage = Stage("filaments", {
@@ -765,7 +819,28 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         s = SliceSettings.of(setup, ctx)
         ran.clear(); stageMs.clear()
         require(multiFilament) { "object '$objectName' is on one filament with no part settings" }
-        return filamentsStage.get()
+        return sectioned(filamentsStage.get())
+    }
+
+    /**
+     * This object's lines for a plate of several objects (Job): laid per part ([plannedFilaments]) when it is on several
+     * filaments or part settings, else its planned layers under its one spool; with its layers' tops, and its top for Z
+     * anti-aliasing ([zaaTop]; its lines are lowered as the plate's steps are laid). Flat layers only so far: a curved
+     * island, a curved band, or a lifted bridge on such a plate is refused.
+     */
+    fun laidForPlate(setup: Setup): Pair<MultiFilament.Laid, LongArray> {
+        if (isMultiFilament(setup)) {
+            val (r, tops) = plannedFilaments(setup)
+            require(islands.isEmpty()) { "'$objectName' has a curved island and is laid per part: on a plate of several objects that is not written yet; slice it on its own" }
+            val (sup, itf) = supportSpools()
+            return MultiFilament.Laid(obj.name, r.filaments, r.support, r.supportInterface, sup, itf, zaaTop(s!!)) to tops
+        }
+        val planned = planned(setup)
+        require(planned.none { islandKeyOf(it) != null || isBridgeLayer(it) } && planned.withIndex().all { (i, l) -> l.index == i }) {
+            "'$objectName' has layers of its own (a curved island or band, or a lifted bridge): on a plate with an object laid per part that is not written yet; slice it on its own" }
+        // Z anti-aliasing lowers lines on flat layers only: none for an object with a curved band (its layers are not told apart here)
+        return MultiFilament.Laid(obj.name, listOf(MultiFilament.FilamentPlan(setup.objects[objectId].spool, emptyList(), planned)),
+            zaa = if (curvedFrom == null) zaaTop(s!!) else null) to LongArray(planned.size) { planned[it].topZUm }
     }
 
     /** A multi-filament object as a print program: filament order per layer, tool changes between object blocks. */
@@ -793,7 +868,10 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         val tempOf = { sp: String, layer: Int -> bySpool[sp]?.let { if (layer == 0) it.nozzleTempFirstC else it.nozzleTempC } }
         val drop = if (perLayer.all { it == 0 }) null else (Resolver.resolveOrNull(setup, "hardware.filament.temperature.idle_drop", ctx)?.value as Number?)?.toInt()
         val idleOf = { sp: String, layer: Int -> tempOf(sp, layer)?.let { t -> drop?.takeIf { it > 0 }?.let { t - it } } }
-        val steps = MultiFilament.steps(r, order, toolOf, obj.name, tops, startTool, tower, tempOf, idleOf, supSpool, itfSpool, loadedOn = loadedOn, purgeInto = s!!.purgeInto)
+        // the regions' caps on the object's lines, the tower's left alone (its curved islands' layers get them in layerSteps)
+        // Z anti-aliasing: every filament's lines lowered onto the object's whole top (all its parts)
+        val steps = MotionRegions.applyByObject(MultiFilament.steps(r, order, toolOf, obj.name, tops, startTool, tower, tempOf, idleOf, supSpool, itfSpool,
+            loadedOn = loadedOn, purgeInto = s!!.purgeInto, zaa = zaaTop(s!!)), mapOf(obj.name to regionBoxes))
         return PrintProgram(if (islands.isEmpty()) steps else withIslandLayers(steps, setup), listOf(obj))
     }
 
@@ -838,7 +916,9 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
      * changes never need them). Purge lines are the nozzle's width (as bridges); spare bands use the
      * intent's own sparse spacing. The tower must stand on the bed clear of the object.
      */
-    private fun purgeTower(setup: Setup, perLayer: IntArray, tops: LongArray): PurgeTower {
+    fun purgeTower(setup: Setup, perLayer: IntArray, tops: LongArray,
+                   /** The plate's other objects (Job): the tower stands beside all of them, clear of each. */
+                   others: List<plymeld.program.PrintObject> = emptyList()): PurgeTower {
         fun r(id: String) = Resolver.resolve(setup, id, ctx).value
         require(r("plan.mechanism.purge.tower.enabled") as Boolean) { "this print changes filament ${perLayer.sum()} times but the purge tower is off (plan.mechanism.purge.tower.enabled); purging elsewhere is not implemented" }
         val st = s!!
@@ -867,7 +947,11 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
                 compact = layout == "compact", maxGapUm = maxGap, minSideShare = minSide, brimUm = brim, brimLineUm = st.firstLayerWidthUm, brimOverlapUm = brimOverlap,
                 firstLineUm = st.firstLayerWidthUm, firstLayerSpeed = firstSpeed)
         val bx = listOf("hardware.machine.build.left", "hardware.machine.build.front", "hardware.machine.build.right", "hardware.machine.build.back").map { um(it) }
-        val hull = plymeld.geom.Polygon(LongArray(obj.footprint.size) { Math.round(obj.footprint[it] * 1000) }).let { if (it.isCcw()) it else it.reversed() }
+        val hulls = (listOf(obj) + others).map { o -> plymeld.geom.Polygon(LongArray(o.footprint.size) { Math.round(o.footprint[it] * 1000) }).let { if (it.isCcw()) it else it.reversed() } }
+        // beside the object; on a plate, beside the box round every object
+        val hull = if (others.isEmpty()) hulls[0] else hulls.map { it.bounds() }.let { bs ->
+            val x0 = bs.minOf { it[0] }; val y0 = bs.minOf { it[1] }; val x1 = bs.maxOf { it[2] }; val y1 = bs.maxOf { it[3] }
+            plymeld.geom.Polygon(longArrayOf(x0, y0, x1, y0, x1, y1, x0, y1)) }
         val setX = Resolver.resolveOrNull(setup, "plan.mechanism.purge.tower.x", ctx)
         val setY = Resolver.resolveOrNull(setup, "plan.mechanism.purge.tower.y", ctx)
         require((setX == null) == (setY == null)) {
@@ -897,9 +981,9 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         val f = t.footprint
         require(f.xy.withIndex().all { (k, v) -> if (k % 2 == 0) v in bx[0]..bx[2] else v in bx[1]..bx[3] }) {
             f.bounds().let { fb -> "purge tower (%.1f..%.1f, %.1f..%.1f mm, its brim included) is off the bed".format(java.util.Locale.ROOT, fb[0] / 1e3, fb[2] / 1e3, fb[1] / 1e3, fb[3] / 1e3) } }
-        require(plymeld.geom.Booleans.intersection(listOf(f), listOf(hull)).isEmpty()) {
+        for ((k, h) in hulls.withIndex()) require(plymeld.geom.Booleans.intersection(listOf(f), listOf(h)).isEmpty()) {
             f.bounds().let { fb -> "purge tower at (%.1f, %.1f), %.1f x %.1f mm (its brim included), overlaps '%s': move the tower (plan.mechanism.purge.tower.x / plan.mechanism.purge.tower.y)".format(java.util.Locale.ROOT,
-                fb[0] / 1e3, fb[1] / 1e3, (fb[2] - fb[0]) / 1e3, (fb[3] - fb[1]) / 1e3, objectName) } }
+                fb[0] / 1e3, fb[1] / 1e3, (fb[2] - fb[0]) / 1e3, (fb[3] - fb[1]) / 1e3, if (k == 0) objectName else others[k - 1].name) } }
         return t
     }
 
@@ -937,9 +1021,10 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
 
     /**
      * The object's regions (TechniquePlan.regions) in the frame its paths are in: x and y placed, z from the object's bottom,
-     * µm; the lines each holds by their feature, and its caps.
+     * µm; the lines each holds by their feature, and its caps. Applied here per layer ([layerSteps]), to an object laid per part
+     * in [multiProgram], and by Job to its object's blocks on a plate with an object laid per part.
      */
-    private val regionBoxes: List<MotionRegions.Box> by lazy {
+    val regionBoxes: List<MotionRegions.Box> by lazy {
         val b = soup.bounds()
         technique.regions.filter { it.speedMax != null || it.accelMax != null }.map { r -> val g = r.region
             MotionRegions.Box(r.key, (b[0] + g.x0) * 1000, (b[0] + g.x1) * 1000, (b[1] + g.y0) * 1000, (b[1] + g.y1) * 1000, g.fromMm * 1000, g.toMm * 1000,
@@ -957,23 +1042,11 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         val bottom = soup.bounds()[2]
         val topW = bottom + l.topZUm / 1000.0
         if (warp == null || topW <= warp.zStart + 1e-9) {
-            // Z anti-aliasing (ZAntiAlias): a flat layer above the first, its lines lowered onto the model's top within it
-            val st = s!!
-            val zaa = st.zAntialias && !underside && l.topZUm - l.heightUm > 0
-            val cols = if (zaa) columns(st) else null
-            val min = if (zaa) minLayerMm() else 0.0
-            var below = false                       // the head left a lowered path below the layer's top
-            for (p in l.paths) {
-                val low = cols?.let { ZAntiAlias.lower(p, l.topZUm, l.heightUm, tool, it, bottom, min, st.resolutionUm / 1000.0) }
-                // from a lowered end, back up to the layer's top before moving on (a short or hidden travel would otherwise
-                // run sideways through the layer's lines at the lowered height)
-                if (below && (p.xy[0] / 1000.0 != last[0] || p.xy[1] / 1000.0 != last[1])) out.add(LiftTo(l.topZUm))
-                if (low != null) {
-                    out.add(low); endOf(low.xy, p.closed)
-                    val lz = low.zs!!
-                    below = lz[if (p.closed) 0 else lz.size - 1] < l.topZUm
-                } else { out.addAll(Scarf.extrudes(p, l.topZUm + p.raiseUm, tool)); endOf(p.xy, p.closed); below = false }
-            }
+            // Z anti-aliasing (ZAntiAlias): a flat layer above the first, its lines lowered onto the model's top within it, the
+            // head back up to the layer's top after a lowered end
+            val top = zaaTop(s!!)
+            val head = ZAntiAlias.Head(last)
+            for (p in l.paths) head.lay(out, p, l.topZUm, l.heightUm, tool, top, l.topZUm + p.raiseUm)
             waveRamp(l, out)
             return l.topZUm to out
         }
@@ -1390,7 +1463,7 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         this.setup = setup
         s = SliceSettings.of(setup, ctx)
         ran.clear(); stageMs.clear()
-        require(!multiFilament) { "object '$objectName' uses several filaments or part settings (${partUnits().distinct().joinToString()}): plates with such objects are not planned yet; slice it on its own" }
+        require(!multiFilament) { "object '$objectName' uses several filaments or part settings (${partUnits().distinct().joinToString()}): it is laid per part (plannedFilaments, laidForPlate), not as one object's layers" }
         return decideRetraction(plannedLayers(), setup).also { lastPlanned = it }
     }
 
@@ -1479,7 +1552,7 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
      * and each island layer's island; the slicer's own island marks ([islandOf], the writer's) are left as they are.
      */
     private fun multiLayers(): Pair<List<LayerPlanOut>, Map<LayerPlanOut, Int>> {
-        val (r, tops) = filamentsStage.get()
+        val (r, tops) = sectioned(filamentsStage.get())
         val flat = tops.indices.map { i -> LayerPlanOut(i, tops[i], r.filaments.firstOrNull()?.layers?.get(i)?.heightUm ?: 0L, r.filaments.flatMap { it.layers[i].paths }) }
         val stack = HashMap<LayerPlanOut, Int>()
         if (islands.isEmpty()) return flat to stack
@@ -1514,7 +1587,7 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         ran.clear(); stageMs.clear()
         if (multiFilament) {
             val program = withPauses(multiProgram(setup))
-            val preheat = (Resolver.resolveOrNull(setup, "hardware.tool.heat.time", ctx)?.value as Number?)?.toDouble()
+            val preheat = preheatS(setup, ctx, s!!)
             timed("gcode") { val w = KlipperWriter(s!!, setup.foreignTemplateVars, version, preheatS = preheat, pressureAdvance = setup.pressureAdvanceByTool(), progress = progress,
                 perObjectTool = toolSettings(setup, objectId, printObject.name)); w.write(program, out); out.flush(); lastStrings = w.strings }
             return ran.toList()
@@ -1622,6 +1695,14 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
          * writer's perObjectTool, keyed by the object's program [name] and the 0-based tool): the first such part's settings,
          * so its filament's flow, melt rate, retraction, and the rest (every part printed with the first part's).
          */
+        /**
+         * How long (s, print time) the next tool is heated before a change: the tool's hardware.tool.<key>.heat.time, else its
+         * machine model's toolheads' (the longest of them: heated early rather than late); null = no preheat.
+         */
+        fun preheatS(setup: Setup, ctx: plymeld.model.Context, s: SliceSettings): Double? =
+            (Resolver.resolveOrNull(setup, "hardware.tool.heat.time", ctx)?.value as Number?)?.toDouble()
+                ?: s.machineDescription.toolheads.mapNotNull { it.heatS }.maxOrNull()
+
         fun toolSettings(setup: Setup, objectIndex: Int, name: String): Map<Pair<String, Int>, SliceSettings> {
             val o = setup.objects[objectIndex]; val own = setup.spool(o.spool).tool
             return o.parts.withIndex().map { (pi, p) -> setup.spool(p.spool).tool to pi }.filter { it.first != own }.distinctBy { it.first }
@@ -1667,18 +1748,19 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         val SLICE_KEYS = arrayOf("plan.technique.flat.layer.height", "plan.mechanism.adhesion.first_layer.height", "method.slicing.tolerance", "method.slicing.close_gaps",
             "hardware.tool.layer.height.min", "hardware.tool.layer.height.max", "plan.technique.flat.step.max", "plan.technique.flat.height_ratio", "plan.faces.sloped_top.z_antialiasing", "hardware.machine.motion.z.step")
         val WALL_KEYS = arrayOf("hardware.plate.first_layer.squish", "plan.layer.walls.count", "plan.layer.walls.outer.line.width", "plan.layer.walls.inner.line.width", "plan.mechanism.adhesion.first_layer.line.width",
-            "plan.layer.walls.style", "plan.layer.walls.line.width.min", "plan.layer.walls.feature.min", "plan.layer.walls.length_factor.min", "plan.layer.walls.transition_length")
+            "plan.layer.walls.style", "plan.layer.walls.line.width.min", "plan.layer.walls.feature.min", "plan.layer.walls.length_factor.min", "plan.layer.walls.transition_length",
+            "plan.layer.sliver.width")
         val REGION_KEYS = arrayOf("plan.layer.top.thickness", "plan.layer.bottom.thickness",
             "plan.layer.infill.density", "plan.layer.infill.area.min", "plan.layer.top.under_parts")
         val PATH_KEYS = arrayOf(
             "plan.mechanism.adhesion.brim.where", "plan.mechanism.adhesion.brim.width", "plan.mechanism.adhesion.brim.gap",
-            "plan.layer.walls.inner_first", "plan.seam", "plan.technique.corner_seam.corner_angle",
+            "plan.layer.walls.order", "plan.seam", "plan.technique.corner_seam.corner_angle",
             "plan.view_from", "method.quality.visibility.under", "method.quality.visibility.bed", "method.quality.visibility.away", "method.quality.seam.corner_share",
             "method.quality.seam.scarf_share",
             "method.quality.visibility.sample.azimuths", "method.quality.visibility.sample.elevations", "method.quality.visibility.sample.elevation.max",
             "method.quality.visibility.sample.reach", "method.quality.visibility.sample.cell", "method.quality.visibility.show_through",
             "method.quality.visibility.quadrant.front", "method.quality.visibility.quadrant.left", "method.quality.visibility.quadrant.right", "method.quality.visibility.quadrant.back",
-            "plan.technique.scarf_seam.where", "plan.technique.scarf_seam.length", "plan.technique.scarf_seam.start",
+            "plan.technique.scarf_seam.where", "plan.technique.scarf_seam.covered", "plan.technique.scarf_seam.length", "plan.technique.scarf_seam.start",
             "plan.layer.infill.density", "plan.layer.infill.pattern", "plan.layer.infill.chord_tolerance", "plan.layer.top.pattern", "plan.layer.bottom.pattern",
             "plan.technique.flat.core.layers", "hardware.tool.layer.height.max",
             "plan.layer.infill.line.width", "plan.layer.solid.line.width",

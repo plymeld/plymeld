@@ -24,9 +24,16 @@ import java.util.Locale
  * Extrusion per mm of path = bead cross-section / filament area × flow ratio, bead
  * cross-section = h·(w − h(1 − π/4)) (the same bead model as the walls' spacing).
  *
+ * No number a printer may refuse or act wrongly on is written: a feed rate that is not a number above 0 fails the write
+ * where it is formatted ([f]; a printer stops the print at F0), one rounded to a whole number (a fan, a wait, an
+ * acceleration) that is not finite where it is rounded ([whole]), and every line written passes BadNumbers on its way out
+ * (CommandCheck: a NaN written with decimals, a template's line), each refusal saying where.
+ *
  * Travel: retract + lift when longer than retraction_minimum_travel, with a wipe when set.
  * Also here: the minimum-layer-time slow-down (never below its minimum speed), graded overhang
- * speeds, arc fitting, exclude-object markers, pauses, and tool changes. The part fan is one
+ * speeds, the speed caps by a line's length (short walls, the steady share: lengthCap), arc fitting, exclude-object
+ * markers, pauses, and tool changes (each made over the start of the incoming filament's first line, after the outgoing
+ * tool leaves its last line as for any retracted travel). The part fan is one
  * fixed speed from a set layer, raised to the filament's overhang fan while a line hangs past the
  * one below (the conditions its overhang share holds at), not on the first layers whose fan is off.
  * NOT YET: bridge fan boost.
@@ -84,8 +91,25 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
     }
     /** Settings in force at this point of the program: the plate's, or the current object's. */
     private var s = plate
+    /** The path being written (null before the first) and its layer's height (mm), for the refusal of a number ([f], [whole]). */
+    private var writing: Extrude? = null
+    private var writingZ = Double.NaN
     /** Which settings each path prints with (filled per program; the minimum-layer-time estimate needs it ahead of time). */
     private val pathSettings = java.util.IdentityHashMap<Extrude, SliceSettings>()
+    /** The line each path laid as a piece of a longer one belongs to (a scarfed loop's, [Line]); a path not listed is a line of its own. */
+    private val lineOf = java.util.IdentityHashMap<Extrude, Line>()
+
+    /**
+     * One printed line laid as several paths with no stop between them: a scarfed loop's ramp, the rest of the loop, and its
+     * closing pass (Scarf.extrudes). The caps by length ([lengthCap]) read it whole; [main] (the rest of the loop) has the
+     * line's own speed.
+     */
+    private class Line(val pieces: List<Extrude>, val main: Extrude) {
+        /** Its length as laid (mm), from where it starts pushing plastic to where it stops: the closing pass included. */
+        val laidMm = pieces.sumOf { laidMm(it) }
+        /** The wall's length (mm): the loop, its closing pass left out. */
+        val wallMm = laidMm - laidMm(pieces.last())
+    }
     /** The filament's cross-section (mm2) for [s]: each filament's own diameter (the plate's for every tool). */
     private fun filamentArea(s: SliceSettings) = Math.PI * (s.filamentDiameterMm / 2) * (s.filamentDiameterMm / 2)
     private val filamentArea get() = filamentArea(s)
@@ -141,7 +165,9 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
         // each layer's extrusions, for the minimum-layer-time factor
         val layerPaths = HashMap<LayerStart, MutableList<Extrude>>()
         s = plate
+        writing = null; writingZ = Double.NaN
         pathSettings.clear()
+        lineOf.clear()
         // each extrusion's object (null: outside any object, e.g. the purge tower), for the cooling gap; a curved island's
         // layer is a stack of its own (the object's name and the island's), whose layer above is the island's next, however
         // many flat layers come between (read as the object's, each small island layer was slowed to the minimum
@@ -157,6 +183,18 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 is ObjectEnd -> { os = plate; osName = null }
                 is Extrude -> { cur?.add(st); pathSettings[st] = osName?.let { perObjectTool[it to st.tool] } ?: os; pathObject[st] = osName?.let { if (island != null) it + ISLAND_STACK + island else it } }
                 else -> Unit
+            }
+        }
+        // a scarfed loop's three runs, laid one after the other with no stop between them, are one line for the caps by length
+        run {
+            val st = program.steps
+            fun joins(a: Extrude, b: Extrude) = a.xy[a.xy.size - 2] == b.xy[0] && a.xy[a.xy.size - 1] == b.xy[1]
+            for (i in 0 until st.size - 2) {
+                val a = st[i] as? Extrude ?: continue; val b = st[i + 1] as? Extrude ?: continue; val c = st[i + 2] as? Extrude ?: continue
+                if (a.ofLoop && a.scarf && b.ofLoop && !b.scarf && c.ofLoop && c.scarf && joins(a, b) && joins(b, c)) {
+                    val line = Line(listOf(a, b, c), b)
+                    lineOf[a] = line; lineOf[b] = line; lineOf[c] = line
+                }
             }
         }
         // Minimum layer time per layer start (slowOf): if a layer would print faster, its extrusion speeds are scaled
@@ -190,7 +228,8 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                     var len = 0.0; val m = p.xy.size / 2; val count = if (p.closed) m else m - 1
                     var x = sx; var y = sy
                     for (k in 1..count) { val idx = k % m; val nx = p.xy[2 * idx] / 1000.0; val ny = p.xy[2 * idx + 1] / 1000.0; len += Math.hypot(nx - x, ny - y); x = nx; y = ny }
-                    sp[i] = pathSpeed(p, fl); ex[i] = len / sp[i]; px = x; py = y
+                    // a path of no length takes no time, whatever its speed (0 / 0 made the layer's time NaN)
+                    sp[i] = pathSpeed(p, fl); ex[i] = if (len == 0.0) 0.0 else len / sp[i]; px = x; py = y
                 }
                 Timed(ex, tr, ps.map { pathObject[it] }, sp, BooleanArray(ps.size) { ps[it].feature in VISIBLE })
             }
@@ -260,7 +299,8 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
             fun seconds(p: Extrude, fl: Boolean): Double {
                 var len = 0.0; val m = p.xy.size / 2; val segs = if (p.closed) m else m - 1
                 for (k in 0 until segs) { val j = (k + 1) % m; len += Math.hypot((p.xy[2 * j] - p.xy[2 * k]).toDouble(), (p.xy[2 * j + 1] - p.xy[2 * k + 1]).toDouble()) }
-                return len / 1000.0 / pathSpeed(p, fl)
+                // a path of no length takes no time, whatever its speed (0 / 0 wrote "NaN s" in the preheat's comment)
+                return if (len == 0.0) 0.0 else len / 1000.0 / pathSpeed(p, fl)
             }
             var prevChange = -1
             for ((ci, st) in stepsList.withIndex()) {
@@ -269,6 +309,7 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 if (temp != null) {
                     var acc = 0.0; var at = ci; var j = ci - 1
                     while (j > prevChange && acc < preheatS) { val sj = stepsList[j]; if (sj is Extrude) { acc += seconds(sj, firstLayer[j]); at = j }; j-- }
+                    check(acc.isFinite()) { "the preheat before the tool change to T${st.tool} came to $acc s of printing: a path's time estimate is not a number (a speed of 0 or below?); nothing written" }
                     if (at < ci) preheatBefore[at] = (preheatBefore[at] ?: "") + "M104 S$temp T${st.tool} ; preheat, ${"%.0f".format(java.util.Locale.ROOT, acc)} s of printing before the change\n"
                 }
                 prevChange = ci
@@ -316,6 +357,10 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
             heads.mapNotNull { it.nozzleHeightUm }.minOrNull()?.let { it / 1000.0 }, if (reaches.isEmpty()) null else DoubleArray(4) { i -> reaches.maxOf { it[i] } / 1000.0 })
         var retracted = false
         var lastPath: Extrude? = null
+        // the settings the last path was laid with (its tool's in its object): a tool change leaves that path by them
+        var laidWith = plate
+        // the line a tool change travelled to and was made over: its own travel after the change goes straight down to it
+        var changedOver: Extrude? = null
         var feature = ""
         // the line width and acceleration last written: a path that keeps them writes neither again (a scarf seam's ramp, loop
         // and down pass are three paths, each had its own); forgotten at every step that is not a path (a layer change, an
@@ -327,7 +372,7 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
         var liftPending = false
         var fanOn = false
         var fanNow = 0.0       // the part fan as last commanded, %
-        fun fanTo(pct: Double) { if (pct != fanNow) { out.write("M106 S${Math.round(255 * pct / 100)}\n"); fanNow = pct } }
+        fun fanTo(pct: Double) { if (pct != fanNow) { out.write("M106 S${whole(255 * pct / 100, "a part fan speed")}\n"); fanNow = pct } }
         // retraction length: the next exact path's own when it has one (the travel into it), else the filament's;
         // what was retracted is restored (an exact program only: other programs restore the filament's length)
         var nextRetract: Double? = null
@@ -348,7 +393,10 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
             val lp = lastPath
             val bead = leavingBead(lp)
             val len = nextRetract ?: (if (bead) s.bridgeWaveRetractMm else null) ?: s.retractMm
-            if (bead && lp != null && ((s.bridgeWaveWipe ?: s.wipe)) && !exact && s.wipeDistanceMm > 0 && !x.isNaN()) {
+            // no wipe after a line the head leaves below its highest point (an X or an edge strip laid sloping down to the
+            // span's edge): the wipe retraces it at the head's height, under the line where the line rises
+            val endsLow = lp != null && leftLow(lp, x, y)
+            if (bead && lp != null && ((s.bridgeWaveWipe ?: s.wipe)) && !exact && s.wipeDistanceMm > 0 && !x.isNaN() && !endsLow) {
                 // retrace the bead backwards while retracting (retract_before_wipe of it first, the rest spread over the wipe)
                 val pre = len * s.retractBeforeWipe
                 if (pre > 0) out.write("G1 E-${n(pre)} F${f(s.retractSpeed)}\n")
@@ -387,7 +435,122 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
             val hop = tip + s.zHopUm / 1000.0
             if (z.isNaN() || z < hop - 1e-9) { out.write("G1 Z${n(hop)} F${f(s.travelSpeed)}\n"); z = hop }
             out.write("G1 X${n(px)} Y${n(py)} F${f(s.travelSpeed)}\n"); x = px; y = py
-            if (dwellS > 0) out.write("G4 P${Math.round(dwellS * 1000)}\n")
+            if (dwellS > 0) out.write("G4 P${whole(dwellS * 1000, "a wait (ms)")}\n")
+        }
+        /**
+         * Leaves the path just laid ([lastPath]) for a retracted travel, as before every such travel (and before a tool change,
+         * whose travel is one): the retraction, with the wipe back along the path where the writer wipes, nothing when already
+         * retracted. Returns where a wipe took the head (the path's end first, then each wipe point), or null.
+         */
+        fun departForTravel(): List<Double>? {
+            if (retracted) return null
+            var wiped: List<Double>? = null
+            val lp = lastPath
+            val len = nextRetract ?: s.retractMm
+            // no wipe after a path some of whose points lie below its top (a line Z anti-aliasing lowers, a curved
+            // layer's), or after an open line the head leaves below its highest point (a line laid sloping down):
+            // the wipe retraces it at the head's height, under the line where the line rises
+            val lowered = lp?.zs?.let { zs -> zs.min() < lp.zUm || leftLow(lp, x, y) } ?: false
+            if (s.wipe && !exact && lp != null && s.wipeDistanceMm > 0 && !leavingBead(lp) && !lowered) {
+                // Wipe: retrace the last path backwards while retracting (retract_before_wipe
+                // of the retraction happens first, the rest spread over the wipe).
+                retractedMm = len
+                // a wall loop's wipe inside it (hardware.filament.retract.wipe.inward), the outer wall's and the inner walls':
+                // along the outer wall, the wipe's last ooze lay on the visible face; at the end of the wall beside it
+                // (laid after the outer one, inner_outer_inner), the retraction stood 0.4 mm behind the face, in line
+                // with the seam layer after layer, and showed through as a column of scars. Stepping inward, all of the
+                // retraction is spread over the wipe, none of it standing where the loop ended
+                val inward = s.wipeInward && (lp.closed || lp.ofLoop) && (lp.feature == "Outer wall" || lp.feature == "Inner wall")
+                val pre = if (inward) 0.0 else len * s.retractBeforeWipe
+                if (pre > 0) out.write("G1 E-${n(pre)} F${f(s.retractSpeed)}\n")
+                val pts = if (inward) inwardWipePoints(lp, x, y, s.wipeDistanceMm) else wipePoints(lp, x, y, s.wipeDistanceMm)
+                var wx = x; var wy = y
+                val total = pts.windowed(2, 2).sumOf { (a, b) -> Math.hypot(a - wx, b - wy).also { wx = a; wy = b } }
+                wx = x; wy = y
+                var k2 = 0
+                while (k2 + 1 < pts.size) {
+                    val ax = pts[k2]; val ay = pts[k2 + 1]
+                    val seg = Math.hypot(ax - wx, ay - wy)
+                    val de = if (total > 0) (len - pre) * seg / total else 0.0
+                    out.write("G1 X${n(ax)} Y${n(ay)} E-${e(de)} F${f(s.wipeSpeed)}\n")
+                    wx = ax; wy = ay; k2 += 2
+                }
+                if (total == 0.0 && len - pre > 0) out.write("G1 E-${n(len - pre)} F${f(s.retractSpeed)}\n")
+                if (pts.isNotEmpty()) wiped = listOf(x, y) + pts
+                x = wx; y = wy
+            } else retract()
+            retracted = true
+            return wiped
+        }
+        /**
+         * The travel to path [p]'s start, the head left retracted where it travels lifted ([lifts]: by the filament's hop over
+         * the path's layer, on the travel's first move), along [via] (TravelRouter's route; null = straight), first rising
+         * to clear what is printed on the way (Clearance); to the point [inside] gives (asked once the head is there, ahead of the
+         * last move) in place of the start where the path is restored inside its seam, which it returns. From an unknown place
+         * (after a tool change) the head first rises clear of everything printed so far.
+         */
+        fun travelTo(p: Extrude, via: LongArray?, lifts: Boolean, insideOf: () -> DoubleArray?): DoubleArray? {
+            val pz = p.zUm / 1000.0
+            val sx = p.xy[0] / 1000.0; val sy = p.xy[1] / 1000.0
+            val zHop = s.zHopUm / 1000.0
+            val hop = pz + zHop
+            // after a tool change the head's place is unknown: rise where it is, clear of everything printed so far
+            if (z.isNaN()) { val up = maxOf(hop, clearance.highest + zHop); out.write("G1 Z${n(up)} F${f(moveF(s.travelSpeed))}\n"); z = up }
+            // plastic this travel must clear above the layer (a taller finished object, a curved layer's higher part, a
+            // support's top beside a bridge): the head rises straight up to clear the tip, its cone, and its body, then
+            // crosses, then comes down (Clearance)
+            // over a detour (TravelRouter) the head follows the via points: the need is the greatest over its legs
+            val tipNeeds = if (x.isNaN()) pz else run {
+                var need = pz; var ax = x; var ay = y
+                via?.let { vs -> var k = 0; while (k + 1 < vs.size) { val vx = vs[k] / 1000.0; val vy = vs[k + 1] / 1000.0; need = maxOf(need, clearance.need(ax, ay, vx, vy, pz)); ax = vx; ay = vy; k += 2 } }
+                maxOf(need, clearance.need(ax, ay, sx, sy, pz))
+            }
+            if (tipNeeds > pz + 1e-9 && z < tipNeeds + zHop - 1e-9) {
+                if (!retracted) { retract(); retracted = true }
+                out.write("G1 Z${n(tipNeeds + zHop)} F${f(moveF(s.travelSpeed))}\n"); z = tipNeeds + zHop
+            }
+            // the detour around the layer's other islands first (TravelRouter), the lift on its first move
+            via?.let { vs ->
+                var k = 0
+                while (k + 1 < vs.size) {
+                    val vx = vs[k] / 1000.0; val vy = vs[k + 1] / 1000.0
+                    if (lifts && z < hop - 1e-9) { out.write("G1 X${n(vx)} Y${n(vy)} Z${n(hop)} F${f(moveF(s.travelSpeed))}\n"); z = hop }
+                    else out.write("G1 X${n(vx)} Y${n(vy)} F${f(moveF(s.travelSpeed))}\n")
+                    x = vx; y = vy; k += 2
+                }
+            }
+            val inside = insideOf()
+            val tx = inside?.get(0) ?: sx; val ty = inside?.get(1) ?: sy
+            if (lifts && z < hop - 1e-9) {
+                // lift during the travel (one XY+Z move) rather than a separate slow Z-only move
+                out.write("G1 X${n(tx)} Y${n(ty)} Z${n(hop)} F${f(moveF(s.travelSpeed))}\n"); z = hop
+            } else if (x.isNaN() || n(tx) != n(x) || n(ty) != n(y)) out.write("G1 X${n(tx)} Y${n(ty)} F${f(moveF(s.travelSpeed))}\n")   // none to where the head is
+            x = tx; y = ty
+            return inside
+        }
+        /**
+         * A closed outer wall after a retracted travel: the point a line inside its seam where the head comes down, restores
+         * there, and moves onto the seam with nothing pushed (hardware.filament.retract.return.inside), or null: restored at the
+         * seam, the retraction's push left a blob on the visible face where a scarf seam's ramp starts thinnest. Flat walls and a
+         * scarf's ramp only (whose top is the layer's): a loop lowered as a whole (Z anti-aliasing) has its top below the layer,
+         * and the move onto its start would travel below the layer.
+         */
+        fun insideFor(p: Extrude): DoubleArray? =
+            if (retracted && p.exact == null && (p.closed || p.ofLoop) && p.feature == "Outer wall" && (p.zs == null || p.scarf) && s.returnInside && s.returnDistanceMm == null) insidePoint(p) else null
+        /**
+         * The first line laid after step [i] (a tool change) and its step index: the incoming filament's first line (its purge
+         * on the purge tower, or its first line on a part), past object markers, fan settings, and temperatures set without a
+         * wait. Null where something else that moves or holds the head comes first (a wait, a pause, a filament swap, a park, a
+         * lift, custom g-code, a layer change, another change), or the line is printed exactly as given (a calibration cell's).
+         */
+        fun firstLineAfter(i: Int): IndexedValue<Extrude>? {
+            for (j in i + 1 until program.steps.size) when (val st = program.steps[j]) {
+                is ObjectStart, is ObjectEnd, is plymeld.program.SetFan -> {}
+                is plymeld.program.SetTemp -> if (st.wait) return null
+                is Extrude -> return if (st.exact == null) IndexedValue(j, st) else null
+                else -> return null
+            }
+            return null
         }
         /**
          * The cooling dwell after layer start [ls] (plan.mechanism.cooling.dwell.enabled; a gap found reviewing a
@@ -409,7 +572,7 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 val up = minOf((if (z.isNaN()) lz else z) + s.coolingDwellLiftUm / 1000.0, top)
                 out.write("; cooling dwell: the layer ${"%.1f".format(java.util.Locale.ROOT, shortS)} s short of its minimum time at the minimum speed, the head lifted\n")
                 if (z.isNaN() || up > z + 1e-9) { out.write("G1 Z${n(up)} F${f(moveF(s.travelSpeed))}\n"); z = up }
-                out.write("G4 P${Math.round(shortS * 1000)}\n")
+                out.write("G4 P${whole(shortS * 1000, "a wait (ms)")}\n")
                 return
             }
             val ps = layerPaths[ls] ?: return
@@ -462,12 +625,36 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
             // block alone: a quad tube after an elephant ending on an outer wall had its first ring's wall unnamed)
             is ObjectStart -> { out.write(OBJECT_START + step.name + "\n"); if (exclude) out.write("EXCLUDE_OBJECT_START NAME=${step.name}\n"); s = perObject[step.name] ?: plate; objectNow = step.name; feature = "" }
             is plymeld.program.ToolChange -> {
-                // The tool-changer sequence observed in the Creator 5's own slicer output
-                // (as observed in Flash Studio's output): the old tool to its idle temperature, the swap,
-                // wait for the new tool. Retracted first; afterwards the head's position is unknown,
-                // so the next travel rises first (see Extrude).
+                // The outgoing tool leaves the part as it leaves for any retracted travel (its retraction and wipe, by the
+                // settings its last line was laid with; then its lift), and travels, lifted, routed and cleared like any other
+                // travel, to where the incoming filament's first line starts (its purge on the tower, or its first line on a
+                // part): the change is made there, never standing on what the outgoing filament just laid (made where the last
+                // line ended, every change of a two-color plate stood on its last object's lettering, and that object came out
+                // strung and blobbed). Where no line follows directly (a wait, a pause, a swap by hand) or the head's place is
+                // not known (the print's first selection), it is made where the head is, retracted.
+                // Then the tool-changer sequence observed in the Creator 5's own slicer output (Flash Studio's): the old tool
+                // to its idle temperature, the swap, wait for the new tool. Afterwards the head's position is unknown, so the
+                // incoming line rises first and comes down at its start (see Extrude).
+                val sIn = s
+                s = laidWith
                 flushLift()
-                if (!retracted) retract()
+                val next = if (exact || x.isNaN()) null else firstLineAfter(stepIndex)
+                if (next != null) {
+                    val p = next.value
+                    val wiped = departForTravel()
+                    // routed again from where a wipe left the head, as before any travel
+                    val cl = combNow
+                    val via = if (wiped == null || cl == null) p.via else replanAfterWipe(cl, combBelow, firstInLayer, wiped, p.xy[0] / 1000.0, p.xy[1] / 1000.0, p, lastPath, detourRatio, detourExtraUm)
+                    firstInLayer = false
+                    // over the line's start, or over the point inside its seam where it will come down: by the settings the
+                    // incoming line is laid with (its object's, as the steps up to it set them)
+                    var o = objectNow; var sAt = sIn
+                    for (j in stepIndex + 1 until next.index) when (val st = program.steps[j]) { is ObjectStart -> { o = st.name; sAt = perObject[st.name] ?: plate }; is ObjectEnd -> sAt = plate; else -> {} }
+                    val sIncoming = o?.let { perObjectTool[it to p.tool] ?: perObject[it] ?: plate } ?: sAt
+                    travelTo(p, via, lifts = true) { val sOut = s; s = sIncoming; insideFor(p).also { s = sOut } }
+                    changedOver = p
+                } else if (!retracted) retract()
+                s = sIn
                 if (step.fromTool != null && step.fromIdleC != null) { out.write("M104 S${step.fromIdleC} T${step.fromTool}\n"); setTemp[step.fromTool!!] = step.fromIdleC!! }
                 out.write("T${step.tool}\n")
                 toolInHand = step.tool
@@ -501,6 +688,9 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 }
             }
             is LayerStart -> {
+                // a waved bridge's last bead on its layer: its retraction and wipe now, on the layer it was laid on (written after
+                // the layer change, the wipe back along the bead read as a move below the next layer)
+                if (!retracted && !exact && leavingBead(lastPath)) retract()
                 flushLift()
                 layersWritten.tick()
                 lz = step.zUm / 1000.0
@@ -523,7 +713,7 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 // (an exact program sets its fan with SetFan only)
                 if (!exact && step.objectLayer == 0 && fanOn) { out.write("M106 S0\n"); fanOn = false; fanNow = 0.0 }
                 // past the fan-off layers: the plate's fan here, each object's own from its first line (layerFan)
-                if (!exact && step.objectLayer == fanFrom) { out.write("M106 S${Math.round(255 * fanPct / 100)}\n"); fanOn = true; fanNow = fanPct }
+                if (!exact && step.objectLayer == fanFrom) { out.write("M106 S${whole(255 * fanPct / 100, "a part fan speed")}\n"); fanOn = true; fanNow = fanPct }
                 first = step.objectLayer == 0
                 // Minimum layer time (slowOf, worked out above, per object; 1 = not slowed)
                 slowLayer = slowOf[step]
@@ -540,6 +730,8 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
             is Extrude -> {
                 // the settings of this path's tool in its object (a part printing with another filament): perObjectTool
                 objectNow?.let { o -> s = perObjectTool[o to step.tool] ?: perObject[o] ?: plate }
+                laidWith = s
+                writing = step; writingZ = lz
                 nextRetract = step.exact?.retractMm
                 flushLift()
                 val p = step
@@ -563,8 +755,6 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 val startZ = (p.zs?.get(0) ?: p.zUm) / 1000.0
                 // a calibration cell is read alone (its block from its CELL line): it states its width and acceleration
                 p.exact?.let { out.write("; CELL: ${it.label}\n"); widthWritten = null; accelWritten = null }
-                if (p.feature != feature) { out.write(dialect.feature(p.feature)); feature = p.feature; widthWritten = null }
-                n(p.widthUm / 1000.0).let { wt -> if (wt != widthWritten) { out.write(dialect.width(wt)); widthWritten = wt } }
                 val sx = p.xy[0] / 1000.0; val sy = p.xy[1] / 1000.0
                 // travel
                 val d = if (x.isNaN()) Double.POSITIVE_INFINITY else Math.hypot(sx - x, sy - y)
@@ -573,86 +763,37 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 var wiped: List<Double>? = null
                 // a speck's hop (Extrude.hops): lifted over the wall it crosses below, not retracted
                 val speckHop = p.hops(d)
-                if ((d > minTravelMm || p.via != null) && !hiddenTravel && !speckHop) {
-                    if (!retracted) {
-                        val lp = lastPath
-                        val len = nextRetract ?: s.retractMm
-                        if (s.wipe && !exact && lp != null && s.wipeDistanceMm > 0 && !leavingBead(lp)) {
-                            // Wipe: retrace the last path backwards while retracting (retract_before_wipe
-                            // of the retraction happens first, the rest spread over the wipe).
-                            retractedMm = len
-                            val pre = len * s.retractBeforeWipe
-                            if (pre > 0) out.write("G1 E-${n(pre)} F${f(s.retractSpeed)}\n")
-                            val pts = wipePoints(lp, x, y, s.wipeDistanceMm)
-                            var wx = x; var wy = y
-                            val total = pts.windowed(2, 2).sumOf { (a, b) -> Math.hypot(a - wx, b - wy).also { wx = a; wy = b } }
-                            wx = x; wy = y
-                            var k2 = 0
-                            while (k2 + 1 < pts.size) {
-                                val ax = pts[k2]; val ay = pts[k2 + 1]
-                                val seg = Math.hypot(ax - wx, ay - wy)
-                                val de = if (total > 0) (len - pre) * seg / total else 0.0
-                                out.write("G1 X${n(ax)} Y${n(ay)} E-${e(de)} F${f(s.wipeSpeed)}\n")
-                                wx = ax; wy = ay; k2 += 2
-                            }
-                            if (total == 0.0 && len - pre > 0) out.write("G1 E-${n(len - pre)} F${f(s.retractSpeed)}\n")
-                            if (pts.isNotEmpty()) wiped = listOf(x, y) + pts
-                            x = wx; y = wy
-                        } else retract()
-                        retracted = true
-                    }
-                }
+                if ((d > minTravelMm || p.via != null) && !hiddenTravel && !speckHop) wiped = departForTravel()
+                // the path's feature and width after the retraction and its wipe, which belong to the path just laid (written
+                // before them, a wipe along an inner wall was labelled as the outer wall that followed)
+                if (p.feature != feature) { out.write(dialect.feature(p.feature)); feature = p.feature; widthWritten = null }
+                n(p.widthUm / 1000.0).let { wt -> if (wt != widthWritten) { out.write(dialect.width(wt)); widthWritten = wt } }
                 // the travel's route: TravelRouter planned it from the path's end, and a wipe left the head up to its distance back
                 // along the path, so it is planned again from there (on the regression Benchy, 77 of the 123 travels
                 // still crossing their own island's outer wall were a wipe's: its end cut back across the wall it had followed)
+                // After a tool change made over this line's start the route was already taken (the change's travel): from the
+                // head's unknown place after the change it rises and goes straight back over the start
                 val w = wiped; val cl = combNow
-                val via = if (w == null || cl == null) p.via else replanAfterWipe(cl, combBelow, firstInLayer, w, sx, sy, p, lastPath, detourRatio, detourExtraUm)
+                val via = if (p === changedOver) null else if (w == null || cl == null) p.via else replanAfterWipe(cl, combBelow, firstInLayer, w, sx, sy, p, lastPath, detourRatio, detourExtraUm)
+                changedOver = null
                 firstInLayer = false
                 // the most it may accelerate: its object's cap (plan.mechanism.motion.acceleration.max), and its first segment's
                 // region's (Extrude.accelMax; the rest per segment, below)
                 val accelBase = listOfNotNull(accelFor(p.feature), (pathSettings[p] ?: s).accelMax).min()
-                Math.round(p.exact?.accel ?: minOf(accelBase, p.accelMax?.get(0)?.takeIf { !it.isNaN() } ?: Double.POSITIVE_INFINITY)).let { a -> if (a != accelWritten) { out.write(dialect.accel(a)); accelWritten = a } }
-                val zHop = s.zHopUm / 1000.0
-                val hop = pz + zHop
-                // after a tool change the head's place is unknown: rise where it is, clear of everything printed so far
-                if (z.isNaN()) { val up = maxOf(hop, clearance.highest + zHop); out.write("G1 Z${n(up)} F${f(moveF(s.travelSpeed))}\n"); z = up }
-                // plastic this travel must clear above the layer (a taller finished object, a curved layer's higher part, a
-                // support's top beside a bridge): the head rises straight up to clear the tip, its cone, and its body, then
-                // crosses, then comes down (Clearance)
-                // over a detour (TravelRouter) the head follows the via points: the need is the greatest over its legs
-                val tipNeeds = if (x.isNaN()) pz else run {
-                    var need = pz; var ax = x; var ay = y
-                    via?.let { vs -> var k = 0; while (k + 1 < vs.size) { val vx = vs[k] / 1000.0; val vy = vs[k + 1] / 1000.0; need = maxOf(need, clearance.need(ax, ay, vx, vy, pz)); ax = vx; ay = vy; k += 2 } }
-                    maxOf(need, clearance.need(ax, ay, sx, sy, pz))
-                }
-                if (tipNeeds > pz + 1e-9 && z < tipNeeds + zHop - 1e-9) {
-                    if (!retracted) { retract(); retracted = true }
-                    out.write("G1 Z${n(tipNeeds + zHop)} F${f(moveF(s.travelSpeed))}\n"); z = tipNeeds + zHop
-                }
-                // the detour around the layer's other islands first (TravelRouter), the lift on its first move
-                via?.let { vs ->
-                    var k = 0
-                    while (k + 1 < vs.size) {
-                        val vx = vs[k] / 1000.0; val vy = vs[k + 1] / 1000.0
-                        if ((d > minTravelMm || p.via != null || speckHop) && !hiddenTravel && z < hop - 1e-9) { out.write("G1 X${n(vx)} Y${n(vy)} Z${n(hop)} F${f(moveF(s.travelSpeed))}\n"); z = hop }
-                        else out.write("G1 X${n(vx)} Y${n(vy)} F${f(moveF(s.travelSpeed))}\n")
-                        x = vx; y = vy; k += 2
-                    }
-                }
-                if ((d > minTravelMm || p.via != null || speckHop) && !hiddenTravel && z < hop - 1e-9) {
-                    // lift during the travel (one XY+Z move) rather than a separate slow Z-only move
-                    out.write("G1 X${n(sx)} Y${n(sy)} Z${n(hop)} F${f(moveF(s.travelSpeed))}\n"); z = hop
-                } else if (x.isNaN() || n(sx) != n(x) || n(sy) != n(y)) out.write("G1 X${n(sx)} Y${n(sy)} F${f(moveF(s.travelSpeed))}\n")   // none to where the head is
+                whole(p.exact?.accel ?: minOf(accelBase, p.accelMax?.get(0)?.takeIf { !it.isNaN() } ?: Double.POSITIVE_INFINITY), "an acceleration").let { a -> if (a != accelWritten) { out.write(dialect.accel(a)); accelWritten = a } }
+                val inside = travelTo(p, via, (d > minTravelMm || p.via != null || speckHop) && !hiddenTravel) { insideFor(p) }
                 // the drop to the path's start: at the travel's speed, or, on a lifted bridge's layer with its own, at that
                 val dropF = if (bridgeLayer && s.bridgeMoveSpeed != null) " F${f(moveF(s.travelSpeed))}" else ""
-                if (z != startZ) { out.write("G1 Z${n(startZ)}$dropF\n"); z = startZ }
+                // restored inside the seam: at the path's top there (a ramp's or a lowered loop's start lies below the layer,
+                // and the walls already laid inside it stand at the layer's top), then onto the start and down to it there
+                val dropTo = if (inside != null) pz else startZ
+                if (z != dropTo) { out.write("G1 Z${n(dropTo)}$dropF\n"); z = dropTo }
                 // the push back: an exact path's standing still here; any other path's below, once its plastic per mm is known
                 // (part of it may be spread over the path's first mm: hardware.filament.retract.return.distance)
                 val toReturn = if (retracted) retractedMm else 0.0
                 if (retracted && p.exact != null) out.write("G1 E${n(retractedMm)} F${f(s.deretractSpeed)}\n")
                 retracted = false
                 nextRetract = null
-                x = sx; y = sy
                 // printed from here on: every later travel clears it
                 clearance.add(p.xy, p.closed, p.zUm, p.zs)
                 val ex = p.exact
@@ -681,10 +822,12 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                     continue
                 }
                 // extrude
+                // a scarf seam's ramp and closing pass: times the scarf's own flow (plan.technique.scarf_seam.flow)
+                val scarfFlow = if (p.scarf) (pathSettings[p] ?: s).scarfFlow else 1.0
                 val ePerMm = p.ePerMmOverride ?: (p.heightUm / 1000.0 * (p.widthUm / 1000.0 - p.heightUm / 1000.0 * (1 - Math.PI / 4)) / filamentArea * s.flowRatio *
-                    featureFlow(p.feature))
-                // a lifted bridge's own print speed: exactly as set, no slow-down for layer time, no floor, no overhang grading;
-                //the melt cap stays (it lowers a speed only where the
+                    featureFlow(p.feature) * scarfFlow)
+                // a lifted bridge's own print speed: exactly as set, no slow-down for layer time, no floor, no overhang grading,
+                // no cap by length (lengthCap); the melt cap stays (it lowers a speed only where the
                 // filament cannot melt fast enough)
                 val meltCap = s.maxVolumetric / (p.heightUm / 1000.0 * (p.widthUm / 1000.0 - p.heightUm / 1000.0 * (1 - Math.PI / 4)))
                 // a path with its own speeds per segment (an arched bridge's layers: its slow speed over air only, ramping
@@ -712,7 +855,7 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 // not apply to it (an arched bridge's ironed top layer follows the arch, so carries thicknesses, and
                 // was laid a whole line's plastic from them, about 36 times its flow)
                 val segE = if (p.ePerMmOverride != null || (p.widths == null && p.heights == null)) null else {
-                    val fl = s.flowRatio * featureFlow(p.feature)
+                    val fl = s.flowRatio * featureFlow(p.feature) * scarfFlow
                     val ws = p.widths; val hs = p.heights
                     DoubleArray(count) { k ->
                         val w = if (ws == null) p.widthUm / 1000.0 else (ws[k] + ws[(k + 1) % m]) / 2000.0
@@ -743,6 +886,11 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 // either laid segment by segment, not fitted to arcs
                 val ownEnds = returnOnPath > 0 || coastMm > 0
                 out.write("G1 F${f(baseSpeed)}\n")
+                // restored inside the seam: onto it, nothing pushed
+                if (inside != null) {
+                    out.write("G1 X${n(sx)} Y${n(sy)}\n"); x = sx; y = sy
+                    if (z != startZ) { out.write("G1 Z${n(startZ)}\n"); z = startZ }
+                }
                 // the part fan back to the layer's after a raised overhang fan (a path with overhangs sets its own per segment):
                 // the object's own (plan.mechanism.cooling.fan over its filament's), not the plate's
                 val layerFan = if (fanOn) s.fanMinPct else 0.0
@@ -823,7 +971,7 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                     } else if (segFixed != null) own ?: baseSpeed
                     else if (p.speedMax != null) baseSpeed else null
                     if (speedK != null) { val fk = f(Math.min(speedK, segCap)); if (fk != curF) { out.write("G1 F$fk\n"); curF = fk } }
-                    p.accelMax?.let { am -> Math.round(minOf(accelBase, am[k - 1].takeIf { !it.isNaN() } ?: Double.POSITIVE_INFINITY)).let { a -> if (a != accelWritten) { out.write(dialect.accel(a)); accelWritten = a } } }
+                    p.accelMax?.let { am -> whole(minOf(accelBase, am[k - 1].takeIf { !it.isNaN() } ?: Double.POSITIVE_INFINITY), "an acceleration").let { a -> if (a != accelWritten) { out.write(dialect.accel(a)); accelWritten = a } } }
                     val nx = p.xy[2 * idx] / 1000.0; val ny = p.xy[2 * idx + 1] / 1000.0
                     val len = Math.hypot(nx - x, ny - y)
                     // One rule: the filament for a move is its whole length, in X, Y, and Z, times its bead's
@@ -876,11 +1024,71 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
         out.finish()
     }
 
-    /** Feature speed capped by the filament's max volumetric speed for this bead (w, h). */
+    /**
+     * [p]'s speed: its own ([ownSpeed]), a scarf seam's ramp and closing pass no faster than the scarf's speed, and the caps
+     * by its line's length ([lengthCap]), the lowest of them.
+     */
     private fun pathSpeed(p: Extrude, first: Boolean): Double {
         val ps = pathSettings[p] ?: s
+        // a scarf seam's ramp and closing pass: no faster than the scarf's own speed (plan.technique.scarf_seam.speed)
+        val scarf = if (p.scarf) ps.scarfSpeed else Double.POSITIVE_INFINITY
+        return minOf(ownSpeed(p, ps, first), scarf, lengthCap(p, ps, first))
+    }
+
+    /** [p]'s feature speed capped by the filament's melt rate for its bead (w, h) and by its object's speed cap (motion.speed.max). */
+    private fun ownSpeed(p: Extrude, ps: SliceSettings, first: Boolean): Double {
         val area = p.heightUm / 1000.0 * (p.widthUm / 1000.0 - p.heightUm / 1000.0 * (1 - Math.PI / 4))   // mm²
         return minOf(speedFor(ps, p.feature, first), ps.maxVolumetric / area, ps.speedMax ?: Double.POSITIVE_INFINITY)
+    }
+
+    /**
+     * The caps by the length of the line [p] lays or belongs to ([lineOf]), one for the whole line, so it is laid at one
+     * speed; infinity = none. Both are caps: they never raise a speed, and the lowest of every cap wins.
+     *
+     * A short wall (plan.mechanism.motion.short_walls.*): a wall loop or line of length L under short_walls.length no faster
+     * than short_walls.speed; from there to short_walls.full_length (unset: length, a single step) no faster than a speed
+     * rising in a straight line from short_walls.speed at length to the wall's own speed at full_length; from full_length on,
+     * no cap. L is the wall's own length: a scarfed loop's, its closing pass left out.
+     *
+     * A line's steady share (plan.mechanism.motion.steady.share): a line starting and ending at rest at acceleration a takes
+     * v²/(2a) of its length to reach v and as much to stop, so at v it is laid steadily over L − v²/a; it is laid no faster
+     * than the speed at which that is the share of L: v ≤ sqrt(a · L · (1 − share)), L the line as laid (a scarfed loop's
+     * closing pass included) and a the lowest acceleration it is laid at ([accelOf]). Not the purge tower's lines nor the
+     * prime line (they push filament through, at speeds of their own), nor a calibration plate's paths (printed as specified),
+     * nor a line of no length (its points all one: it lays nothing, and its cap would be 0, a feed that stops the printer).
+     * A lifted bridge's own speeds over air (plan.technique.bridge.print.speed, ramp_speeds) are laid as set, by neither cap.
+     */
+    private fun lengthCap(p: Extrude, ps: SliceSettings, first: Boolean): Double {
+        val line = lineOf[p]
+        var cap = Double.POSITIVE_INFINITY
+        // (short_walls.speed and .full_length read only for a wall the cap may slow: a setting read counts as used)
+        val shortMm = ps.shortWallLengthMm
+        if (shortMm != null && (p.feature == "Outer wall" || p.feature == "Inner wall")) {
+            val wall = line?.wallMm ?: laidMm(p)
+            if (wall < shortMm) ps.shortWallSpeed?.let { cap = it }
+            else {
+                val fullMm = ps.shortWallFullLengthMm ?: shortMm
+                if (wall < fullMm) ps.shortWallSpeed?.let { floor -> cap = floor + (ownSpeed(line?.main ?: p, ps, first) - floor) * (wall - shortMm) / (fullMm - shortMm) }
+            }
+        }
+        val share = ps.steadyShare
+        if (share != null && p.exact == null && p.feature !in STEADY_EXEMPT) {
+            val laid = line?.laidMm ?: laidMm(p)
+            val a = (line?.pieces ?: listOf(p)).minOf { accelOf(it, ps) }
+            if (laid > 0 && a > 0 && a.isFinite()) cap = minOf(cap, Math.sqrt(a * laid * (1 - share)))
+        }
+        return cap
+    }
+
+    /**
+     * The lowest acceleration [p] is laid at (mm/s², as the file writes it): a calibration cell's own; else its feature's, under
+     * its object's cap (motion.acceleration.max) and its regions' along it ([Extrude.accelMax]).
+     */
+    private fun accelOf(p: Extrude, ps: SliceSettings): Double {
+        p.exact?.let { return Math.round(it.accel).toDouble() }
+        val base = listOfNotNull(accelFor(p.feature, ps), ps.accelMax).min()
+        val region = p.accelMax?.filter { !it.isNaN() }?.minOrNull() ?: Double.POSITIVE_INFINITY
+        return Math.round(minOf(base, region)).toDouble()
     }
 
     /**
@@ -921,6 +1129,66 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
      * Points (mm, flat x y ...) walking `dist` backwards along the path just printed, starting at
      * its end (x, y). Loops walk back around the loop; open paths stop at their start.
      */
+    /**
+     * The point (mm) one line width inside wall loop [p]'s start: on its left, where a wall loop's material lies (its
+     * outward normal is to the right of its direction), along the bisector of its first and last segments' normals (a
+     * loop's run, [Extrude.ofLoop]: its first segment's).
+     */
+    private fun insidePoint(p: Extrude): DoubleArray {
+        val m = p.xy.size / 2
+        val x0 = p.xy[0].toDouble(); val y0 = p.xy[1].toDouble()
+        val ax = p.xy[2].toDouble() - x0; val ay = p.xy[3].toDouble() - y0
+        val bx = if (p.closed) x0 - p.xy[2 * (m - 1)] else ax; val by = if (p.closed) y0 - p.xy[2 * (m - 1) + 1] else ay
+        val la = Math.hypot(ax, ay).coerceAtLeast(1e-9); val lb = Math.hypot(bx, by).coerceAtLeast(1e-9)
+        // the left normals (-dy, dx) of both segments, averaged
+        var nx = -ay / la - by / lb; var ny = ax / la + bx / lb
+        val ln = Math.hypot(nx, ny)
+        if (ln < 1e-9) { nx = -ay / la; ny = ax / la } else { nx /= ln; ny /= ln }
+        return doubleArrayOf((x0 + nx * p.widthUm) / 1000.0, (y0 + ny * p.widthUm) / 1000.0)
+    }
+
+    /**
+     * A wall loop's wipe (closed, or a loop's run: [Extrude.ofLoop]) from the head at (x, y) (mm), [dist] long in all: first a step one line width (at most [dist])
+     * to the loop's left, where a wall loop's material lies, then back along the loop as [wipePoints] retraces it, displaced
+     * by that step. The loop's direction is read on its segment nearest the head.
+     */
+    private fun inwardWipePoints(p: Extrude, x: Double, y: Double, dist: Double): List<Double> {
+        val m = p.xy.size / 2
+        // the left normals (-dy, dx) of the segments nearest the head, averaged: at a vertex, the two meeting there (their
+        // bisector: a step square to one edge at a corner stays on the other edge)
+        var best = Double.MAX_VALUE; var sx = 0.0; var sy = 0.0
+        for (k in 0 until (if (p.closed) m else m - 1)) {
+            val j = (k + 1) % m
+            val ax = p.xy[2 * k] / 1000.0; val ay = p.xy[2 * k + 1] / 1000.0; val bx = p.xy[2 * j] / 1000.0; val by = p.xy[2 * j + 1] / 1000.0
+            val dx = bx - ax; val dy = by - ay; val l2 = dx * dx + dy * dy
+            if (l2 == 0.0) continue
+            val t = (((x - ax) * dx + (y - ay) * dy) / l2).coerceIn(0.0, 1.0)
+            val d = Math.hypot(ax + t * dx - x, ay + t * dy - y)
+            val l = Math.sqrt(l2)
+            if (d < best - 1e-6) { best = d; sx = -dy / l; sy = dx / l } else if (d <= best + 1e-6) { sx += -dy / l; sy += dx / l }
+        }
+        val ln = Math.hypot(sx, sy).takeIf { it > 1e-9 } ?: return wipePoints(p, x, y, dist)
+        val step = Math.min(p.widthUm / 1000.0, dist)
+        val nx = sx / ln * step; val ny = sy / ln * step
+        val back = wipePoints(p, x, y, dist - step)
+        return listOf(x + nx, y + ny) + back.mapIndexed { i, v -> v + if (i % 2 == 0) nx else ny }
+    }
+
+    /**
+     * Whether the head at (x, y) (mm) leaves the line [p] below the line's highest point: an open line at the nearer of its
+     * two ends (it may be laid from either), a loop at its first point, where it closes (an edge strip laid over an arch and
+     * back); that point's height against the highest of the line's. False for a level line, and for a scarf's loop, whose
+     * closing pass ends at the layer's top over its ramp's start.
+     */
+    private fun leftLow(p: Extrude, x: Double, y: Double): Boolean {
+        val zs = p.zs ?: return false
+        if (p.closed) return !p.scarf && zs[0] < zs.max()
+        if (x.isNaN()) return false
+        val m = p.xy.size / 2
+        val dFirst = Math.hypot(p.xy[0] / 1000.0 - x, p.xy[1] / 1000.0 - y); val dLast = Math.hypot(p.xy[2 * m - 2] / 1000.0 - x, p.xy[2 * m - 1] / 1000.0 - y)
+        return (if (dFirst < dLast) zs[0] else zs[m - 1]) < zs.max()
+    }
+
     private fun wipePoints(p: Extrude, x: Double, y: Double, dist: Double): List<Double> {
         val m = p.xy.size / 2
         val seq = ArrayList<Double>()
@@ -975,7 +1243,7 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
      * Speeds: the first layer at its own (adhesion), the purge tower at its own (plan.mechanism.purge.tower.speed), its
      * first layer no faster than the first layer's; visible lines
      * at the visible cap; bridges at the bridge speed (sag); everything else, hidden, at the
-     * machine's fastest move. [pathSpeed] then caps each by the filament's melt rate.
+     * machine's fastest move. [ownSpeed] then caps each by the filament's melt rate, and [pathSpeed] by the rest.
      */
     private fun speedFor(s: SliceSettings, feature: String, first: Boolean): Double = when {
         // the tower's first layer holds to the bed like the model's (a tower laid at the hidden speed there came loose)
@@ -999,7 +1267,7 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
         else -> error("no speed rule for feature '$feature'")
     }
 
-    private fun accelFor(feature: String): Double = if (feature in VISIBLE || (feature == "Inner wall" && s.innerWallsAsVisible)) s.visibleAccel else s.defaultAccel
+    private fun accelFor(feature: String, st: SliceSettings = s): Double = if (feature in VISIBLE || (feature == "Inner wall" && st.innerWallsAsVisible)) st.visibleAccel else st.defaultAccel
 
     /**
      * Template variables: plymeld's own names (for templates in plymeld config: nozzle_temperature,
@@ -1048,7 +1316,35 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
     private fun tnum(v: Double): Template.Value = if (v == Math.floor(v) && Math.abs(v) < 1e15) Template.num(v.toLong()) else Template.num(v)
     private fun n(v: Double): String = Num.trimmed(v, 3)
     private fun e(v: Double): String = Num.trimmed(v, 5, minusZero = true)
-    private fun f(mmPerS: Double): String = Math.round(mmPerS * 60).toString()
+    /**
+     * A feed rate (mm/min, whole) for a speed of [mmPerS] mm/s. A speed that is not a number, infinite, or 0 or below is never
+     * written: a printer stops the print at F0 (a move with no speed), so the slice fails here, saying where. A speed above 0
+     * that rounds to F0 is written as F1, the slowest feed the format writes.
+     */
+    private fun f(mmPerS: Double): String {
+        if (!(mmPerS > 0) || mmPerS.isInfinite())
+            error("a feed rate of $mmPerS mm/s ${where()}: a move's speed must be a number above 0, and a printer stops the print at F0. " +
+                "This is plymeld's fault, or a speed setting of 0 in the config. The g-code stops here, unfinished: do not print it")
+        val v = Math.round(mmPerS * 60)
+        return if (v < 1) "1" else v.toString()
+    }
+
+    /**
+     * [v] rounded to a whole number for a command ([what]: a fan's speed, a wait, an acceleration). One that is not a finite
+     * number fails the write, saying where: rounded, NaN would be written as 0 (a fan off, no wait), a wrong command that reads
+     * as a right one. (Numbers written with decimals, [n] and [e], write NaN as "NaN", which CommandCheck refuses at its line.)
+     */
+    private fun whole(v: Double, what: String): Long {
+        if (!v.isFinite()) error("$what of $v ${where()}: not a number, so no command can be written for it. " +
+            "This is plymeld's fault, or a value of the config's. The g-code stops here, unfinished: do not print it")
+        return Math.round(v)
+    }
+
+    /** Where the writer is, for a refusal: the line being written ([writing]) and its layer, or before the first line. */
+    private fun where(): String {
+        val p = writing ?: return "before the first line"
+        return "at the '${p.feature}' line starting at X${n(p.xy[0] / 1000.0)} Y${n(p.xy[1] / 1000.0)} on the layer at Z${n(writingZ)} (or the moves after it)"
+    }
 }
 
 /** A start template that sets relative extrusion: M83 as a command (not in a comment), at a line start. */
@@ -1058,3 +1354,12 @@ private val RELATIVE_E = Regex("(?m)^\\s*M83\\b")
 private val VISIBLE = setOf("Outer wall", "Top surface", "Bottom surface")
 /** Lines inside the part or removed after printing: as fast as the machine and the melt rate allow. */
 private val HIDDEN = setOf("Inner wall", "Sparse infill", "Internal solid infill", "Support", "Support interface")
+/** Lines the steady share does not cap ([KlipperWriter]'s lengthCap): purges, laid to push filament through at speeds of their own. */
+private val STEADY_EXEMPT = setOf("Prime tower", "Prime line")
+
+/** The length of [p] as laid, seen from above (mm): a loop closed back to its start. */
+private fun laidMm(p: Extrude): Double {
+    val m = p.xy.size / 2; var sum = 0.0
+    for (k in 0 until (if (p.closed) m else m - 1)) { val j = (k + 1) % m; sum += Math.hypot((p.xy[2 * j] - p.xy[2 * k]).toDouble(), (p.xy[2 * j + 1] - p.xy[2 * k + 1]).toDouble()) }
+    return sum / 1000.0
+}

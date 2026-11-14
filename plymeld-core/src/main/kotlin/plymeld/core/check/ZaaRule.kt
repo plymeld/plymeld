@@ -5,7 +5,8 @@ import plymeld.mesh.TriangleSoup
 
 /**
  * The checks' rule for a line printed below its flat layer (Z anti-aliasing, plan.faces.sloped_top.technique = "z_antialiasing"): made from the MODEL
- * (its parts as placed, [zBase] the bed's height in their frame: g-code Z = mesh Z - zBase) and the config (the tool's
+ * (the parts as placed of the objects that have it on, every part of each, [zBase] the bed's height in their frame: g-code
+ * Z = mesh Z - zBase; Expectations.forZaa) and the config (the thinnest lowered line, plymeld.core.ZAntiAlias.minMm's
  * thinnest layer [minMm], the slicing resolution), never from what the slicer planned. At (x, y) on the layer from bottom to
  * top (g-code Z), the line belongs at the model's top when that lies within the layer (the top of the run of solid
  * [PROBE_MM] above the layer's bottom, over the union of the parts, runs closer than [joinMm] joined), no lower than the

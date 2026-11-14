@@ -24,6 +24,9 @@ import java.io.Writer
  *                   merged by height: at each step, the object whose next layer tops lowest
  *   one at a time   each object complete, in the layout's order; between objects the head lifts
  *                   clear of every finished object before moving on
+ *
+ * A plate with an object on several filaments (or part settings) is put together per filament instead ([perPartProgram]):
+ * on each layer each filament lays its lines of every object, so the plate changes tool as often as one object would.
  */
 class Job(val layout: Layout, setup: Setup, private val version: String) {
     private var setup: Setup = setup.also(::check)
@@ -194,6 +197,71 @@ class Job(val layout: Layout, setup: Setup, private val version: String) {
         return PrintProgram(steps, slicers.map { it.printObject })
     }
 
+    /**
+     * A plate with an object laid per part (several filaments or part settings): every object's lines per filament
+     * ([IncrementalSlicer.laidForPlate]), put together layer by layer, each filament in turn laying its lines of every
+     * object (MultiFilament.plateSteps): one change per filament per layer however many objects, and one purge tower beside
+     * them all. The objects' layers are merged by height as [program] merges them: layers topping at one height, as thick,
+     * and alike in being a first layer are one layer of the plate; objects on other heights have layers of their own
+     * between. They print together, by height. Each object's lines are lowered onto its own top where it has Z anti-aliasing
+     * on (MultiFilament.Laid.zaa), at its own layers' tops and thicknesses.
+     */
+    private fun perPartProgram(): PrintProgram {
+        require(layout.order == ObjectOrder.TOGETHER) { "a plate with an object on several filaments prints its objects together, by height; one at a time is not written yet for it" }
+        val laid = slicers.map { it.laidForPlate(setup) }
+        // the plate's layers: at each step the objects whose next layer tops lowest, those as thick and alike in being a first
+        // layer together (the first such object's thickness); the rest at that height in a layer of their own after it
+        class Group(val topUm: Long, val heightUm: Long, val members: Map<Int, Int>)
+        val groups = ArrayList<Group>()
+        run {
+            val next = IntArray(laid.size)
+            fun top(k: Int) = laid[k].second[next[k]]
+            fun height(k: Int) = top(k) - (if (next[k] == 0) 0L else laid[k].second[next[k] - 1])
+            while (true) {
+                val k0 = laid.indices.filter { next[it] < laid[it].second.size }.minByOrNull { top(it) } ?: break
+                val t0 = top(k0); val h0 = height(k0); val first0 = next[k0] == 0
+                val members = LinkedHashMap<Int, Int>()
+                for (k in laid.indices) if (next[k] < laid[k].second.size && top(k) == t0 && height(k) == h0 && (next[k] == 0) == first0) members[k] = next[k]
+                for (k in members.keys) next[k]++
+                groups += Group(t0, h0, members)
+            }
+        }
+        val tops = LongArray(groups.size) { groups[it].topUm }
+        // each object's lines by the plate's layers (none where it has no layer)
+        fun <T> byPlate(k: Int, own: List<T>, none: (Int) -> T): List<T> = groups.mapIndexed { g, gr -> gr.members[k]?.let { own.getOrNull(it) } ?: none(g) }
+        val objects = laid.mapIndexed { k, (l, _) ->
+            MultiFilament.Laid(l.name, l.filaments.map { f -> MultiFilament.FilamentPlan(f.spool, emptyList(), byPlate(k, f.layers) { g -> LayerPlanOut(g, tops[g], groups[g].heightUm, emptyList()) }, f.unit) },
+                byPlate(k, l.support) { emptyList() }, byPlate(k, l.supportInterface) { emptyList() }, l.supportSpool, l.interfaceSpool, l.zaa) }
+        val first = layout.objectIndex[0]
+        val order = MultiFilament.layerOrder(tops.indices.map { i -> objects.flatMap { it.present(i) }.toSet() }, setup.spools.map { it.id }, setup.objects[first].spool)
+        val toolOf = { sp: String -> setup.spool(sp).tool }
+        // as for one object (IncrementalSlicer.multiProgram): the print starts with the tool of the first filament printed, and
+        // each tool holds the spool numbered as it
+        val startTool = order.firstOrNull { it.isNotEmpty() }?.first()?.let(toolOf) ?: setup.spool(setup.objects[first].spool).tool
+        val loadedOn = setup.spools.filter { it.id.removePrefix("spool ").trim().toIntOrNull() == it.tool + 1 }.associate { it.tool to it.id }
+        val perLayer = MultiFilament.purgesPerLayer(order, toolOf, startTool, loadedOn)
+        // the tower's settings are the plate's first object laid per part's; it stands beside every object
+        val k0 = slicers.indices.first { slicers[it].isMultiFilament(setup) }
+        // the tower has a layer per height: layers topping at one height share it, their purges together
+        val towerOf = MultiFilament.towerLayers(tops)
+        val towerTops = tops.filterIndexed { i, _ -> i == 0 || towerOf[i] != towerOf[i - 1] }.toLongArray()
+        val perTower = IntArray(towerTops.size).also { a -> for (i in perLayer.indices) a[towerOf[i]] += perLayer[i] }
+        val tower = if (perLayer.all { it == 0 }) null else slicers[k0].purgeTower(setup, perTower, towerTops, slicers.indices.filter { it != k0 }.map { slicers[it].printObject })
+        // temperatures per spool: the material x tool values of a part on that spool, of the first object that has one
+        val bySpool = setup.spools.associate { sp -> sp.id to layout.objectIndex.firstNotNullOfOrNull { oi ->
+            setup.objects[oi].parts.indexOfFirst { it.spool == sp.id }.takeIf { it >= 0 }?.let { SliceSettings.of(setup, plymeld.model.Context(oi, it)) }
+                ?: SliceSettings.of(setup, plymeld.model.Context(oi)).takeIf { setup.objects[oi].spool == sp.id && setup.objects[oi].parts.isEmpty() } } }
+        val tempOf = { sp: String, layer: Int -> bySpool[sp]?.let { if (layer == 0) it.nozzleTempFirstC else it.nozzleTempC } }
+        val ctx0 = plymeld.model.Context(layout.objectIndex[k0])
+        val drop = if (perLayer.all { it == 0 }) null else (plymeld.model.Resolver.resolveOrNull(setup, "hardware.filament.temperature.idle_drop", ctx0)?.value as Number?)?.toInt()
+        val idleOf = { sp: String, layer: Int -> tempOf(sp, layer)?.let { t -> drop?.takeIf { it > 0 }?.let { t - it } } }
+        val steps = MultiFilament.plateSteps(objects, order, toolOf, tops, startTool, tower, tempOf, idleOf, loadedOn = loadedOn, purgeInto = SliceSettings.of(setup, ctx0).purgeInto,
+            heightsUm = LongArray(groups.size) { groups[it].heightUm }, objectLayers = IntArray(groups.size) { groups[it].members.values.min() })
+        // each object's regions' caps on its own lines, in its own blocks (two copies of a model may have different regions); the
+        // tower's lines left alone
+        return PrintProgram(MotionRegions.applyByObject(steps, slicers.associate { it.printObject.name to it.regionBoxes }), slicers.map { it.printObject })
+    }
+
     /** A support column of object [k] printed first ([box]: the placed frame, µm): the support paths taken from its layers, by layer index. */
     private class Column(val k: Int, val box: Supports.Box) {
         val layers = HashMap<Int, Pair<LayerPlanOut, ArrayList<ToolPath>>>()
@@ -217,7 +285,7 @@ class Job(val layout: Layout, setup: Setup, private val version: String) {
         // one object laid part group by part group (several filaments or part settings): written as `slice` writes it, by its
         // own slicer (its parts' tool changes, MultiFilament), so the plan's full prediction reads the same g-code (
         // the plan refused such objects here, and the pose, technique, and curved-island decisions fell back to quick estimates
-        // or were skipped on them). On a plate of several objects such an object is still refused (program: planned layers)
+        // or were skipped on them). On a plate of several objects: perPartProgram
         if (slicers.size == 1 && slicers[0].isMultiFilament(setup)) {
             val sl = slicers[0]
             sl.pauses = pauses
@@ -228,13 +296,17 @@ class Job(val layout: Layout, setup: Setup, private val version: String) {
         val perObject =slicers.mapIndexed { k, sl -> sl.printObject.name to SliceSettings.of(setup, plymeld.model.Context(layout.objectIndex[k])) }.toMap()
         // layers following the surfaces land on each pause height (layers of one height ignore this)
         slicers.forEach { it.landingHeightsMm = pauses.filterIsInstance<PauseLock.AtZ>().map { p -> p.zMm } }
-        val (program, landed, swaps) = Pauses.insert(program(), pauses)
+        val (program, landed, swaps) = Pauses.insert(if (slicers.any { it.isMultiFilament(setup) }) perPartProgram() else program(), pauses)
         pausesLanded = landed; swapsLanded = swaps
         // a part printing with another tool than its object's own: that part's settings for the paths of that tool
         val perObjectTool = slicers.mapIndexed { k, sl -> IncrementalSlicer.toolSettings(setup, layout.objectIndex[k], sl.printObject.name) }
             .fold(emptyMap<Pair<String, Int>, SliceSettings>()) { a, b -> a + b }
-        val w = KlipperWriter(SliceSettings.of(setup), setup.foreignTemplateVars, version, perObject, perObjectTool = perObjectTool,
-            pressureAdvance = setup.pressureAdvanceByTool(), progress = progress)
+        // the next tool heated ahead of each change, as for one object (it was left out here: a plate of several objects
+        // waited at every change)
+        val plateSettings = SliceSettings.of(setup)
+        val preheat = layout.objectIndex.firstOrNull()?.let { IncrementalSlicer.preheatS(setup, plymeld.model.Context(it), plateSettings) }
+        val w = KlipperWriter(plateSettings, setup.foreignTemplateVars, version, perObject, perObjectTool = perObjectTool,
+            preheatS = preheat, pressureAdvance = setup.pressureAdvanceByTool(), progress = progress)
         w.write(program, out)
         out.flush()
         strings = w.strings

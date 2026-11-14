@@ -9,6 +9,132 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Added
+
+- Short walls slower: with `plan.mechanism.motion.short_walls.length` set, a wall line or loop shorter than it prints
+  no faster than `short_walls.speed` (bundled: half the visible lines' speed, a placeholder). With
+  `short_walls.full_length` set too, a wall between the two lengths prints no faster than a speed rising in a straight
+  line from `short_walls.speed` to its own, the whole wall at that one speed; unset, it is a single step at `length`. A
+  scarfed loop counts as long as its loop. Unset, nothing changes.
+- A line no faster than it can hold steady: with `plan.mechanism.motion.steady.share` set, every printed line is laid no
+  faster than the speed at which that share of its length is laid at a steady speed, starting and stopping at rest at
+  its acceleration: `sqrt(acceleration * length * (1 - share))`, the whole line at one speed. Not the purge tower, the
+  prime line, a lifted bridge's own speeds over air, or a line of no length (it lays nothing). Unset, nothing changes.
+- `plymeld printer send` refuses a file with a number a printer may refuse or act wrongly on, before anything is sent,
+  naming each line: a value that is not a finite number, a move at a feed rate of 0 or below, a temperature, fan, or
+  wait below 0, an acceleration of 0 or below. It reads the file it is given, sliced by any build or by hand.
+- `plan.layer.sliver.width`: on an object of several filaments, how thin an area of one filament is handed to the
+  filament beside it. Unset, it is the thinnest area the walls print, as before. The pre-print check allows a line that
+  much further from its own tool's part.
+- `plan.objects.gap`: the least distance between objects plymeld lays out on the bed. Unset, it is one outer wall
+  width, as before.
+- A note when an object stands on a small footprint with no brim: its first layer under
+  `plan.mechanism.adhesion.small_footprint.area` (100 mm², a placeholder), or the object taller than
+  `small_footprint.height_ratio` (3, a placeholder) times its first layer's narrower side. `plymeld slice` says so in
+  one line per object; nothing is refused or changed.
+- No wipe back along a line the head leaves below the line's highest point (a line or an edge strip laid sloping down
+  over a waved bridge): the wipe ran at the head's height, into the line where it rises. A waved bridge's last bead on
+  a layer is retracted and wiped before the layer change, on the layer it was laid on.
+- The wall order holds after a tool change: on a layer where the incoming filament lays no infill, all its inner walls
+  were laid ahead of its outer walls, whatever `plan.layer.walls.order` said (about half of a two-color nameplate's
+  layers printed inner walls first). Its lines now keep their planned order there; where it lays infill, the infill
+  still comes first and the walls follow in their order.
+- Several multi-color objects on one plate: an object on several filaments was sliced on its own or refused. On each
+  layer each filament now lays its lines of every object in turn, so the plate changes tool no more often than one of
+  its objects would, with one purge tower beside them all. Copies of an object (`model.object.<key>.count`) can each
+  take settings of their own (`plan.object."<key>#2".…`), for trying variations side by side. The objects print
+  together, by height, each on its own flat layers; one object at a time is not written for such a plate yet.
+- A section of a model printed on its own: `model.object.<key>.section.min` and `.max` give a box in the model's own
+  coordinates, and only what is inside it prints. For trying a detail of a large model (one face, a line of lettering)
+  without the hours of the whole. By default its cut faces are left open (`section.faces = "open"`): the whole model is
+  planned as it would be, and only its lines inside the box are laid, so the section prints as that part of the whole
+  print would, with no walls or top added where it is cut; on the bed it is laid out by its box, so several copies fit. With `faces = "closed"` the model itself is cut
+  and its cut faces closed, and the section prints as an object of its own, standing on the bed; a part of a 3MF with
+  nothing in the box is left out.
+- Renamed settings are read under their new names: a config file, a plan file, or a g-code's recorded settings
+  (`slice --from`) that uses a name a release changed reads as the new one, its value converted, with a warning naming
+  both. `plymeld migrate FILE...` rewrites config and plan files to the current names, comments and the rest kept, each
+  change recorded for `plymeld journal --undo`.
+- `plan.technique.scarf_seam.speed`, `.step` and `.flow`: a scarf seam's ramp and its closing pass at their own speed
+  (half the visible lines' by default) and flow (100 %), the ramp rising in steps no longer than `.step` (1 mm, the length
+  that was fixed before).
+- A machine model's toolheads may carry a heat time (`hardware.model.<key>.toolhead.<key>.heat.time`): a tool that sets
+  no `heat.time` of its own heats ahead of a change by its model's. The Creator 5's is 15 s (a placeholder), so its tool
+  changes heat the next nozzle 15 s of printing ahead instead of waiting for it.
+- Z anti-aliasing (`plan.faces.sloped_top.technique = "z_antialiasing"`) on an object printed in several filaments or laid
+  part by part (part settings), alone and on a plate; it was laid as laid there. Every filament's lines are lowered onto
+  the object's whole top, all its parts together, so a part's face that another part covers is not lowered onto; on a
+  plate each object as its own setting says, on its own layers. A lowered line is never thinner than the thinnest layer
+  (`hardware.tool.<key>.layer.height.min`) of any tool the object's parts print with.
+
+### Changed
+
+- Each contour's walls are laid in the order `plan.layer.walls.order` names (it replaces the old switch, `inner_first`):
+  `inner_outer_inner` by default, the walls past the one beside the outer wall, then the outer wall, then that one; so a
+  layer's first line, its un-retraction and the travel's arrival land on hidden walls, not on the visible face, and the
+  outer wall is still laid free. With fewer than three walls, or where the outer wall hangs out past the layer below,
+  inner first. The inner wall laid just before the outer one, and the one laid just after it, start nearest the outer
+  wall's start and end, so the head steps between them and the outer wall without a long travel. `inner_first` and `outer_first` (the order before) stay values.
+- An outer wall's restore after a retracted travel happens a line inside its start, and the head then moves onto the
+  start with nothing pushed (`hardware.filament.<key>.retract.return.inside`, on in the bundled filaments). Restored at the
+  start, the push left a blob on the visible face, where a scarf seam's ramp is thinnest.
+- After a wall loop, the outer wall or an inner one, the wipe steps a line inside it before running back along it, the
+  whole retraction spread over its moves (`retract.wipe.inward`, on in the bundled filaments), so its last ooze lands on
+  hidden material; no wipe follows a line lowered below its layer.
+- The bundled filaments wipe as they retract (`hardware.filament.<key>.retract.wipe.enabled = "true"`): the nozzle
+  retraces the path it just laid by the wipe distance (1 mm), so what oozes lands along the line, not in a blob where the
+  nozzle stopped. Off before; a filament of yours that sets it keeps its own.
+- Prints are looked at from their front by default (`plan.view_from = "front"`: the model's own front, its small-y side
+  as modeled, turned with its pose): quality's measures count its back less, and least-visible seams go there. Looked at
+  from all around (the default before), a plain round wall's seams stayed wherever a feature first put them, on a
+  nameplate's front face from its lettering to its top edge. A model with no front of its own sets `all_around`.
+- Tool and filament changes are made over where the incoming filament first prints (the purge tower when there is one),
+  after the outgoing tool leaves the part with its usual retraction, wipe, and lift and travels there. The change was
+  made standing on the outgoing filament's last line, which left ooze on the part: on a plate, every change stood on
+  the last object's face.
+- On an object of several parts, an outer wall whose seam is pressed against another part (that part within one line
+  width of the seam on the layer) gets a point seam, not a scarf: the seam is hidden there, and the scarf's ramp and its
+  closing pass ran on from it onto the faces that show. On a small island of one filament inside a letter of another,
+  the ramp ran from a seam hidden against the letter round the island's front corner and across its whole front, laying
+  a thin line and a second over it there, and the print showed a hump. Least-visible seams count such a seam as the
+  point seam it is laid as, so they no longer avoid a covered spot because a scarf would be better elsewhere.
+  `plan.technique.scarf_seam.covered = "scarf"` (per object or part too) scarfs a covered seam as before; seams that are
+  not covered, and every seam of an object of one part, are laid as they were.
+
+### Fixed
+
+- A dead feed: with `plan.mechanism.motion.steady.share` set, a line of no length (a thin area's center line whose
+  points come out as one, at sharp tips) was capped to a speed of 0 and written `G1 F0`, at which a printer stopped the
+  print, beside a preheat comment of "NaN s"; and the pre-print check passed the file. Such a line is no longer capped.
+  The writer now fails the slice at any line holding such a number (the same rule as the send's), the templates' lines
+  included, rather than write it; a feed above 0 that rounds to F0 is written F1. The pre-print check refuses such a
+  line too, and a NaN or Infinity where plymeld's comments hold a number.
+- On an object of several parts, what counts as another part beside a part's lines (for a seam pressed against one, and
+  for a speck of outer wall left out in front of one) is the other parts as laid. It was the object's outline less the
+  part, which is closed (`method.slicing.close_gaps`) and so left hairline slivers along a round open edge that read as
+  another part there: 18 of the 97 points of a round base's open outer wall.
+
+- A region's speed and acceleration caps (`mechanism.motion.speed.max` and `.acceleration.max` under
+  `plan.object.<key>.region.<key>`) apply to an object printed in several filaments, alone or on a plate, and to the other
+  objects on such a plate; they were ignored there.
+- The step from an inner wall onto the outer wall's start, and from it onto the wall beside it, goes unretracted only
+  within two line widths: in a letter's narrow stroke, steps of 2 to 5 mm crossed the pocket's edge and drew strands.
+- A plate of several objects heats the next tool ahead of a change as one object does (`hardware.tool.<key>.heat.time`);
+  it waited at every change.
+- A retraction's wipe is written under the feature it wipes: the next path's `;TYPE:` and `;WIDTH:` lines came first, so
+  a wipe along an inner wall was labelled as the outer wall that followed.
+- A scarf seam is judged by its whole ramp, not its start alone, where it is placed and in the seam measure: the seam
+  goes where the most-seen point of its ramp is seen least. A nameplate's seams started hidden in a letter's pocket, and
+  their 10 mm ramps ran out onto the face beside the letter. (A seam another part covers is now laid, and judged, as a
+  point seam: under Changed.)
+- Least-visible seams are planned up the whole wall, not layer by layer. Each layer's seam stayed in line with the one
+  below rather than pay the move to a better place on its own, so a seam drawn to the front by a feature low on the
+  wall ran up the front face above it to the top. Planned over all the layers a loop continues through, the move is
+  paid once where it costs least: on a round column with a slot in its front, the 118 seams above the slot went from
+  the front face to the back, in one line. Least-visible placement also counts a scarf seam's blemish as the seam
+  measure does (`method.quality.seam.scarf_share` of a point seam's); counted as a point seam's, a move to a less-seen
+  point looked worth more than it was.
+
 ## [0.20261109.1] - 2026-11-09
 
 ### Added

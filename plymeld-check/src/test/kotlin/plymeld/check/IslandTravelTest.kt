@@ -37,7 +37,7 @@ class IslandTravelTest : StringSpec({
         "hardware.machine.m.loadout.plate" to "pei", "hardware.machine.m.loadout.tool.t1.filament" to "pla-generic",
         "plan.mechanism.adhesion.prime.enabled" to false,
         "plan.layer.walls.thickness" to "0.88 mm", "plan.layer.walls.outer.line.width" to "0.44 mm", "plan.layer.walls.inner.line.width" to "0.44 mm",
-        "plan.layer.walls.style" to "fixed_width",
+        "plan.layer.walls.style" to "fixed_width", "plan.layer.walls.order" to "outer_first",
         // every travel retracts unless the planner says otherwise: the hop between the loops (~0.6 mm) is shorter than the
         // bundled filament's hardware.filament.retract.travel.min, so without this the check could not fail (seen: the control passed
         // with the setting off)
@@ -100,7 +100,7 @@ class IslandTravelTest : StringSpec({
             // both islands are there, each with its two loops
             (a.count { it.feature == "Outer wall" } == 1 && a.count { it.feature == "Inner wall" } == 1) shouldBe true
             (b.count { it.feature == "Outer wall" } == 1 && b.count { it.feature == "Inner wall" } == 1) shouldBe true
-            // walls first, outer then inner (plan.layer.walls.inner_first = false): the inner loop's run follows the outer loop's
+            // walls first, outer then inner (plan.layer.walls.order = outer_first): the inner loop's run follows the outer loop's
             val ia = a.indexOfFirst { it.feature == "Inner wall" }
             a[ia - 1].feature shouldBe "Outer wall"
             a[ia].retracted shouldBe false

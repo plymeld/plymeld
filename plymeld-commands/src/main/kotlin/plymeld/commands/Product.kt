@@ -65,9 +65,17 @@ class Product(given: ConfigStack, modelFiles: List<Path>, machine: String? = nul
 
     init {
         inputs.mapNotNull { it.note }.distinct().forEach(say)
-        val models = inputs.map { ModelObject(it.objectName, it.partNames, it.partSlots, it.source) }
+        // a section (model.object.<key>.section) is in the config, and what it leaves of the model is what the config is about:
+        // the config is read once over the models as their files give them, to find the sections; with one set, the models
+        // are cut and the config read again over the objects as cut (a part with nothing in the box is not an object's part)
+        val effective: List<ModelInput>
+        val models: List<ModelObject>
         try {
-            config = Config(stack, models, machine)
+            val asRead = inputs.map { ModelObject(it.objectName, it.partNames, it.partSlots, it.source) }
+            val first = Config(stack, asRead, machine)
+            effective = inputs.mapIndexed { i, input -> first.objects.firstOrNull { it.model === asRead[i] }?.let { sectioned(first, it, input) } ?: input }
+            if (effective.indices.all { effective[it] === inputs[it] }) { models = asRead; config = first }
+            else { models = effective.map { ModelObject(it.objectName, it.partNames, it.partSlots, it.source) }; config = Config(stack, models, machine) }
             result = ConfigSetup.setup(config)
         } catch (e: ConfigError) {
             throw UsageError("the config has ${e.problems.size} problem(s):\n" + e.problems.joinToString("\n") { "  $it" })
@@ -100,7 +108,7 @@ class Product(given: ConfigStack, modelFiles: List<Path>, machine: String? = nul
         }
         result.notes.forEach { say("config: $it") }
         result.warnings.forEach { say("warning: $it") }
-        plate = config.objects.map { o -> o to inputs[models.indexOf(o.model)] }
+        plate = config.objects.map { o -> o to effective[models.indexOf(o.model)] }
         val flavor = plymeld.model.Resolver.resolve(result.setup, "hardware.machine.firmware.flavor").value
         if (flavor != "klipper") throw UsageError("only klipper g-code is written so far (hardware.machine.<key>.firmware.flavor = '$flavor')")
     }
@@ -118,6 +126,7 @@ class Product(given: ConfigStack, modelFiles: List<Path>, machine: String? = nul
         // flat layers are the only technique the search tries, so allowing only them locks nothing
         return Plan.Companion.Overrides(pose = pose, technique = allowed?.singleOrNull()?.takeIf { it != PrintTechnique.FLAT_LAYERS }, order = order,
             sequenceAsGiven = plan("objects.order") == "as_given",
+            gapMm = config.entry(listOf("plan", "objects", "gap"))?.let { config.quantity(it, Dimension.LENGTH, Site()) },
             objects = plate.map { (o, _) -> locks(o) },
             decideLayerHeight = true, decidedInfillAngle = plate.map { (o, _) -> !lockedInfillAngle(o) },
             weighedSurfaceTechniques = plate.map { (o, _) -> unlockedSurfaceTechniques(o) })
@@ -256,7 +265,23 @@ class Product(given: ConfigStack, modelFiles: List<Path>, machine: String? = nul
                         support = e("support")?.value as String?)
                 } catch (x: IllegalArgumentException) { throw UsageError(x.message ?: "bad region") }
             }
-        }.distinctBy { it.key }
+        }.distinctBy { it.key } + listOfNotNull(openSection(o))
+    }
+
+    /** [o]'s section left open (`model.object.<key>.section`, faces unset or "open") as the region that carries its box to the slice; null with none, or a closed one. */
+    private fun openSection(o: plymeld.config.PlateObject): plymeld.core.decide.Region? {
+        val head = listOf("model", "object", o.base, "section")
+        val b = sectionBox(config, head) ?: return null
+        if (config.entry(head + "faces")?.value == "closed") return null
+        return plymeld.core.decide.Region("(section)", b, null, null, null, null, null, ConfigFiles.pathText(head), section = true)
+    }
+
+    /** The box of a section under [head] in [cfg] (x0, x1, y0, y1, z0, z1 mm, the model's own coordinates); null with none set. */
+    private fun sectionBox(cfg: Config, head: List<String>): DoubleArray? {
+        if (cfg.entry(head + "min") == null && cfg.entry(head + "max") == null) return null
+        val b = box(head, listOfNotNull(cfg.entry(head + "min"), cfg.entry(head + "max")))
+        if (!(b[0] < b[1] && b[2] < b[3] && b[4] < b[5])) throw UsageError("${ConfigFiles.pathText(head)}: each of min must be below max (x ${b[0]}..${b[1]}, y ${b[2]}..${b[3]}, z ${b[4]}..${b[5]} mm)")
+        return b
     }
 
     /** The curved islands a plan locks for [o] (`plan.object.<key>.island.<key>`: x and y required, start and layer.height optional). */
@@ -270,6 +295,36 @@ class Product(given: ConfigStack, modelFiles: List<Path>, machine: String? = nul
             plymeld.core.decide.CurvedIsland.Lock(n, len("x") ?: throw UsageError("$head has no x (the point on its cap, from the posed object's corner)"),
                 len("y") ?: throw UsageError("$head has no y (the point on its cap, from the posed object's corner)"), len("start"), len("layer.height"))
         }
+    }
+
+    /**
+     * [input] cut to its object's closed section (`model.object.<key>.section.min` / `.max` in [cfg] with faces = "closed",
+     * by the object's key: every copy of it), each part's cut faces closed (SectionCut), the parts with nothing in the box
+     * left out; [input] itself with none set, or with a section left open (the model stays whole: [openSection] carries its
+     * box to the slice). Said once: the box, how much of the model is in it, and the parts left out. Refused when nothing of
+     * the object lies in the box, or the model is not closed where the box cuts it.
+     */
+    private fun sectioned(cfg: Config, o: plymeld.config.PlateObject, input: ModelInput): ModelInput {
+        val head = listOf("model", "object", o.base, "section")
+        val b = sectionBox(cfg, head) ?: return input
+        fun f(v: Double) = plymeld.core.decide.Control.fmt(v)
+        val all = input.parts.map { it.bounds() }
+        val whole = "the model spans x ${f(all.minOf { it[0] })}..${f(all.maxOf { it[3] })}, y ${f(all.minOf { it[1] })}..${f(all.maxOf { it[4] })}, z ${f(all.minOf { it[2] })}..${f(all.maxOf { it[5] })} mm"
+        if (cfg.entry(head + "faces")?.value != "closed") {
+            say("'${o.base}': only its section prints, x ${f(b[0])}..${f(b[1])}, y ${f(b[2])}..${f(b[3])} mm up to z ${f(b[5])} mm in the model's own coordinates " +
+                "(${ConfigFiles.pathText(head)}; $whole), its cut faces left open: the whole object is planned, and its lines inside the box are laid")
+            return input
+        }
+        synchronized(sectionCache) { sectionCache.firstOrNull { it.first === input && it.second.contentEquals(b) }?.let { return it.third } }
+        val cut = try { input.parts.map { plymeld.mesh.SectionCut.cut(it, b) } }
+            catch (x: IllegalArgumentException) { throw UsageError("'${o.base}' (${ConfigFiles.pathText(head)}): ${x.message}") }
+        val keep = cut.indices.filter { cut[it].count > 0 }
+        if (keep.isEmpty()) throw UsageError("${ConfigFiles.pathText(head)}: nothing of '${o.base}' lies in the box x ${f(b[0])}..${f(b[1])}, y ${f(b[2])}..${f(b[3])}, z ${f(b[4])}..${f(b[5])} mm ($whole)")
+        val left = input.partNames.filterIndexed { i, _ -> i !in keep }
+        say("'${o.base}': only its section prints, x ${f(b[0])}..${f(b[1])}, y ${f(b[2])}..${f(b[3])}, z ${f(b[4])}..${f(b[5])} mm in the model's own coordinates " +
+            "(${ConfigFiles.pathText(head)}; $whole)" + (if (left.isEmpty()) "" else "; nothing of ${left.joinToString { "'$it'" }} is in it"))
+        return ModelInput(keep.map { cut[it] }, input.objectName, input.note, input.settings, input.source, keep.map { input.partNames[it] }, keep.map { input.partSlots[it] }, keep.map { input.partSettings[it] })
+            .also { r -> synchronized(sectionCache) { if (sectionCache.size >= 4) sectionCache.removeAt(0); sectionCache.add(Triple(input, b, r)) } }
     }
 
     /** The six sides of a box under [head] (`<head>.min` / `.max`, its corners as points), x0, x1, y0, y1, z0, z1; or a UsageError naming what is missing. */
@@ -454,7 +509,7 @@ class Product(given: ConfigStack, modelFiles: List<Path>, machine: String? = nul
             val v = result.setup.intents.getValue(plate[k].first.key)
             val c = d.value.conditions
             val why = "decided: bond-first cooling (" + (if (d.overridden) "plan.bond_cooling = on" else "weighed by the job's weights") + ")"
-            v["hardware.filament.cooling.fan"] = plymeld.model.Sourced(c.fanPct, why)
+            v["hardware.filament.cooling.fan"] = plymeld.model.Sourced(c.fanPct / 100, why)   // the setting is a share
             v["hardware.filament.cooling.layer.time.min"] = plymeld.model.Sourced(c.minLayerTimeS, why)
             v["hardware.filament.temperature.print"] = plymeld.model.Sourced(c.nozzleC, why)
         }
@@ -679,3 +734,6 @@ class Product(given: ConfigStack, modelFiles: List<Path>, machine: String? = nul
         }
     }
 }
+
+/** The last few models cut to a section ([Product]'s sectioned): the model as read, the box, the cut model; a job opened again (the window) cuts it once. */
+private val sectionCache = ArrayList<Triple<ModelInput, DoubleArray, ModelInput>>()

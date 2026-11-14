@@ -100,8 +100,48 @@ class OutputCheckTest : StringSpec({
         GcodeCheck.check(file(tail = "G1 E-0.8 F2400\nG1 X150 Y150 F6000\nM104 S0\n"), expect).any { it.contains("not above the print") } shouldBe true
     }
 
+    "the last line's last segment written with E0 (its filament rounded to nothing) is part of the line; control: the same move without E is a travel" {
+        // a micron on along the infill line's end, its share of filament rounded to E0, before the end lifts as usual
+        GcodeCheck.check(file(tail = "G1 X109.001 Y105 E0\nG1 E-0.8 F2400\nG1 Z2 F600\nG1 X150 Y150 F6000\nM104 S0\n"), expect).shouldBeEmpty()
+        GcodeCheck.check(file(tail = "G1 X109.001 Y105\nG1 E-0.8 F2400\nG1 Z2 F600\nG1 X150 Y150 F6000\nM104 S0\n"), expect)
+            .any { it.contains("not above the print") } shouldBe true
+    }
+
     "control: printing faster than the machine prints" {
         GcodeCheck.check(file().replaceFirst("G1 F3000", "G1 F30000"), expect).any { it.contains("over the machine's 300") } shouldBe true
+    }
+
+    // A feed rate of 0 stops the print on the printer (a zero-length line under the steady share's cap was written G1 F0, and
+    // the job died there). Controls: the same file with F0 and with a feed that is not a number is refused; as written (F3000), it passes.
+    "a move at F0 is refused, saying why; control: the same file at a feed above 0 passes" {
+        GcodeCheck.check(file(), expect).none { it.contains("feed rate") } shouldBe true
+        val zero = GcodeCheck.check(file().replaceFirst("G1 F3000", "G1 F0"), expect)
+        println(zero.first { it.contains("F0") })
+        zero.any { it.startsWith("line ") && it.contains("'G1 F0'") && it.contains("a printer stops the print at a feed rate of 0 or below") } shouldBe true
+        GcodeCheck.check(file().replaceFirst("G1 F3000", "G1 F-60"), expect).any { it.contains("a printer stops the print") } shouldBe true
+        GcodeCheck.check(file().replaceFirst("G1 F3000", "G1 Ffast"), expect).any { it.contains("'Ffast' is not a number") } shouldBe true
+        // the feed on a move that also moves (a travel's) is read the same way
+        GcodeCheck.check(file().replaceFirst("G1 X101 Y105 F18000", "G1 X101 Y105 F0"), expect).any { it.contains("'G1 X101 Y105 F0'") } shouldBe true
+    }
+
+    // NaN or Infinity where a number belongs: in a command (a printer cannot read it) or in plymeld's comment (a broken estimate,
+    // as "NaN s of printing" was beside the F0). The word Infinity in a name, not where a number stands, is not one.
+    "NaN or Infinity in a command's parameter or a comment's number is refused; control: none, or Infinity in a name, passes" {
+        fun withLine(l: String) = file().replaceFirst("M109 S210\n", "M109 S210\n$l\n")
+        GcodeCheck.check(withLine("M104 S210 T1 ; preheat, 12 s of printing before the change"), expect).shouldBeEmpty()
+        GcodeCheck.check(withLine("M104 S210 T1 ; preheat, NaN s of printing before the change"), expect)
+            .any { it.contains("one of its estimates is broken") } shouldBe true
+        GcodeCheck.check(withLine("M104 S210 T1 ; preheat, Infinity s of printing before the change"), expect)
+            .any { it.contains("one of its estimates is broken") } shouldBe true
+        GcodeCheck.check(withLine("M104 SNaN T1"), expect).any { it.contains("'SNaN' is not a finite number") } shouldBe true
+        GcodeCheck.check(withLine("SET_VELOCITY_LIMIT ACCEL=Infinity"), expect).any { it.contains("'ACCEL=Infinity' is not a finite number") } shouldBe true
+        GcodeCheck.check(file().replaceFirst("G1 X109.78 Y100.22 E0.3", "G1 X109.78 Y100.22 ENaN"), expect).any { it.contains("'ENaN' is not a finite number") } shouldBe true
+        GcodeCheck.check(file().replaceFirst("; Z_HEIGHT: 0.4", "; Z_HEIGHT: NaN"), expect).any { it.contains("one of its estimates is broken") } shouldBe true
+        // a name: an object called "Infinity cube" in comments, and in a command's NAME=
+        GcodeCheck.check(withLine("; object start Infinity cube\n; PAUSE: the Infinity cube's magnets"), expect).shouldBeEmpty()
+        GcodeCheck.check(withLine("EXCLUDE_OBJECT_DEFINE NAME=Infinity-cube_id_0 CENTER=105,105 POLYGON=[[100,100],[110,100],[110,110]]"), expect).shouldBeEmpty()
+        // the source block at the end is the config as text, not read
+        GcodeCheck.check(file() + "; PLYMELD_SOURCE_BLOCK_START\n; note = \"NaN\"\n; PLYMELD_SOURCE_BLOCK_END\n", expect).shouldBeEmpty()
     }
 
     "control: the start template's lines missing" {
@@ -144,6 +184,17 @@ class OutputCheckTest : StringSpec({
 
     "a scarf ramp from a quarter of the layer up passes when the config scarfs outer walls (scarf.start 0.25)" {
         GcodeCheck.check(file(layer2 = scarfLayer(0.4, 0.25)), scarfExpect).shouldBeEmpty()
+    }
+    // with Z anti-aliasing on too: a ramp's piece whose plastic rounds to nothing (E0) is the ramp's, not a line lowered
+    // onto the model's top (the box has no top within these layers, so the anti-aliasing rule would refuse it)
+    val zaaRule = plymeld.core.check.ZaaRule(model, 0.0, 0.04, 0.0125, 0.0)
+    val scarfZaaExpect = GcodeCheck.Expect(0.0, 0.0, 256.0, 256.0, 256.0, maxPrintSpeed = 300.0, maxTravelSpeed = 500.0, maxAccel = 10000.0,
+        retractLengths = setOf(0.8), startTemplate = start, endTemplate = end, scarfStart = 0.25, zaa = zaaRule)
+    "with Z anti-aliasing on, a scarf ramp's E0 piece within the ramp passes; control: an E0 piece under the ramp's lowest is refused" {
+        val ramp = scarfLayer(0.4, 0.25).replace("G1 X105 Y100.22 Z0.325 E0.08\n", "G1 X105 Y100.22 Z0.325 E0.08\nG1 X105.001 Y100.22 E0\n")
+        GcodeCheck.check(file(layer2 = ramp), scarfZaaExpect).shouldBeEmpty()
+        val under = scarfLayer(0.4, 0.25).replace("G1 X105 Y100.22 Z0.325 E0.08\n", "G1 X105 Y100.22 Z0.325 E0.08\nG1 Z0.22\nG1 X105.001 Y100.22 E0\nG1 Z0.325\n")
+        GcodeCheck.check(file(layer2 = under), scarfZaaExpect).any { it.contains("off the model's top") } shouldBe true
     }
     "control: the same ramp without a scarf in the config is printing below the layer" {
         GcodeCheck.check(file(layer2 = scarfLayer(0.4, 0.25)), expect).any { it.contains("printing at Z0.325 on the layer at 0.400") } shouldBe true

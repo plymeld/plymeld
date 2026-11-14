@@ -40,6 +40,11 @@ config files (`plymeld schema -o plymeld.schema.json`).
 `plymeld edit FILE PATH=VALUE...` writes values into a config file and keeps the rest of it as it was: comments,
 order, and the other values. With `--journal`, the edit is recorded, and `plymeld journal --undo` takes it back.
 
+When a release renames a setting, plymeld still reads the old name, as the new one, and warns that it did; a g-code's
+recorded settings (`slice --from`) are read the same way. `plymeld migrate FILE...` rewrites your config and plan
+files to the current names, comments and the rest as they were, and records each file it changes for
+`plymeld journal --undo`.
+
 ## Slice
 
 ```
@@ -66,6 +71,38 @@ among your config files. `plymeld slice --explain` prints how each object's tech
 
 A g-code file that `plymeld slice` wrote records the config and plan it was made from: `plymeld slice --from
 OLD.gcode -m bracket.stl -o NEW.gcode` slices again from them, with any `-cf` and `-cv` added.
+
+## Print a section of a model
+
+To try a detail of a large model without printing all of it, give the object a section: a box in the model file's own
+coordinates. Only what is inside the box prints.
+
+```toml
+[model.object."nameplate.3mf".section]
+min = "38 -30 -1 mm"                    # the box's corners; a side beyond the model cuts nothing
+max = "96 -9 12.5 mm"
+faces = "open"                          # the default; "closed" for a section printed as an object of its own
+```
+
+`faces` says what the section's cut faces are:
+
+- `open` (the default): the section prints as that part of the whole print would. plymeld plans and poses the whole
+  model as it would without the section, then lays only the lines inside the box, up to the box's top: the same walls,
+  seams, infill, speeds, and filament changes. On the bed the object is laid out by its box, what prints of it, so
+  several copies fit where the whole models would not. Nothing is added where the model is
+  cut: no walls up the cut sides and no top surface on the last layer, so the infill shows there. A line the box cuts
+  ends on the box's side. The box must reach down to the model's bottom, and the object must print on flat layers
+  (no curved layers or lifted bridges).
+- `closed`: plymeld cuts the model itself to the box as it reads it and closes the cut faces, so the section is planned,
+  sliced, and checked as an object of its own, standing on the bed, with walls on its cut sides and a top surface where
+  it is cut off. A part of a 3MF with nothing in the box is left out. The model must be a closed surface where the box
+  cuts it. Use it for a section from higher up the model, or one that should print as a solid piece.
+
+`plymeld slice` says what the model spans when it reads a section, and a closed section names the model's extent when
+the box misses it. Like any object, a section that stands on a small footprint with no brim gets a note (its first
+layer under `plan.mechanism.adhesion.small_footprint.area`, or taller than `small_footprint.height_ratio` times its first
+layer's narrower side): a strip of a model can come loose from the bed where the whole model would not. An open section still takes each layer's share of the print's fixed costs (a purge tower's layer,
+a filament change), and its layers are shorter than the whole model's, so they cool less between layers.
 
 ## Settings for one object, part, or region
 

@@ -129,7 +129,8 @@ class PrinterFilesCommand : PrinterConfigCommand("files") {
 /**
  * `plymeld printer send FILE [--name NAME] [--print [--level | --no-level]] [--replace]`: upload FILE, confirm it by the
  * printer's own file list where the API has one, and with `--print` start it, levelling the bed first where asked (the
- * option, else the machine's `connection.start.level`) and the API takes that request. Refused when a file of that name is
+ * option, else the machine's `connection.start.level`) and the API takes that request. Refused, before anything is sent,
+ * when a command in FILE holds a number a printer may refuse or act wrongly on (BadNumbers). Refused when a file of that name is
  * already on the printer (unless `--replace`), and when the printer is printing, paused, or busy (where its state can be
  * read). Sends only what it says.
  */
@@ -143,10 +144,17 @@ class PrinterSendCommand : PrinterConfigCommand("send") {
     override fun help(context: com.github.ajalt.clikt.core.Context) =
         "Upload FILE to the printer and confirm it by the printer's own file list (never by the reply code); with --print, start it, telling the printer which slot prints each tool the file uses where its API takes that (flashforge-http: materialMappings, from the machine's loadout), and to level the bed first with --level or the machine's connection.start.level (flashforge-http only). " +
             "What the printer does by itself as a print starts (homing, heating, levelling) is its model's (hardware.model.<key>.notes: a Flashforge Creator 5 homes and levels by itself, levelling when the start asks for it); the rest is the file's start g-code. " +
+            "Refused, before anything is sent, when a command in FILE holds a number a printer may refuse or act wrongly on (one that is not a finite number, a move at a feed rate of 0 or below, a temperature, fan, or wait below 0, an acceleration of 0 or below), naming each line. " +
             "Refused when the printer already has a file of that name (--replace to overwrite), is printing, paused, or busy, or (--print) when a tool the file uses has no filament loaded in the machine's loadout. " +
             "With --print, what the printer reports loaded is compared with the machine's loadout where its API reports one: a mismatch warns, one line per position, and the print goes on. " +
             "Sends the list request, the upload (flashforge-http: POST /uploadGcode; moonraker: POST /server/files/upload), the list again, and with --print one loadout request where the API has one, then the start (POST /printGcode; POST /printer/print/start)."
     override fun run() {
+        // the last gate before a printer: a command with a number its firmware may refuse or act wrongly on (BadNumbers), in a
+        // file of any origin (an older build's, another slicer's, edited by hand), refuses the send before anything else
+        val bad = java.nio.file.Files.newBufferedReader(file, Charsets.ISO_8859_1).useLines { plymeld.gcode.BadNumbers.scan(it, comments = false, limit = 10) }
+        if (bad.isNotEmpty()) error("$file is not sent: ${if (bad.size >= 10) "10 or more lines hold" else "${bad.size} line(s) hold"} a number a printer may refuse or act wrongly on " +
+            "(a dead job can leave a printer heated, or its head standing on the print):\n" + bad.joinToString("\n") { (ln, s) -> "  line $ln: $s" } +
+            "\nSlice it again (a plymeld that writes such a line fails the slice instead), or correct those lines.")
         val c = config()
         val p = printer(c)
         need(p, Capability.UPLOAD)

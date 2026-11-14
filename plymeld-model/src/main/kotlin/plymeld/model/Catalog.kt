@@ -15,7 +15,6 @@ import plymeld.model.Kind.COUNT
 import plymeld.model.Kind.FLOW
 import plymeld.model.Kind.FRACTION
 import plymeld.model.Kind.LENGTH
-import plymeld.model.Kind.PERCENT
 import plymeld.model.Kind.SPEED
 import plymeld.model.Kind.TEMP
 import plymeld.model.Kind.TEXT
@@ -94,7 +93,7 @@ object Catalog {
         s("hardware.filament.cooling.layer.time.min", MATERIAL, TIME, "a layer should take at least this long, so it cools")
         s("hardware.filament.cooling.speed.min", MATERIAL, SPEED, "never slow below this for layer cooling")
         s("hardware.filament.cooling.fan_off_layers", MATERIAL, COUNT, "part fan stays off for this many first layers")
-        s("hardware.filament.cooling.fan", MATERIAL, PERCENT, "part fan speed once it is on")
+        s("hardware.filament.cooling.fan", MATERIAL, FRACTION, "part fan speed once it is on, a share of its full speed")
         // ---- spool: one physical reel
         s("hardware.filament.color", SPOOL, TEXT, "filament color as #RRGGBB")
         // ---- material x tool: values that depend on both the plastic and the hotend
@@ -107,7 +106,7 @@ object Catalog {
         s("hardware.filament.melt.flow.max", MATERIAL_TOOL, FLOW, "fastest the hotend can melt this plastic; every move is capped to it")
         s("hardware.filament.bridge.span.max", MATERIAL_TOOL, LENGTH, "the longest span this filament bridges cleanly between two anchors (mm): a bridge longer than this needs support under its middle")
         s("hardware.filament.overhang.share", MATERIAL_TOOL, FRACTION, "how far this filament's outer wall line may hang past the line below and hold, as a share of the line's width, cooled as it prints in this tool; the flattest face that holds follows from each layer's height (flatter faces get support, with support on, and count as unsupported in planning)")
-        s("hardware.filament.overhang.fan", MATERIAL_TOOL, PERCENT, "part fan while a line hangs past the one below: the cooling hardware.filament.overhang.share holds at; the fan returns to the layer's own after")
+        s("hardware.filament.overhang.fan", MATERIAL_TOOL, FRACTION, "part fan (a share of its full speed) while a line hangs past the one below: the cooling hardware.filament.overhang.share holds at; the fan returns to the layer's own after")
         s("hardware.filament.overhang.speed", MATERIAL_TOOL, SPEED, "fastest a line that hangs past the one below prints: the speed hardware.filament.overhang.share holds at; unset = not known (only the slow-down graded toward the bridge speed)")
         s("hardware.filament.retract.length", MATERIAL_TOOL, LENGTH, "filament pulled back before a travel")
         s("hardware.filament.retract.speed", MATERIAL_TOOL, SPEED, "retraction speed")
@@ -117,6 +116,8 @@ object Catalog {
         s("hardware.filament.retract.travel.min", MATERIAL_TOOL, LENGTH, "travels shorter than this do not retract")
         // the lift goes with the retraction (it was the plan's hardware.filament.retract.z_hop, a tool setting)
         s("hardware.filament.retract.z_hop", MATERIAL_TOOL, LENGTH, "lift the nozzle this much for a travel that retracts")
+        s("hardware.filament.retract.return.inside", MATERIAL_TOOL, BOOL, "an outer wall's restore after a retracted travel a line inside its start, then onto the start with nothing pushed")
+        s("hardware.filament.retract.wipe.inward", MATERIAL_TOOL, BOOL, "a wall loop's wipe a line inside it, then back along it, the whole retraction spread over it")
         s("hardware.filament.retract.wipe.enabled", MATERIAL_TOOL, BOOL, "wipe the nozzle along the path while retracting")
         s("hardware.filament.retract.wipe.distance", MATERIAL_TOOL, LENGTH, "length of the wipe")
         s("hardware.filament.retract.wipe.speed", MATERIAL_TOOL, SPEED, "speed of the wipe")
@@ -243,19 +244,24 @@ object Catalog {
         s("plan.layer.walls.transition_length", INTENT, LENGTH, "variable-width walls: center lines stay continuous through thinner stretches and pinches up to this long (wall_transition_length; read only with variable_width)")
         s("plan.layer.walls.outer.line.width", INTENT, LENGTH, "outer wall line width")
         s("plan.layer.walls.inner.line.width", INTENT, LENGTH, "inner wall line width")
-        s("plan.layer.walls.inner_first", INTENT, BOOL, "print inner walls before the outer wall")
+        s("plan.layer.walls.order", INTENT, CHOICE, "the order each contour's walls are laid in: outer_first, inner_first, or inner_outer_inner",
+            "inner_outer_inner", "a layer's first line, its un-retraction and the travel's arrival land on hidden walls, not on the visible face, and the outer wall is still laid free (inner_first where there are fewer than three walls or the outer wall overhangs)")
         s("plan.seam", INTENT, CHOICE, "where wall loops start, a scarf seam's too (locked, or decided): corners (at a corner when the loop has one, inside corners first, each layer's seam nearest the one below), back (the back-most point) or least_visible (the point the seam measure counts least: its visibility, from the sampled viewing directions weighed by the quadrant they look from (method.quality.visibility.quadrant.*, around plan.view_from) and what hides it nearby (the object's other parts included), or an underside, times method.quality.seam.corner_share in a corner; ties to the point the viewer sees least first (a turned-away face before a front corner), then to a corner, then to the seam below, then the back); either way never on an edge hanging over the layer below when the loop has another place")
         s("plan.view_from", INTENT, CHOICE,
             "where the finished print is looked at from, for quality's measures (the visibility map): all_around (no face counts as turned away), front, back, left, right, above: the model's own sides as given (front = its small-y side, the side toward the printer's door when it prints as given), turned with whatever pose the plan gives it; a face turned away from the viewer counts method.quality.visibility.away by how squarely it faces away; a seam's viewing directions count by the quadrant they look from (method.quality.visibility.quadrant.*: front, left, right, back as the viewer sees them; alike with all_around or above); per object plan.object.<key>.view_from",
-            "all_around", "every face counts as seen from somewhere unless the job says where the print is looked at from (plymeld's choice)")
+            "front", "most prints have a front, the side they are modeled facing: looked at from all around, a plain round wall's seams stayed in line wherever a feature first put them, on a nameplate's front face; a model with no front of its own sets all_around (plymeld's choice)")
         s("plan.technique.corner_seam.corner_angle", INTENT, ANGLE, "the smallest turn of a wall loop that counts as a corner for its seam")
-        s("plan.technique.scarf_seam.where", INTENT, CHOICE, "scarf seams on outer walls (the loop starts thin and low, rising to the layer over plan.technique.scarf_seam.length, and ends re-printing that stretch thinning to nothing): none (plan.technique.scarf_seam.enabled false), smooth (only loops whose seam does not land on a corner: with plan.seam = corners, the loops with no corner), all")
+        s("plan.technique.scarf_seam.where", INTENT, CHOICE, "scarf seams on outer walls (the loop starts thin and low, rising to the layer over plan.technique.scarf_seam.length, and ends re-printing that stretch thinning to nothing): none (plan.technique.scarf_seam.enabled false), smooth (only loops whose seam does not land on a corner: with plan.seam = corners, the loops with no corner), all; a seam another part covers as plan.technique.scarf_seam.covered says")
+        s("plan.technique.scarf_seam.covered", INTENT, CHOICE, "what an outer wall gets where its seam is covered (pressed against another part of the object, within one line width of it, so hidden): point (a point seam: no ramp, no closing pass) or scarf (a scarf seam there too)")
         s("plan.technique.scarf_seam.length", INTENT, LENGTH, "how long a scarf seam's ramp is (at most half the loop)")
         s("plan.technique.scarf_seam.start", INTENT, FRACTION, "a scarf ramp's starting thickness, as a share of the layer")
+        s("plan.technique.scarf_seam.speed", INTENT, SPEED, "a scarf seam's ramp and its closing pass no faster than this")
+        s("plan.technique.scarf_seam.step", INTENT, LENGTH, "a scarf ramp's longest step")
+        s("plan.technique.scarf_seam.flow", INTENT, FRACTION, "a scarf seam's ramp and its closing pass laid with this times their plastic")
         s("plan.mechanism.adhesion.first_layer.line.width", INTENT, LENGTH, "line width on the first layer")
         s("plan.layer.top.under_parts", INTENT, BOOL, "a top surface that is mostly exposed runs under the OTHER parts standing on it (not under its own part rising further): its pattern unbroken, the top shell solid under those footprints too; objects of several parts only",
             true, "the top surface in the same pattern as with nothing printed on top of it")
-        s("plan.faces.sloped_top.z_antialiasing", INTENT, BOOL, "the sloped tops' surface technique is Z anti-aliasing (plan.faces.sloped_top.technique = \"z_antialiasing\"), flat layers only: where the model's top lies within a layer, that layer's lines are lowered onto it with as much less plastic (never thinner than the tool's thinnest layer), and the layer reaches out to where the top is that thin above its bottom, so a slope keeps no stair step of a whole layer",
+        s("plan.faces.sloped_top.z_antialiasing", INTENT, BOOL, "the sloped tops' surface technique is Z anti-aliasing (plan.faces.sloped_top.technique = \"z_antialiasing\"), flat layers only: where the object's top (all its parts together) lies within a layer, that layer's lines are lowered onto it with as much less plastic (never thinner than the thinnest layer of any tool its parts print with), and the layer reaches out to where the top is that thin above its bottom, so a slope keeps no stair step of a whole layer",
             false, "built opt-in, off until a print decides it")
         s("plan.layer.top.thickness", INTENT, LENGTH, "solid shell thickness under a top surface (the number of layers follows from the layer heights)")
         s("plan.layer.bottom.thickness", INTENT, LENGTH, "solid shell thickness over a bottom surface (the number of layers follows from the layer heights)")
@@ -315,6 +321,13 @@ object Catalog {
         s("plan.mechanism.adhesion.brim.where", INTENT, CHOICE, "brim placement: no_brim (plan.mechanism.adhesion.brim.enabled off) or outer_only")
         s("plan.mechanism.adhesion.brim.width", INTENT, LENGTH, "brim width")
         s("plan.mechanism.adhesion.brim.gap", INTENT, LENGTH, "gap between brim and object")
+        s("plan.layer.sliver.width", INTENT, LENGTH, "an area of one filament thinner than this, touching another filament's, is printed by that neighbor; unset = the thinnest area the walls print")
+        s("plan.mechanism.motion.short_walls.length", INTENT, LENGTH, "a wall line or loop shorter than this prints no faster than short_walls.speed; unset = none")
+        s("plan.mechanism.motion.short_walls.speed", INTENT, SPEED, "the fastest a short wall prints")
+        s("plan.mechanism.motion.short_walls.full_length", INTENT, LENGTH, "a wall between short_walls.length and this prints no faster than a speed rising in a straight line from short_walls.speed to its own; unset = short_walls.length (a single step)")
+        s("plan.mechanism.motion.steady.share", INTENT, FRACTION, "a line prints no faster than the speed at which this share of its length is laid at a steady speed, starting and stopping at rest at its acceleration; unset = no cap")
+        s("plan.mechanism.adhesion.small_footprint.area", INTENT, AREA, "a first layer under this area is a small footprint: an object standing on one with no brim gets a note when it is sliced")
+        s("plan.mechanism.adhesion.small_footprint.height_ratio", INTENT, FRACTION, "a footprint is small for its height when the object is taller than this many times the footprint's narrower side")
         s("plan.mechanism.adhesion.prime.line", INTENT, CHOICE, "the prime line: near the print, near it on a peel tab (alongside the brim), or none (plan.mechanism.adhesion.prime.enabled off); unset = by the print: none with a prime tower, tab otherwise")
         s("plan.mechanism.adhesion.prime.length", INTENT, LENGTH, "the prime line's length")
         s("plan.mechanism.adhesion.prime.gap", INTENT, LENGTH, "how far the prime line lies from the print")
@@ -419,7 +432,7 @@ object Catalog {
         s("plan.mechanism.purge.tower.side_share.min", INTENT, FRACTION, "each side of the purge tower at least this share of its height (a tall, thin tower sways); 0 = no minimum")
         s("plan.mechanism.purge.tower.width", INTENT, LENGTH, "purge tower width (along X): another slicer's (investigation); unset = plymeld's rule, a square tower sized by the purge (PurgeTower.square)")
         s("hardware.filament.purge.volume", MATERIAL_TOOL, Kind.VOLUME, "plastic purged into the tower after a change to this filament in this nozzle (hardware-owned)")
-        s("hardware.tool.heat.time", INTENT, TIME, "on a multi-nozzle machine, heat the next nozzle this long (print time) before its change")
+        s("hardware.tool.heat.time", INTENT, TIME, "on a multi-nozzle machine, heat the next nozzle this long (print time) before its change; unset = its machine model's toolhead's (hardware.model.<key>.toolhead.<key>.heat.time), else none")
         s("hardware.filament.temperature.idle_drop", INTENT, TEMP, "how far below printing temperature an idle nozzle is held on a multi-nozzle machine (0 = keep it at printing temperature)")
         s("plan.faces.under.wave_overhang", INTENT, BOOL, "the undersides over air are wave overhangs (plan.faces.under.technique = \"wave_overhang\"): each flat layer's bottom over air hanging off one side grown outward from the supported material beside it, bead by bead, each leaning on the last; a span (every bridge line landing on what is printed at both ends) stays a bridge, an area with support under it is the support's; what no front reaches is bridged",
             false, "off without the bundled config (an imported profile alone has no wave_overhang values to lay beads with); the bundled config turns it on (wave overhang, support, or nothing for an underside hanging off one side)")
@@ -435,7 +448,7 @@ object Catalog {
         s("plan.technique.ironing.flow", INTENT, FRACTION, "ironing flow, as a share of a full line")
         // bond-first cooling: what an object gets when the search (or plan.bond_cooling = on) chooses the bond between
         // its layers over the filament's own cooling; bundled as shares of the filament's values, placeholders
-        s("plan.technique.bond_cooling.fan", INTENT, PERCENT, "bond-first cooling: the part fan for the object's lines (overhangs keep the filament's overhang fan)")
+        s("plan.technique.bond_cooling.fan", INTENT, FRACTION, "bond-first cooling: the part fan (a share of its full speed) for the object's lines (overhangs keep the filament's overhang fan)")
         s("plan.technique.bond_cooling.layer.time.min", INTENT, TIME, "bond-first cooling: the object's minimum layer time (its layers stretched to it less than the filament's asks)")
         s("plan.technique.bond_cooling.temperature", INTENT, TEMP, "bond-first cooling: the object's nozzle temperature after the first layer (capped at the filament's temperature.max where set)")
         s("plan.technique.ironing.inset", INTENT, LENGTH, "keep ironing this far inside the edge (on top of half a line)")

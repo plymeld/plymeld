@@ -75,7 +75,7 @@ object Models {
             // the toolhead's evidence speaks for the values set beside it; one set elsewhere (your config over a bundled model) is the config's
             val elsewhere = if (ev == null) emptyList() else es.filter { it !== ev && origin(it) != origin(ev) }.map { Evidence("config", "${it.key} (${it.source})") }
             Toolhead(index.toIntOrNull() ?: error("hardware.model.$key.toolhead.$index: a toolhead is keyed by its index, from 0"),
-                geometry, evidence(ev?.value as? String, ev ?: es.first()) + elsewhere)
+                geometry, evidence(ev?.value as? String, ev ?: es.first()) + elsewhere, at("heat.time")?.let { qty(it, Dimension.TIME) })
         }.sortedBy { it.index }
         return MachineDescription(
             id = key,

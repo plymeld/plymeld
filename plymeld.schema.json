@@ -939,6 +939,19 @@
                         }
                       }
                     },
+                    "heat": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "time": {
+                          "description": "how long a toolhead's nozzle takes to heat to print temperature: on a multi-nozzle machine, the next nozzle heated this long (print time) before its change; a tool's heat.time wins over it — a time (s); or a formula (= ...)",
+                          "type": [
+                            "string",
+                            "number"
+                          ]
+                        }
+                      }
+                    },
                     "evidence": {
                       "description": "where a toolhead's geometry comes from, \"kind: detail\" per line",
                       "type": "string"
@@ -1242,7 +1255,7 @@
                 "additionalProperties": false,
                 "properties": {
                   "time": {
-                    "description": "time to heat to printing temperature — a time (s); or a formula (= ...)",
+                    "description": "on a multi-nozzle machine, heat the next nozzle this long (print time) before its change; unset = its machine model's toolhead's (hardware.model.<key>.toolhead.<key>.heat.time), else no preheat (the change waits for the nozzle) — a time (s); or a formula (= ...)",
                     "type": [
                       "string",
                       "number"
@@ -1817,6 +1830,24 @@
                           "string",
                           "number"
                         ]
+                      },
+                      "inside": {
+                        "description": "after a retracted travel into a closed outer wall, the head comes down one line width inside the wall's start, restores the retraction there, and moves onto the start with nothing pushed: the push's blob lands on hidden material, not on the visible face where the seam (a scarf seam's ramp at its thinnest) starts. Not with hardware.filament.<key>.retract.return.distance (the restore then spreads over the path's start). Bundled: true — true or false; or a formula (= ...)",
+                        "anyOf": [
+                          {
+                            "type": "boolean"
+                          },
+                          {
+                            "enum": [
+                              "true",
+                              "false"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "pattern": "^\\s*="
+                          }
+                        ]
                       }
                     }
                   },
@@ -1857,6 +1888,24 @@
                     "type": "object",
                     "additionalProperties": false,
                     "properties": {
+                      "inward": {
+                        "description": "a wall loop's wipe (hardware.filament.<key>.retract.wipe.enabled), the outer wall's and the inner walls', steps one line width inside the wall first, onto hidden material, then runs back along it there, all of the retraction spread over its moves (none of retract_before standing where the loop ended): along the outer wall, the wipe's last ooze lay on the visible face; at the end of the wall beside it, the retraction stood just behind the face and showed through. Bundled: true — true or false; or a formula (= ...)",
+                        "anyOf": [
+                          {
+                            "type": "boolean"
+                          },
+                          {
+                            "enum": [
+                              "true",
+                              "false"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "pattern": "^\\s*="
+                          }
+                        ]
+                      },
                       "enabled": {
                         "description": "wipe along the path while retracting — true or false; or a formula (= ...)",
                         "anyOf": [
@@ -1974,6 +2023,51 @@
                   ]
                 },
                 "properties": {}
+              },
+              "section": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "min": {
+                    "description": "print only the part of the object inside a box: the box's least corner, in the model's own coordinates as its file gives them; with max. What its cut faces are is section.faces; every copy of the object is cut alike — a point, x y z and a unit (\"10 20 5 mm\"); or an array of 3 numbers (mm)",
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "number"
+                        },
+                        "minItems": 3,
+                        "maxItems": 3
+                      }
+                    ]
+                  },
+                  "max": {
+                    "description": "the section's box's greatest corner (above min on every axis), in the model's own coordinates — a point, x y z and a unit (\"10 20 5 mm\"); or an array of 3 numbers (mm)",
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "number"
+                        },
+                        "minItems": 3,
+                        "maxItems": 3
+                      }
+                    ]
+                  },
+                  "faces": {
+                    "description": "a section's cut faces. open (unset): the whole object is planned and posed as it would be without the section, and only its lines inside the box are laid, up to the box's top; on the bed it is laid out by the box (what prints), so several fit where the whole models would not: the section prints as that part of the whole print would (the same walls, seams, infill, speeds, and filament changes), with no walls, top, or bottom added where it is cut, so the infill shows there; the box must reach down to the model's bottom, and the object must print on flat layers. closed: the model is cut to the box as it is read, each cut face closed, so the section is planned, laid out, sliced, and checked as an object of its own (its bottom on the bed, walls and top surfaces on its cut faces); a part with nothing in the box is left out; the model must be a closed surface where the box cuts it",
+                    "enum": [
+                      "open",
+                      "closed"
+                    ]
+                  }
+                }
               },
               "place": {
                 "type": "object",
@@ -3168,7 +3262,7 @@
               "additionalProperties": false,
               "properties": {
                 "technique": {
-                  "description": "the surface technique locked on the sloped tops: z_antialiasing = the stair-steps removed: in flat layers, where the model's top lies within a layer, its lines are lowered onto the top with less plastic (never thinner than the tool's thinnest layer, hardware.tool.<key>.layer.height.min), and the layer reaches out to where the top is that far above its bottom; curved and lifted layers follow their own surfaces; as_laid = as laid. Unset = as laid (Z anti-aliasing until a print decides it)",
+                  "description": "the surface technique locked on the sloped tops: z_antialiasing = the stair-steps removed: in flat layers, where the object's top (all its parts together) lies within a layer, its lines are lowered onto the top with less plastic (never thinner than the thinnest layer of any tool its parts print with, hardware.tool.<key>.layer.height.min), and the layer reaches out to where the top is that far above its bottom; curved and lifted layers follow their own surfaces; as_laid = as laid. Unset = as laid (Z anti-aliasing until a print decides it)",
                   "enum": [
                     "z_antialiasing",
                     "as_laid"
@@ -3219,7 +3313,7 @@
           }
         },
         "seam": {
-          "description": "where every wall loop starts (its seam), a scarf seam's too: corners = every loop starts at a corner when it has one (inside corners first), each layer's seam nearest the one below (with none below: the sharpest corner, else the back-most point); back = every loop starts at its back-most point; least_visible = every loop starts at the held-up point the seam measure counts least (its visibility, turned away from plan.view_from's viewer or an underside, times method.quality.seam.corner_share in a corner), ties to the point the viewer sees least first (a turned-away face before a front corner), then to a corner, then to the seam below, then the back. Either way, a point on an edge of the layer that hangs over the layer below (where the overhang slow-down starts) only when the loop has no other. Unset = decided per object by the job's weights (seam_scar, with whether scarf seams are on where plan.technique.scarf_seam.enabled is unset)",
+          "description": "where every wall loop starts (its seam), a scarf seam's too: corners = every loop starts at a corner when it has one (inside corners first), each layer's seam nearest the one below (with none below: the sharpest corner, else the back-most point); back = every loop starts at its back-most point; least_visible = every loop starts at the held-up point the seam measure counts least (its visibility, turned away from plan.view_from's viewer or an underside, times method.quality.seam.corner_share in a corner), ties to the point the viewer sees least first (a turned-away face before a front corner), then to a corner, then to the seam below, then the back; the outer walls' seams planned up the wall, over each run of layers a loop continues through, as the line of points that costs the seam measure least in all (each seam as seen, and each move from the seam below), so a move to a less-seen side is paid once, not judged layer by layer. Either way, a point on an edge of the layer that hangs over the layer below (where the overhang slow-down starts) only when the loop has no other. Unset = decided per object by the job's weights (seam_scar, with whether scarf seams are on where plan.technique.scarf_seam.enabled is unset)",
           "enum": [
             "corners",
             "back",
@@ -3323,6 +3417,13 @@
               "enum": [
                 "together",
                 "one_at_a_time"
+              ]
+            },
+            "gap": {
+              "description": "the least distance between objects laid out on the bed (between the boxes round them), when plymeld arranges them; unset = one outer wall width, so neighbors' walls cannot fuse; never less than that, and one at a time the head's reach still applies — a length (mm); or a formula (= ...)",
+              "type": [
+                "string",
+                "number"
               ]
             },
             "order": {
@@ -4120,7 +4221,7 @@
               "additionalProperties": false,
               "properties": {
                 "enabled": {
-                  "description": "scarf seams on the outer walls above the first layer that scarf_seam.where names (never on a fuzzed wall, nor a loop Z anti-aliasing lowers), each starting where plan.seam starts the loop; false = none. Unset = decided per object by the job's weights (seam_scar against the scarf's extra pass in time), with the placement where plan.seam is unset — true or false; or a formula (= ...)",
+                  "description": "scarf seams on the outer walls above the first layer that scarf_seam.where names (never on a fuzzed wall, nor a loop Z anti-aliasing lowers, nor, unless scarf_seam.covered = scarf, a loop whose seam another part of the object covers), each starting where plan.seam starts the loop; false = none. Unset = decided per object by the job's weights (seam_scar against the scarf's extra pass in time), with the placement where plan.seam is unset — true or false; or a formula (= ...)",
                   "anyOf": [
                     {
                       "type": "boolean"
@@ -4138,10 +4239,17 @@
                   ]
                 },
                 "where": {
-                  "description": "which outer walls get a scarf seam when they are on: smooth = only loops whose seam does not land on a corner (with plan.seam = corners, the loops with no corner; with back, most loops), all = every outer wall. A scarf seam starts the loop thin and low, rising to the layer over scarf_seam.length, and ends re-printing that stretch thinning to nothing (the two wedges make one layer)",
+                  "description": "which outer walls get a scarf seam when they are on: smooth = only loops whose seam does not land on a corner (with plan.seam = corners, the loops with no corner; with back, most loops), all = every outer wall (either way, a seam another part of the object covers as scarf_seam.covered says). A scarf seam starts the loop thin and low, rising to the layer over scarf_seam.length, and ends re-printing that stretch thinning to nothing (the two wedges make one layer)",
                   "enum": [
                     "smooth",
                     "all"
+                  ]
+                },
+                "covered": {
+                  "description": "what an outer wall gets where its seam is covered: on an object laid part by part (in several filaments, or parts with settings of their own), the seam lands on an edge pressed against another part of the object (that part's material on the layer lies within one line width of the seam), so the seam is hidden there. point = a point seam: the loop starts and ends at that point, with no ramp and no closing pass; scarf = a scarf seam there too, as scarf_seam.where names. Bundled: point. A scarf softens a seam that shows; a covered one does not show, while a scarf's ramp and its closing pass run on from it along the loop, often onto the faces that do show beside it (on a small part, along its whole front), laying a thin line and a second over it there where one line would do. The least-visible placement (plan.seam = least_visible) counts such a seam as the point seam it is laid as. A seam that is not covered, and every seam of an object of one part, keeps its scarf",
+                  "enum": [
+                    "point",
+                    "scarf"
                   ]
                 },
                 "length": {
@@ -4153,6 +4261,27 @@
                 },
                 "start": {
                   "description": "a scarf ramp's starting thickness, as a share of the layer (0 starts from nothing, the nozzle on the layer below) — a multiplier (0.15 or 15%); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                },
+                "speed": {
+                  "description": "a scarf seam's ramp and its closing pass no faster than this (the bead's thickness and the nozzle's height change along them). Bundled: half the visible lines' speed (plan.mechanism.motion.visible.speed), a placeholder until a print measures it — a speed (mm/s); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                },
+                "step": {
+                  "description": "a scarf ramp's longest step: the ramp rises, and its bead thickens, in steps no longer than this (each step's plastic from the mean of its ends' thickness, exact only for short steps). Bundled: 1 mm — a length (mm); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                },
+                "flow": {
+                  "description": "a scarf seam's ramp and its closing pass laid with this times their plastic (the two wedges, as laid, make one layer's bead). Bundled: 100% — a multiplier (0.15 or 15%); or a formula (= ...)",
                   "type": [
                     "string",
                     "number"
@@ -4235,22 +4364,12 @@
                     }
                   }
                 },
-                "inner_first": {
-                  "description": "INHERITED: inner walls before the outer one — true or false; or a formula (= ...)",
-                  "anyOf": [
-                    {
-                      "type": "boolean"
-                    },
-                    {
-                      "enum": [
-                        "true",
-                        "false"
-                      ]
-                    },
-                    {
-                      "type": "string",
-                      "pattern": "^\\s*="
-                    }
+                "order": {
+                  "description": "the order each contour's walls are laid in: outer_first = the outer wall, then inward (the layer's first line and its un-retraction land on the visible face); inner_first = the innermost first, the outer wall last, laid against the wall beside it (an overhanging outer wall leans on it); inner_outer_inner = the walls past the one beside the outer wall, then the outer wall, then that one: the first line and the travel's arrival land on hidden walls and the outer wall is laid free; with fewer than three walls, or where the outer wall hangs out past the layer below (as far as the overhang slow-down starts), inner_first. Bundled: inner_outer_inner",
+                  "enum": [
+                    "outer_first",
+                    "inner_first",
+                    "inner_outer_inner"
                   ]
                 }
               }
@@ -4433,6 +4552,19 @@
               "properties": {
                 "flow": {
                   "description": "INHERITED: bridge extrusion multiplier — a multiplier (0.15 or 15%); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                }
+              }
+            },
+            "sliver": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "width": {
+                  "description": "INHERITED: on an object of several filaments, an area of one filament thinner than this where it touches another filament's goes to that neighbor, which prints it; the boundary between the two moves by up to this much, and a thin feature of either filament beside the other (a letter's thin stroke) goes the same way. Unset = the thinnest area the walls print — a length (mm); or a formula (= ...)",
                   "type": [
                     "string",
                     "number"
@@ -4672,6 +4804,46 @@
                       "pattern": "^\\s*="
                     }
                   ]
+                },
+                "short_walls": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "length": {
+                      "description": "INHERITED: a wall line or loop shorter than this is a short wall, printed no faster than short_walls.speed (a short piece is mostly its start and its stop); one up to short_walls.full_length long is slowed less. A scarfed loop's length is the loop's, its closing pass left out. Unset = none — a length (mm); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    },
+                    "speed": {
+                      "description": "INHERITED: the fastest a short wall prints (short_walls.length); bundled: half the visible lines' speed — a speed (mm/s); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    },
+                    "full_length": {
+                      "description": "INHERITED: a wall line or loop from short_walls.length up to this long prints no faster than a speed rising in a straight line from short_walls.speed at short_walls.length to the wall's own speed at this length, the whole wall at that one speed; from this length on, at its own. Unset = short_walls.length: a single step, a wall under it at short_walls.speed and the rest at their own. Shorter than short_walls.length is refused; with short_walls.length unset it does nothing — a length (mm); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    }
+                  }
+                },
+                "steady": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "share": {
+                      "description": "INHERITED: every printed line (a loop or an open line, from where it starts pushing plastic to where it stops: a scarfed loop with its ramp and closing pass; of a section left open, the piece laid in its box) no faster than the speed at which at least this share of its length is laid at a steady speed. Starting and stopping at rest, a line takes v^2 / (2 a) of its length to reach speed v at its acceleration a and as much to stop, so the cap is sqrt(a * L * (1 - share)), L its length and a the lowest acceleration it is laid at. The whole line at that one speed; a cap, so the lowest of it and every other speed and cap wins. Not the purge tower, the prime line, a lifted bridge's own speeds over air, a calibration plate's lines, or a line of no length (it lays nothing). No floor: a line a few mm long may be capped far below its own speed. From 0 % up to but not 100 %; unset = no cap — a multiplier (0.15 or 15%); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    }
+                  }
                 }
               }
             },
@@ -4852,6 +5024,26 @@
                     },
                     "gap": {
                       "description": "INHERITED: gap between brim and object — a length (mm); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    }
+                  }
+                },
+                "small_footprint": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "area": {
+                      "description": "INHERITED: a first layer under this area is a small footprint: an object standing on one with no brim gets a note when it is sliced (a brim may help it hold the bed); nothing else changes — a area (mm2); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    },
+                    "height_ratio": {
+                      "description": "INHERITED: a footprint is small for its height, too, when the object is taller than this many times the footprint's narrower side (of the box round its first layer): noted as under small_footprint.area — a multiplier (0.15 or 15%); or a formula (= ...)",
                       "type": [
                         "string",
                         "number"
@@ -5243,7 +5435,7 @@
           }
         },
         "view_from": {
-          "description": "where the finished print is looked at from, for quality's measures (the visibility map): all_around = no face counts as turned away; front, back, left, right, above = the model's own sides as given (front is its small-y side, toward the printer's door when it prints as given), turned with whatever pose the plan gives it. A face turned away from the viewer counts method.quality.visibility.away by how squarely it faces away; a seam placed least_visible goes where its viewing directions, weighed by the quadrant they look from (method.quality.visibility.quadrant.*), see it least. Per object: plan.object.<key>.view_from",
+          "description": "where the finished print is looked at from, for quality's measures (the visibility map); bundled: front. all_around = no face counts as turned away (a model with no front of its own); front, back, left, right, above = the model's own sides as given (front is its small-y side, toward the printer's door when it prints as given), turned with whatever pose the plan gives it. A face turned away from the viewer counts method.quality.visibility.away by how squarely it faces away; a seam placed least_visible goes where its viewing directions, weighed by the quadrant they look from (method.quality.visibility.quadrant.*), see it least. Per object: plan.object.<key>.view_from",
           "enum": [
             "all_around",
             "front",
@@ -5288,7 +5480,7 @@
               "additionalProperties": false,
               "properties": {
                 "technique": {
-                  "description": "the surface technique locked on the sloped tops: z_antialiasing = the stair-steps removed: in flat layers, where the model's top lies within a layer, its lines are lowered onto the top with less plastic (never thinner than the tool's thinnest layer, hardware.tool.<key>.layer.height.min), and the layer reaches out to where the top is that far above its bottom; curved and lifted layers follow their own surfaces; as_laid = as laid. Unset = as laid (Z anti-aliasing until a print decides it)",
+                  "description": "the surface technique locked on the sloped tops: z_antialiasing = the stair-steps removed: in flat layers, where the object's top (all its parts together) lies within a layer, its lines are lowered onto the top with less plastic (never thinner than the thinnest layer of any tool its parts print with, hardware.tool.<key>.layer.height.min), and the layer reaches out to where the top is that far above its bottom; curved and lifted layers follow their own surfaces; as_laid = as laid. Unset = as laid (Z anti-aliasing until a print decides it)",
                   "enum": [
                     "z_antialiasing",
                     "as_laid"
@@ -5339,7 +5531,7 @@
           }
         },
         "seam": {
-          "description": "where every wall loop starts (its seam), a scarf seam's too: corners = every loop starts at a corner when it has one (inside corners first), each layer's seam nearest the one below (with none below: the sharpest corner, else the back-most point); back = every loop starts at its back-most point; least_visible = every loop starts at the held-up point the seam measure counts least (its visibility, turned away from plan.view_from's viewer or an underside, times method.quality.seam.corner_share in a corner), ties to the point the viewer sees least first (a turned-away face before a front corner), then to a corner, then to the seam below, then the back. Either way, a point on an edge of the layer that hangs over the layer below (where the overhang slow-down starts) only when the loop has no other. Unset = decided per object by the job's weights (seam_scar, with whether scarf seams are on where plan.technique.scarf_seam.enabled is unset)",
+          "description": "where every wall loop starts (its seam), a scarf seam's too: corners = every loop starts at a corner when it has one (inside corners first), each layer's seam nearest the one below (with none below: the sharpest corner, else the back-most point); back = every loop starts at its back-most point; least_visible = every loop starts at the held-up point the seam measure counts least (its visibility, turned away from plan.view_from's viewer or an underside, times method.quality.seam.corner_share in a corner), ties to the point the viewer sees least first (a turned-away face before a front corner), then to a corner, then to the seam below, then the back; the outer walls' seams planned up the wall, over each run of layers a loop continues through, as the line of points that costs the seam measure least in all (each seam as seen, and each move from the seam below), so a move to a less-seen side is paid once, not judged layer by layer. Either way, a point on an edge of the layer that hangs over the layer below (where the overhang slow-down starts) only when the loop has no other. Unset = decided per object by the job's weights (seam_scar, with whether scarf seams are on where plan.technique.scarf_seam.enabled is unset)",
           "enum": [
             "corners",
             "back",
@@ -6151,7 +6343,7 @@
               "additionalProperties": false,
               "properties": {
                 "enabled": {
-                  "description": "scarf seams on the outer walls above the first layer that scarf_seam.where names (never on a fuzzed wall, nor a loop Z anti-aliasing lowers), each starting where plan.seam starts the loop; false = none. Unset = decided per object by the job's weights (seam_scar against the scarf's extra pass in time), with the placement where plan.seam is unset — true or false; or a formula (= ...)",
+                  "description": "scarf seams on the outer walls above the first layer that scarf_seam.where names (never on a fuzzed wall, nor a loop Z anti-aliasing lowers, nor, unless scarf_seam.covered = scarf, a loop whose seam another part of the object covers), each starting where plan.seam starts the loop; false = none. Unset = decided per object by the job's weights (seam_scar against the scarf's extra pass in time), with the placement where plan.seam is unset — true or false; or a formula (= ...)",
                   "anyOf": [
                     {
                       "type": "boolean"
@@ -6169,10 +6361,17 @@
                   ]
                 },
                 "where": {
-                  "description": "which outer walls get a scarf seam when they are on: smooth = only loops whose seam does not land on a corner (with plan.seam = corners, the loops with no corner; with back, most loops), all = every outer wall. A scarf seam starts the loop thin and low, rising to the layer over scarf_seam.length, and ends re-printing that stretch thinning to nothing (the two wedges make one layer)",
+                  "description": "which outer walls get a scarf seam when they are on: smooth = only loops whose seam does not land on a corner (with plan.seam = corners, the loops with no corner; with back, most loops), all = every outer wall (either way, a seam another part of the object covers as scarf_seam.covered says). A scarf seam starts the loop thin and low, rising to the layer over scarf_seam.length, and ends re-printing that stretch thinning to nothing (the two wedges make one layer)",
                   "enum": [
                     "smooth",
                     "all"
+                  ]
+                },
+                "covered": {
+                  "description": "what an outer wall gets where its seam is covered: on an object laid part by part (in several filaments, or parts with settings of their own), the seam lands on an edge pressed against another part of the object (that part's material on the layer lies within one line width of the seam), so the seam is hidden there. point = a point seam: the loop starts and ends at that point, with no ramp and no closing pass; scarf = a scarf seam there too, as scarf_seam.where names. Bundled: point. A scarf softens a seam that shows; a covered one does not show, while a scarf's ramp and its closing pass run on from it along the loop, often onto the faces that do show beside it (on a small part, along its whole front), laying a thin line and a second over it there where one line would do. The least-visible placement (plan.seam = least_visible) counts such a seam as the point seam it is laid as. A seam that is not covered, and every seam of an object of one part, keeps its scarf",
+                  "enum": [
+                    "point",
+                    "scarf"
                   ]
                 },
                 "length": {
@@ -6184,6 +6383,27 @@
                 },
                 "start": {
                   "description": "a scarf ramp's starting thickness, as a share of the layer (0 starts from nothing, the nozzle on the layer below) — a multiplier (0.15 or 15%); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                },
+                "speed": {
+                  "description": "a scarf seam's ramp and its closing pass no faster than this (the bead's thickness and the nozzle's height change along them). Bundled: half the visible lines' speed (plan.mechanism.motion.visible.speed), a placeholder until a print measures it — a speed (mm/s); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                },
+                "step": {
+                  "description": "a scarf ramp's longest step: the ramp rises, and its bead thickens, in steps no longer than this (each step's plastic from the mean of its ends' thickness, exact only for short steps). Bundled: 1 mm — a length (mm); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                },
+                "flow": {
+                  "description": "a scarf seam's ramp and its closing pass laid with this times their plastic (the two wedges, as laid, make one layer's bead). Bundled: 100% — a multiplier (0.15 or 15%); or a formula (= ...)",
                   "type": [
                     "string",
                     "number"
@@ -6266,22 +6486,12 @@
                     }
                   }
                 },
-                "inner_first": {
-                  "description": "INHERITED: inner walls before the outer one — true or false; or a formula (= ...)",
-                  "anyOf": [
-                    {
-                      "type": "boolean"
-                    },
-                    {
-                      "enum": [
-                        "true",
-                        "false"
-                      ]
-                    },
-                    {
-                      "type": "string",
-                      "pattern": "^\\s*="
-                    }
+                "order": {
+                  "description": "the order each contour's walls are laid in: outer_first = the outer wall, then inward (the layer's first line and its un-retraction land on the visible face); inner_first = the innermost first, the outer wall last, laid against the wall beside it (an overhanging outer wall leans on it); inner_outer_inner = the walls past the one beside the outer wall, then the outer wall, then that one: the first line and the travel's arrival land on hidden walls and the outer wall is laid free; with fewer than three walls, or where the outer wall hangs out past the layer below (as far as the overhang slow-down starts), inner_first. Bundled: inner_outer_inner",
+                  "enum": [
+                    "outer_first",
+                    "inner_first",
+                    "inner_outer_inner"
                   ]
                 }
               }
@@ -6464,6 +6674,19 @@
               "properties": {
                 "flow": {
                   "description": "INHERITED: bridge extrusion multiplier — a multiplier (0.15 or 15%); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                }
+              }
+            },
+            "sliver": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "width": {
+                  "description": "INHERITED: on an object of several filaments, an area of one filament thinner than this where it touches another filament's goes to that neighbor, which prints it; the boundary between the two moves by up to this much, and a thin feature of either filament beside the other (a letter's thin stroke) goes the same way. Unset = the thinnest area the walls print — a length (mm); or a formula (= ...)",
                   "type": [
                     "string",
                     "number"
@@ -6703,6 +6926,46 @@
                       "pattern": "^\\s*="
                     }
                   ]
+                },
+                "short_walls": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "length": {
+                      "description": "INHERITED: a wall line or loop shorter than this is a short wall, printed no faster than short_walls.speed (a short piece is mostly its start and its stop); one up to short_walls.full_length long is slowed less. A scarfed loop's length is the loop's, its closing pass left out. Unset = none — a length (mm); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    },
+                    "speed": {
+                      "description": "INHERITED: the fastest a short wall prints (short_walls.length); bundled: half the visible lines' speed — a speed (mm/s); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    },
+                    "full_length": {
+                      "description": "INHERITED: a wall line or loop from short_walls.length up to this long prints no faster than a speed rising in a straight line from short_walls.speed at short_walls.length to the wall's own speed at this length, the whole wall at that one speed; from this length on, at its own. Unset = short_walls.length: a single step, a wall under it at short_walls.speed and the rest at their own. Shorter than short_walls.length is refused; with short_walls.length unset it does nothing — a length (mm); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    }
+                  }
+                },
+                "steady": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "share": {
+                      "description": "INHERITED: every printed line (a loop or an open line, from where it starts pushing plastic to where it stops: a scarfed loop with its ramp and closing pass; of a section left open, the piece laid in its box) no faster than the speed at which at least this share of its length is laid at a steady speed. Starting and stopping at rest, a line takes v^2 / (2 a) of its length to reach speed v at its acceleration a and as much to stop, so the cap is sqrt(a * L * (1 - share)), L its length and a the lowest acceleration it is laid at. The whole line at that one speed; a cap, so the lowest of it and every other speed and cap wins. Not the purge tower, the prime line, a lifted bridge's own speeds over air, a calibration plate's lines, or a line of no length (it lays nothing). No floor: a line a few mm long may be capped far below its own speed. From 0 % up to but not 100 %; unset = no cap — a multiplier (0.15 or 15%); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    }
+                  }
                 }
               }
             },
@@ -6883,6 +7146,26 @@
                     },
                     "gap": {
                       "description": "INHERITED: gap between brim and object — a length (mm); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    }
+                  }
+                },
+                "small_footprint": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "area": {
+                      "description": "INHERITED: a first layer under this area is a small footprint: an object standing on one with no brim gets a note when it is sliced (a brim may help it hold the bed); nothing else changes — a area (mm2); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    },
+                    "height_ratio": {
+                      "description": "INHERITED: a footprint is small for its height, too, when the object is taller than this many times the footprint's narrower side (of the box round its first layer): noted as under small_footprint.area — a multiplier (0.15 or 15%); or a formula (= ...)",
                       "type": [
                         "string",
                         "number"
@@ -7200,7 +7483,7 @@
           }
         },
         "view_from": {
-          "description": "where the finished print is looked at from, for quality's measures (the visibility map): all_around = no face counts as turned away; front, back, left, right, above = the model's own sides as given (front is its small-y side, toward the printer's door when it prints as given), turned with whatever pose the plan gives it. A face turned away from the viewer counts method.quality.visibility.away by how squarely it faces away; a seam placed least_visible goes where its viewing directions, weighed by the quadrant they look from (method.quality.visibility.quadrant.*), see it least. Per object: plan.object.<key>.view_from",
+          "description": "where the finished print is looked at from, for quality's measures (the visibility map); bundled: front. all_around = no face counts as turned away (a model with no front of its own); front, back, left, right, above = the model's own sides as given (front is its small-y side, toward the printer's door when it prints as given), turned with whatever pose the plan gives it. A face turned away from the viewer counts method.quality.visibility.away by how squarely it faces away; a seam placed least_visible goes where its viewing directions, weighed by the quadrant they look from (method.quality.visibility.quadrant.*), see it least. Per object: plan.object.<key>.view_from",
           "enum": [
             "all_around",
             "front",
@@ -7487,7 +7770,7 @@
               "additionalProperties": false,
               "properties": {
                 "technique": {
-                  "description": "the surface technique locked on the sloped tops: z_antialiasing = the stair-steps removed: in flat layers, where the model's top lies within a layer, its lines are lowered onto the top with less plastic (never thinner than the tool's thinnest layer, hardware.tool.<key>.layer.height.min), and the layer reaches out to where the top is that far above its bottom; curved and lifted layers follow their own surfaces; as_laid = as laid. Unset = as laid (Z anti-aliasing until a print decides it)",
+                  "description": "the surface technique locked on the sloped tops: z_antialiasing = the stair-steps removed: in flat layers, where the object's top (all its parts together) lies within a layer, its lines are lowered onto the top with less plastic (never thinner than the thinnest layer of any tool its parts print with, hardware.tool.<key>.layer.height.min), and the layer reaches out to where the top is that far above its bottom; curved and lifted layers follow their own surfaces; as_laid = as laid. Unset = as laid (Z anti-aliasing until a print decides it)",
                   "enum": [
                     "z_antialiasing",
                     "as_laid"
@@ -7538,7 +7821,7 @@
           }
         },
         "seam": {
-          "description": "where every wall loop starts (its seam), a scarf seam's too: corners = every loop starts at a corner when it has one (inside corners first), each layer's seam nearest the one below (with none below: the sharpest corner, else the back-most point); back = every loop starts at its back-most point; least_visible = every loop starts at the held-up point the seam measure counts least (its visibility, turned away from plan.view_from's viewer or an underside, times method.quality.seam.corner_share in a corner), ties to the point the viewer sees least first (a turned-away face before a front corner), then to a corner, then to the seam below, then the back. Either way, a point on an edge of the layer that hangs over the layer below (where the overhang slow-down starts) only when the loop has no other. Unset = decided per object by the job's weights (seam_scar, with whether scarf seams are on where plan.technique.scarf_seam.enabled is unset)",
+          "description": "where every wall loop starts (its seam), a scarf seam's too: corners = every loop starts at a corner when it has one (inside corners first), each layer's seam nearest the one below (with none below: the sharpest corner, else the back-most point); back = every loop starts at its back-most point; least_visible = every loop starts at the held-up point the seam measure counts least (its visibility, turned away from plan.view_from's viewer or an underside, times method.quality.seam.corner_share in a corner), ties to the point the viewer sees least first (a turned-away face before a front corner), then to a corner, then to the seam below, then the back; the outer walls' seams planned up the wall, over each run of layers a loop continues through, as the line of points that costs the seam measure least in all (each seam as seen, and each move from the seam below), so a move to a less-seen side is paid once, not judged layer by layer. Either way, a point on an edge of the layer that hangs over the layer below (where the overhang slow-down starts) only when the loop has no other. Unset = decided per object by the job's weights (seam_scar, with whether scarf seams are on where plan.technique.scarf_seam.enabled is unset)",
           "enum": [
             "corners",
             "back",
@@ -8301,7 +8584,7 @@
               "additionalProperties": false,
               "properties": {
                 "enabled": {
-                  "description": "scarf seams on the outer walls above the first layer that scarf_seam.where names (never on a fuzzed wall, nor a loop Z anti-aliasing lowers), each starting where plan.seam starts the loop; false = none. Unset = decided per object by the job's weights (seam_scar against the scarf's extra pass in time), with the placement where plan.seam is unset — true or false; or a formula (= ...)",
+                  "description": "scarf seams on the outer walls above the first layer that scarf_seam.where names (never on a fuzzed wall, nor a loop Z anti-aliasing lowers, nor, unless scarf_seam.covered = scarf, a loop whose seam another part of the object covers), each starting where plan.seam starts the loop; false = none. Unset = decided per object by the job's weights (seam_scar against the scarf's extra pass in time), with the placement where plan.seam is unset — true or false; or a formula (= ...)",
                   "anyOf": [
                     {
                       "type": "boolean"
@@ -8319,10 +8602,17 @@
                   ]
                 },
                 "where": {
-                  "description": "which outer walls get a scarf seam when they are on: smooth = only loops whose seam does not land on a corner (with plan.seam = corners, the loops with no corner; with back, most loops), all = every outer wall. A scarf seam starts the loop thin and low, rising to the layer over scarf_seam.length, and ends re-printing that stretch thinning to nothing (the two wedges make one layer)",
+                  "description": "which outer walls get a scarf seam when they are on: smooth = only loops whose seam does not land on a corner (with plan.seam = corners, the loops with no corner; with back, most loops), all = every outer wall (either way, a seam another part of the object covers as scarf_seam.covered says). A scarf seam starts the loop thin and low, rising to the layer over scarf_seam.length, and ends re-printing that stretch thinning to nothing (the two wedges make one layer)",
                   "enum": [
                     "smooth",
                     "all"
+                  ]
+                },
+                "covered": {
+                  "description": "what an outer wall gets where its seam is covered: on an object laid part by part (in several filaments, or parts with settings of their own), the seam lands on an edge pressed against another part of the object (that part's material on the layer lies within one line width of the seam), so the seam is hidden there. point = a point seam: the loop starts and ends at that point, with no ramp and no closing pass; scarf = a scarf seam there too, as scarf_seam.where names. Bundled: point. A scarf softens a seam that shows; a covered one does not show, while a scarf's ramp and its closing pass run on from it along the loop, often onto the faces that do show beside it (on a small part, along its whole front), laying a thin line and a second over it there where one line would do. The least-visible placement (plan.seam = least_visible) counts such a seam as the point seam it is laid as. A seam that is not covered, and every seam of an object of one part, keeps its scarf",
+                  "enum": [
+                    "point",
+                    "scarf"
                   ]
                 },
                 "length": {
@@ -8334,6 +8624,27 @@
                 },
                 "start": {
                   "description": "a scarf ramp's starting thickness, as a share of the layer (0 starts from nothing, the nozzle on the layer below) — a multiplier (0.15 or 15%); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                },
+                "speed": {
+                  "description": "a scarf seam's ramp and its closing pass no faster than this (the bead's thickness and the nozzle's height change along them). Bundled: half the visible lines' speed (plan.mechanism.motion.visible.speed), a placeholder until a print measures it — a speed (mm/s); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                },
+                "step": {
+                  "description": "a scarf ramp's longest step: the ramp rises, and its bead thickens, in steps no longer than this (each step's plastic from the mean of its ends' thickness, exact only for short steps). Bundled: 1 mm — a length (mm); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                },
+                "flow": {
+                  "description": "a scarf seam's ramp and its closing pass laid with this times their plastic (the two wedges, as laid, make one layer's bead). Bundled: 100% — a multiplier (0.15 or 15%); or a formula (= ...)",
                   "type": [
                     "string",
                     "number"
@@ -8416,22 +8727,12 @@
                     }
                   }
                 },
-                "inner_first": {
-                  "description": "INHERITED: inner walls before the outer one — true or false; or a formula (= ...)",
-                  "anyOf": [
-                    {
-                      "type": "boolean"
-                    },
-                    {
-                      "enum": [
-                        "true",
-                        "false"
-                      ]
-                    },
-                    {
-                      "type": "string",
-                      "pattern": "^\\s*="
-                    }
+                "order": {
+                  "description": "the order each contour's walls are laid in: outer_first = the outer wall, then inward (the layer's first line and its un-retraction land on the visible face); inner_first = the innermost first, the outer wall last, laid against the wall beside it (an overhanging outer wall leans on it); inner_outer_inner = the walls past the one beside the outer wall, then the outer wall, then that one: the first line and the travel's arrival land on hidden walls and the outer wall is laid free; with fewer than three walls, or where the outer wall hangs out past the layer below (as far as the overhang slow-down starts), inner_first. Bundled: inner_outer_inner",
+                  "enum": [
+                    "outer_first",
+                    "inner_first",
+                    "inner_outer_inner"
                   ]
                 }
               }
@@ -8614,6 +8915,19 @@
               "properties": {
                 "flow": {
                   "description": "INHERITED: bridge extrusion multiplier — a multiplier (0.15 or 15%); or a formula (= ...)",
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                }
+              }
+            },
+            "sliver": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "width": {
+                  "description": "INHERITED: on an object of several filaments, an area of one filament thinner than this where it touches another filament's goes to that neighbor, which prints it; the boundary between the two moves by up to this much, and a thin feature of either filament beside the other (a letter's thin stroke) goes the same way. Unset = the thinnest area the walls print — a length (mm); or a formula (= ...)",
                   "type": [
                     "string",
                     "number"
@@ -8853,6 +9167,46 @@
                       "pattern": "^\\s*="
                     }
                   ]
+                },
+                "short_walls": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "length": {
+                      "description": "INHERITED: a wall line or loop shorter than this is a short wall, printed no faster than short_walls.speed (a short piece is mostly its start and its stop); one up to short_walls.full_length long is slowed less. A scarfed loop's length is the loop's, its closing pass left out. Unset = none — a length (mm); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    },
+                    "speed": {
+                      "description": "INHERITED: the fastest a short wall prints (short_walls.length); bundled: half the visible lines' speed — a speed (mm/s); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    },
+                    "full_length": {
+                      "description": "INHERITED: a wall line or loop from short_walls.length up to this long prints no faster than a speed rising in a straight line from short_walls.speed at short_walls.length to the wall's own speed at this length, the whole wall at that one speed; from this length on, at its own. Unset = short_walls.length: a single step, a wall under it at short_walls.speed and the rest at their own. Shorter than short_walls.length is refused; with short_walls.length unset it does nothing — a length (mm); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    }
+                  }
+                },
+                "steady": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "share": {
+                      "description": "INHERITED: every printed line (a loop or an open line, from where it starts pushing plastic to where it stops: a scarfed loop with its ramp and closing pass; of a section left open, the piece laid in its box) no faster than the speed at which at least this share of its length is laid at a steady speed. Starting and stopping at rest, a line takes v^2 / (2 a) of its length to reach speed v at its acceleration a and as much to stop, so the cap is sqrt(a * L * (1 - share)), L its length and a the lowest acceleration it is laid at. The whole line at that one speed; a cap, so the lowest of it and every other speed and cap wins. Not the purge tower, the prime line, a lifted bridge's own speeds over air, a calibration plate's lines, or a line of no length (it lays nothing). No floor: a line a few mm long may be capped far below its own speed. From 0 % up to but not 100 %; unset = no cap — a multiplier (0.15 or 15%); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    }
+                  }
                 }
               }
             },
@@ -9033,6 +9387,26 @@
                     },
                     "gap": {
                       "description": "INHERITED: gap between brim and object — a length (mm); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    }
+                  }
+                },
+                "small_footprint": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "area": {
+                      "description": "INHERITED: a first layer under this area is a small footprint: an object standing on one with no brim gets a note when it is sliced (a brim may help it hold the bed); nothing else changes — a area (mm2); or a formula (= ...)",
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    },
+                    "height_ratio": {
+                      "description": "INHERITED: a footprint is small for its height, too, when the object is taller than this many times the footprint's narrower side (of the box round its first layer): noted as under small_footprint.area — a multiplier (0.15 or 15%); or a formula (= ...)",
                       "type": [
                         "string",
                         "number"
@@ -9301,7 +9675,7 @@
           }
         },
         "view_from": {
-          "description": "where the finished print is looked at from, for quality's measures (the visibility map): all_around = no face counts as turned away; front, back, left, right, above = the model's own sides as given (front is its small-y side, toward the printer's door when it prints as given), turned with whatever pose the plan gives it. A face turned away from the viewer counts method.quality.visibility.away by how squarely it faces away; a seam placed least_visible goes where its viewing directions, weighed by the quadrant they look from (method.quality.visibility.quadrant.*), see it least. Per object: plan.object.<key>.view_from",
+          "description": "where the finished print is looked at from, for quality's measures (the visibility map); bundled: front. all_around = no face counts as turned away (a model with no front of its own); front, back, left, right, above = the model's own sides as given (front is its small-y side, toward the printer's door when it prints as given), turned with whatever pose the plan gives it. A face turned away from the viewer counts method.quality.visibility.away by how squarely it faces away; a seam placed least_visible goes where its viewing directions, weighed by the quadrant they look from (method.quality.visibility.quadrant.*), see it least. Per object: plan.object.<key>.view_from",
           "enum": [
             "all_around",
             "front",

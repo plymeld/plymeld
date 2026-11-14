@@ -34,7 +34,7 @@ val TEST_PLAN: List<Pair<String, Any>> = listOf(
     "plan.mechanism.adhesion.first_layer.line.width" to "0.5 mm",
     // two walls: the count is 1 + round((thickness - outer width) / inner width); three are 1.32 mm, four 1.77 mm
     "plan.layer.walls.thickness" to "0.87 mm", "plan.layer.walls.outer.line.width" to "0.42 mm", "plan.layer.walls.inner.line.width" to "0.45 mm",
-    "plan.layer.walls.inner_first" to true, "plan.seam" to "back", "plan.technique.scarf_seam.enabled" to false,
+    "plan.layer.walls.order" to "inner_first", "plan.seam" to "back", "plan.technique.scarf_seam.enabled" to false,
     "plan.layer.top.thickness" to "0.6 mm", "plan.layer.bottom.thickness" to "0.6 mm",
     "plan.layer.top.pattern" to "monotonic", "plan.layer.bottom.pattern" to "monotonic", "plan.layer.top.line.width" to "0.3 mm",
     "plan.layer.infill.density" to "20%", "plan.layer.infill.pattern" to "grid", "plan.layer.infill.line.width" to "0.45 mm",

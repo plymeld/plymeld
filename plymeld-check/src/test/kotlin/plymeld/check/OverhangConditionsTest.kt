@@ -27,6 +27,7 @@ class OverhangConditionsTest : StringSpec({
     val cfg = arrayOf("hardware.filament.test-pla.cooling.fan" to "50%", "hardware.filament.test-pla.overhang.fan" to "50%",
         "plan.mechanism.adhesion.prime.enabled" to false)
 
+    /** The program written with the overhang fan [overhangFan] (a share of full speed) and speed [overhangSpeed] (mm/s; null = none). */
     fun gcode(overhangFan: Double, overhangSpeed: Double?): String {
         val setup = testSetup(*cfg)
         for (v in setup.materialTool.values) {
@@ -49,7 +50,7 @@ class OverhangConditionsTest : StringSpec({
     }
 
     "a hanging segment: the fan raised to the overhang fan, the speed capped at the overhang speed, the fan back after" {
-        val g = gcode(100.0, 15.0)
+        val g = gcode(1.0, 15.0)            // the overhang fan full (a share of full speed)
         val lines = g.substring(g.indexOf("Outer wall")).lines()     // the paths, after the start template
         val raised = lines.indexOfFirst { it == "M106 S255" }
         (raised >= 0) shouldBe true
@@ -61,7 +62,7 @@ class OverhangConditionsTest : StringSpec({
     }
 
     "control: overhang fan equal to the layer's and no overhang speed: no raised fan, no capped speed" {
-        val all = gcode(50.0, null)
+        val all = gcode(0.5, null)
         all shouldContain "M106 S128"                                   // the layer's fan is on
         val g = all.substring(all.indexOf("Outer wall"))
         g shouldNotContain "M106 S255"

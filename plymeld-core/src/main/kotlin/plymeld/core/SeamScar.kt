@@ -99,7 +99,24 @@ object SeamScar {
                 // the directions it faces, weighed by the quadrant they look from around the view, less what hides it
                 // nearby, read at the seam as the placement reads a candidate (Exposure.outward: the wall's outward normal, to the
                 // right of the loop's direction, the material on a wall loop's left)
-                if (ex != null) { val nrm = plymeld.core.decide.Exposure.outward(p.xy, 0); v *= ex.at(i, sx, sy, nrm[0], nrm[1]) }
+                // a scarf seam is seen along its ramp: its most-seen point over the scarf's length from the start, as the placement
+                // judges it (Seams.place)
+                if (ex != null) {
+                    val m = p.xy.size / 2
+                    val n0 = plymeld.core.decide.Exposure.outward(p.xy, 0)
+                    var seen = ex.at(i, sx, sy, n0[0], n0[1])
+                    if (p.scarfUm > 0) {
+                        var run = 0.0; var j = 0
+                        while (run < p.scarfUm) {
+                            val k = (j + 1) % m
+                            run += Math.hypot((p.xy[2 * k] - p.xy[2 * j]).toDouble(), (p.xy[2 * k + 1] - p.xy[2 * j + 1]).toDouble())
+                            val nrm = plymeld.core.decide.Exposure.outward(p.xy, k)
+                            seen = maxOf(seen, ex.at(i, p.xy[2 * k], p.xy[2 * k + 1], nrm[0], nrm[1])); j = k
+                            if (j == 0) break
+                        }
+                    }
+                    v *= seen
+                }
                 here += blemish * v; seams++
             }
             per[i] = here; total += here

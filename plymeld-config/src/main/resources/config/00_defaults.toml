@@ -1,4 +1,4 @@
-# plymeld's bundled defaults, read before any config file (docs/user/reference/config-files.md).
+# plymeld's bundled defaults, read before any config file (`plymeld config` shows each value and where it was set).
 #
 # PLACEHOLDERS: plausible values so that a print can be made while the plan's groups are redone
 # technique by technique. Not measured, not tested on a print, and not taken from any
@@ -18,6 +18,13 @@ layer.heights = "9"
 [method.slicing]
 tolerance = "= tool.bore / 32"                 # outline simplification: far below a line's width
 close_gaps = "= tool.bore / 8"                 # gaps narrower than a quarter of the bore are closed
+
+# ---- where the finished print is looked at from: its own front (its small-y side as modeled, turned with its pose), so
+# quality's measures count its back less and least-visible seams go there; all_around counts every side alike. Most
+# prints have a front; a model with none of its own (a vase, a figure on a turntable) sets all_around. Looked at from all
+# around, a plain round wall's seams stayed in line wherever a feature first put them: on a nameplate's front face
+[plan]
+view_from = "front"
 
 # ---- flat layers: the layer height where they keep one height
 # the layer height is DECIDED (the search tries method.search.layer.heights across the tool's range);
@@ -42,7 +49,9 @@ thickness = "= 3 * tool.bore"                  # the number of lines follows fro
 style = "variable_width"
 outer.line.width = "= tool.bore * 1.1"         # a line a little wider than the bore presses onto the one below
 inner.line.width = "= tool.bore * 1.1"
-inner_first = "false"
+# the walls past the one beside the outer wall, then the outer wall, then that one: a layer's first line, its
+# un-retraction and the travel's arrival land on hidden walls, not on the visible face (inner_first where it cannot)
+order = "inner_outer_inner"
 
 [plan.layer.top]
 thickness = "0.8 mm"
@@ -129,6 +138,17 @@ enabled = "false"
 where = "outer"                                # where a brim goes when enabled
 width = "= 12 * tool.bore"
 gap = "0 mm"
+
+# What counts as a small footprint (an object standing on one with no brim gets a note when sliced). PLACEHOLDERS, not
+# measured: under the area of a 10 mm square, or more than three times as tall as the footprint's narrower side.
+[plan.mechanism.adhesion.small_footprint]
+area = "100 mm2"
+height_ratio = "3"
+
+# A short wall (plan.mechanism.motion.short_walls.length, unset: none) prints no faster than this. PLACEHOLDER, not
+# measured: half the visible lines' speed.
+[plan.mechanism.motion.short_walls]
+speed = "= plan.mechanism.motion.visible.speed * 0.5"
 
 # The prime line: plymeld's own, laid before the first layer within 1 cm of the first object. enabled and line
 # unset: none with a prime tower, else on a peel tab, a partial brim joining the line to the print (against the brim's edge
@@ -224,8 +244,12 @@ tower.side_share.min = "0.5"
 
 [plan.technique.scarf_seam]
 where = "smooth"
+covered = "point"                                       # a seam another part covers is hidden: a point seam there, no ramp onto the faces beside it
 length = "10 mm"
 start = "0.25"
+speed = "= plan.mechanism.motion.visible.speed * 0.5"   # the ramp and its closing pass at half the visible lines' speed
+step = "1 mm"                                           # the ramp rises in steps no longer than this
+flow = "100%"                                           # the ramp and its closing pass at their own plastic, as laid
 
 [plan.technique.corner_seam]
 corner_angle = "30 deg"

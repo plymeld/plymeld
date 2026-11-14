@@ -17,7 +17,7 @@ import java.util.Locale
  *    them (a wall or a feature missing). Parts of the outline in places narrower than a line (slivers,
  *    a feature's tip) are left out: no slicer could wall them. Gaps in the cross-section narrower than
  *    [tolUm] are not outline (it is closed by half the tolerance first): two pieces that close are one;
- *  - Z anti-aliasing (a [ZaaRule]): a layer's outline also takes in its cut at the tool's thinnest layer above its bottom
+ *  - Z anti-aliasing (a [ZaaRule]): a layer's outline also takes in its cut at the thinnest lowered line (ZaaRule.minMm) above its bottom
  *    (the layer reaches out over a slope to there), and a point of a line below its layer, on the model's top within the
  *    layer, is not outside;
  *  - over air (a layer with wave beads): each piece of the layer's cross-section where the model has none under it (its
@@ -51,11 +51,13 @@ object ModelCheck {
      * [imagesDir]: when given, a picture of each layer with a problem (ModelCheckPlot). [surface]: the
      * model cut at this g-code's layers, when already made (shared with GcodeCheck's travel rule).
      * [partTools]: the tool (0-based, T0 = the tool of index 1) the config's loadout assigns each of [parts], in their
-     * order; null: the tool is not judged.
+     * order; null: the tool is not judged. [handOverMm]: how thin an area of one filament the config hands to the
+     * neighboring filament (plan.layer.sliver.width, when set over the walls' own thinnest): a line of one tool may lie that
+     * much further from its own tool's part.
      */
     fun check(text: String, parts: List<TriangleSoup>, zBaseMm: Double, tolUm: Long = 100, maxProblems: Int = 30,
               imagesDir: java.nio.file.Path? = null, surface: Surface? = null, partTools: List<Int>? = null, zaa: ZaaRule? = null,
-              progress: plymeld.program.Progress = plymeld.program.Progress.NONE): List<String> {
+              progress: plymeld.program.Progress = plymeld.program.Progress.NONE, handOverMm: Double = 0.0): List<String> {
         require(partTools == null || partTools.size == parts.size) { "${partTools!!.size} part tools for ${parts.size} parts" }
         val sf = surface ?: Surface(parts, zBaseMm, text, zaaMinMm = zaa?.minMm)
         val layers = sf.layerLines
@@ -68,7 +70,7 @@ object ModelCheck {
         if (imagesDir != null) System.setProperty("java.awt.headless", "true")
         // every layer on its own, in parallel; the problems in layer order
         return plymeld.core.Parallel.map(layers.size, progress.Counter("model check", layers.size)) { k ->
-            layerProblems(sf, k, tol, imagesDir, zaa) + airProblems(sf, k, tol, imagesDir) + toolProblems(sf, k, tol, partTools) }.flatten().take(maxProblems)
+            layerProblems(sf, k, tol, imagesDir, zaa) + airProblems(sf, k, tol, imagesDir) + toolProblems(sf, k, tol + handOverMm, partTools) }.flatten().take(maxProblems)
     }
 
     /** The unlaid area over air a waved layer may leave (mm2): a few sampling cells, so a corner's rounding is not one. */
@@ -218,7 +220,8 @@ object ModelCheck {
                         val len = Math.hypot(bx - ax, by - ay); val n = maxOf(1, Math.ceil(len / 0.5).toInt())
                         for (j in 0 until n) {
                             val px = ax + (bx - ax) * (j + 0.5) / n; val py = ay + (by - ay) * (j + 0.5) / n
-                            val near = wallGrid.nearest(px, py, w + tol) <= w + tol
+                            // a section left open: its cut sides are not walled, by intent
+                            val near = wallGrid.nearest(px, py, w + tol) <= w + tol || sf.onCut(px, py, tol)
                             val wallable = !near && centerGrid.nearest(px, py, w) <= w / 2 + tol
                             if (!near && wallable) { uncovered += len / n; run += len / n; pts += doubleArrayOf(px, py); if (run > longest) { longest = run; ux = px; uy = py } } else run = 0.0
                         }
@@ -263,7 +266,7 @@ object ModelCheck {
      */
     class Surface(private val parts: List<TriangleSoup>, private val zBaseMm: Double, text: String, private val withinMm: Double = 0.6,
                   /**
-                   * Z anti-aliasing (plan.faces.sloped_top.technique = "z_antialiasing"): the tool's thinnest layer (mm). A layer above the bed then reaches out
+                   * Z anti-aliasing (plan.faces.sloped_top.technique = "z_antialiasing"): the thinnest lowered line (ZaaRule.minMm). A layer above the bed then reaches out
                    * to where the model's top is that far above its bottom: its outline, which its walls must cover, is also cut
                    * there ([wallLoops]). Null: the outline is the cut at the layer's middle.
                    */
@@ -273,11 +276,26 @@ object ModelCheck {
                    * without the islands' loops above their starts, an island's layers with its loops only): given the cut's height
                    * in the parts' frame and its loops, the loops kept. Null: all of them.
                    */
-                  private val clip: ((Double, List<Polygon>) -> List<Polygon>)? = null) {
+                  private val clip: ((Double, List<Polygon>) -> List<Polygon>)? = null,
+                  /**
+                   * A section left open (model.object.<key>.section, faces = "open"): the box the object's lines are laid in (x0,
+                   * x1, y0, y1 and its top's z, mm, in the g-code's frame). Each cut is judged inside it only (nothing above
+                   * its top), and its outline along the box's sides is the cut, where no wall is asked for ([onCut]).
+                   */
+                  val cut: DoubleArray? = null) {
+        /** Whether an outline point lies on the open section's cut (within [tolMm] of a side of the box). */
+        fun onCut(x: Double, y: Double, tolMm: Double): Boolean = cut != null &&
+            (Math.abs(x - cut[0]) <= tolMm || Math.abs(x - cut[1]) <= tolMm || Math.abs(y - cut[2]) <= tolMm || Math.abs(y - cut[3]) <= tolMm)
+        private val cutRect: List<Polygon>? = cut?.let { c -> listOf(Polygon(longArrayOf(Math.round(c[0] * 1000), Math.round(c[2] * 1000), Math.round(c[1] * 1000), Math.round(c[2] * 1000),
+            Math.round(c[1] * 1000), Math.round(c[3] * 1000), Math.round(c[0] * 1000), Math.round(c[3] * 1000)))) }
+        /** [loops], the model cut at [z] mm, inside the open section's box (as they are with none; none above its top). */
+        private fun inCut(z: Double, loops: List<Polygon>): List<Polygon> = if (cutRect == null || loops.isEmpty()) loops
+            else if (z > cut!![4] + 1e-6) emptyList() else plymeld.geom.Booleans.intersection(loops, cutRect)
         internal val layerLines: List<LayerLines> = layers(text)
         private val cutZ = DoubleArray(layerLines.size) { k -> layerLines[k].z - layerLines[k].h / 2 + zBaseMm }
         private val sections = if (layerLines.isEmpty()) emptyList() else
-            parts.map { p -> Slicer.slice(p, cutZ).let { ls -> if (clip == null) ls else ls.mapIndexed { k, l -> plymeld.mesh.Layer(l.z, clip.invoke(cutZ[k], l.loops), l.openChains) } } }
+            parts.map { p -> Slicer.slice(p, cutZ).let { ls -> if (clip == null && cutRect == null) ls else ls.mapIndexed { k, l ->
+                plymeld.mesh.Layer(l.z, inCut(cutZ[k], if (clip == null) l.loops else clip.invoke(cutZ[k], l.loops)), l.openChains) } } }
         // each layer's union of the parts, all layers at once in parallel (the union is the slow part)
         private val unions: List<List<Polygon>> by lazy {
             plymeld.core.Parallel.map(layerLines.size) { k -> sections.flatMap { it[k].loops }.let { if (it.size > 1) plymeld.geom.Booleans.unionPositive(it) else it }

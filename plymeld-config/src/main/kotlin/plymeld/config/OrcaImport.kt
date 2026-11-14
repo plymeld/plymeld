@@ -95,10 +95,10 @@ object OrcaImport {
         filament("hardware.filament.cooling.layer.time.min", "slow_down_layer_time", ::num)
         filament("hardware.filament.cooling.speed.min", "slow_down_min_speed", ::num)
         filament("hardware.filament.cooling.fan_off_layers", "close_fan_the_first_x_layers", ::num)
-        filament("hardware.filament.cooling.fan", "fan_min_speed", ::num)
+        filament("hardware.filament.cooling.fan", "fan_min_speed") { num(it) / 100 }   // the profile's percent, plymeld's share
         // the overhang fan as the normal fan (no boost), as investigation slices have printed so far;
         // Orca's own overhang_fan_speed is not mapped yet
-        filament("hardware.filament.overhang.fan", "fan_min_speed", ::num)
+        filament("hardware.filament.overhang.fan", "fan_min_speed") { num(it) / 100 }
         filament("hardware.filament.color", "filament_colour") { it }
 
         filament("hardware.filament.temperature.print", "nozzle_temperature", ::num)
@@ -128,7 +128,7 @@ object OrcaImport {
             }
         intent("plan.layer.walls.outer.line.width", "outer_wall_line_width", ::num)
         intent("plan.layer.walls.inner.line.width", "inner_wall_line_width", ::num)
-        intent("plan.layer.walls.inner_first", "wall_sequence") { it == "inner wall/outer wall" }
+        intent("plan.layer.walls.order", "wall_sequence") { when (it) { "inner wall/outer wall" -> "inner_first"; "inner-outer-inner wall" -> "inner_outer_inner"; else -> "outer_first" } }
         intent("plan.seam", "seam_position") { if (it == "back") "back" else "corners" }   // aligned / nearest / random: kept aligned, at corners
         intent("plan.mechanism.adhesion.first_layer.line.width", "initial_layer_line_width", ::num)
         // plymeld's shells are a thickness; the other slicer's layer count, at its layer height, is

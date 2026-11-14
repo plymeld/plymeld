@@ -87,6 +87,8 @@ class JobFacts(
     val zHopMm: Double,
     /** How far each object's first layer reaches beyond its outline (brim width + gap; 0 without brim). */
     val brimReachMm: Double = 0.0,
+    /** The widest outer wall line of the objects (mm): a section left open ends its lines on its box's sides, half of this beyond them. */
+    val wallWidthMm: Double = togetherGapMm,
 )
 
 private fun tiersFact(i: Int, h: Toolhead?) = "toolhead ${i + 1}: " + if (h == null) "no geometry described" else
@@ -167,12 +169,17 @@ object ObjectOrderDecision {
             "minimum gap between objects printed together: %.2f mm (%s)".format(Locale.ROOT, jf.togetherGapMm, jf.togetherGapWhy),
             "weights: $weights") + heads.map { (i, h) -> tiersFact(i, h) }
         val layouts = LinkedHashMap<ObjectOrder, Layout>(); val rejected = LinkedHashMap<ObjectOrder, String>()
+        // an object with a section left open is laid out by the section's box: what prints of it
+        // (its lines end on the box's sides, half a line beyond them: the box is taken half a wall line wider each way, so the gap is between beads as it is between whole objects' faces)
+        val half = jf.wallWidthMm / 2
+        fun sections(ts: List<TechniquePlan>) = ts.map { t -> t.regions.firstOrNull { it.section }?.region?.let { g -> doubleArrayOf(g.x0 - half, g.x1 + half, g.y0 - half, g.y1 + half) } }
+        val secs = sections(techniques)
         for (o in ObjectOrder.entries) {
             missing(o.needs, heads)?.let { rejected[o] = it; continue }
             when (o) {
                 ObjectOrder.TOGETHER -> {
                     // each object keeps its own techniques and layers; the Job merges them by height in each object's own order
-                    val placed = if (keepPlacement) Arrange.asIs(objects) else Arrange.rows(objects, jf.togetherGapMm, jf.bed)
+                    val placed = if (keepPlacement) Arrange.asIs(objects, secs) else Arrange.rows(objects, jf.togetherGapMm, jf.bed, sections = secs)
                     val off = placed?.let { Arrange.outsideBed(it, jf.bed) }
                     when {
                         placed == null -> rejected[o] = "objects do not fit on the bed"
@@ -191,6 +198,7 @@ object ObjectOrderDecision {
                     val idx = if (sequenceAsGiven) objects.indices.toList()
                         else objects.indices.sortedBy { PoseDecision.merged(objects[it].second).bounds().let { b -> b[5] - b[2] } }   // shortest first
                     val ordered = idx.map { objects[it] }
+                    val osecs = idx.map { secs[it] }
                     val placed: List<Placed>?
                     val why: String
                     if (outline) {
@@ -200,17 +208,17 @@ object ObjectOrderDecision {
                         val gapX = maxOf(minOf(r.minusX, r.plusX) + jf.brimReachMm, jf.togetherGapMm)
                         val gapY = maxOf(minOf(r.minusY, r.plusY) + jf.brimReachMm, jf.togetherGapMm)
                         why = "the head's outline reaching %.0f / %.0f / %.0f / %.0f mm towards -X / +X / -Y / +Y + brim reach %.1f".format(Locale.ROOT, r.minusX, r.plusX, r.minusY, r.plusY, jf.brimReachMm)
-                        val clash = if (keepPlacement) Arrange.headClear(Arrange.asIs(ordered), r, jf.brimReachMm) else null
-                        placed = if (!keepPlacement) Arrange.rows(ordered, gapX, jf.bed, gapY, fromRight = r.plusX <= r.minusX, fromBack = r.plusY <= r.minusY)
+                        val clash = if (keepPlacement) Arrange.headClear(Arrange.asIs(ordered, osecs), r, jf.brimReachMm) else null
+                        placed = if (!keepPlacement) Arrange.rows(ordered, gapX, jf.bed, gapY, fromRight = r.plusX <= r.minusX, fromBack = r.plusY <= r.minusY, sections = osecs)
                             ?.takeIf { Arrange.headClear(it, r, jf.brimReachMm) == null }
-                            else Arrange.asIs(ordered).takeIf { clash == null }
+                            else Arrange.asIs(ordered, osecs).takeIf { clash == null }
                         if (placed == null && keepPlacement) { rejected[o] = "placement kept as given, but $clash ($why)"; continue }
                     } else {
                         val radius = heads.maxOf { it.second!!["head.radius"] }
                         val spacing = maxOf(radius + jf.brimReachMm, jf.togetherGapMm)
                         why = "head clearance radius %.0f + brim reach %.1f".format(Locale.ROOT, radius, jf.brimReachMm)
-                        placed = if (!keepPlacement) Arrange.rows(ordered, spacing, jf.bed) else Arrange.asIs(ordered).takeIf { Arrange.minGap(it) >= spacing }
-                        if (placed == null && keepPlacement) { rejected[o] = "placement kept as given, but the objects are %.1f mm apart, closer than %.1f mm (%s)".format(Locale.ROOT, Arrange.minGap(Arrange.asIs(ordered)), spacing, why); continue }
+                        placed = if (!keepPlacement) Arrange.rows(ordered, spacing, jf.bed, sections = osecs) else Arrange.asIs(ordered, osecs).takeIf { Arrange.minGap(it) >= spacing }
+                        if (placed == null && keepPlacement) { rejected[o] = "placement kept as given, but the objects are %.1f mm apart, closer than %.1f mm (%s)".format(Locale.ROOT, Arrange.minGap(Arrange.asIs(ordered, osecs)), spacing, why); continue }
                     }
                     val tooTall = placed?.dropLast(1)?.firstOrNull { it.heightMm >= rod }
                     val off = placed?.let { Arrange.outsideBed(it, jf.bed) }
@@ -254,7 +262,7 @@ object ObjectOrderDecision {
         val baseline: Map<Metric, Double>? = if (!timed) null else run {
             fun none(why: String): Map<Metric, Double>? { baselineFact = "baseline: none ($why): scored against the best order instead (at most 1 per measure)"; return null }
             if (baselineLayers == null || predictBaseline == null) return@run none(baselineWhat)
-            val placed = layouts[ObjectOrder.TOGETHER]?.placed ?: (if (keepPlacement) Arrange.asIs(objects) else Arrange.rows(objects, jf.togetherGapMm, jf.bed))
+            val placed = layouts[ObjectOrder.TOGETHER]?.placed ?: (if (keepPlacement) Arrange.asIs(objects, secs) else Arrange.rows(objects, jf.togetherGapMm, jf.bed, sections = secs))
                 ?: return@run none("the objects do not fit on the bed printed together")
             val p = predictBaseline(Layout(ObjectOrder.TOGETHER, baselineLayers.map { FlatLayers.plan(it) }, placed))
             val t = p.timeS ?: return@run none("its time cannot be predicted: ${p.why}")
