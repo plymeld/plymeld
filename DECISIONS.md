@@ -605,3 +605,39 @@ so a line a few mm long may be capped far below its own speed. The pose search's
 either cap; the time of the written file does. The caps read the plate's, the object's, or the part's tool's settings
 as the writer does: a value set on a part that prints with the object's own tool is the object's.
 
+## 24. No number a printer may refuse leaves plymeld: one rule, where it writes, checks, and sends (2026-11-14)
+
+Amends 23: a line of no length gets no steady-share cap.
+
+**Context.** A program can hold a line of no length: its points all one, so it lays nothing (a thin area's center line
+along the outline whose points come out as one, at a lettering's or a star's sharp tips). Its steady-share cap was
+sqrt(a · 0 · (1 − share)) = 0, written `G1 F0`, and its time in the preheat's walk back was 0 / 0, written "NaN s". The
+printer's firmware stopped the job at the zero feed, mid-print, and the pre-print check had passed the file: it read
+feeds only to compare them with the machine's top speeds.
+
+**Decision.** Three layers, each enough on its own for a dead feed:
+- At the source: a line of no length gets no steady-share cap (a cap for a length it does not have), and takes 0 s in
+  every time estimate (the minimum layer time's, the preheat's), whatever its speed.
+- Where plymeld writes: one rule for the numbers of a g-code line (BadNumbers): a parameter that is not a finite
+  number where a number stands, a value missing where one is needed, a move at a feed of 0 or below, a temperature, fan,
+  or wait below 0, an acceleration of 0 or below. Every line the writer emits passes it (CommandCheck, the templates'
+  lines too), or the write fails at that line, naming the feature, object, and layer. Numbers the writer rounds to a
+  whole one (a fan's speed, a wait, an acceleration) are refused before rounding when not finite (rounded, NaN reads 0,
+  a wrong command that looks right); a feed rate that is not above 0 is refused where it is formatted; a feed above 0
+  that rounds to F0 is written F1, the slowest the format writes; a template placeholder that is not finite fails the
+  render. A comment of plymeld's that holds NaN or Infinity where a number stands is refused too: a broken estimate.
+- Where plymeld checks and sends: the pre-print check applies the same rule to every line of the file, and `plymeld
+  printer send` applies it to the commands of the file it is given, of any origin (an older build's, another
+  slicer's), before it reads the config or reaches the printer. The window sends through the same command.
+
+**Rejected.** A floor under the steady share's cap (the slowest feed, or the filament's minimum speed): an invented
+number, and a line of no length has no length to cap by. Removing lines of no length from the program: it changes every
+print that has them, a change of its own to weigh (where they come from is the walls' center lines). A send that
+refuses comments too: a firmware ignores them, and a file that would print right would be refused. A separate rule per
+place (the writer's, the check's, the send's): three rules drift apart, and the send would refuse what the check passed.
+
+**Consequences.** A slice that would write a bad number fails, its message naming the line, where a file used to come
+out; the g-code written up to that line stays on disk, unfinished, and the message says not to print it. With the
+steady share unset, the g-code is unchanged. A command the rule does not know is judged only where its values are
+written as numbers, so a macro's text arguments, lists, and names pass.
+

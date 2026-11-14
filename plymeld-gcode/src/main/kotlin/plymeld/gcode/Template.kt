@@ -43,16 +43,26 @@ object Template {
     private sealed interface Node
     private data class Text(val s: String) : Node
     private data class Subst(val name: String) : Node
-    private data class ExprOut(val e: Expr) : Node
+    /** An `{expression}` written out; [src] its text, for a refusal. */
+    private data class ExprOut(val e: Expr, val src: String) : Node
     private data class If(val branches: List<Pair<Expr?, List<Node>>>) : Node   // null cond = else
 
     private fun emit(nodes: List<Node>, lookup: (String) -> Value?, sb: StringBuilder) {
         for (n in nodes) when (n) {
             is Text -> sb.append(n.s)
-            is Subst -> sb.append(format(resolve(n.name, lookup)))
-            is ExprOut -> sb.append(format(eval(n.e, lookup)))
+            is Subst -> sb.append(format(finite(resolve(n.name, lookup)) { "[${n.name}]" }))
+            is ExprOut -> sb.append(format(finite(eval(n.e, lookup)) { "{${n.src}}" }))
             is If -> for ((c, body) in n.branches) if (c == null || truthy(eval(c, lookup))) { emit(body, lookup, sb); break }
         }
+    }
+
+    /**
+     * [v], refused when it is a number that is not finite: written, NaN would come out as 0 (a whole number's form) or fail
+     * deep in formatting; [what] names the placeholder.
+     */
+    private fun finite(v: Value, what: () -> String): Value {
+        if (v is Num && !v.v.isFinite()) error("template placeholder ${what()} is ${v.v}, not a number: no g-code can be written for it")
+        return v
     }
 
     private fun resolve(name: String, lookup: (String) -> Value?): Value {
@@ -115,7 +125,7 @@ object Template {
                             flush(); i = j + 1
                             return out to (if (word == "elsif") inner else word)
                         }
-                        else -> { flush(); out.add(ExprOut(ExprParser(inner).parseAll())); i = j + 1; continue }
+                        else -> { flush(); out.add(ExprOut(ExprParser(inner).parseAll(), inner)); i = j + 1; continue }
                     }
                 }
                 text.append(c); i++

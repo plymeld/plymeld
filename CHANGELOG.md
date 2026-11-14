@@ -19,7 +19,10 @@ section the release's version and date.
 - A line no faster than it can hold steady: with `plan.mechanism.motion.steady.share` set, every printed line is laid no
   faster than the speed at which that share of its length is laid at a steady speed, starting and stopping at rest at
   its acceleration: `sqrt(acceleration * length * (1 - share))`, the whole line at one speed. Not the purge tower, the
-  prime line, or a lifted bridge's own speeds over air. Unset, nothing changes.
+  prime line, a lifted bridge's own speeds over air, or a line of no length (it lays nothing). Unset, nothing changes.
+- `plymeld printer send` refuses a file with a number a printer may refuse or act wrongly on, before anything is sent,
+  naming each line: a value that is not a finite number, a move at a feed rate of 0 or below, a temperature, fan, or
+  wait below 0, an acceleration of 0 or below. It reads the file it is given, sliced by any build or by hand.
 - `plan.layer.sliver.width`: on an object of several filaments, how thin an area of one filament is handed to the
   filament beside it. Unset, it is the thinnest area the walls print, as before. The pre-print check allows a line that
   much further from its own tool's part.
@@ -100,6 +103,12 @@ section the release's version and date.
 
 ### Fixed
 
+- A dead feed: with `plan.mechanism.motion.steady.share` set, a line of no length (a thin area's center line whose
+  points come out as one, at sharp tips) was capped to a speed of 0 and written `G1 F0`, at which a printer stopped the
+  print, beside a preheat comment of "NaN s"; and the pre-print check passed the file. Such a line is no longer capped.
+  The writer now fails the slice at any line holding such a number (the same rule as the send's), the templates' lines
+  included, rather than write it; a feed above 0 that rounds to F0 is written F1. The pre-print check refuses such a
+  line too, and a NaN or Infinity where plymeld's comments hold a number.
 - On an object of several parts, what counts as another part beside a part's lines (for a seam pressed against one, and
   for a speck of outer wall left out in front of one) is the other parts as laid. It was the object's outline less the
   part, which is closed (`method.slicing.close_gaps`) and so left hairline slivers along a round open edge that read as

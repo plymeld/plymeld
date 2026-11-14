@@ -25,6 +25,9 @@ import java.util.Locale
  *    refuses it;
  *  - travels: none at or below the height of a visible line (outer wall, top or bottom surface, ironing)
  *    already printed on that layer, across it;
+ *  - numbers ([unreadable], BadNumbers), every line, the templates' too: every parameter a finite number where one stands,
+ *    every move's feed rate above 0 (a printer stops the print at F0), no temperature, fan, or wait below 0, no
+ *    acceleration of 0 or below; no NaN or Infinity where plymeld's comments hold a number (a broken estimate);
  *  - start: the start template's own lines in order before the first layer, no placeholder left in
  *    any command, the nozzle heated (M109) before the first line is printed, relative extrusion (M83) set
  *    before anything is extruded;
@@ -119,6 +122,7 @@ object GcodeCheck {
         inOrder(e.startTemplate, lines.subList(0, firstLayer))?.let { bad(1, "start template line '$it' missing or out of order before the first layer") }
         inOrder(e.endTemplate, lines.subList(lastExtrusion + 1, lines.size))?.let { bad(lastExtrusion + 2, "end template line '$it' missing or out of order after the last line printed") }
         for ((i, l) in lines.withIndex()) { if (PLACEHOLDER.containsMatchIn(l.substringBefore(';'))) bad(i + 1, "placeholder left in a command: '${l.trim()}'") }
+        unreadable(lines).forEach { (ln, s) -> bad(ln, s) }
 
         var x = Double.NaN; var y = Double.NaN; var z = Double.NaN; var f = 0.0
         var layerZ = Double.NaN; var maxLayerZ = 0.0; var layerH = 0.2
@@ -295,6 +299,15 @@ object GcodeCheck {
         headerProblems(lines, netE).forEach { (ln, s) -> bad(ln, s) }
         return out
     }
+
+    /**
+     * The numbers in every line as a printer's firmware reads them, and those plymeld writes in its comments (BadNumbers, the
+     * one rule the writer and `plymeld printer send` apply too), by line (1-based) with what is wrong: a parameter that is not
+     * a finite number or has no value where one is needed, a move at a feed rate of 0 or below (a printer stops the print at
+     * F0), a temperature, fan, or wait below 0, an acceleration of 0 or below, and NaN or Infinity where a comment holds a
+     * number (a broken estimate). The source block at the file's end (the config it was made from, as text) is not read.
+     */
+    fun unreadable(lines: List<String>): List<Pair<Int, String>> = plymeld.gcode.BadNumbers.scan(lines.asSequence(), comments = true)
 
     /**
      * A filament-use header (the Creator 5's: `; filament used [mm] = a, b, ...` and `; <filament id="n" ... used_m="x" />`,
