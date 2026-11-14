@@ -78,6 +78,10 @@ section the release's version and date.
   as modeled, turned with its pose): quality's measures count its back less, and least-visible seams go there. Looked at
   from all around (the default before), a plain round wall's seams stayed wherever a feature first put them, on a
   nameplate's front face from its lettering to its top edge. A model with no front of its own sets `all_around`.
+- Tool and filament changes are made over where the incoming filament first prints (the purge tower when there is one),
+  after the outgoing tool leaves the part with its usual retraction, wipe, and lift and travels there. The change was
+  made standing on the outgoing filament's last line, which left ooze on the part: on a plate, every change stood on
+  the last object's face.
 
 ### Fixed
 

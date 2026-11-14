@@ -494,3 +494,37 @@ differs from the taller's at that height, so only copies of one object would hav
 bridge on it is refused, as is one object at a time (each object would need a tower of its own from the bed). Objects each on one filament but not the same one
 are still refused. One object on several filaments is written as before, by the same code with one object.
 
+## 21. A tool change is made over where the incoming filament first prints (2026-11-14)
+
+**Context.** A tool or filament change was written with the nozzle standing where the outgoing filament's last line
+ended, on the part, at print height: between the last printing move and the T command there was only a standing
+retraction and the outgoing tool's idle temperature, and the travel to the incoming filament's first line came after
+the change. On a plate printed per filament the outgoing filament's last line on a layer is on the last object, so
+every change stood on that object's face; on three test prints of two-color plates (of two and of four objects), the last
+object was the one with strings and blobs. The nozzle that stops there and is pulled away leaves its ooze on the face,
+and on machines that bring the new tool back to where the old one was, the incoming nozzle arrives there too and
+waits for its temperature over the part.
+
+**Decision.** Before a change the outgoing tool leaves the part as it leaves for any retracted travel: the same
+retraction and wipe (the writer's one departure, `departForTravel`: the inward wipe after a wall loop, none after a line
+left below its highest point, by the settings the outgoing line was laid with), then the lift (the outgoing filament's
+`retract.z_hop`), then the travel to where the incoming filament's first line starts (its purge on the purge tower, or,
+with the purge into infill or no tower, its first line on the part), routed and cleared like any other lifted travel
+(`travelTo`). The change (the outgoing tool's idle temperature, the T command, the incoming tool's wait) is written
+there, with the head still lifted. The incoming line then starts as before: the head's place after a change is not
+known, so it rises clear of what is printed, goes over the line's start, and comes down. Where no line follows the change
+directly (a wait, a pause, a swap by hand) or the head's place is not known (the print's first tool selection), the change
+is made where the head is, retracted, as before.
+
+**Rejected.** A fixed park position: a setting nobody can choose well for every plate, and a travel away from where the
+tool is needed next. Changing in place with only a lift: the incoming nozzle still arrives over the part, and waits for
+its temperature there, on machines that return to the old position. A setting to choose the old behavior: no case for it
+is known.
+
+**Consequences.** Every print that changes tools changes: the travel from the part to the incoming line moves ahead of
+the change, and the outgoing tool wipes before it (no change wiped before). After the change the head rises and returns
+over the same point, a move of no length on a machine that brings the head back, a travel on one that leaves it
+elsewhere. The predicted time reads the g-code, so it counts the travel and the wipe where they now are; what the
+machine itself moves during a change is its `tool_change.time`, as before. The incoming tool's wait happens over the tower, or over
+the part's hidden infill where the purge goes into infill.
+
