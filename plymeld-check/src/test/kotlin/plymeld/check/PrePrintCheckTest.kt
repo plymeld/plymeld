@@ -60,4 +60,9 @@ class PrePrintCheckTest : StringSpec({
         rules(tall).contains("gantry-clearance") shouldBe true
     }
     "control: a feed rate above the machine is caught" { rules(good + "G1 X120 Y120 F60000\n") shouldBe listOf("feed-rate") }
+    // the numbers as the firmware reads them, the rule plymeld's writer, pre-print check and send apply (BadNumbers)
+    "control: a move at F0, a NaN, a negative bed temperature, and an acceleration of 0 are caught as numbers" {
+        for (bad in listOf("G1 F0\n", "G1 X120 YNaN E0.1\n", "M140 S-5\n", "SET_VELOCITY_LIMIT ACCEL=0\n"))
+            ("numbers" in rules(good + bad)) shouldBe true
+    }
 })

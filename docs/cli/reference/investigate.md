@@ -12,7 +12,7 @@ Subcommands:
 
 - [`slice`](#plymeld-investigate-slice): INVESTIGATION ONLY: slice with the settings in a project or g-code file (--settings), to compare plymeld's result with that file.
 - [`plan`](#plymeld-investigate-plan): INVESTIGATION ONLY (the settings in a project or g-code file): show each decision for printing the model: the value, the facts behind it, the alternatives, and any stand-in rules.
-- [`check`](#plymeld-investigate-check): INVESTIGATION ONLY (limits from the settings in a project or g-code file): check g-code against the machine's limits before printing: bed area, excluded area, Z, temperatures, extrusion before heating, feed rates, extrusion amounts, and whether the head would hit printed material.
+- [`check`](#plymeld-investigate-check): INVESTIGATION ONLY (limits from the settings in a project or g-code file): check g-code against the machine's limits before printing: numbers the firmware may refuse or act wrongly on (not a finite number, a feed rate of 0 or below, a temperature, fan, or wait below 0, an acceleration of 0 or below), bed area, excluded area, Z, temperatures, extrusion before heating, feed rates, extrusion amounts, and whether the head would hit printed material.
 - [`config`](#plymeld-investigate-config): INVESTIGATION ONLY: list plymeld's settings by entity; with --settings, show each value and where it came from.
 - [`predict`](#plymeld-investigate-predict): INVESTIGATION ONLY: plymeld's time and filament prediction for any g-code file, whatever wrote it, with a machine description's motion limits.
 
@@ -71,7 +71,7 @@ Options:
 
 ## `plymeld investigate check`
 
-INVESTIGATION ONLY (limits from the settings in a project or g-code file): check g-code against the machine's limits before printing: bed area, excluded area, Z, temperatures, extrusion before heating, feed rates, extrusion amounts, and whether the head would hit printed material.
+INVESTIGATION ONLY (limits from the settings in a project or g-code file): check g-code against the machine's limits before printing: numbers the firmware may refuse or act wrongly on (not a finite number, a feed rate of 0 or below, a temperature, fan, or wait below 0, an acceleration of 0 or below), bed area, excluded area, Z, temperatures, extrusion before heating, feed rates, extrusion amounts, and whether the head would hit printed material.
 
 Usage: `plymeld investigate check [<options>] <file>`
 

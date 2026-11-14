@@ -12,6 +12,8 @@ import java.util.zip.ZipFile
  * file was made. Run before sending anything to a printer.
  *
  * Checks (each a finding with the first offending line):
+ *  - every command's numbers as the firmware reads them (BadNumbers): no value that is not a finite number where one
+ *    stands, no move at a feed rate of 0 or below, no temperature, fan, or wait below 0, no acceleration of 0 or below
  *  - extruding moves inside printable_area and outside bed_exclude_area (after the first layer marker)
  *  - Z within [0, printable_height] after the first layer marker (start g-code may wipe below 0)
  *  - nozzle temperatures 0 or within [nozzle_temperature_range_low, _high]; bed within [0, 120]
@@ -102,6 +104,9 @@ object PrePrintCheck {
             }
             val code = line.substringBefore(';').trim()
             if (code.isEmpty()) continue
+            // a number the firmware may refuse or act wrongly on (BadNumbers: the rule plymeld's writer, its pre-print check,
+            // and `plymeld printer send` apply)
+            plymeld.gcode.BadNumbers.inCommand(code)?.let { fail("numbers", lineNo, "'$code': $it") }
             val parts = code.split(' ', '\t').filter { it.isNotEmpty() }
             val cmd = parts[0].uppercase()
             fun num(c: Char): Double? = parts.drop(1).firstOrNull { it[0].uppercaseChar() == c }?.substring(1)?.toDoubleOrNull()
