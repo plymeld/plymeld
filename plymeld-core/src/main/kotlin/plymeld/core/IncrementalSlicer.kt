@@ -1760,7 +1760,7 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
             "method.quality.visibility.sample.azimuths", "method.quality.visibility.sample.elevations", "method.quality.visibility.sample.elevation.max",
             "method.quality.visibility.sample.reach", "method.quality.visibility.sample.cell", "method.quality.visibility.show_through",
             "method.quality.visibility.quadrant.front", "method.quality.visibility.quadrant.left", "method.quality.visibility.quadrant.right", "method.quality.visibility.quadrant.back",
-            "plan.technique.scarf_seam.where", "plan.technique.scarf_seam.length", "plan.technique.scarf_seam.start",
+            "plan.technique.scarf_seam.where", "plan.technique.scarf_seam.covered", "plan.technique.scarf_seam.length", "plan.technique.scarf_seam.start",
             "plan.layer.infill.density", "plan.layer.infill.pattern", "plan.layer.infill.chord_tolerance", "plan.layer.top.pattern", "plan.layer.bottom.pattern",
             "plan.technique.flat.core.layers", "hardware.tool.layer.height.max",
             "plan.layer.infill.line.width", "plan.layer.solid.line.width",

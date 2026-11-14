@@ -414,6 +414,12 @@ object Planner {
                * before the layer is ordered. Null or empty: every path is laid.
                */
               omit: List<List<Polygon>>? = null,
+              /**
+               * For one part of several ([whole]): per layer, the object's other parts beside these areas, as they are laid (the
+               * other groups' areas: MultiFilament.otherParts). Read where a part's own lines are judged against the parts beside it
+               * ([near]). Null: none (an object of one part).
+               */
+              otherParts: ((Int) -> List<Polygon>)? = null,
               /** The settings this stage reads, as text (IncrementalSlicer's PATH_KEYS): the layer cache's settings part. */
               settingsKey: String = s.key()): List<LayerPlanOut> {
         val n = outlines.size
@@ -557,6 +563,19 @@ object Planner {
         val outerHalfMm = s.outerWallWidthUm / 2000.0
         fun shelfAt(i: Int): ((Long, Long) -> Double)? =
             if (i == 0 || shelfReach <= 0) null else { val b = belowWalls[i - 1].value; { x, y -> SeamScar.shelfMm(x, y, b, outerHalfMm, shelfReach) } }
+        // the object's other parts on each layer ([otherParts]), for one part of several. Not the whole object less this part:
+        // the whole is closed (method.slicing.close_gaps), and along a part's open edges the closing leaves hairline slivers
+        // outside it (round a 20 mm round base, 13 of them, each under 0.001 mm²), which read as another part covering 18 of
+        // the 97 points of its open outer wall (MultiFilament.otherParts)
+        val otherPartsAt = List(n) { i -> lazy { otherParts?.invoke(i).orEmpty() } }
+        /**
+         * Per layer, whether another part covers a closed outer wall's point ([near] within one outer-wall line): its seam
+         * there is hidden and gets a point seam, not a scarf (plan.technique.scarf_seam.covered = point); null = none can be
+         * (an object of one part, or covered seams scarfed as any).
+         */
+        val coveredAt = List(n) { i -> lazy { if (otherParts == null || !s.scarfCoveredPoint) null
+            else near(otherPartsAt[i].value, if (i == 0) s.firstLayerWidthUm else s.outerWallWidthUm) } }
+        val rampUm: Long = if (s.scarf == "none") 0L else s.scarfLengthUm ?: 0L
         val seams = Seams.alignAll(walls.map { it.walls }, if (s.seamCorners || s.seamLeastVisible) s.seamCornerDeg else null, seamOver, back = s.seamBack,
             spanUm = { i, k -> 2.0 * (if (i == 0) s.firstLayerWidthUm else if (k == 0) s.outerWallWidthUm else s.innerWallWidthUm) },
             leastVisible = s.seamLeastVisible,
@@ -568,12 +587,15 @@ object Planner {
             exposure = seamVis?.exposure((whole?.w?.walls ?: walls).map { it.walls.getOrNull(0).orEmpty() }, layerTopsUm),
             shelfOf = { i -> shelfAt(i) },
             // a scarf seam's ramp is seen as well as its start (plan.technique.scarf_seam.*)
-            rampUm = if (s.scarf == "none") 0 else s.scarfLengthUm ?: 0, rampOffCorners = s.scarf == "smooth",
-            scarfShare = s.seamScarfShare)
+            rampUm = rampUm, rampOffCorners = s.scarf == "smooth",
+            scarfShare = s.seamScarfShare,
+            // and a start another part covers as the point seam it is laid as
+            coveredOf = if (rampUm > 0) { i -> coveredAt[i].value } else null)
         val builtAll = Parallel.map(n, progress.Counter("paths", n)) { i ->
             // what this layer's paths are built from (LayerCache): its own walls, regions and outline, the layer below's printed
-            // and sparse areas, the layer above's outline (ironing), its seams, support, cover, anchors and core, the settings, and
-            // the object's middle its sparse lines are laid out from (patternCenter: the whole object's, not this layer's)
+            // and sparse areas, the layer above's outline (ironing), its seams, support, cover, anchors and core, the settings,
+            // the object's middle its sparse lines are laid out from (patternCenter: the whole object's, not this layer's), and
+            // for one part of several the other parts on this layer
             val kb = LayerCache.Builder("paths").text(sk).text(i).text(hs[i]).text(layerTopsUm[i]).text(objectWide).text(alongBridge)
                 .text(sparseCenter?.joinToString(","))
                 .text(coreLast[i]).text(coreLast[i].takeIf { it >= 0 }?.let { coreHeight[it] }).text(fillAngle[i])
@@ -593,6 +615,9 @@ object Planner {
             bridgeAnchors[i]?.let { kb.text("anchor").polys(it) }
             if (coreLast[i] >= 0) kb.polys(coreRegion.getValue(coreLast[i]))
             if (i == 0) { kb.text(onBed != null).polys(onBed ?: emptyList()).polys(allOutlines[0]) }
+            // the other parts beside this one, for one part of several: they leave out a speck in front of one and lay a seam
+            // one covers as a point seam
+            if (otherParts != null) kb.text("others").polys(otherPartsAt[i].value)
             LayerCache.get(kb.build(), { b: Built -> LayerCache.bytesOfPaths(b.paths) }, s) {
             var droppedHere = 0.0
             val first = i == 0
@@ -983,15 +1008,10 @@ object Planner {
                     if (fill.isEmpty()) covered else Booleans.union(covered, fill.last().loops)
                 }
             }
-            /** The object's other parts on this layer, for one part of several ([whole]): the whole object less this part. */
-            val otherParts by lazy { if (whole == null) emptyList() else Booleans.difference(whole.outlines[i], outlines[i]) }
-            /** Whether another part lies within one of [c]'s widths of its middle point. */
+            /** Whether another part lies within one of [c]'s widths of its middle point ([near]). */
             fun otherPartNear(c: CenterLine): Boolean {
-                val others = otherParts
-                if (others.isEmpty()) return false
                 val m = c.xy.size / 4 * 2
-                val grown = plymeld.geom.Offset.offset(others, c.maxWidthUm, plymeld.geom.Offset.Join.ROUND)
-                return grown.count { plymeld.geom.Polygons.contains(it, c.xy[m], c.xy[m + 1]) } % 2 == 1
+                return near(otherPartsAt[i].value, c.maxWidthUm)?.invoke(c.xy[m], c.xy[m + 1]) == true
             }
             /** A wall's runs outside what the waves cover (the whole loop, closed, when none of it is over the waves). */
             fun overWaves(xy: LongArray, closed: Boolean): List<LongArray>? = if (waveCovered.isEmpty()) null else plymeld.geom.Clip.outside(xy, closed, waveCovered).takeIf { it.size != 1 || it[0] !== xy }
@@ -1039,9 +1059,13 @@ object Planner {
                     // an edge hanging over the layer below when the loop has another place
                     val placed = seams.getOrNull(i)?.getOrNull(k)?.getOrNull(li) ?: Seams.place(loop, null, 0.0, overhangs = seamOver[i]?.get(k)?.get(li))
                     val smooth = placed.loop.xy
-                    // a scarf seam on an outer wall above the first layer (not with fuzzy skin): every one, or those with no corner
+                    // a scarf seam on an outer wall above the first layer (not with fuzzy skin): every one, or those with no corner;
+                    // not where another part of the object covers the seam (plan.technique.scarf_seam.covered = point): the seam
+                    // is hidden there, and a scarf's ramp and closing pass ran on from it onto the faces that show (on a small
+                    // island inlaid in a letter, its whole front laid twice, thin)
                     val scarfWanted = if (k == 0 && !first && !fuzz && s.scarfStart != null &&
-                        (s.scarf == "all" || (s.scarf == "smooth" && !placed.atCorner))) s.scarfLengthUm ?: 0L else 0L
+                        (s.scarf == "all" || (s.scarf == "smooth" && !placed.atCorner)) &&
+                        coveredAt[i].value?.invoke(placed.loop.x(0), placed.loop.y(0)) != true) s.scarfLengthUm ?: 0L else 0L
                     // ... and only where it leaves less blemish than a point seam: not on a shelf wider than a line, where its ramp
                     // lies seen from above (SeamScar.scarfPays; a lying pin's top printed its scarfs as a trail)
                     val scarfUm = if (scarfWanted > 0 && shelfAt(i)?.let { sh ->
@@ -1806,10 +1830,32 @@ object Planner {
         return at
     }
 
-    /** Each layer's own height, from consecutive tops (tops are measured from the bed). */
     /** Length (µm) of an open polyline (flat x y ...). */
     fun polylineLength(xy: LongArray): Double { var l = 0.0; for (k in 1 until xy.size / 2) l += Math.hypot((xy[2 * k] - xy[2 * k - 2]).toDouble(), (xy[2 * k + 1] - xy[2 * k - 1]).toDouble()); return l }
 
+    /**
+     * Whether a point (x, y in µm) has another part of the object within [reachUm] of it: lies inside [others] (on one layer,
+     * the object's other parts: [paths]' otherParts) grown by [reachUm]. What "another part covers it" means wherever a
+     * part's own lines are judged against the parts beside it: a speck of an outer wall in front of another part (left
+     * out), and a closed outer wall's seam pressed against another part (hidden there, so a point seam:
+     * plan.technique.scarf_seam.covered). Null when there is no other part.
+     */
+    fun near(others: List<Polygon>, reachUm: Long): ((Long, Long) -> Boolean)? {
+        if (others.isEmpty()) return null
+        val grown = plymeld.geom.Offset.offset(others, reachUm, plymeld.geom.Offset.Join.ROUND)
+        if (grown.isEmpty()) return null
+        val boxes = grown.map { it.bounds() }
+        return { x, y ->
+            var c = 0
+            for (k in grown.indices) {
+                val b = boxes[k]
+                if (x >= b[0] && x <= b[2] && y >= b[1] && y <= b[3] && plymeld.geom.Polygons.contains(grown[k], x, y)) c++
+            }
+            c % 2 == 1
+        }
+    }
+
+    /** Each layer's own height, from consecutive tops (tops are measured from the bed). */
     fun heights(layerTopsUm: LongArray): LongArray = LongArray(layerTopsUm.size) { if (it == 0) layerTopsUm[0] else layerTopsUm[it] - layerTopsUm[it - 1] }
 
     /** Rotates a loop so it starts at its back-most vertex (max y; ties by min x). */

@@ -244,6 +244,7 @@ tower.side_share.min = "0.5"
 
 [plan.technique.scarf_seam]
 where = "smooth"
+covered = "point"                                       # a seam another part covers is hidden: a point seam there, no ramp onto the faces beside it
 length = "10 mm"
 start = "0.25"
 speed = "= plan.mechanism.motion.visible.speed * 0.5"   # the ramp and its closing pass at half the visible lines' speed

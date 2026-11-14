@@ -86,11 +86,16 @@ object Seams {
               /** Scarf seams go off corners only (plan.technique.scarf_seam.where = smooth): a corner start keeps a point seam. */
               rampOffCorners: Boolean = false,
               /** A scarf seam's blemish as a share of a point seam's (method.quality.seam.scarf_share), where a start gets a scarf. */
-              scarfShare: Double = 1.0): Placed {
+              scarfShare: Double = 1.0,
+              /**
+               * Whether another part of the object covers a point (x, y in µm) of this loop, where a start gets a point seam
+               * however [rampUm] reads (plan.technique.scarf_seam.covered = point; [Planner.near]); null = none is.
+               */
+              covered: ((Long, Long) -> Boolean)? = null): Placed {
         if (p.size < 3) return Placed(Planner.seamAtBack(p), false)
         val held: (Int) -> Boolean = if (overhangs == null || overhangs.all { it }) { _ -> true } else { i -> !overhangs[i] }
         if (leastVisible && vis != null) {
-            val lc = costsOf(p, cornerDeg, spanUm, overhangs, vis, cornerShare, exposure, layer, shelf, rampUm, rampOffCorners, scarfShare)
+            val lc = costsOf(p, cornerDeg, spanUm, overhangs, vis, cornerShare, exposure, layer, shelf, rampUm, rampOffCorners, scarfShare, covered)
             val n = p.size
             val seen = lc.seen; val blem = lc.blem
             val pts = lc.points
@@ -174,13 +179,15 @@ object Seams {
      * view, less what hides it nearby; an overhanging point as an underside; a scarf seam's start as its ramp's most-seen
      * point), and [blem], the blemish seam_scar charges there (a point seam a line width squared, or a band across the shelf
      * it sits on; the corner share in a corner; a scarf seam, where its start gets one and it pays ([SeamScar.scarfPays]),
-     * [scarfShare] of a line width squared plus its ramp on the shelf). [points]: the held-up vertices (all where none is).
+     * [scarfShare] of a line width squared plus its ramp on the shelf). A start another part of the object covers ([covered])
+     * gets a point seam (plan.technique.scarf_seam.covered = point), so it is costed as one: seen at itself, a point's
+     * blemish. [points]: the held-up vertices (all where none is).
      */
     class LoopCosts(val seen: DoubleArray, val blem: DoubleArray, val corner: BooleanArray, val points: List<Int>)
 
     fun costsOf(p: Polygon, cornerDeg: Double?, spanUm: Double, overhangs: BooleanArray?, vis: plymeld.core.decide.Visibility, cornerShare: Double,
                 exposure: plymeld.core.decide.Exposure?, layer: Int, shelf: ((Long, Long) -> Double)?, rampUm: Long, rampOffCorners: Boolean,
-                scarfShare: Double = 1.0): LoopCosts {
+                scarfShare: Double = 1.0, covered: ((Long, Long) -> Boolean)? = null): LoopCosts {
         val n = p.size
         val held: (Int) -> Boolean = if (overhangs == null || overhangs.all { it }) { _ -> true } else { i -> !overhangs[i] }
         val ex = exposure?.ofLoop(layer, p)
@@ -191,11 +198,15 @@ object Seams {
         val pts = (0 until n).filter(held).ifEmpty { (0 until n).toList() }
         val tv = if (cornerDeg == null) null else turns(p, spanUm)
         val corner = BooleanArray(n) { i -> tv != null && Math.abs(tv[i]) >= cornerDeg!! }
+        // where a start gets a point seam whatever the ramp: a corner where scarf seams go off corners only, and a point
+        // another part covers (the Planner lays a point seam there: a scarf ran its ramp and closing pass out onto the faces beside
+        // it; costed as a scarf, a covered point read as seen as the ramp's most-seen point and the placement avoided it)
+        val point = BooleanArray(n) { i -> rampUm <= 0 || (rampOffCorners && corner[i]) || covered?.invoke(p.x(i), p.y(i)) == true }
         // a scarf seam is seen along its ramp, not at its start alone: the most-seen point of the [rampUm] the loop runs on
-        // from the start (a corner keeps a point seam where scarf seams go off corners only). Judged at the start alone, a
-        // lettering's seams started hidden in a letter's pocket and their 10 mm ramps ran out onto the face beside it
+        // from the start. Judged at the start alone, a lettering's seams started hidden in a letter's pocket and their 10 mm
+        // ramps ran out onto the face beside it
         val seen = if (rampUm <= 0) vs else DoubleArray(n) { i ->
-            if (rampOffCorners && corner[i]) vs[i] else {
+            if (point[i]) vs[i] else {
                 var worst = vs[i]; var run = 0.0; var j = i
                 while (run < rampUm) {
                     val k = (j + 1) % n
@@ -214,7 +225,7 @@ object Seams {
         val rampMm = rampUm / 1000.0
         val blem = DoubleArray(n) { i ->
             val sh = shelf?.invoke(p.x(i), p.y(i)) ?: 0.0
-            if (rampUm > 0 && !(rampOffCorners && corner[i]) && plymeld.core.SeamScar.scarfPays(w, sh, scarfShare, rampMm))
+            if (!point[i] && plymeld.core.SeamScar.scarfPays(w, sh, scarfShare, rampMm))
                 plymeld.core.SeamScar.scarfBlemish(w, sh, scarfShare, rampMm)
             else plymeld.core.SeamScar.pointBlemish(w, sh, if (corner[i]) cornerShare else 1.0)
         }
@@ -234,7 +245,9 @@ object Seams {
                  /** The outer walls' scarf ramp length (µm), when scarf seams may be laid; 0 = none ([place]). */
                  rampUm: Long = 0, rampOffCorners: Boolean = false,
                  /** A scarf seam's blemish as a share of a point seam's (method.quality.seam.scarf_share; [place]). */
-                 scarfShare: Double = 1.0): List<List<List<Placed>>> {
+                 scarfShare: Double = 1.0,
+                 /** Each layer's test of whether another part covers an outer wall's point ([place]'s covered); null = none. */
+                 coveredOf: ((Int) -> ((Long, Long) -> Boolean)?)? = null): List<List<List<Placed>>> {
         val out = ArrayList<List<List<Placed>>>(loops.size)
         var below: List<LongArray> = emptyList()
         // the outer walls' exposures, the layers in parallel (the placement itself runs layer by layer, each from the one below)
@@ -247,7 +260,7 @@ object Seams {
         val planned = List(loops.size) { i -> arrayOfNulls<LongArray>(loops[i].getOrNull(0)?.size ?: 0) }
         for ((i, layer) in loops.withIndex()) {
             runs[i]?.forEach { run ->
-                planColumn(run, loops, below.getOrElse(0) { LongArray(0) }, cornerDeg, overhangs, spanUm, vis!!, cornerShare, exposure, shelfOf, rampUm, rampOffCorners, scarfShare)
+                planColumn(run, loops, below.getOrElse(0) { LongArray(0) }, cornerDeg, overhangs, spanUm, vis!!, cornerShare, exposure, shelfOf, rampUm, rampOffCorners, scarfShare, coveredOf)
                     .forEachIndexed { r, xy -> planned[run[r].first][run[r].second] = xy }
             }
             val oh = overhangs?.get(i)
@@ -256,7 +269,7 @@ object Seams {
                 val ref = if (k == 0) planned[i].getOrNull(li) else null
                 place(lp, cornerDeg, spanUm(i, k), ref ?: below.getOrElse(k) { LongArray(0) }, oh?.get(k)?.get(li), back, leastVisible, vis, cornerShare,
                 if (k == 0) exposure else null, i, if (k == 0 && leastVisible) shelfOf?.invoke(i) else null,
-                if (k == 0) rampUm else 0, rampOffCorners, scarfShare) } }
+                if (k == 0) rampUm else 0, rampOffCorners, scarfShare, if (k == 0 && leastVisible) coveredOf?.invoke(i) else null) } }
             out += placed
             below = placed.map { wall -> LongArray(2 * wall.size) { j -> val q = wall[j / 2].loop; if (j % 2 == 0) q.x(0) else q.y(0) } }
         }
@@ -320,14 +333,15 @@ object Seams {
     private fun planColumn(run: List<Pair<Int, Int>>, loops: List<List<List<Polygon>>>, below: LongArray, cornerDeg: Double?,
                            overhangs: List<List<List<BooleanArray>>?>?, spanUm: (Int, Int) -> Double, vis: plymeld.core.decide.Visibility,
                            cornerShare: Double, exposure: plymeld.core.decide.Exposure?, shelfOf: ((Int) -> ((Long, Long) -> Double)?)?,
-                           rampUm: Long, rampOffCorners: Boolean, scarfShare: Double): List<LongArray> {
+                           rampUm: Long, rampOffCorners: Boolean, scarfShare: Double,
+                           coveredOf: ((Int) -> ((Long, Long) -> Boolean)?)?): List<LongArray> {
             val outer = { i: Int -> loops[i][0] }
             // per layer: its candidates (every n-th held-up vertex and the cheapest), their own costs and how much each is seen
             class Layer(val p: Polygon, val idx: IntArray, val own: DoubleArray, val seen: DoubleArray, val w: Double)
             val layers = run.map { (i, j) ->
                 val p = outer(i)[j]
                 val c = costsOf(p, cornerDeg, spanUm(i, 0), overhangs?.get(i)?.getOrNull(0)?.getOrNull(j), vis, cornerShare, exposure, i,
-                    shelfOf?.invoke(i), rampUm, rampOffCorners, scarfShare)
+                    shelfOf?.invoke(i), rampUm, rampOffCorners, scarfShare, coveredOf?.invoke(i))
                 val pts = c.points
                 val step = maxOf(1, pts.size / PLAN_CANDIDATES)
                 val cheapest = pts.sortedBy { c.seen[it] * c.blem[it] }.take(PLAN_CANDIDATES / 8)

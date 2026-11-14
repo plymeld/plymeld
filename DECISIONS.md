@@ -528,3 +528,36 @@ elsewhere. The predicted time reads the g-code, so it counts the travel and the 
 machine itself moves during a change is its `tool_change.time`, as before. The incoming tool's wait happens over the tower, or over
 the part's hidden infill where the purge goes into infill.
 
+## 22. A seam another part covers is a point seam (2026-11-14)
+
+**Context.** A scarf seam lays a closed outer wall as a ramp climbing from a share of the layer to its full thickness,
+the loop, and a closing pass back over the ramp: it softens a seam on a wall that shows. On an object of several parts,
+a part's seam can land on an edge pressed against another part, where it is hidden. The scarf was decided by whether the
+seam lands on a corner (`plan.technique.scarf_seam.where`), not by where its ramp and closing pass run, so such a seam was
+scarfed like any other, and from the hidden point the ramp and closing pass ran on along the loop onto the faces that
+show. On a printed nameplate, a gray island about 2.1 by 2.4 mm inside a white letter started its wall against the letter,
+then ramped round its front corner and across its whole front: its only visible faces got a thin line with a second over
+it, and the print showed a hump there. The point needed no softening; the scarf put a double pass on the faces that show.
+
+**Decision.** Where a closed outer wall's seam is covered, another part of the object within one line width of the seam
+on that layer, the wall gets a point seam: it starts and ends there, with no ramp and no closing pass. "Another part" is
+the object's other parts as laid on the layer (the other filament groups' areas), the one definition the planner already
+judges a speck of outer wall in front of another part by (`Planner.near`). It is the default and a setting,
+`plan.technique.scarf_seam.covered`: `point`, or `scarf` for a scarf there too, as before; per object or part like the
+other scarf values, so a test print can lay both on one plate. The least-visible placement costs a covered point as the
+point seam it is laid as (seen at the point itself, a point seam's blemish), not as a scarf seen along its ramp.
+
+**Rejected.** Keeping the scarf but confining its ramp to the hidden stretch: it needs the loop's direction and the hidden
+stretch's length, and a short loop may have no room for a ramp there at all. No scarf on any short loop: length is not
+what makes the scarf wrong here; a long loop's ramp from a covered seam runs onto the faces that show as well. Judging the
+whole stretch the ramp and closing pass run over in the seam's cost, and laying a scarf only where all of it is hidden: a
+larger change to the planner, for what a point seam at a covered point already gives. "Another part" as the object's
+outline less the part's own: that outline is closed (`method.slicing.close_gaps`), and along a round open edge the closing
+leaves hairline slivers outside the part, which read as another part covering points of an open wall.
+
+**Consequences.** Only objects of several parts change, and only their walls whose seam is covered: an object of one part,
+and a seam not covered, are laid as before. With least-visible seams, a part's seams go more readily to edges another
+part covers (they cost a point seam's blemish there, hidden, with no ramp seen), where before a scarf's ramp counted
+against them. A covered seam is a point seam whatever its loop's length, so its blemish, hidden, is a point's; the seam
+measure counts it as one. The speck rule now reads the other parts as laid too, not the closed outline less the part.
+
