@@ -324,6 +324,8 @@ object Catalog {
         s("plan.layer.sliver.width", INTENT, LENGTH, "an area of one filament thinner than this, touching another filament's, is printed by that neighbor; unset = the thinnest area the walls print")
         s("plan.mechanism.motion.short_walls.length", INTENT, LENGTH, "a wall line or loop shorter than this prints no faster than short_walls.speed; unset = none")
         s("plan.mechanism.motion.short_walls.speed", INTENT, SPEED, "the fastest a short wall prints")
+        s("plan.mechanism.motion.short_walls.full_length", INTENT, LENGTH, "a wall between short_walls.length and this prints no faster than a speed rising in a straight line from short_walls.speed to its own; unset = short_walls.length (a single step)")
+        s("plan.mechanism.motion.steady.share", INTENT, FRACTION, "a line prints no faster than the speed at which this share of its length is laid at a steady speed, starting and stopping at rest at its acceleration; unset = no cap")
         s("plan.mechanism.adhesion.small_footprint.area", INTENT, AREA, "a first layer under this area is a small footprint: an object standing on one with no brim gets a note when it is sliced")
         s("plan.mechanism.adhesion.small_footprint.height_ratio", INTENT, FRACTION, "a footprint is small for its height when the object is taller than this many times the footprint's narrower side")
         s("plan.mechanism.adhesion.prime.line", INTENT, CHOICE, "the prime line: near the print, near it on a peel tab (alongside the brim), or none (plan.mechanism.adhesion.prime.enabled off); unset = by the print: none with a prime tower, tab otherwise")

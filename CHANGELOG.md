@@ -12,7 +12,14 @@ section the release's version and date.
 ### Added
 
 - Short walls slower: with `plan.mechanism.motion.short_walls.length` set, a wall line or loop shorter than it prints
-  no faster than `short_walls.speed` (bundled: half the visible lines' speed, a placeholder). Unset, nothing changes.
+  no faster than `short_walls.speed` (bundled: half the visible lines' speed, a placeholder). With
+  `short_walls.full_length` set too, a wall between the two lengths prints no faster than a speed rising in a straight
+  line from `short_walls.speed` to its own, the whole wall at that one speed; unset, it is a single step at `length`. A
+  scarfed loop counts as long as its loop. Unset, nothing changes.
+- A line no faster than it can hold steady: with `plan.mechanism.motion.steady.share` set, every printed line is laid no
+  faster than the speed at which that share of its length is laid at a steady speed, starting and stopping at rest at
+  its acceleration: `sqrt(acceleration * length * (1 - share))`, the whole line at one speed. Not the purge tower, the
+  prime line, or a lifted bridge's own speeds over air. Unset, nothing changes.
 - `plan.layer.sliver.width`: on an object of several filaments, how thin an area of one filament is handed to the
   filament beside it. Unset, it is the thinnest area the walls print, as before. The pre-print check allows a line that
   much further from its own tool's part.
