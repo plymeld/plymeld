@@ -157,7 +157,8 @@ class ObjectEnd(val name: String) : Event
 
 /**
  * From here on, extrusions use [tool] with [spool] loaded in it (a tool changer picks up another
- * nozzle; the writer emits the machine's own sequence, and purging is planned separately).
+ * nozzle; the writer emits the machine's own sequence, made over the start of the next extrusion after the travel there,
+ * and purging is planned separately).
  * [tempC]: the new tool's printing temperature, waited for; [fromTool] / [fromIdleC]: the tool put
  * down and the temperature it idles at (null = left as it is).
  */
