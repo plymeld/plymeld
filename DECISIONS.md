@@ -561,3 +561,47 @@ part covers (they cost a point seam's blemish there, hidden, with no ramp seen),
 against them. A covered seam is a point seam whatever its loop's length, so its blemish, hidden, is a point's; the seam
 measure counts it as one. The speck rule now reads the other parts as laid too, not the closed outline less the part.
 
+## 23. Two speed caps by a line's length, one speed for the whole line (2026-11-14)
+
+**Context.** A line laid fast is laid at its set speed only once the head has reached it: it starts at rest, accelerates,
+and brakes to a stop at its end. A short line set fast is mostly its start and its stop, and its plastic is laid at
+speeds that change from one end to the other. The short walls' cap (`plan.mechanism.motion.short_walls.length` and
+`.speed`) was a single step: a wall just under the length printed at the short walls' speed and one just over it at its
+own, a jump between two walls of nearly the same length. Nothing capped the other kinds of line by their length.
+
+**Decision.** Two caps, both off until set, each a cap: it never raises a speed, and the lowest of it and every other
+speed and cap wins (the region caps, the first layer's, the melt cap, a scarf seam's ramp).
+
+- Short walls slide: with `short_walls.full_length` set, a wall of length L between `length` and `full_length` prints no
+  faster than `speed + (own - speed) * (L - length) / (full_length - length)`, own being the wall's speed without the
+  cap; at `full_length` and over, no cap. Unset, `full_length` is `length`, the single step as before. A `full_length`
+  under `length` is refused. A scarfed loop's length is its loop's, the closing pass left out (the wall is the loop).
+- A line's steady share (`plan.mechanism.motion.steady.share`): starting and stopping at rest at acceleration a, a line
+  takes v²/(2a) of its length to reach v and as much to stop, so at v it is laid steadily over L − v²/a. It is laid no
+  faster than the speed at which that is at least the share of L: v ≤ sqrt(a · L · (1 − share)), with L the line as laid
+  (from where it starts pushing plastic to where it stops: a scarfed loop with its ramp and closing pass; the piece laid
+  inside an open section's box) and a the lowest acceleration it is laid at (its feature's, under its object's and its
+  regions' caps). Every kind of line, except the purge tower and the prime line (purges, laid to push filament through at
+  speeds of their own), a lifted bridge's own speeds over air (laid exactly as set), and a calibration plate's lines
+  (printed as specified).
+
+The writer applies both, after the program is planned, cut to an open section, and capped by region: they read each line
+as it is laid. The whole line gets the one capped speed: a cap is what the line's length allows, so it holds for all of
+the line, and a speed changed inside the line would add a change of speed where the cap is meant to remove them.
+Within that, the line's own variations stay (a scarf ramp's own speed, a wall slowed where it hangs over air), each no
+faster than the cap. The time predicted reads the g-code, so it counts the capped speeds; the minimum layer time's
+slow-down is figured from them.
+
+**Rejected.** A cap at the speed the line can reach (v ≤ sqrt(a · L), the share 0): the head reaches that speed only at
+the line's middle and brakes at once, so the line prints as it would with no cap. A speed that changes along the line
+(slow at its ends, fast in its middle): that is the firmware's own acceleration, already there. The steady share as a
+length (every line under it capped): one line holds its speed on a machine that accelerates hard and not on one that
+does not, so the acceleration is in the formula and one share means the same on both. A floor under the caps (the
+filament's `cooling.speed.min`, which bounds only the slow-down for the minimum layer time): it would let the shortest
+lines, the ones the caps are for, print faster than they can hold.
+
+**Consequences.** Unset, nothing changes. Set, short lines print slower and the print takes longer; there is no floor,
+so a line a few mm long may be capped far below its own speed. The pose search's quick time estimate does not count
+either cap; the time of the written file does. The caps read the plate's, the object's, or the part's tool's settings
+as the writer does: a value set on a part that prints with the object's own tool is the object's.
+

@@ -26,8 +26,9 @@ import java.util.Locale
  *
  * Travel: retract + lift when longer than retraction_minimum_travel, with a wipe when set.
  * Also here: the minimum-layer-time slow-down (never below its minimum speed), graded overhang
- * speeds, arc fitting, exclude-object markers, pauses, and tool changes (each made over the start of the incoming
- * filament's first line, after the outgoing tool leaves its last line as for any retracted travel). The part fan is one
+ * speeds, the speed caps by a line's length (short walls, the steady share: lengthCap), arc fitting, exclude-object
+ * markers, pauses, and tool changes (each made over the start of the incoming filament's first line, after the outgoing
+ * tool leaves its last line as for any retracted travel). The part fan is one
  * fixed speed from a set layer, raised to the filament's overhang fan while a line hangs past the
  * one below (the conditions its overhang share holds at), not on the first layers whose fan is off.
  * NOT YET: bridge fan boost.
@@ -87,6 +88,20 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
     private var s = plate
     /** Which settings each path prints with (filled per program; the minimum-layer-time estimate needs it ahead of time). */
     private val pathSettings = java.util.IdentityHashMap<Extrude, SliceSettings>()
+    /** The line each path laid as a piece of a longer one belongs to (a scarfed loop's, [Line]); a path not listed is a line of its own. */
+    private val lineOf = java.util.IdentityHashMap<Extrude, Line>()
+
+    /**
+     * One printed line laid as several paths with no stop between them: a scarfed loop's ramp, the rest of the loop, and its
+     * closing pass (Scarf.extrudes). The caps by length ([lengthCap]) read it whole; [main] (the rest of the loop) has the
+     * line's own speed.
+     */
+    private class Line(val pieces: List<Extrude>, val main: Extrude) {
+        /** Its length as laid (mm), from where it starts pushing plastic to where it stops: the closing pass included. */
+        val laidMm = pieces.sumOf { laidMm(it) }
+        /** The wall's length (mm): the loop, its closing pass left out. */
+        val wallMm = laidMm - laidMm(pieces.last())
+    }
     /** The filament's cross-section (mm2) for [s]: each filament's own diameter (the plate's for every tool). */
     private fun filamentArea(s: SliceSettings) = Math.PI * (s.filamentDiameterMm / 2) * (s.filamentDiameterMm / 2)
     private val filamentArea get() = filamentArea(s)
@@ -143,6 +158,7 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
         val layerPaths = HashMap<LayerStart, MutableList<Extrude>>()
         s = plate
         pathSettings.clear()
+        lineOf.clear()
         // each extrusion's object (null: outside any object, e.g. the purge tower), for the cooling gap; a curved island's
         // layer is a stack of its own (the object's name and the island's), whose layer above is the island's next, however
         // many flat layers come between (read as the object's, each small island layer was slowed to the minimum
@@ -158,6 +174,18 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 is ObjectEnd -> { os = plate; osName = null }
                 is Extrude -> { cur?.add(st); pathSettings[st] = osName?.let { perObjectTool[it to st.tool] } ?: os; pathObject[st] = osName?.let { if (island != null) it + ISLAND_STACK + island else it } }
                 else -> Unit
+            }
+        }
+        // a scarfed loop's three runs, laid one after the other with no stop between them, are one line for the caps by length
+        run {
+            val st = program.steps
+            fun joins(a: Extrude, b: Extrude) = a.xy[a.xy.size - 2] == b.xy[0] && a.xy[a.xy.size - 1] == b.xy[1]
+            for (i in 0 until st.size - 2) {
+                val a = st[i] as? Extrude ?: continue; val b = st[i + 1] as? Extrude ?: continue; val c = st[i + 2] as? Extrude ?: continue
+                if (a.ofLoop && a.scarf && b.ofLoop && !b.scarf && c.ofLoop && c.scarf && joins(a, b) && joins(b, c)) {
+                    val line = Line(listOf(a, b, c), b)
+                    lineOf[a] = line; lineOf[b] = line; lineOf[c] = line
+                }
             }
         }
         // Minimum layer time per layer start (slowOf): if a layer would print faster, its extrusion speeds are scaled
@@ -785,8 +813,8 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 val scarfFlow = if (p.scarf) (pathSettings[p] ?: s).scarfFlow else 1.0
                 val ePerMm = p.ePerMmOverride ?: (p.heightUm / 1000.0 * (p.widthUm / 1000.0 - p.heightUm / 1000.0 * (1 - Math.PI / 4)) / filamentArea * s.flowRatio *
                     featureFlow(p.feature) * scarfFlow)
-                // a lifted bridge's own print speed: exactly as set, no slow-down for layer time, no floor, no overhang grading;
-                //the melt cap stays (it lowers a speed only where the
+                // a lifted bridge's own print speed: exactly as set, no slow-down for layer time, no floor, no overhang grading,
+                // no cap by length (lengthCap); the melt cap stays (it lowers a speed only where the
                 // filament cannot melt fast enough)
                 val meltCap = s.maxVolumetric / (p.heightUm / 1000.0 * (p.widthUm / 1000.0 - p.heightUm / 1000.0 * (1 - Math.PI / 4)))
                 // a path with its own speeds per segment (an arched bridge's layers: its slow speed over air only, ramping
@@ -983,22 +1011,69 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
         out.finish()
     }
 
-    /** Feature speed capped by the filament's max volumetric speed for this bead (w, h). */
-    /** The length of [p] as laid (mm): a loop closed back to its start. */
-    private fun lengthMm(p: Extrude): Double {
-        val m = p.xy.size / 2; var sum = 0.0
-        for (k in 0 until (if (p.closed) m else m - 1)) { val j = (k + 1) % m; sum += Math.hypot((p.xy[2 * j] - p.xy[2 * k]).toDouble(), (p.xy[2 * j + 1] - p.xy[2 * k + 1]).toDouble()) }
-        return sum / 1000.0
-    }
-
+    /**
+     * [p]'s speed: its own ([ownSpeed]), a scarf seam's ramp and closing pass no faster than the scarf's speed, and the caps
+     * by its line's length ([lengthCap]), the lowest of them.
+     */
     private fun pathSpeed(p: Extrude, first: Boolean): Double {
         val ps = pathSettings[p] ?: s
-        val area = p.heightUm / 1000.0 * (p.widthUm / 1000.0 - p.heightUm / 1000.0 * (1 - Math.PI / 4))   // mm²
         // a scarf seam's ramp and closing pass: no faster than the scarf's own speed (plan.technique.scarf_seam.speed)
         val scarf = if (p.scarf) ps.scarfSpeed else Double.POSITIVE_INFINITY
-        // a short wall (plan.mechanism.motion.short_walls.length): no faster than the short walls' speed
-        val short = ps.shortWallLengthMm?.let { len -> if ((p.feature == "Outer wall" || p.feature == "Inner wall") && lengthMm(p) < len) ps.shortWallSpeed else null } ?: Double.POSITIVE_INFINITY
-        return minOf(speedFor(ps, p.feature, first), ps.maxVolumetric / area, ps.speedMax ?: Double.POSITIVE_INFINITY, minOf(scarf, short))
+        return minOf(ownSpeed(p, ps, first), scarf, lengthCap(p, ps, first))
+    }
+
+    /** [p]'s feature speed capped by the filament's melt rate for its bead (w, h) and by its object's speed cap (motion.speed.max). */
+    private fun ownSpeed(p: Extrude, ps: SliceSettings, first: Boolean): Double {
+        val area = p.heightUm / 1000.0 * (p.widthUm / 1000.0 - p.heightUm / 1000.0 * (1 - Math.PI / 4))   // mm²
+        return minOf(speedFor(ps, p.feature, first), ps.maxVolumetric / area, ps.speedMax ?: Double.POSITIVE_INFINITY)
+    }
+
+    /**
+     * The caps by the length of the line [p] lays or belongs to ([lineOf]), one for the whole line, so it is laid at one
+     * speed; infinity = none. Both are caps: they never raise a speed, and the lowest of every cap wins.
+     *
+     * A short wall (plan.mechanism.motion.short_walls.*): a wall loop or line of length L under short_walls.length no faster
+     * than short_walls.speed; from there to short_walls.full_length (unset: length, a single step) no faster than a speed
+     * rising in a straight line from short_walls.speed at length to the wall's own speed at full_length; from full_length on,
+     * no cap. L is the wall's own length: a scarfed loop's, its closing pass left out.
+     *
+     * A line's steady share (plan.mechanism.motion.steady.share): a line starting and ending at rest at acceleration a takes
+     * v²/(2a) of its length to reach v and as much to stop, so at v it is laid steadily over L − v²/a; it is laid no faster
+     * than the speed at which that is the share of L: v ≤ sqrt(a · L · (1 − share)), L the line as laid (a scarfed loop's
+     * closing pass included) and a the lowest acceleration it is laid at ([accelOf]). Not the purge tower's lines nor the
+     * prime line (they push filament through, at speeds of their own), nor a calibration plate's paths (printed as specified).
+     * A lifted bridge's own speeds over air (plan.technique.bridge.print.speed, ramp_speeds) are laid as set, by neither cap.
+     */
+    private fun lengthCap(p: Extrude, ps: SliceSettings, first: Boolean): Double {
+        val line = lineOf[p]
+        var cap = Double.POSITIVE_INFINITY
+        // (short_walls.speed and .full_length read only for a wall the cap may slow: a setting read counts as used)
+        val shortMm = ps.shortWallLengthMm
+        if (shortMm != null && (p.feature == "Outer wall" || p.feature == "Inner wall")) {
+            val wall = line?.wallMm ?: laidMm(p)
+            if (wall < shortMm) ps.shortWallSpeed?.let { cap = it }
+            else {
+                val fullMm = ps.shortWallFullLengthMm ?: shortMm
+                if (wall < fullMm) ps.shortWallSpeed?.let { floor -> cap = floor + (ownSpeed(line?.main ?: p, ps, first) - floor) * (wall - shortMm) / (fullMm - shortMm) }
+            }
+        }
+        val share = ps.steadyShare
+        if (share != null && p.exact == null && p.feature !in STEADY_EXEMPT) {
+            val a = (line?.pieces ?: listOf(p)).minOf { accelOf(it, ps) }
+            if (a > 0 && a.isFinite()) cap = minOf(cap, Math.sqrt(a * (line?.laidMm ?: laidMm(p)) * (1 - share)))
+        }
+        return cap
+    }
+
+    /**
+     * The lowest acceleration [p] is laid at (mm/s², as the file writes it): a calibration cell's own; else its feature's, under
+     * its object's cap (motion.acceleration.max) and its regions' along it ([Extrude.accelMax]).
+     */
+    private fun accelOf(p: Extrude, ps: SliceSettings): Double {
+        p.exact?.let { return Math.round(it.accel).toDouble() }
+        val base = listOfNotNull(accelFor(p.feature, ps), ps.accelMax).min()
+        val region = p.accelMax?.filter { !it.isNaN() }?.minOrNull() ?: Double.POSITIVE_INFINITY
+        return Math.round(minOf(base, region)).toDouble()
     }
 
     /**
@@ -1153,7 +1228,7 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
      * Speeds: the first layer at its own (adhesion), the purge tower at its own (plan.mechanism.purge.tower.speed), its
      * first layer no faster than the first layer's; visible lines
      * at the visible cap; bridges at the bridge speed (sag); everything else, hidden, at the
-     * machine's fastest move. [pathSpeed] then caps each by the filament's melt rate.
+     * machine's fastest move. [ownSpeed] then caps each by the filament's melt rate, and [pathSpeed] by the rest.
      */
     private fun speedFor(s: SliceSettings, feature: String, first: Boolean): Double = when {
         // the tower's first layer holds to the bed like the model's (a tower laid at the hidden speed there came loose)
@@ -1177,7 +1252,7 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
         else -> error("no speed rule for feature '$feature'")
     }
 
-    private fun accelFor(feature: String): Double = if (feature in VISIBLE || (feature == "Inner wall" && s.innerWallsAsVisible)) s.visibleAccel else s.defaultAccel
+    private fun accelFor(feature: String, st: SliceSettings = s): Double = if (feature in VISIBLE || (feature == "Inner wall" && st.innerWallsAsVisible)) st.visibleAccel else st.defaultAccel
 
     /**
      * Template variables: plymeld's own names (for templates in plymeld config: nozzle_temperature,
@@ -1236,3 +1311,12 @@ private val RELATIVE_E = Regex("(?m)^\\s*M83\\b")
 private val VISIBLE = setOf("Outer wall", "Top surface", "Bottom surface")
 /** Lines inside the part or removed after printing: as fast as the machine and the melt rate allow. */
 private val HIDDEN = setOf("Inner wall", "Sparse infill", "Internal solid infill", "Support", "Support interface")
+/** Lines the steady share does not cap ([KlipperWriter]'s lengthCap): purges, laid to push filament through at speeds of their own. */
+private val STEADY_EXEMPT = setOf("Prime tower", "Prime line")
+
+/** The length of [p] as laid, seen from above (mm): a loop closed back to its start. */
+private fun laidMm(p: Extrude): Double {
+    val m = p.xy.size / 2; var sum = 0.0
+    for (k in 0 until (if (p.closed) m else m - 1)) { val j = (k + 1) % m; sum += Math.hypot((p.xy[2 * j] - p.xy[2 * k]).toDouble(), (p.xy[2 * j + 1] - p.xy[2 * k + 1]).toDouble()) }
+    return sum / 1000.0
+}
