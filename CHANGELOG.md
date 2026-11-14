@@ -82,8 +82,21 @@ section the release's version and date.
   after the outgoing tool leaves the part with its usual retraction, wipe, and lift and travels there. The change was
   made standing on the outgoing filament's last line, which left ooze on the part: on a plate, every change stood on
   the last object's face.
+- On an object of several parts, an outer wall whose seam is pressed against another part (that part within one line
+  width of the seam on the layer) gets a point seam, not a scarf: the seam is hidden there, and the scarf's ramp and its
+  closing pass ran on from it onto the faces that show. On a small island of one filament inside a letter of another,
+  the ramp ran from a seam hidden against the letter round the island's front corner and across its whole front, laying
+  a thin line and a second over it there, and the print showed a hump. Least-visible seams count such a seam as the
+  point seam it is laid as, so they no longer avoid a covered spot because a scarf would be better elsewhere.
+  `plan.technique.scarf_seam.covered = "scarf"` (per object or part too) scarfs a covered seam as before; seams that are
+  not covered, and every seam of an object of one part, are laid as they were.
 
 ### Fixed
+
+- On an object of several parts, what counts as another part beside a part's lines (for a seam pressed against one, and
+  for a speck of outer wall left out in front of one) is the other parts as laid. It was the object's outline less the
+  part, which is closed (`method.slicing.close_gaps`) and so left hairline slivers along a round open edge that read as
+  another part there: 18 of the 97 points of a round base's open outer wall.
 
 - A region's speed and acceleration caps (`mechanism.motion.speed.max` and `.acceleration.max` under
   `plan.object.<key>.region.<key>`) apply to an object printed in several filaments, alone or on a plate, and to the other
@@ -96,7 +109,8 @@ section the release's version and date.
   a wipe along an inner wall was labelled as the outer wall that followed.
 - A scarf seam is judged by its whole ramp, not its start alone, where it is placed and in the seam measure: the seam
   goes where the most-seen point of its ramp is seen least. A nameplate's seams started hidden in a letter's pocket, and
-  their 10 mm ramps ran out onto the face beside the letter.
+  their 10 mm ramps ran out onto the face beside the letter. (A seam another part covers is now laid, and judged, as a
+  point seam: under Changed.)
 - Least-visible seams are planned up the whole wall, not layer by layer. Each layer's seam stayed in line with the one
   below rather than pay the move to a better place on its own, so a seam drawn to the front by a feature low on the
   wall ran up the front face above it to the top. Planned over all the layers a loop continues through, the move is

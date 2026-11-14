@@ -52,6 +52,15 @@ object MultiFilament {
         }
 
     /**
+     * The object's other parts beside group [unit]'s on one layer ([split]): the other groups' areas, as they are laid
+     * (Planner.paths' otherParts: what covers a speck or a seam). Not the object's outline less the group's: that outline
+     * is closed (method.slicing.close_gaps), and along a part's open edges the closing leaves hairline slivers outside it,
+     * which read as another part there.
+     */
+    fun otherParts(split: FilamentAreas.Split, unit: String): List<Polygon> =
+        split.bySpool.filterKeys { it != unit }.values.flatten().let { if (it.isEmpty()) it else Booleans.normalize(it) }
+
+    /**
      * [partLayers]: per part, per layer, its (cleaned) outline; [spools]: each part's spool;
      * [precedence]: part indices, the first takes contested area first.
      * Per-part settings: [units] names each part's settings group (default: its spool, i.e. one group
@@ -133,7 +142,8 @@ object MultiFilament {
         val support = MutableList<List<ToolPath>>(n) { emptyList() }
         val supportInterface = MutableList<List<ToolPath>>(n) { emptyList() }
         val plans = mids.map { m ->
-            var layers = timed("paths") { Planner.paths(m.st, m.areas, m.w, m.r, layerTopsUm, whole, objectWide = m.u == objectSpool, support = supportSpots, covers = covers, standsOn = standsOn, progress = progress, omit = omit) }
+            var layers = timed("paths") { Planner.paths(m.st, m.areas, m.w, m.r, layerTopsUm, whole, objectWide = m.u == objectSpool, support = supportSpots, covers = covers, standsOn = standsOn, progress = progress, omit = omit,
+                otherParts = { i -> otherParts(splits[i], m.u) }) }
             if (m.u == objectSpool) layers = layers.mapIndexed { i, l ->
                 // supports leave the object-wide unit: the filament that prints them is chosen per layer
                 support[i] = l.paths.filter { it.feature == Feature.SUPPORT }
