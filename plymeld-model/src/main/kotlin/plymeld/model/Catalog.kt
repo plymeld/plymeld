@@ -232,16 +232,16 @@ object Catalog {
             "the hidden core in thicker layers: every this many layers, the sparse infill the layers share is laid once on the last of them, the layers' height thick; 1 = off; bundled: as many layers as fit the tool's thickest layer")
         s("plan.technique.flat.height_ratio", INTENT, FRACTION,
             "the transition between layer heights: no layer after the first more than this much thicker than the one below it, and the layers before a band whose layers start thinner stepping down by about this much each; 0 = no limit (the bundled 1.5 is a placeholder)")
-        s("method.slicing.tolerance", INTENT, LENGTH, "outline simplification tolerance")
+        s("method.slicing.tolerance", INTENT, LENGTH, "outline simplification tolerance; variable-width walls: how much narrower (a side) than a wall loop needs an area may be where the loop joins pieces of itself across it")
         s("method.slicing.close_gaps", INTENT, LENGTH, "close gaps in slices narrower than twice this")
         s("plan.layer.walls.count", INTENT, COUNT, "wall loops")
         s("plan.layer.walls.style", INTENT, CHOICE, "wall style: fixed_width (loops of one width) or variable_width (loops only where they fit, variable-width center lines in thin areas); another slicer's file says classic or arachne",
             "classic", "a file from another slicer without the key: fixed-width walls, what plymeld always did")
-        s("plan.layer.walls.line.width.min", INTENT, LENGTH, "variable-width walls: narrowest line a thin area's center line is printed at (min_bead_width; read only with variable_width)")
-        s("plan.layer.walls.feature.min", INTENT, LENGTH, "variable-width walls: thinnest area that still gets a center line (min_feature_size; read only with variable_width)")
+        s("plan.layer.walls.line.width.min", INTENT, LENGTH, "variable-width walls: narrowest line a thin area's center line is printed at; between walls (not at the model's surface) a leftover gets a line only where it is at least this less what the line may reach into the walls on each side (plan.layer.infill.wall_overlap of this width, at least the bead's rounded flank, layer height x (1 - pi/4)), a thinner one left empty rather than overlapped (min_bead_width; read only with variable_width)")
+        s("plan.layer.walls.feature.min", INTENT, LENGTH, "variable-width walls: thinnest area at the model's surface that still gets a center line; where an area is narrower, however short the stretch, no line is laid (min_feature_size; read only with variable_width)")
         s("plan.layer.walls.length_factor.min", INTENT, FRACTION, "variable-width walls: an open center line shorter than this times its narrowest width is dropped (min_length_factor; read only with variable_width)",
             0.0, "a profile without min_length_factor applies no such filter: 0 = off, not a chosen value")
-        s("plan.layer.walls.transition_length", INTENT, LENGTH, "variable-width walls: center lines stay continuous through thinner stretches and pinches up to this long (wall_transition_length; read only with variable_width)")
+        s("plan.layer.walls.transition_length", INTENT, LENGTH, "variable-width walls: center lines stay continuous through thinner stretches and pinches up to this long, and a wall loop's piece shorter than this gives way to the center line running through it (wall_transition_length; read only with variable_width)")
         s("plan.layer.walls.outer.line.width", INTENT, LENGTH, "outer wall line width")
         s("plan.layer.walls.inner.line.width", INTENT, LENGTH, "inner wall line width")
         s("plan.layer.walls.order", INTENT, CHOICE, "the order each contour's walls are laid in: outer_first, inner_first, or inner_outer_inner",
@@ -282,7 +282,7 @@ object Catalog {
         s("plan.layer.top.line.width", INTENT, LENGTH, "top surface line width")
         s("plan.layer.infill.angle", INTENT, ANGLE, "infill line direction")
         s("plan.layer.infill.chord_tolerance", INTENT, LENGTH, "curved infill chord tolerance")
-        s("plan.layer.infill.wall_overlap", INTENT, FRACTION, "how far infill reaches into the walls, as a share of its width")
+        s("plan.layer.infill.wall_overlap", INTENT, FRACTION, "how far infill reaches into the walls, as a share of its width; a thin area's center line ending against a wall loop's turn reaches in as far, and a leftover between walls gets the narrowest line only where that line reaches into them no further than this share of its width a side")
         s("plan.layer.infill.anchor_length.max", INTENT, LENGTH, "longest walk along the boundary that joins two infill lines: another slicer's (investigation); unset = plymeld's rule, three line spacings")
         // speeds: visible lines are capped by a speed of their own,
         // hidden ones print at the machine's fastest move; every move is capped by the melt rate

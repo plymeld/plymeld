@@ -80,6 +80,16 @@ object TechniqueRender {
             val disc = w * w - 4 * k * a
             return if (disc < 0) a / w else (w - kotlin.math.sqrt(disc)) / (2 * k)
         }
+        /**
+         * The width of [m]'s bead from its plastic per mm and declared height (the same bead model, solved for the width), for a
+         * line whose width varies along its path (the file declares one width per path); its declared width where the file
+         * states no filament diameter or height (plastic at a flow of 100 %).
+         */
+        fun beadWidth(m: Move): Double {
+            if (filamentDiameter.isNaN() || m.height.isNaN() || m.height <= 0) return m.width
+            val a = m.ePerMm * Math.PI * filamentDiameter * filamentDiameter / 4
+            return a / m.height + m.height * (1 - Math.PI / 4)
+        }
         fun layer(i: Int): List<Move> = moves.filter { it.layer == i }
         /** The layer whose stated Z is nearest [z]. */
         fun nearestLayer(z: Double): Int = layerZs.indices.minBy { abs(layerZs[it] - z) }
@@ -179,7 +189,12 @@ object TechniqueRender {
                 val notes: List<Pair<Double, String>> = emptyList(), val widths: Map<String, Double> = emptyMap(),
                 /** Each bead's height from its plastic per mm ([Toolpath.beadHeight]) instead of the height the file declares. */ val plasticHeight: Boolean = false,
                 /** The model's surface drawn over the moves as thin black lines: segments x0, y0, z0, x1, y1, z1 (mm), e.g. its cut by the view's plane. */
-                val lines: List<DoubleArray> = emptyList()) {
+                val lines: List<DoubleArray> = emptyList(),
+                /**
+                 * Each line drawn from above at its width from its plastic per mm and declared height ([Toolpath.beadWidth]), not the
+                 * width the file declares for its whole path: a variable-width line shown as laid.
+                 */
+                val plasticWidth: Boolean = false) {
         fun heightOf(m: Move): Double = if (plasticHeight) path.beadHeight(m) else m.height
         val moves: List<Move> by lazy { path.moves.filter(select) }
     }
@@ -291,6 +306,7 @@ object TechniqueRender {
         val subtitle = if (side) "each bead drawn at its declared width and ${(SIDE_FILL * 100).toInt()} % of its height" + (if (panels.any { it.plasticHeight }) " (its height from its plastic per mm and width)" else "") +
             (if (zScale != 1.0) "; Z stretched ${fmt(zScale)} x" else "") +
             (if (view == View.SIDE && abs(along) > 1e-9) "; looking across a line at ${fmt(Math.toDegrees(along))} deg to X" else "")
+            else if (panels.all { it.plasticWidth }) "each line drawn ${(lineShare * 100).toInt()} % of its width from its plastic" + (if (lineShare < 1.0) ", so neighbors read apart" else ": as laid")
             else "each path drawn ${(lineShare * 100).toInt()} % of its declared width, so neighbors read apart"
         val probe = BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB).createGraphics()
         val titleW = probe.getFontMetrics(titleFont).stringWidth(titleText); probe.dispose()
@@ -347,7 +363,7 @@ object TechniqueRender {
                     Coloring.LAYER -> LAYER_COLORS[Math.floorMod(m.layer, LAYER_COLORS.size)]
                     Coloring.TOOL -> TOOL_COLORS[Math.floorMod(m.tool, TOOL_COLORS.size)]
                 }
-                val w = p.widths[m.feature] ?: if (m.width.isNaN()) 0.4 else m.width
+                val w = p.widths[m.feature] ?: (if (p.plasticWidth && !side) p.path.beadWidth(m) else m.width).let { if (it.isNaN()) 0.4 else it }
                 val a0 = u(m.x0, m.y0); val a1 = u(m.x1, m.y1)
                 if (!side) {
                     val share = if (m.feature in p.widths) 1.0 else lineShare

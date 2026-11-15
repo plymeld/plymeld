@@ -440,7 +440,7 @@ object Schema {
         q("$pl.infill.angle", Dimension.ANGLE, "INHERITED: interior line direction", feeds = true)
         q("$pl.infill.chord_tolerance", Dimension.LENGTH, "INHERITED: how far a curved interior line (the gyroid's) may stray from the true curve between two of its vertices: the traced curve is simplified to it before it is laid. Unset (bundled) = laid as traced, where the arc fitter turns its runs into arcs; set it for a printer without arcs (fewer, longer straight segments). With arcs on, simplifying first is slower: the simplified curve no longer fits as arcs (a 9 h print's gyroid 843,112 arcs -> 15,215, predicted 14 min slower). Not the outline tolerance (method.slicing.tolerance)", feeds = true)
         // a constant of plymeld's before it was a setting: the bundled value carries where it came from
-        q("$pl.infill.wall_overlap", Dimension.RATIO, "how far an interior line's end reaches into the walls past bead contact, as a share of its width (a line end touches a wall only with its rounded cap)", feeds = true)
+        q("$pl.infill.wall_overlap", Dimension.RATIO, "how far an interior line's end reaches into the walls past bead contact, as a share of its width (a line end touches a wall only with its rounded cap); a variable-width wall's line in a thin area, where it ends against a wall's turn (two wall lines becoming one), reaches in as far, and a leftover between walls gets the narrowest line only where that line reaches into them no further than this share of its width a side", feeds = true)
         q("$pl.infill.narrow.cells", Dimension.RATIO, "a sparse piece narrower than this many cells of its pattern is narrow (default 1)", feeds = true)
         d("$pl.infill.narrow.fill", Type.Choice(listOf("loop", "solid")), "what a narrow sparse piece gets: one loop (default) or solid", feeds = true)
         q("$pl.solid.line.width", Dimension.LENGTH, "INHERITED: internal solid line width", feeds = true)
@@ -659,7 +659,7 @@ object Schema {
         for (m in MEASURES) d("method.search.zero_scale.$m", Type.Text, "scale for scoring the measure $m when its baseline value is 0, in its own unit, e.g. \"500 mm2\"")
         d("method.search.log.enabled", Type.Bool, "whether every technique decision appends one line (date, model, stop reason, time, rounds) to the search log, so how often the search short-circuits is counted over real use", feeds = true)
         d("method.search.log.file", Type.Text, "the search log's file; empty = search.log in plymeld's state folder; a leading ~/ is your home directory; made with its directories when missing", feeds = true)
-        q("method.slicing.tolerance", Dimension.LENGTH, "outline simplification", feeds = true)
+        q("method.slicing.tolerance", Dimension.LENGTH, "outline simplification; variable-width walls also read it as how much narrower than a wall loop needs (a side) an area may be where the loop joins pieces of itself across it (the outline is known no closer)", feeds = true)
         q("method.slicing.close_gaps", Dimension.LENGTH, "gaps narrower than twice this are closed", feeds = true)
     }
 

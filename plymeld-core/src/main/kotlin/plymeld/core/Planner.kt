@@ -245,7 +245,9 @@ object Planner {
     class WallsOut(val effOutlines: List<List<Polygon>>, val walls: List<LayerWalls>)
 
     /**
-     * Stage 1 — walls. Reads: elefant_foot_compensation, wall_loops, wall/first-layer widths, layer heights.
+     * Stage 1 — walls. Reads: elefant_foot_compensation, wall_loops, wall/first-layer widths, layer heights; variable-width
+     * walls also their thresholds, the slicing tolerance (their hysteresis) and the infill's wall overlap (a center line's end
+     * reaching into a wall).
      * [wholeFirst]: for one filament's areas of a multi-color object, the WHOLE object's first-layer
      * outline: the squish compensation shrinks the object's outer edge only, never a boundary
      * between two filaments (shrinking both sides would open a gap between the colors).
@@ -276,7 +278,8 @@ object Planner {
             val (wo, wi) = if (first) s.firstLayerWidthUm to s.firstLayerWidthUm else s.outerWallWidthUm to s.innerWallWidthUm
             o to when (if (reference) "classic" else s.wallGenerator) {
                 "classic" -> Walls.generate(o, s.wallLoops, wo, wi, h)
-                "arachne" -> Walls.arachne(o, s.wallLoops, wo, wi, h, s.minBeadUm, s.minFeatureUm, s.minLengthFactor, s.transitionLengthUm)
+                "arachne" -> Walls.arachne(o, s.wallLoops, wo, wi, h, s.minBeadUm, s.minFeatureUm, s.minLengthFactor, s.transitionLengthUm,
+                    toleranceUm = s.resolutionUm, endOverlap = s.infillWallOverlap)
                 else -> error("wall style '${s.wallGenerator}' is not known (fixed_width or variable_width; classic or arachne in another slicer's file)")
             }
             }
@@ -1031,13 +1034,20 @@ object Planner {
                 // a speck: an outer-wall line kept only because it lines the outline (shorter than two of its widths, the
                 // threshold Walls keeps it under) prints without a retraction and prime of its own wherever the travel to it
                 // stays in its island and crosses no wall, whatever the in-island switch (keepInIsland): a restart for a dot
-                // left a blob on a show face (kept, not dropped, so the outline stays walled)
-                val speck = outer && Planner.polylineLength(c.xy) < 2.0 * c.maxWidthUm
+                // left a blob on a show face (kept, not dropped, so the outline stays walled). Its length is the thin area's
+                // own: not what its ends reach into the walls they meet (CenterLine.reachUm)
+                val ownLength = Planner.polylineLength(c.xy) - c.reachUm
+                val speck = outer && ownLength < 2.0 * c.maxWidthUm
                 // a speck shorter than one of its widths where another part of the object lies within a width of it (this part a
                 // sliver in front of the other there) is left out: a dot of one filament, stopped and restarted on the visible
                 // face every layer, made a column of blobs (on a two-color nameplate, 142 such starts on the lettering's face),
-                // and the part behind fills the outline there within less than a line
-                if (speck && whole != null && Planner.polylineLength(c.xy) < c.maxWidthUm && otherPartNear(c)) continue
+                // and the part behind fills the outline there within less than a line. Only a sliver's: a speck that runs
+                // into a place thinner than the narrowest line (its narrowest point widened to that line). One as wide as its
+                // area all along fills a short stretch of a band a line or more wide (between two walls, at a band's end):
+                // left out, it left a hole as wide as the band (a ridge of one filament beside another, 0.9 mm along it with
+                // no line). Nor one wider somewhere than two narrowest lines: it fills a patch, not a sliver (a white dome
+                // 1.3 x 0.8 mm in a gray arch, too small for a loop, its one line 0.3 to 0.78 mm wide, had nothing laid in it).
+                if (speck && whole != null && c.widths.min() <= s.minBeadUm && c.maxWidthUm <= 2 * s.minBeadUm && ownLength < c.maxWidthUm && otherPartNear(c)) continue
                 paths.add(ToolPath(f, c.xy, false, c.maxWidthUm, h, widths = c.widths, speck = speck, wall = if (outer) 0 else ws.size)) } }
             if (s.innerWallsFirst) center()
             if (s.fuzzySkin != "none") require(s.fuzzyMode == "displacement" && s.fuzzyNoise == "classic") {

@@ -385,12 +385,13 @@ object ConfigSetup {
                 narrowest?.let { (w, from) ->
                     fun set(id: String, x: Any, from: String) = set(id, x, from, narrowE)
                     set("plan.layer.walls.line.width.min", w, "$from: the narrowest line")
-                    // half the line (plymeld's choice): an area from half the narrowest line thick gets that
-                    // line, over-full by at most twice; at the full line, ledges and frame edges thinner than the bore
-                    // (a two-color Benchy's cabin) were left unprinted, their outline with no wall
-                    set("plan.layer.walls.feature.min", w / 2, "$from: half that line; an area thinner gets nothing (one of at least half the line gets the line)")
+                    // half the line (plymeld's choice): an area at the model's surface from half the narrowest line thick gets
+                    // that line, over-full by at most twice; at the full line, ledges and frame edges thinner than the bore
+                    // (a two-color Benchy's cabin) were left unprinted, their outline with no wall. Between walls the
+                    // narrowest line itself (less its flanks) is the floor: there an over-full line overlaps the walls (Walls.arachne)
+                    set("plan.layer.walls.feature.min", w / 2, "$from: half that line; an area at the model's surface thinner gets nothing (one of at least half the line gets the line)")
                     set("plan.layer.walls.length_factor.min", 2.0, "$from: a line shorter than two widths is a dot")
-                    set("plan.layer.walls.transition_length", w, "$from: a change in line count spread over one line's width (stand-in)")
+                    set("plan.layer.walls.transition_length", w, "$from: a change in line count spread over one line's width, a wall loop's piece shorter than it no loop (stand-in)")
                 }
                 // the surface techniques locked: each a lock of its technique on the surfaces it serves
                 pb("faces.side.technique")?.let { e ->

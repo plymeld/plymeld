@@ -681,3 +681,102 @@ layers 0.08 mm, the island's own about 0.11), the island's 7 layers over 0.75 mm
 there took 7 (44 against 48 over the print). Such an object on a plate of several objects is refused, and support
 inside the island's own layers on such an object is refused, both saying so. With no island locked, nothing changes.
 
+## 26. A thin area is laid as one line where two walls do not fit, as two where they do, with no flicker between (2026-11-14)
+
+Amends 24: lines of no length are removed from the program, at the walls.
+
+**Context.** A part narrowing to a ridge a line or two wide, then to nothing over a few layers, came out ragged: on one
+layer a stretch of the ridge with no line (with walls on both sides of the gap), on the next ones the crest as fragments
+(a short wavy line, a tiny closed loop, a blob), and in places two wall lines nearly on top of each other. The pre-print
+check passed the file. On a synthetic ridge (ThinRidgeTest) the causes were, in variable-width walls (Walls.arachne):
+a wall loop is laid wherever its bead fits, a hard threshold, and where the area's width hovers at it (an uneven outline:
+a sliced curved face, the slicing tolerance) the fit came and went in dots, each a closed loop about 1.2 mm round,
+overlapping its neighbors; where a loop ended, the single line beyond it started where the skeleton's fork was pruned,
+its round end touching the loop's turn at one point (a notch); the skeleton's dead-end forks were pruned one by one as
+the graph changed under the loop, so a short band's two corner forks went first, its trunk then read as a fork of its
+own and went too, and one corner fork was left as the band's line (a ridge 0.75 mm wide between two loops, 1.2 mm of it,
+laid as a 0.4 mm stub across it); a band cut where it dipped thinner than a line lost the pieces beside the dip as
+corner voids; between walls, a leftover thinner than the narrowest line got that line anyway, over-full into both
+walls; and on an object of several parts, a short line along the outline
+beside another part was dropped as a "speck" (a rule for a sliver of one filament in front of another), though here it
+was the whole width of a 0.78 mm ridge for 0.9 mm. The check counted a wall within a whole line of the outline as
+walling it, and a run under 2 mm as nothing, so a hole a line or two wide between walls passed.
+
+**Decision.**
+- Hysteresis: pieces of a loop's fit region that the looser fit (the slicing tolerance, `method.slicing.tolerance`, a side
+  further out: the outline is known no closer) joins are one loop, laid round the looser fit there, its beads that much
+  closer. A fit piece alone keeps its loop exactly as before: grown from the looser fit everywhere, loops moved by microns
+  at every corner, and what the walls leave to center lines and infill changed by far more (a curved layer's infill
+  became center lines).
+- A loop piece shorter than `plan.layer.walls.transition_length` (its extent) is no loop: the line through the area takes
+  its place, unless no line reaches it (an isolated pin keeps its loop).
+- A center line's end against a loop's bead (ahead of it, not beside it) reaches into it by `plan.layer.infill.wall_overlap`
+  of its width past bead contact, as an interior line's end does: where two lines become one, the line meets the loop's
+  turn with a lens of overlap rather than a notch.
+- Dead-end forks shorter than the line's width are pruned in rounds, each decided on the graph as it stood at the round's
+  start, and only forks that end where the skeleton ended; then a dead end that pruning left (the trunk of a fork whose
+  own forks went) goes too only where it is a side branch of a line running on through its junction, never the line.
+- A band cut where it dips thinner than a line for longer than the transition length keeps the pieces beside the dip
+  (each at least as long as it is narrow): they are the band, not corner voids.
+- Between walls (where the line's circle does not reach the model's outline), a leftover gets the narrowest line where
+  that line reaches into the walls on each side no further than an interior line may: `plan.layer.infill.wall_overlap` of
+  its width, or at least its own rounded flank (h (1 − π/4), the bead model's), whichever is more. At the model's surface
+  `plan.layer.walls.feature.min` (half the narrowest line by default) stays the floor: there an over-full line overlaps
+  nothing.
+- Where the area is narrower than `plan.layer.walls.feature.min` no line is laid, however short the stretch (it was
+  printed through at the narrowest line when shorter than the transition length): the line is cut at such a point, and
+  at a step of the skeleton that passes the model's surface closer than half that (a neck between two of its points,
+  much closer than either), and two lines' ends are not joined across such a neck. Rule 2 along a line, not only for
+  whole areas.
+- When a round's cuts would take every fork of a junction, or leave a small area less of its skeleton than its own widest
+  line (its junction can be several skeleton points microns apart), its two longest forks stay: one line through it, not
+  a hook into one corner and not a dot.
+- A sliver left between the outer loop and the infill region in an acute corner of the model's outline is a thin area of
+  its own (gets its line); elsewhere such corner slivers stay to the infill's anchors, as before.
+- A speck (an outer line kept for walling the outline) is left out beside another part only where it runs into a place
+  thinner than the narrowest line (its narrowest point widened to that line) and is nowhere wider than two narrowest
+  lines (a patch, not a sliver), and its length for that is the thin area's own, not what its ends reach into the walls.
+- A center line of no length is dropped where it is made: it lays nothing, yet cost a restart and a retraction.
+- The pre-print check probes each outline point where its outer bead's middle belongs (half a wall in): bare when the
+  model holds a line there and no line of the model lies within half a line and the tolerance of it. The model holds a
+  line where a disc as wide as `plan.layer.walls.feature.min`, and the slicing tolerance a side (a place that close to
+  the floor may go either way), fits against the outline; on the first layer against the outline drawn in by
+  `hardware.plate.first_layer.squish`, where the walls lie. Bare points within two lines of each other, on one face or
+  across a band, and with no line between them, are one stretch, its length the stretch's extent; a stretch longer than
+  the layer's walls are wide (their width weighted by length, the middle one: a few wide center lines do not set it) is
+  refused. A convex corner (a turn over 45 deg within a line) and a layer laid with wave beads are not judged.
+
+**Rejected.** Laying the two walls of a band narrower than two walls plus the narrowest line as two wider lines (full
+Arachne bead redistribution): the loops are fixed-width polygons, and a wider outer bead with the same center line
+would stand out past the outline; a change of its own. Opening the fit region (dropping slivers thinner than twice a
+margin): the threshold moves but stays a threshold, and noise at it still makes dots. Bridging loop pieces only within
+the transition length: two pieces of a loop meeting at a pinch then ended in two turns facing each other, overlapping.
+Keeping the narrowest line in every leftover down to `feature.min` between walls (as at the surface): with the infill's
+wall overlap at 25 % the floor is the same, but it follows that setting rather than standing apart from it. The rounded
+flanks alone as the floor between walls (0.02 to 0.03 mm a side): it left a leftover 0.29 mm wide between two inner
+walls empty along 9 mm (the Benchy test model), where the narrowest line, 0.36 mm, reached 0.035 mm into each wall.
+Carrying a line on past a junction where pruning would end it, into the fork reaching farthest past its round end: on a
+band's slanted end the fork into the acute corner was taken, a hook that left the obtuse corner's face bare. Cutting one
+part's center line wherever its bead would reach into another part's place (beyond the slicing tolerance): a sliver of
+one part between `feature.min` and the narrowest line wide beside another part then had no line at all, and the model's
+face there was bare (4.7 mm along a test ridge's crest); the narrowest line laid in the narrowest place a line is laid in
+still stands out of it by half their difference a side, (0.3 − 0.15) / 2 = 0.075 mm by default. Not joining two lines'
+ends where the join turns back over one of them (to stop a spur 0.085 mm long laid out and back): it also refused joins
+two lines met at an angle needed, and left a ridge's crest under-laid. A check reaching a whole line (the old rule) with
+a shorter run: a 1.3 mm hole between two wall turns still reads as walled.
+
+**Consequences.** On the synthetic ridge (0.4 mm lines, 0.08 mm layers), every crest station at least the narrowest
+feature wide is laid to at least three quarters of its width (two-wall stretches: within the narrowest line), with no
+fragment and no overlap beyond the stated allowances; before, 0.9 mm with no line, 45 short loops and fragments, and
+up to the full width laid twice. A ridge lowest in its middle (two loops at its ends, one line between) is laid along
+its whole length; before, 10 to 15 stations together with nothing across them. Between walls, a leftover narrower than
+the floor is left empty. On the Benchy test model interior wall lines are 67 mm longer (0.2 %) in 34 fewer paths: tiny
+loops and the short lines beside them became one line or one loop. Line ends meeting walls are a little longer (the test
+plate: 2 mm a layer). Lines cut at necks and not joined across them start and stop more: on a multi-part test print,
+1,115 visible restarts against 924 and 3,465 retractions against 3,240. Still open: where a line ends against a loop's
+end, its round end leaves the loop's corners a notch about 0.1 mm deep; a band's line ending at a fork whose branch on
+down a taper is shorter than the line's width there stops at the fork (the taper's last 0.2 to 0.4 mm, 0.2 to 0.4 mm
+wide, unlaid); a Y-shaped leftover's line can still bend into one arm; fixed-width loops leave up to a narrowest line
+unfilled where a band is between two and three lines wide; a joined line can run out and back over a short spur; and
+an outer loop cuts across a sharp concave corner of its area (into a neighboring part's place there).
+

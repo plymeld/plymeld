@@ -113,6 +113,37 @@ section the release's version and date.
 
 ### Fixed
 
+- A part narrowing to a ridge a line or two wide (variable-width walls) is laid as one line where two walls do not fit,
+  joined to the two walls it continues from, and as two walls where they do, along the whole stretch. Where the ridge's
+  width hovered at the width two walls need (its outline a little uneven, as a sliced curved face is), the wall loop came
+  and went along it: a string of closed loops a millimetre or so long overlapping each other across the whole width, and
+  fragments between them; where the loop ended, the single line started short of it, leaving a notch; a stretch of a
+  ridge between two loops, 1.2 mm of it 0.75 mm wide, was laid as a 0.4 mm stub across it (the line's corner forks were
+  pruned first, then its trunk read as a fork of its own and went too); and on an object of several parts, a short line
+  at such a ridge's end was dropped as a "speck" beside the other part, leaving 0.9 mm of a 0.78 mm ridge with no line.
+  Now pieces of a loop joined by an area at most the slicing tolerance a side narrower than the loop needs are one loop
+  (`method.slicing.tolerance`); a loop piece shorter than `plan.layer.walls.transition_length` gives way to the line
+  running through it; a line ending against a loop's turn reaches into it as an interior line's end does
+  (`plan.layer.infill.wall_overlap`); a line's forks are pruned as the line stood before, never its trunk; the pieces of a
+  band beside a stretch too thin for a line are kept, as wide as the band; a speck is left out beside another part only
+  where it runs into a sliver thinner than the narrowest line; a thin leftover between walls gets the narrowest line where
+  that line reaches into the walls no further than an interior line may (`plan.layer.infill.wall_overlap` of its width a
+  side; narrower, it is left empty); and a line of no length (its ends on one point) is not written, saving a restart
+  and a retraction for nothing.
+- A line is never laid where the area is narrower than `plan.layer.walls.feature.min`, however short the stretch: a gray
+  line 0.3 mm wide was printed through a gap 0.1 mm wide between a model's face and another part's tip, into that
+  part's place; it now stops either side of the gap, and two lines' ends are not joined across such a place. A small
+  area whose skeleton's forks all read as corners (its junction several points a few microns apart) keeps a line
+  through its two longest forks (a white dome 1.3 x 0.8 mm inside a gray arch had a line 23 µm long); a "speck" beside
+  another part is left out only where it is a sliver, not where it is wider somewhere than two narrowest lines; and a
+  thin sliver in an acute corner of the model's outline, beside the infill region, gets its line (it was left to infill
+  anchors that do not reach the outline).
+- The pre-print check refuses a stretch of the model's outline longer than a line with no line beside it where the model
+  holds one ("the model's outline has no line beside it"): it counted a wall within a whole line of the outline, so a
+  hole in a band a line or two wide, with walls on either side of it, passed. The model holds a line where a disc as
+  wide as `plan.layer.walls.feature.min`, and the slicing tolerance a side, fits against the outline (on the first layer,
+  in the outline drawn in by `hardware.plate.first_layer.squish`): an acute corner's tip and a place narrower than that
+  are not refused. Bare places on a band's two faces are one stretch, but not across a line lying between them.
 - The pre-print check of a curved island reads a wall by its own width: a lip as wide as two lines, laid as one wall that
   wide, was refused as an unwalled side of the model.
 - The nozzle's angle and height (`hardware.tool.<key>.head.nozzle.angle` and `.height`), where the tool sets none, are its

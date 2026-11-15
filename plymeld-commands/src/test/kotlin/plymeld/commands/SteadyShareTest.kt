@@ -209,17 +209,20 @@ class SteadyShareTest : StringSpec({
     // A line of no length: a thin area's center line along the outline whose points come out as one (here at a five-pointed
     // star's tips; on a real print, a lettering's). Its cap was sqrt(a * 0 * (1 - share)) = 0: written G1 F0, a feed at which
     // the printer stopped the print, and the preheat's estimate of it 0 / 0, "NaN s". The star is the test's own shape, found
-    // to give such lines (inner radius 1 mm, outer 10, turned 0.13 rad, 1 mm tall, the sample config).
-    "a line of no length gets no cap: no feed of 0 or below, no NaN or Infinity; the line is there (the probe)" {
+    // to give such lines (inner radius 1 mm, outer 10, turned 0.13 rad, 1 mm tall, the sample config). Such a line laid
+    // nothing yet cost a restart and a retraction: the walls now drop it (Walls.centerLines), so none is written; the
+    // writer's own guard for one is FeedRateTest's (a line of no length made by hand).
+    "the star's lines of no length are not written: no feed line with nothing laid after it, no feed of 0 or below, no NaN or Infinity" {
         val star = Files.createTempDirectory("plymeld-steady-star").resolve("star.stl").also { Files.writeString(it, starStl(5, 1.0, 10.0, 0.13, 1.0)) }
         val cv = listOf("plan.pose=as-given", "plan.placement=center", "hardware.machine.example-corexy.firmware.arcs=false", "plan.mechanism.motion.steady.share=90%")
         val (code, said, g) = slice(cfs, listOf(star), cv)
         withClue(said) { code shouldBe 0 }
-        // the probe: a feed line followed by a retraction, nothing laid between (a line of no length), is in the file
+        // a feed line followed by a retraction, nothing laid between: a line of no length written (before the walls dropped
+        // them, this star had such lines: the check is the one that found them)
         val empty = g.indices.filter { i -> Regex("^G1 F\\S+$").matches(g[i].trim()) &&
             g.drop(i + 1).firstOrNull { it.isNotBlank() && !it.trim().startsWith(";") }?.trim()?.startsWith("G1 E-") == true }
         println("star, steady share 90 %: ${g.size} lines, ${empty.size} lines of no length (${empty.take(3).joinToString { "line ${it + 1}: ${g[it]}" }})")
-        (empty.isNotEmpty()) shouldBe true
+        empty shouldBe emptyList()
         // every move's feed a number above 0, read from its F word
         val dead = g.withIndex().filter { (_, l) -> val c = l.substringBefore(';').trim()
             Regex("^G[0-3]\\s").containsMatchIn(c) && Regex("(?<=\\s)F(\\S*)").findAll(c).any { !((it.groupValues[1].toDoubleOrNull() ?: Double.NaN) > 0) } }

@@ -17,6 +17,11 @@ import java.util.Locale
  *    them (a wall or a feature missing). Parts of the outline in places narrower than a line (slivers,
  *    a feature's tip) are left out: no slicer could wall them. Gaps in the cross-section narrower than
  *    [tolUm] are not outline (it is closed by half the tolerance first): two pieces that close are one;
+ *  - bare outline: stretches of the outline longer than a line where no line of the model (of any kind) lies where the
+ *    outer bead belongs (half a line in, within the tolerance), where a line could lie (a disc as wide as the walls'
+ *    narrowest place for a line, plan.layer.walls.feature.min, fits touching the outline there): a hole in a band a
+ *    line or two wide, whose walls on either side the uncovered rule counts as near. Within a line of a convex corner, and
+ *    on a layer laid with wave beads, not judged;
  *  - Z anti-aliasing (a [ZaaRule]): a layer's outline also takes in its cut at the thinnest lowered line (ZaaRule.minMm) above its bottom
  *    (the layer reaches out over a slope to there), and a point of a line below its layer, on the model's top within the
  *    layer, is not outside;
@@ -53,11 +58,17 @@ object ModelCheck {
      * [partTools]: the tool (0-based, T0 = the tool of index 1) the config's loadout assigns each of [parts], in their
      * order; null: the tool is not judged. [handOverMm]: how thin an area of one filament the config hands to the
      * neighboring filament (plan.layer.sliver.width, when set over the walls' own thinnest): a line of one tool may lie that
-     * much further from its own tool's part.
+     * much further from its own tool's part. [featureMinMm]: the narrowest place the walls surely lay a line in
+     * (plan.layer.walls.feature.min and the slicing tolerance a side, as `slice` passes it); 0 = unknown, half the layer's
+     * walls' usual width stands in. The bare-outline rule judges only outline a line of that width could lie against.
+     * [firstLayerInsetMm]: how far the first layer's outline is drawn in (hardware.plate.first_layer.squish): there the
+     * bare-outline rule judges the outline drawn in by it, which is where the walls lie (a star's thin tips, drawn in,
+     * recede by a millimetre and more).
      */
     fun check(text: String, parts: List<TriangleSoup>, zBaseMm: Double, tolUm: Long = 100, maxProblems: Int = 30,
               imagesDir: java.nio.file.Path? = null, surface: Surface? = null, partTools: List<Int>? = null, zaa: ZaaRule? = null,
-              progress: plymeld.program.Progress = plymeld.program.Progress.NONE, handOverMm: Double = 0.0): List<String> {
+              progress: plymeld.program.Progress = plymeld.program.Progress.NONE, handOverMm: Double = 0.0, featureMinMm: Double = 0.0,
+              firstLayerInsetMm: Double = 0.0): List<String> {
         require(partTools == null || partTools.size == parts.size) { "${partTools!!.size} part tools for ${parts.size} parts" }
         val sf = surface ?: Surface(parts, zBaseMm, text, zaaMinMm = zaa?.minMm)
         val layers = sf.layerLines
@@ -70,7 +81,7 @@ object ModelCheck {
         if (imagesDir != null) System.setProperty("java.awt.headless", "true")
         // every layer on its own, in parallel; the problems in layer order
         return plymeld.core.Parallel.map(layers.size, progress.Counter("model check", layers.size)) { k ->
-            layerProblems(sf, k, tol, imagesDir, zaa) + airProblems(sf, k, tol, imagesDir) + toolProblems(sf, k, tol + handOverMm, partTools) }.flatten().take(maxProblems)
+            layerProblems(sf, k, tol, imagesDir, zaa, featureMinMm, if (k == 0) firstLayerInsetMm else 0.0) + airProblems(sf, k, tol, imagesDir) + toolProblems(sf, k, tol + handOverMm, partTools) }.flatten().take(maxProblems)
     }
 
     /** The unlaid area over air a waved layer may leave (mm2): a few sampling cells, so a corner's rounding is not one. */
@@ -160,7 +171,7 @@ object ModelCheck {
     }
 
     /** One layer's problems (and its picture, when [imagesDir] is given). */
-    private fun layerProblems(sf: Surface, k: Int, tol: Double, imagesDir: java.nio.file.Path?, zaa: ZaaRule?): List<String> {
+    private fun layerProblems(sf: Surface, k: Int, tol: Double, imagesDir: java.nio.file.Path?, zaa: ZaaRule?, featureMinMm: Double, insetMm: Double): List<String> {
         val out = ArrayList<String>()
         val layer = sf.layerLines[k]
         run {
@@ -246,13 +257,167 @@ object ModelCheck {
             val uncovered = uncov.total; val longest = uncov.longest; val ux = uncov.x; val uy = uncov.y
             val badOutline = longest > 2.0
             if (badOutline) out += "layer at z ${f(layer.z, 3)}: the model's outline has no wall along ${f(uncovered, 1)} mm, ${f(longest, 1)} mm in one stretch (ending near ${f(ux, 2)}, ${f(uy, 2)})"
-            if (imagesDir != null && (badOutside || badOutline)) {
-                val (cx, cy) = if (badOutline) ux to uy else wx to wy
+            // Bare outline: the rule above counts a wall within a whole line of the outline, so a hole in a thin band, a line
+            // or two wide, whose walls on either side reach in (a ridge 0.78 mm wide with no line along 0.9 mm of it, a
+            // loop's turn on one side and the band's end on the other) passed. Here each outline point is probed where its
+            // outer bead's middle belongs (half the walls' usual width in from the outline), where the model holds a line
+            // there (a disc as wide as the narrowest place the walls lay a line in, [featureMinMm], fits touching the point):
+            // bare when no line of the model, of any kind, has its bead within the tolerance of that point. An acute
+            // corner's tip and a place narrower than that floor hold no line: no line is laid there, by design. Refused over
+            // a stretch longer than the walls' usual width: a seam, a line's round end, a coasted end (its bead reaches the
+            // tolerance further), the squish compensation's inset all stay under it. A layer laid with wave beads is left
+            // out: the over-air rule judges it (a lifted bridge's second layer laid as a crosshatch of Xs leaves its outline
+            // open by design).
+            // (on the cross-section closed by half the tolerance, as above, when the raw one has a bare point)
+            // The line it probes for is the walls' usual one (their width over most of their length): the widest, a thin area's
+            // line declared at its widest (up to two lines), left every band narrower than that unjudged and its holes passed.
+            val wb = walls.sortedBy { it.w }.let { ws -> val total = ws.sumOf { Math.hypot(it.x1 - it.x0, it.y1 - it.y0) }; var acc = 0.0
+                ws.firstOrNull { acc += Math.hypot(it.x1 - it.x0, it.y1 - it.y0); acc >= total / 2 }?.w ?: w }
+            val floor = if (featureMinMm > 0) featureMinMm else wb / 2
+            val bare = if (model.any { it.wave }) Bare(0.0, 0.0, 0.0, emptyList()) else bareOf(loops, model, edges, wb, floor, insetMm, tol, sf).let { raw ->
+                if (raw.pts.isEmpty()) raw else {
+                    val r = Math.round(tol * 500)
+                    bareOf(plymeld.geom.Offset.offset(plymeld.geom.Offset.offset(loops, r, plymeld.geom.Offset.Join.ROUND), -r, plymeld.geom.Offset.Join.ROUND), model, edges, wb, floor, insetMm, tol, sf)
+                }
+            }
+            uncPts += bare.pts
+            val badBare = !badOutline && bare.longest > wb
+            if (badBare) out += "layer at z ${f(layer.z, 3)}: the model's outline has no line beside it along ${f(bare.longest, 2)} mm in one stretch, where the model holds a line (ending near ${f(bare.x, 2)}, ${f(bare.y, 2)})"
+            if (imagesDir != null && (badOutside || badOutline || badBare)) {
+                val (cx, cy) = if (badOutline) ux to uy else if (badBare) bare.x to bare.y else wx to wy
                 ModelCheckPlot.write(imagesDir.resolve("z%07.3f.png".format(Locale.ROOT, layer.z)), "layer at z ${f(layer.z, 3)}: ${out.last().substringAfter(": ")}",
                     loops, model.map { doubleArrayOf(it.x0, it.y0, it.x1, it.y1, it.w, if (it.wall) 1.0 else 0.0) }, outPts, uncPts, cx, cy)
             }
         }
         return out
+    }
+
+    /**
+     * A convex corner of the outline, for the bare-outline rule: turning toward the model by more than this (deg) within a
+     * line either way (a corner rounded over a few vertices is one). A box's corner (90) and a hexagon's (60) are; a curved
+     * face's facets (a few degrees each, over a line) are not. plymeld's choice.
+     */
+    private const val CORNER_DEG = 45.0
+
+    /** The bare-outline rule's reading of one layer ([bareOf]): its longest bare stretch (mm), where it ends, the bare points. */
+    private class Bare(val longest: Double, val x: Double, val y: Double, val pts: List<DoubleArray>)
+
+    /**
+     * Each outline point of [loops] (the cross-section, outer loops counter-clockwise: the model on their left), every
+     * quarter of [w], probed half of [w] in: bare when the model there holds a line (a disc as wide as the narrowest place
+     * a line is laid in, [floor], fits in the cross-section touching the outline point within [tol]: an acute corner's
+     * tip, a place narrower than [floor], holds none; on the first layer the disc fits the outline drawn in by [inset]),
+     * and no line of [model] has its center within half of [w] and [tol] of the probe. Stretches run on round a loop's start.
+     */
+    private fun bareOf(loops: List<Polygon>, model: List<Seg>, edges: Grid, w: Double, floor: Double, inset: Double, tol: Double, sf: Surface): Bare {
+        val lines = Grid(model.map { doubleArrayOf(it.x0, it.y0, it.x1, it.y1) })
+        // where a disc of [floor] can have its center: the cross-section (drawn in by [inset]) shrunk by half of it
+        val centers by lazy {
+            val c = plymeld.geom.Offset.offset(loops, -Math.round((floor / 2 + inset) * 1000))
+            Grid(c.flatMap { p -> (0 until p.size).map { i -> doubleArrayOf(p.x(i) / 1000.0, p.y(i) / 1000.0, p.x((i + 1) % p.size) / 1000.0, p.y((i + 1) % p.size) / 1000.0) } })
+        }
+        val step = w / 4; val reach = w / 2 + tol
+        var longest = 0.0; var lx = 0.0; var ly = 0.0
+        val pts = ArrayList<DoubleArray>()
+        val judged = ArrayList<DoubleArray>()
+        for (loop in loops) {
+            if (Math.abs(loop.signedAreaMm2()) < w * w * 2) continue                // too small to hold a line
+            val m = loop.size
+            // the side the model is on (+1: left of the loop's way round), read off its longest edge a hair to the left
+            val side = run {
+                var best = 0; var bl = -1.0
+                for (i in 0 until m) { val l = Math.hypot((loop.x((i + 1) % m) - loop.x(i)).toDouble(), (loop.y((i + 1) % m) - loop.y(i)).toDouble()); if (l > bl) { bl = l; best = i } }
+                val ax = loop.x(best) / 1000.0; val ay = loop.y(best) / 1000.0; val bx = loop.x((best + 1) % m) / 1000.0; val by = loop.y((best + 1) % m) / 1000.0
+                val l = Math.hypot(bx - ax, by - ay); val eps = minOf(0.01, l / 4)
+                if (edges.inside((ax + bx) / 2 - (by - ay) / l * eps, (ay + by) / 2 + (bx - ax) / l * eps)) 1.0 else -1.0
+            }
+            // the loop's convex corners (turning toward the model by more than [CORNER_DEG] within a line), by their place along
+            // it: within a line of one, the outline is not judged (a wall rounds or cuts a corner, fuzzy skin's resampling across it)
+            val at = DoubleArray(m + 1)
+            for (i in 0 until m) at[i + 1] = at[i] + Math.hypot((loop.x((i + 1) % m) - loop.x(i)) / 1000.0, (loop.y((i + 1) % m) - loop.y(i)) / 1000.0)
+            val perimeter = at[m]
+            // each vertex's turn toward the model (radians; a corner rounded by a few vertices turns over all of them), summed
+            // along the loop: the turn within a line either way of a point, by two binary searches
+            val turn = DoubleArray(m) { i ->
+                val p = (i + m - 1) % m; val q = (i + 1) % m
+                val ux = (loop.x(i) - loop.x(p)).toDouble(); val uy = (loop.y(i) - loop.y(p)).toDouble()
+                val vx = (loop.x(q) - loop.x(i)).toDouble(); val vy = (loop.y(q) - loop.y(i)).toDouble()
+                maxOf(0.0, side * Math.atan2(ux * vy - uy * vx, ux * vx + uy * vy))
+            }
+            val sum = DoubleArray(m + 1); for (i in 0 until m) sum[i + 1] = sum[i] + turn[i]
+            /** The convex turn of the vertices at places [a, b] along the loop (0 <= a <= b <= perimeter). */
+            fun turned(a: Double, b: Double): Double {
+                fun first(u: Double): Int { var lo = 0; var hi = m; while (lo < hi) { val mid = (lo + hi) / 2; if (at[mid] < u) lo = mid + 1 else hi = mid }; return lo }
+                return sum[first(b + 1e-12).coerceAtMost(m)] - sum[first(a).coerceAtMost(m)]
+            }
+            fun nearCorner(u: Double): Boolean {
+                if (2 * w >= perimeter) return true
+                val a = u - w; val b = u + w
+                val t = if (a < 0) turned(0.0, b) + turned(a + perimeter, perimeter) else if (b > perimeter) turned(a, perimeter) + turned(0.0, b - perimeter) else turned(a, b)
+                return t > Math.toRadians(CORNER_DEG)
+            }
+            // each sample: 1 bare, 0 laid, -1 not judged (beside a corner: neither ends a bare stretch nor adds to it)
+            val lens = ArrayList<Double>(); val state = ArrayList<Int>(); val xs = ArrayList<Double>(); val ys = ArrayList<Double>()
+            for (i in 0 until m) {
+                val ax = loop.x(i) / 1000.0; val ay = loop.y(i) / 1000.0
+                val bx = loop.x((i + 1) % m) / 1000.0; val by = loop.y((i + 1) % m) / 1000.0
+                val len = Math.hypot(bx - ax, by - ay)
+                if (len == 0.0) continue
+                val nxl = -(by - ay) / len * side; val nyl = (bx - ax) / len * side
+                val n = maxOf(1, Math.ceil(len / step).toInt())
+                for (j in 0 until n) {
+                    val px = ax + (bx - ax) * (j + 0.5) / n; val py = ay + (by - ay) * (j + 0.5) / n
+                    val qx = px + nxl * w / 2; val qy = py + nyl * w / 2
+                    val e = !sf.onCut(px, py, tol) && edges.inside(px + nxl * (floor / 2 + inset), py + nyl * (floor / 2 + inset)) && lines.nearest(qx, qy, reach) > reach &&
+                        centers.nearest(px, py, floor + inset) <= floor / 2 + inset + tol
+                    lens += len / n; xs += px; ys += py
+                    state += if (!e) 0 else if (nearCorner(at[i] + len * (j + 0.5) / n)) -1 else 1
+                    if (e) pts += doubleArrayOf(px, py)
+                    if (state.last() == 1) judged += doubleArrayOf(px, py)
+                }
+            }
+            val k = lens.size
+            if (k == 0) continue
+            // the longest run of bare points round the loop (from a laid point; none laid: the whole loop's bare points)
+            val start = state.indexOfFirst { it == 0 }
+            if (start < 0) { val total = (0 until k).sumOf { if (state[it] == 1) lens[it] else 0.0 }; if (total > longest) { longest = total; lx = xs[0]; ly = ys[0] }; continue }
+            var run = 0.0
+            for (t in 1..k) {
+                val i = (start + t) % k
+                when (state[i]) {
+                    1 -> { run += lens[i]; if (run > longest) { longest = run; lx = xs[i]; ly = ys[i] } }
+                    0 -> run = 0.0
+                }
+            }
+        }
+        // One hole is bare on both faces of a band: its bare points on either face, a band's width apart, are one stretch
+        // (points within two lines of each other joined, unless a line lies between them), as long as the farthest two of
+        // them are apart. Counted face by face, a hole in a ridge 0.75 mm wide passed: a stub of line across it broke each
+        // face's run in two. Joined across a line between them, the two corners of an arch's mouth either side of the line
+        // filling it read as one bare stretch 0.86 mm long.
+        if (judged.size > 1) {
+            val link = 2 * w
+            val parent = IntArray(judged.size) { it }
+            fun root(i: Int): Int { var r = i; while (parent[r] != r) r = parent[r]; var j = i; while (parent[j] != r) { val n = parent[j]; parent[j] = r; j = n }; return r }
+            val cells = HashMap<Long, MutableList<Int>>()
+            fun key(cx: Long, cy: Long) = (cx shl 32) xor (cy and 0xffffffffL)
+            for ((i, p) in judged.withIndex()) cells.getOrPut(key(Math.floor(p[0] / link).toLong(), Math.floor(p[1] / link).toLong())) { ArrayList() } += i
+            for ((i, p) in judged.withIndex()) {
+                val cx = Math.floor(p[0] / link).toLong(); val cy = Math.floor(p[1] / link).toLong()
+                for (gx in cx - 1..cx + 1) for (gy in cy - 1..cy + 1) for (j in cells[key(gx, gy)] ?: continue)
+                    if (j > i && Math.hypot(judged[j][0] - p[0], judged[j][1] - p[1]) <= link &&
+                        // not across a line lying between them: two small bare places either side of a line are two
+                        lines.nearest((judged[j][0] + p[0]) / 2, (judged[j][1] + p[1]) / 2, reach) > reach) parent[root(j)] = root(i)
+            }
+            for (group in judged.indices.groupBy { root(it) }.values) {
+                if (group.size < 2) continue
+                // the farthest two: exactly for a small group, else across its box
+                val d = if (group.size <= 400) group.maxOf { a -> group.maxOf { b -> Math.hypot(judged[a][0] - judged[b][0], judged[a][1] - judged[b][1]) } }
+                    else Math.hypot(group.maxOf { judged[it][0] } - group.minOf { judged[it][0] }, group.maxOf { judged[it][1] } - group.minOf { judged[it][1] })
+                if (d > longest) { longest = d; lx = judged[group[0]][0]; ly = judged[group[0]][1] }
+            }
+        }
+        return Bare(longest, lx, ly, pts)
     }
 
     internal class LayerLines(val z: Double, val h: Double, val segs: List<Seg>)
