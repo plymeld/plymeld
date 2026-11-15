@@ -689,10 +689,14 @@ object CurvedCheck {
         // against its warped parts' loops of that island only
         val ol = out.toString().lines()
         val marks = ol.indices.filter { isLayer(ol[it].trim()) }
+        // a frame's text keeps the other frames' tool changes (their layers left out): the tool in force on its layers is the
+        // file's (an island layer ending on the other tool had the next flat layer's lines read as that layer's first tool's)
+        val toolLine = Regex("^T\\d+$")
         fun frameText(fr: Int): String {
             val sb = StringBuilder()
             for (i in 0 until marks.first()) sb.append(ol[i]).append('\n')
-            for ((j, m) in marks.withIndex()) if (frame(j) == fr) for (i in m until (if (j + 1 < marks.size) marks[j + 1] else ol.size)) sb.append(ol[i]).append('\n')
+            for ((j, m) in marks.withIndex()) for (i in m until (if (j + 1 < marks.size) marks[j + 1] else ol.size))
+                if (frame(j) == fr || toolLine.matches(ol[i].substringBefore(';').trim())) sb.append(ol[i]).append('\n')
             return sb.toString()
         }
         // an island holding a taller part ends at its top (CurvedIsland.shared): above it, that part is the flat layers' again

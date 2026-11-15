@@ -321,7 +321,9 @@ object Catalog {
         s("plan.mechanism.adhesion.brim.where", INTENT, CHOICE, "brim placement: no_brim (plan.mechanism.adhesion.brim.enabled off) or outer_only")
         s("plan.mechanism.adhesion.brim.width", INTENT, LENGTH, "brim width")
         s("plan.mechanism.adhesion.brim.gap", INTENT, LENGTH, "gap between brim and object")
-        s("plan.layer.sliver.width", INTENT, LENGTH, "an area of one filament thinner than this, touching another filament's, is printed by that neighbor; unset = the thinnest area the walls print")
+        s("plan.layer.sliver.width", INTENT, LENGTH, "an area of one filament thinner than this, touching another filament's, is printed by that neighbor, unless it lies along the object's outer surface (plan.layer.sliver.at_surface); unset = the thinnest area the walls print")
+        s("plan.layer.sliver.at_surface", INTENT, CHOICE, "a sliver (plan.layer.sliver.width) lying along the object's outer surface: own = it stays its own part's, laid by its own filament where a line fits and left empty where none does; neighbor = it goes to the neighboring filament like a sliver inside the object",
+            "own", "no filament is laid outside its own part where it shows: given to the neighbor, its plastic showed in the wrong color on the surface, and the neighbor's outline stepped out over the layer below for a layer or two where nothing was modeled to")
         s("plan.mechanism.motion.short_walls.length", INTENT, LENGTH, "a wall line or loop shorter than this prints no faster than short_walls.speed; unset = none")
         s("plan.mechanism.motion.short_walls.speed", INTENT, SPEED, "the fastest a short wall prints")
         s("plan.mechanism.motion.short_walls.full_length", INTENT, LENGTH, "a wall between short_walls.length and this prints no faster than a speed rising in a straight line from short_walls.speed to its own; unset = short_walls.length (a single step)")

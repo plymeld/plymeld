@@ -30,7 +30,9 @@ import java.util.Locale
  *    from every line of the layer (a gap wider than a line between beads). Refused over [AIR_MM2] unlaid; wave beads are
  *    laid a spacing apart, and what no front reaches is bridged, so the planner leaves none;
  *  - tool (when the config's part tools are given): the model's lines printed by the tool (the T command in force) the
- *    config's loadout assigns the part whose own cross-section holds them.
+ *    config's loadout assigns the part whose own cross-section holds them; and on the object's outer surface, no line's
+ *    bead covering a stretch of the outline that belongs to another tool's part alone (a filament showing outside its own
+ *    part).
  *
  * Support, brim, purge tower, and the start template's lines are not the model's and are not judged.
  */
@@ -44,8 +46,14 @@ object ModelCheck {
     /** A wave bead laid one layer above its own (IncrementalSlicer.WAVE_ABOVE): one of the next layer's lines. */
     private const val ABOVE = "Wave overhang, layer above"
 
+    /**
+     * A printed segment: [w], its path's width as the file states it (`;WIDTH`, a variable-width line's widest); [bead], this
+     * segment's own width from its plastic ([layers]: its share of the path's widest extrusion per mm).
+     */
     internal class Seg(val x0: Double, val y0: Double, val x1: Double, val y1: Double, val w: Double, val wall: Boolean, val tool: Int = 0,
-                       val z0: Double = Double.NaN, val z1: Double = Double.NaN, val wave: Boolean = false)
+                       val z0: Double = Double.NaN, val z1: Double = Double.NaN, val wave: Boolean = false) {
+        var bead: Double = w
+    }
     /** A wave bead (laid in its own layer or carried into the one above): a layer with one lays the area over air ([airProblems]). */
     private val WAVES = setOf("Wave overhang", ABOVE)
 
@@ -58,7 +66,9 @@ object ModelCheck {
      * [partTools]: the tool (0-based, T0 = the tool of index 1) the config's loadout assigns each of [parts], in their
      * order; null: the tool is not judged. [handOverMm]: how thin an area of one filament the config hands to the
      * neighboring filament (plan.layer.sliver.width, when set over the walls' own thinnest): a line of one tool may lie that
-     * much further from its own tool's part. [featureMinMm]: the narrowest place the walls surely lay a line in
+     * much further from its own tool's part. [surfaceHandOverMm]: the same allowance on the object's outer surface, where
+     * the config hands a sliver lying along it to the neighbor too (plan.layer.sliver.at_surface = neighbor: the width it
+     * hands over, SliceSettings.sliverHandOverUm); 0 = none there, the tolerance alone. [featureMinMm]: the narrowest place the walls surely lay a line in
      * (plan.layer.walls.feature.min and the slicing tolerance a side, as `slice` passes it); 0 = unknown, half the layer's
      * walls' usual width stands in. The bare-outline rule judges only outline a line of that width could lie against.
      * [firstLayerInsetMm]: how far the first layer's outline is drawn in (hardware.plate.first_layer.squish): there the
@@ -68,7 +78,7 @@ object ModelCheck {
     fun check(text: String, parts: List<TriangleSoup>, zBaseMm: Double, tolUm: Long = 100, maxProblems: Int = 30,
               imagesDir: java.nio.file.Path? = null, surface: Surface? = null, partTools: List<Int>? = null, zaa: ZaaRule? = null,
               progress: plymeld.program.Progress = plymeld.program.Progress.NONE, handOverMm: Double = 0.0, featureMinMm: Double = 0.0,
-              firstLayerInsetMm: Double = 0.0): List<String> {
+              firstLayerInsetMm: Double = 0.0, surfaceHandOverMm: Double = 0.0): List<String> {
         require(partTools == null || partTools.size == parts.size) { "${partTools!!.size} part tools for ${parts.size} parts" }
         val sf = surface ?: Surface(parts, zBaseMm, text, zaaMinMm = zaa?.minMm)
         val layers = sf.layerLines
@@ -81,7 +91,8 @@ object ModelCheck {
         if (imagesDir != null) System.setProperty("java.awt.headless", "true")
         // every layer on its own, in parallel; the problems in layer order
         return plymeld.core.Parallel.map(layers.size, progress.Counter("model check", layers.size)) { k ->
-            layerProblems(sf, k, tol, imagesDir, zaa, featureMinMm, if (k == 0) firstLayerInsetMm else 0.0) + airProblems(sf, k, tol, imagesDir) + toolProblems(sf, k, tol + handOverMm, partTools) }.flatten().take(maxProblems)
+            layerProblems(sf, k, tol, imagesDir, zaa, featureMinMm, if (k == 0) firstLayerInsetMm else 0.0) + airProblems(sf, k, tol, imagesDir) +
+                toolProblems(sf, k, tol + handOverMm, partTools) + surfaceToolProblems(sf, k, tol + surfaceHandOverMm, partTools) }.flatten().take(maxProblems)
     }
 
     /** The unlaid area over air a waved layer may leave (mm2): a few sampling cells, so a corner's rounding is not one. */
@@ -169,6 +180,103 @@ object ModelCheck {
         return listOf("layer at z ${f(layer.z, 3)}: ${f(wrongMm, 1)} mm of the model's lines printed by the wrong tool: T${s.tool} (tool ${s.tool + 1}) " +
             "at (${f(s.x0, 2)}, ${f(s.y0, 2)}), where the part there is assigned ${wanted.sorted().joinToString(" or ") { "T$it (tool ${it + 1})" }}")
     }
+
+    /**
+     * The tool rule on the object's outer surface: no line's bead (half its width round its middle, the width from its
+     * plastic, Seg.bead: a variable-width line's file width is its widest) covers a stretch of the
+     * layer's outline (its cut at the middle, the union of the parts) that belongs to the parts of other tools alone (no part
+     * on the line's tool holds it within [allowMm]). There the line's filament shows on the surface outside its own part: a
+     * sliver of one part lying along the surface laid by its neighbor. The tool rule above reads only where a line's middle
+     * lies, so a bead reaching past its own part over a thin piece of another's passed it. A bead covers an outline point
+     * within half its width and [SURFACE_EDGE_MM] of its middle: an outer wall laid round the object's outline has its
+     * edge right on it. The outline is sampled every [SURFACE_STEP_MM]; a stretch of it covered by one tool's beads (gaps of
+     * up to [SURFACE_GAP_MM] bridged) longer than [SURFACE_RUN_MM] is refused: shorter ones are where a feature narrower
+     * than a line meets another part (a tip a wall passes over, a line's round end in the narrowest place a line is laid
+     * in), which the walls cannot follow. The section's cut (an open section's sides) is not surface.
+     */
+    private fun surfaceToolProblems(sf: Surface, k: Int, allowMm: Double, partTools: List<Int>?): List<String> {
+        if (partTools == null) return emptyList()
+        val tools = partTools.distinct().sorted()
+        if (tools.size < 2) return emptyList()
+        val layer = sf.layerLines[k]
+        if (layer.segs.isEmpty()) return emptyList()
+        val all = (1 shl tools.size) - 1
+        // the outline's samples, loop by loop in order; those some tool's parts do not hold bucketed by cell, each with the
+        // tools that do hold it
+        class Sample(val x: Double, val y: Double, val held: Int) { var wrong = 0; var by: Seg? = null }
+        val loops = ArrayList<List<Sample?>>()
+        val cells = HashMap<Long, MutableList<Sample>>()
+        fun key(cx: Int, cy: Int) = (cx.toLong() shl 32) or (cy.toLong() and 0xffffffffL)
+        for (p in sf.loops(k)) {
+            val seq = ArrayList<Sample?>()
+            for (i in 0 until p.size) {
+                val ax = p.x(i) / 1000.0; val ay = p.y(i) / 1000.0
+                val bx = p.x((i + 1) % p.size) / 1000.0; val by = p.y((i + 1) % p.size) / 1000.0
+                val n = maxOf(1, Math.ceil(Math.hypot(bx - ax, by - ay) / SURFACE_STEP_MM).toInt())
+                for (j in 0 until n) {
+                    val x = ax + (bx - ax) * j / n; val y = ay + (by - ay) * j / n
+                    if (sf.onCut(x, y, allowMm)) { seq += null; continue }
+                    var held = 0
+                    for (q in partTools.indices) {
+                        val g = sf.partGrid(q, k)
+                        if (g.inside(x, y) || g.nearest(x, y, allowMm) <= allowMm) held = held or (1 shl tools.indexOf(partTools[q]))
+                    }
+                    if (held == all) { seq += null; continue }
+                    val sm = Sample(x, y, held)
+                    seq += sm
+                    cells.getOrPut(key(Math.floor(x / SURFACE_CELL_MM).toInt(), Math.floor(y / SURFACE_CELL_MM).toInt())) { ArrayList() } += sm
+                }
+            }
+            loops += seq
+        }
+        if (cells.isEmpty()) return emptyList()
+        for (s in layer.segs) {
+            val bit = tools.indexOf(s.tool).takeIf { it >= 0 }?.let { 1 shl it } ?: continue   // a tool of no part: the tool rule's
+            val r = s.bead / 2 + SURFACE_EDGE_MM
+            val cx0 = Math.floor((minOf(s.x0, s.x1) - r) / SURFACE_CELL_MM).toInt(); val cx1 = Math.floor((maxOf(s.x0, s.x1) + r) / SURFACE_CELL_MM).toInt()
+            val cy0 = Math.floor((minOf(s.y0, s.y1) - r) / SURFACE_CELL_MM).toInt(); val cy1 = Math.floor((maxOf(s.y0, s.y1) + r) / SURFACE_CELL_MM).toInt()
+            for (cx in cx0..cx1) for (cy in cy0..cy1) cells[key(cx, cy)]?.forEach { p ->
+                if (p.held and bit == 0 && p.wrong and bit == 0 && pointSeg(p.x, p.y, s.x0, s.y0, s.x1, s.y1) <= r) { p.wrong = p.wrong or bit; if (p.by == null) p.by = s }
+            }
+        }
+        // the longest stretch one tool covers, round each loop (a loop all covered: its whole length)
+        val gap = Math.round(SURFACE_GAP_MM / SURFACE_STEP_MM).toInt()
+        var longest = 0; var at: Sample? = null
+        for (seq in loops) for (b in tools.indices) {
+            val bit = 1 shl b
+            val n = seq.size
+            if (seq.none { it != null && it.wrong and bit != 0 }) continue
+            if (seq.all { it != null && it.wrong and bit != 0 }) { if (n > longest) { longest = n; at = seq[0] }; continue }
+            // start after an uncovered sample, so a stretch over the loop's start is read whole
+            val start = seq.indices.first { seq[it]?.let { s -> s.wrong and bit != 0 } != true }
+            var run = 0; var miss = 0; var first: Sample? = null
+            for (t in 1..n) {
+                val sm = seq[(start + t) % n]
+                if (sm != null && sm.wrong and bit != 0) { if (run == 0) first = sm; run += 1 + miss; miss = 0; if (run > longest) { longest = run; at = first } }
+                else if (run > 0 && ++miss > gap) { run = 0; miss = 0 }
+            }
+        }
+        val mm = longest * SURFACE_STEP_MM
+        if (mm <= SURFACE_RUN_MM) return emptyList()
+        val p = at!!; val s = p.by!!
+        val owners = tools.filterIndexed { i, _ -> p.held and (1 shl i) != 0 }
+        return listOf("layer at z ${f(layer.z, 3)}: ${f(mm, 1)} mm of the object's surface laid by the wrong tool: T${s.tool} (tool ${s.tool + 1})'s bead " +
+            "covers it from (${f(p.x, 2)}, ${f(p.y, 2)}), outside that tool's parts, where the surface is " +
+            (if (owners.isEmpty()) "no part's" else "the part of ${owners.joinToString(" or ") { "T$it (tool ${it + 1})" }}"))
+    }
+    /** How far apart the surface tool rule samples the outline (mm): well under the thinnest line. plymeld's choice. */
+    private const val SURFACE_STEP_MM = 0.05
+    /** The surface tool rule's buckets (mm). */
+    private const val SURFACE_CELL_MM = 0.5
+    /** How far past half its width a bead still lays the outline (mm): the file's and the slice's rounding. plymeld's choice. */
+    private const val SURFACE_EDGE_MM = 0.02
+    /** Uncovered samples a covered stretch of the outline runs on over (mm). plymeld's choice. */
+    private const val SURFACE_GAP_MM = 0.1
+    /**
+     * The longest stretch of another tool's surface one tool's beads may cover (mm): longer than where a feature narrower than
+     * a line meets another part (a tip 0.15 mm into a face, a wall passing over it, covers about 0.4 mm of it). plymeld's choice.
+     */
+    private const val SURFACE_RUN_MM = 1.0
 
     /** One layer's problems (and its picture, when [imagesDir] is given). */
     private fun layerProblems(sf: Surface, k: Int, tol: Double, imagesDir: java.nio.file.Path?, zaa: ZaaRule?, featureMinMm: Double, insetMm: Double): List<String> {
@@ -522,10 +630,22 @@ object ModelCheck {
         // the lines laid in this layer's block for the layer above (ABOVE): carried into the next layer's
         var above = ArrayList<Seg>()
         var x = Double.NaN; var y = Double.NaN; var zc = Double.NaN; var w = 0.4; var feature = ""; var tool = 0
-        fun flush() { if (started && !z.isNaN()) out += LayerLines(z, h, segs); segs = above; above = ArrayList() }
+        // the segments of the path being read, each with its plastic per mm: a path's widest (its stated width) sets the
+        // scale for the rest (Seg.bead): the bead's cross-section, h (w - h (1 - pi/4)), goes as the plastic per mm
+        val path = ArrayList<Pair<Seg, Double>>()
+        fun endPath() {
+            if (path.isEmpty()) return
+            // the widest from segments long enough that the file's rounding of E does not set it
+            val top = (path.filter { (s, _) -> Math.hypot(s.x1 - s.x0, s.y1 - s.y0) >= 0.05 }.takeIf { it.isNotEmpty() } ?: path).maxOf { it.second }
+            val flank = h * (1 - Math.PI / 4)
+            if (top > 0) for ((s, rate) in path) s.bead = flank + (s.w - flank) * minOf(1.0, rate / top)
+            path.clear()
+        }
+        fun flush() { endPath(); if (started && !z.isNaN()) out += LayerLines(z, h, segs); segs = above; above = ArrayList() }
         for (raw in text.lineSequence()) {
             val l = raw.trim()
             if (l.startsWith(";LAYER_CHANGE") || l.startsWith("; CHANGE_LAYER")) { flush(); started = true; continue }
+            if (l.startsWith(";WIDTH:") || l.startsWith("; LINE_WIDTH:") || l.startsWith(";TYPE:") || l.startsWith("; FEATURE:")) endPath()
             when {
                 l.startsWith(";Z:") -> z = l.removePrefix(";Z:").trim().toDouble()
                 l.startsWith("; Z_HEIGHT:") -> z = l.removePrefix("; Z_HEIGHT:").trim().toDouble()
@@ -537,16 +657,25 @@ object ModelCheck {
                 l.startsWith("; FEATURE:") -> feature = l.removePrefix("; FEATURE:").trim()
             }
             val c = l.substringBefore(';').trim()
-            if (TOOL.matches(c)) { tool = c.substring(1).toInt(); continue }
+            if (TOOL.matches(c)) { endPath(); tool = c.substring(1).toInt(); continue }
             val ws = c.split(Regex("\\s+"))
             val arc = ws[0] == "G2" || ws[0] == "G3"
             if (!(ws[0] == "G1" || ws[0] == "G0" || arc)) continue
             fun num(ch: Char) = ws.drop(1).firstOrNull { it.isNotEmpty() && it[0] == ch }?.substring(1)?.toDoubleOrNull()
             val nx = num('X') ?: x; val ny = num('Y') ?: y; val nz = num('Z') ?: zc; val e = num('E') ?: 0.0
             if (started && e > 0 && !x.isNaN() && (nx != x || ny != y || arc) && feature in MODEL) {
-                if (arc) arcChords(x, y, nx, ny, x + (num('I') ?: 0.0), y + (num('J') ?: 0.0), ws[0] == "G2") { ax, ay, bx, by -> segs += Seg(ax, ay, bx, by, w, feature in WALLS, tool, nz, nz, feature in WAVES) }
-                else (if (feature == ABOVE) above else segs) += Seg(x, y, nx, ny, w, feature in WALLS, tool, zc, nz, feature in WAVES)
-            }
+                if (arc) {
+                    val chords = ArrayList<Seg>()
+                    arcChords(x, y, nx, ny, x + (num('I') ?: 0.0), y + (num('J') ?: 0.0), ws[0] == "G2") { ax, ay, bx, by -> chords += Seg(ax, ay, bx, by, w, feature in WALLS, tool, nz, nz, feature in WAVES) }
+                    val len = chords.sumOf { Math.hypot(it.x1 - it.x0, it.y1 - it.y0) }
+                    segs += chords
+                    if (len > 0) for (s in chords) path += s to e / len
+                } else {
+                    val s = Seg(x, y, nx, ny, w, feature in WALLS, tool, zc, nz, feature in WAVES)
+                    (if (feature == ABOVE) above else segs) += s
+                    path += s to e / Math.hypot(nx - x, ny - y)
+                }
+            } else if (nx != x || ny != y || e < 0) endPath()     // a travel or a retraction ends it (a feed rate alone does not)
             x = nx; y = ny; zc = nz
         }
         flush()

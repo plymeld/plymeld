@@ -780,3 +780,61 @@ wide, unlaid); a Y-shaped leftover's line can still bend into one arm; fixed-wid
 unfilled where a band is between two and three lines wide; a joined line can run out and back over a short spur; and
 an outer loop cuts across a sharp concave corner of its area (into a neighboring part's place there).
 
+## 27. A sliver along the object's surface stays its own part's; the check refuses one filament laying another's surface (2026-11-15)
+
+**Context.** On an object of several filaments, an area of one filament thinner than the walls print
+(`plan.layer.sliver.width`, unset: `plan.layer.walls.feature.min` with variable-width walls) where it touches another
+filament's went to that neighbor wherever it lay. Inside the object that fills what would be a void. On the surface the
+neighbor's plastic showed in the wrong color outside its own part, and its outline stepped out over the layer below for
+the layers the sliver was thin, an overhang nobody modeled. On a nameplate whose gray wall leans out at 55 deg over a
+white plate, starting at zero width on the white's face, the white's outer wall was laid 0.137 mm out of the white's face
+over the gray's place (0.138 mm wide at the layer's middle, under `feature.min`, 0.15 mm) for one layer, its front edge
+0.10 mm out from the layer below while the white's own face leaned back 0.04 mm; the gray's first line came on the next
+layer. The pre-print check passed the file: its tool rule reads where a line's middle lies, and the white's middle lay in
+the white.
+
+**Decision.**
+- `plan.layer.sliver.at_surface`: `own` (bundled) keeps a sliver lying along the object's outer surface its own part's,
+  laid by its own filament where it is wide enough for a line and left empty where it is not; `neighbor` hands it over
+  as before. Per object, like `sliver.width`.
+- Along the surface, told on each layer: the object's outline is the outline of all its parts' areas together, gaps
+  narrower than 0.04 mm closed (the seams of parts sliced one by one are not surface). Of a sliver, the pieces within the
+  hand-over width of that outline whose stretch of it (the 0.02 mm band round the piece outside the object, by its width)
+  is longer than the hand-over width are along it: they stay. The rest of the sliver goes over. So one partly along the
+  surface keeps the part along it and hands over the part inside; one that meets the outline only end on (a tongue
+  between two parts reaching the surface, whose stretch of it is its own width, under the hand-over width) goes over
+  whole, and the neighbor's walls run across its end on the true outline.
+- Between two settings groups of one filament every sliver goes over, wherever it lies: nothing of another color shows.
+- The pre-print check's tool rule gains a surface rule: no stretch of the object's outline (its cut at the layer's
+  middle) longer than 1 mm that belongs to other tools' parts alone (beyond the check's tolerance; with `neighbor`,
+  beyond the tolerance and the hand-over width) is laid by one tool's beads, a bead laying an outline point within half
+  its width and 0.02 mm of its middle. Each line's width is read from its plastic, its share of its path's widest
+  extrusion per mm (the file's `;WIDTH` is a variable-width line's widest).
+
+**Rejected.** Handing every sliver to the neighbor, as before: the wrong color on the surface, and the outline stepping
+out where nothing was modeled. Keeping every sliver its own: inside the object, where a sliver is too thin for a line, it leaves a
+void the width of the sliver (the hand-over's origin: a 0.32 mm tongue of one part under another's edge, printed as
+nothing by the walls of the time, left a strip 2.8 mm long unprinted). Laying an
+exposed sliver at the narrowest line anyway: under `feature.min` the line stands out of the sliver into the neighbor
+and out of the model further than decision 26 allows. Counting any contact with the outline as along it: a tongue meeting
+the surface end on would leave a notch in the surface and a void behind it. A refusal by the covered outline's total on
+a layer (0.5 mm, as the tool rule): on the nameplates, where a feature narrower than a line meets another part (a gray tip
+reaching 0.15 mm into a white face, a wall passing over it, a center line's round end in the narrowest place a line is
+laid in), such pieces added up to 3 mm on a layer; one stretch a handed-over sliver lays is what shows. Reading the bead
+from `;WIDTH`: a variable-width line read as its widest everywhere, 48 refusals on the nameplates.
+
+**Consequences.** On the nameplate above, the white's outer wall stays on the white's face on every layer (its front
+0.007 mm inside it where the gray wedge is 0.138 mm wide), the wedge's place is left empty on that one layer, and the
+gray's first line comes where it did; the file's check passes on that object (it refused the earlier behavior there:
+5.9 mm of the gray's surface laid by the white on that layer, 1.3 to 4.6 mm on five others). On the two-color Benchy
+(0.2 mm layers, the split alone) the filaments' areas differ on 85 of 240 layers: 24.5 mm² in all, summed over the
+layers, of slivers along the surface stays its own and is left empty where it is narrower than `feature.min`, a
+recess in the surface where the neighbor's color filled it before; 0.2 mm² inside the object still goes over. The
+check reads the flat layers of an object with a curved island with the tool in force: an island layer's tool change
+was left out of the flat layers' reading, and the new rule refused a correct file on it (the curved-island ledge test).
+Still open: a narrow tip of one part reaching into another's face is passed over by that part's wall (on a nameplate,
+gray tips 0.15 mm into a white face, the white's wall dipping round them laid 1.3 and 1.4 mm of their surface white, as
+before this change; the check now refuses it); a sliver along a top or bottom face only (the layers above or below
+leave it showing) is judged inside the object, the layer's outline alone telling the surface; and a part's own
+`plan.object.<key>.part.<part>.layer.sliver.*` is not read (the object's is), as for `sliver.width` before.
+

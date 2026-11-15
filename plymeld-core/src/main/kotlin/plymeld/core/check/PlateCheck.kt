@@ -41,7 +41,9 @@ object PlateCheck {
               /** The narrowest place its walls lay a line in ([ModelCheck.check]'s featureMinMm); 0 = unknown. */
               val featureMinMm: Double = 0.0,
               /** How far its first layer's outline is drawn in ([ModelCheck.check]'s firstLayerInsetMm). */
-              val firstLayerInsetMm: Double = 0.0)
+              val firstLayerInsetMm: Double = 0.0,
+              /** How thin a sliver along its outer surface its config hands to the neighbor ([ModelCheck.check]'s surfaceHandOverMm); 0 = none. */
+              val surfaceHandOverMm: Double = 0.0)
     /** [surfaces]: each run's (each frame's) model surface, for GcodeCheck's travel rule ([ModelCheck.Surfaces]). */
     class Result(val text: String, val parts: List<TriangleSoup>, val problems: List<String>, val curvedLayers: Int, val surfaces: List<ModelCheck.Surface> = emptyList())
 
@@ -182,7 +184,7 @@ object PlateCheck {
             val sf = ModelCheck.Surface(fr.parts, zBase, planar, zaaMinMm = z?.minMm, cut = o.cut).also { surfaces += it }
             val where = if (fr.name.isEmpty()) "'${o.name}'" else "'${o.name}' ${fr.name}"
             problems += ModelCheck.check(planar, fr.parts, zBase, imagesDir = if (fr.name.isEmpty()) dir else dir?.resolve(fr.name.replace(' ', '_'))?.also { java.nio.file.Files.createDirectories(it) },
-                surface = sf, partTools = o.partTools?.let { t -> fr.partIndex.map { t[it] } }, zaa = z, handOverMm = o.handOverMm, featureMinMm = o.featureMinMm, firstLayerInsetMm = o.firstLayerInsetMm).map { "$where: $it" }
+                surface = sf, partTools = o.partTools?.let { t -> fr.partIndex.map { t[it] } }, zaa = z, handOverMm = o.handOverMm, featureMinMm = o.featureMinMm, firstLayerInsetMm = o.firstLayerInsetMm, surfaceHandOverMm = o.surfaceHandOverMm).map { "$where: $it" }
         }
         return curved
     }

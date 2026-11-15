@@ -40,6 +40,49 @@ class FilamentAreasTest : StringSpec({
         FilamentAreas.split(listOf(body, wide), listOf("spool 1", "spool 2"), listOf(0, 1), minWidthUm = 440).bySpool["spool 2"].let { mm2(it) shouldBe (5.0 plusOrMinus 1e-6) }
     }
 
+    // plan.layer.sliver.at_surface = own (keepOnSurface): a sliver lying along the object's outline stays its own; one inside
+    // the object, or meeting the outline end on, goes over; of one partly along it, the part within the hand-over width of
+    // the outline stays. References: rectangle and circle-segment arithmetic.
+    "along the object's surface a sliver stays its own (control: without keepOnSurface it goes over, the first test)" {
+        val s = FilamentAreas.split(listOf(body, strip), listOf("spool 1", "spool 2"), listOf(0, 1), minWidthUm = 440, keepOnSurface = true)
+        mm2(s.bySpool["spool 2"]) shouldBe (3.0 plusOrMinus 1e-6)                   // its 10 x 0.3, all of it
+        mm2(s.bySpool["spool 1"]) shouldBe (100.0 plusOrMinus 1e-6)
+    }
+
+    "inside the object, and meeting the surface end on, a sliver still goes over with keepOnSurface" {
+        // inside: the strip laid in a 12 x 12 part of filament 1 (the strip first in the precedence: it keeps its place)
+        val around = listOf(um(-1_000, -1_000, 12_000, 12_000))
+        val inside = FilamentAreas.split(listOf(around, strip), listOf("spool 1", "spool 2"), listOf(1, 0), minWidthUm = 440, keepOnSurface = true)
+        mm2(inside.bySpool["spool 2"]) shouldBe (0.0 plusOrMinus 1e-6)
+        mm2(inside.bySpool["spool 1"]) shouldBe (144.0 plusOrMinus 1e-6)
+        // end on: the strip between two parts of filament 1 (the body above, a block below), the outline meeting only its
+        // two ends, 0.3 mm each, under the 0.44 mm it is judged by
+        val below = listOf(um(0, -2_000, 10_000, 2_000))
+        val endOn = FilamentAreas.split(listOf(body, below, strip), listOf("spool 1", "spool 1", "spool 2"), listOf(0, 1, 2), minWidthUm = 440, keepOnSurface = true)
+        mm2(endOn.bySpool["spool 2"]) shouldBe (0.0 plusOrMinus 1e-6)
+        mm2(endOn.bySpool["spool 1"]) shouldBe (123.0 plusOrMinus 1e-6)              // 100 + 20 + 3
+    }
+
+    "partly along the surface: the part within the hand-over width of the outline stays, the rest goes over" {
+        // the strip along the body's bottom; under its right half (x 5..10 mm) a block of filament 1: its left half lies along
+        // the outline, its right half between the two parts (its right end meets the outline end on)
+        val under = listOf(um(5_000, -2_000, 5_000, 2_000))
+        val s = FilamentAreas.split(listOf(body, under, strip), listOf("spool 1", "spool 1", "spool 2"), listOf(0, 1, 2), minWidthUm = 440, keepOnSurface = true)
+        // kept: x 0..5 mm, and past the block's corner what lies within 0.44 mm of it (a quarter disc's slice 0.3 mm high:
+        // the integral of sqrt(0.44^2 - y^2) over y 0..0.3)
+        val a = 0.44; val y = 0.3
+        val past = y / 2 * Math.sqrt(a * a - y * y) + a * a / 2 * Math.asin(y / a)
+        mm2(s.bySpool["spool 2"]) shouldBe ((0.3 * 5.0 + past) plusOrMinus 0.01)
+        (mm2(s.bySpool["spool 1"]) + mm2(s.bySpool["spool 2"])) shouldBe (113.0 plusOrMinus 1e-6)   // 100 + 10 + 3: nothing lost
+    }
+
+    "between two settings groups of one filament a sliver along the surface goes over; control: of two filaments it stays" {
+        val one = FilamentAreas.split(listOf(body, strip), listOf("group a", "group b"), listOf(0, 1), minWidthUm = 440, keepOnSurface = true) { "spool 1" }
+        mm2(one.bySpool["group b"]) shouldBe (0.0 plusOrMinus 1e-6)
+        val two = FilamentAreas.split(listOf(body, strip), listOf("group a", "group b"), listOf(0, 1), minWidthUm = 440, keepOnSurface = true)
+        mm2(two.bySpool["group b"]) shouldBe (3.0 plusOrMinus 1e-6)
+    }
+
     "overlap goes to the part named first in the precedence; the areas are disjoint and cover both" {
         val first = FilamentAreas.split(listOf(a, b), listOf("spool 1", "spool 2"), listOf(0, 1))
         mm2(first.bySpool["spool 1"]) shouldBe (100.0 plusOrMinus 1e-9)

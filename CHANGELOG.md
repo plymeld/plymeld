@@ -34,8 +34,9 @@ section the release's version and date.
   naming each line: a value that is not a finite number, a move at a feed rate of 0 or below, a temperature, fan, or
   wait below 0, an acceleration of 0 or below. It reads the file it is given, sliced by any build or by hand.
 - `plan.layer.sliver.width`: on an object of several filaments, how thin an area of one filament is handed to the
-  filament beside it. Unset, it is the thinnest area the walls print, as before. The pre-print check allows a line that
-  much further from its own tool's part.
+  filament beside it (along the object's surface, as `plan.layer.sliver.at_surface` says). Unset, it is the thinnest
+  area the walls print, as before. The pre-print check allows a line that much further from its own tool's part inside
+  the object.
 - `plan.objects.gap`: the least distance between objects plymeld lays out on the bed. Unset, it is one outer wall
   width, as before.
 - A note when an object stands on a small footprint with no brim: its first layer under
@@ -110,6 +111,19 @@ section the release's version and date.
   point seam it is laid as, so they no longer avoid a covered spot because a scarf would be better elsewhere.
   `plan.technique.scarf_seam.covered = "scarf"` (per object or part too) scarfs a covered seam as before; seams that are
   not covered, and every seam of an object of one part, are laid as they were.
+- On an object of several filaments, a sliver of one filament (thinner than `plan.layer.sliver.width`) lying along the
+  object's outer surface stays its own part's: its own filament lays it where it is wide enough for a line
+  (`plan.layer.walls.feature.min`), and it is left empty where it is not. It went to the filament beside it, whose
+  plastic then showed in the wrong color on the surface, outside its own part, and whose outline stepped out over the
+  layer below for the layers the sliver was thin: on a nameplate, where a gray wall leaning out over a white plate starts
+  at zero width on the white's face, the white's outer wall was laid 0.13 mm out over the gray's place for a layer before
+  the gray's first line. A sliver inside the object, and one meeting the surface only end on, still goes to its neighbor
+  (it fills what would be a void), and between two parts of one filament with settings of their own every sliver does.
+  `plan.layer.sliver.at_surface = "neighbor"` (per object too) hands a sliver along the surface over as before. The
+  pre-print check refuses a line whose bead covers a stretch of the object's surface that is another tool's part
+  (beyond its tolerance; with `neighbor`, beyond the width handed over), reading each line's width from its plastic. On
+  an object with a curved island, it reads the flat layers' lines with the tool in force (an island layer's tool change
+  was left out of the flat layers' reading, so the next flat layer's lines were judged as the other tool's).
 
 ### Fixed
 

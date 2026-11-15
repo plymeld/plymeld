@@ -4564,10 +4564,17 @@
               "additionalProperties": false,
               "properties": {
                 "width": {
-                  "description": "INHERITED: on an object of several filaments, an area of one filament thinner than this where it touches another filament's goes to that neighbor, which prints it; the boundary between the two moves by up to this much, and a thin feature of either filament beside the other (a letter's thin stroke) goes the same way. Unset = the thinnest area the walls print — a length (mm); or a formula (= ...)",
+                  "description": "INHERITED: on an object of several filaments, an area of one filament thinner than this where it touches another filament's goes to that neighbor, which prints it; the boundary between the two moves by up to this much, and a thin feature of either filament beside the other (a letter's thin stroke) goes the same way. A sliver lying along the object's outer surface goes over only as plan.layer.sliver.at_surface says. Between parts of one filament with settings of their own, every sliver goes to its neighbor. Unset = the thinnest area the walls print — a length (mm); or a formula (= ...)",
                   "type": [
                     "string",
                     "number"
+                  ]
+                },
+                "at_surface": {
+                  "description": "INHERITED: a sliver (an area of one filament thinner than plan.layer.sliver.width) lying along the object's outer surface, its stretch of the outline longer than that width: own = it stays its own part's, laid by its own filament where it is wide enough for a line (plan.layer.walls.feature.min) and left empty where it is not, so no filament shows on the surface outside its own part and the neighbor's outline stays its own; neighbor = it goes to the neighboring filament like a sliver inside the object, which lays the surface there in its own color, its outline stepping out over the sliver for the layers it is thin. Inside the object a sliver goes to its neighbor either way; of a sliver partly along the surface, the part within that width of the outline is the part along it. Bundled: own",
+                  "enum": [
+                    "own",
+                    "neighbor"
                   ]
                 }
               }
@@ -6686,10 +6693,17 @@
               "additionalProperties": false,
               "properties": {
                 "width": {
-                  "description": "INHERITED: on an object of several filaments, an area of one filament thinner than this where it touches another filament's goes to that neighbor, which prints it; the boundary between the two moves by up to this much, and a thin feature of either filament beside the other (a letter's thin stroke) goes the same way. Unset = the thinnest area the walls print — a length (mm); or a formula (= ...)",
+                  "description": "INHERITED: on an object of several filaments, an area of one filament thinner than this where it touches another filament's goes to that neighbor, which prints it; the boundary between the two moves by up to this much, and a thin feature of either filament beside the other (a letter's thin stroke) goes the same way. A sliver lying along the object's outer surface goes over only as plan.layer.sliver.at_surface says. Between parts of one filament with settings of their own, every sliver goes to its neighbor. Unset = the thinnest area the walls print — a length (mm); or a formula (= ...)",
                   "type": [
                     "string",
                     "number"
+                  ]
+                },
+                "at_surface": {
+                  "description": "INHERITED: a sliver (an area of one filament thinner than plan.layer.sliver.width) lying along the object's outer surface, its stretch of the outline longer than that width: own = it stays its own part's, laid by its own filament where it is wide enough for a line (plan.layer.walls.feature.min) and left empty where it is not, so no filament shows on the surface outside its own part and the neighbor's outline stays its own; neighbor = it goes to the neighboring filament like a sliver inside the object, which lays the surface there in its own color, its outline stepping out over the sliver for the layers it is thin. Inside the object a sliver goes to its neighbor either way; of a sliver partly along the surface, the part within that width of the outline is the part along it. Bundled: own",
+                  "enum": [
+                    "own",
+                    "neighbor"
                   ]
                 }
               }
@@ -8927,10 +8941,17 @@
               "additionalProperties": false,
               "properties": {
                 "width": {
-                  "description": "INHERITED: on an object of several filaments, an area of one filament thinner than this where it touches another filament's goes to that neighbor, which prints it; the boundary between the two moves by up to this much, and a thin feature of either filament beside the other (a letter's thin stroke) goes the same way. Unset = the thinnest area the walls print — a length (mm); or a formula (= ...)",
+                  "description": "INHERITED: on an object of several filaments, an area of one filament thinner than this where it touches another filament's goes to that neighbor, which prints it; the boundary between the two moves by up to this much, and a thin feature of either filament beside the other (a letter's thin stroke) goes the same way. A sliver lying along the object's outer surface goes over only as plan.layer.sliver.at_surface says. Between parts of one filament with settings of their own, every sliver goes to its neighbor. Unset = the thinnest area the walls print — a length (mm); or a formula (= ...)",
                   "type": [
                     "string",
                     "number"
+                  ]
+                },
+                "at_surface": {
+                  "description": "INHERITED: a sliver (an area of one filament thinner than plan.layer.sliver.width) lying along the object's outer surface, its stretch of the outline longer than that width: own = it stays its own part's, laid by its own filament where it is wide enough for a line (plan.layer.walls.feature.min) and left empty where it is not, so no filament shows on the surface outside its own part and the neighbor's outline stays its own; neighbor = it goes to the neighboring filament like a sliver inside the object, which lays the surface there in its own color, its outline stepping out over the sliver for the layers it is thin. Inside the object a sliver goes to its neighbor either way; of a sliver partly along the surface, the part within that width of the outline is the part along it. Bundled: own",
+                  "enum": [
+                    "own",
+                    "neighbor"
                   ]
                 }
               }
