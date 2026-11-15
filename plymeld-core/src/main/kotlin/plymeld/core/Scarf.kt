@@ -13,16 +13,17 @@ import plymeld.program.Extrude
  *  3. the ramp again at the layer's top, the bead thinning from what the ramp left open to nothing.
  *
  * Over the ramp the two wedges add up to one layer, so the loop has no seam blob and no gap: its start and end are
- * smeared along L instead of meeting at a point. A loop too short for a ramp of two line widths, or one of varying
- * width or flow, is printed as it is.
+ * smeared along L instead of meeting at a point. A loop of varying width (a narrow island's bead, Beads) scarfs alike, each
+ * point's share of the layer taken of its own width's bead. A loop too short for a ramp of two line widths, or one of its
+ * own flow, is printed as it is.
  */
 object Scarf {
     /** A scarf's ramp on a loop: its length (µm), the loop edge [j] holding its end Q = ([qx], [qy]), the loop's edge lengths. */
     private class Ramp(val ramp: Double, val j: Int, val qx: Long, val qy: Long, val len: DoubleArray)
 
-    /** [p]'s ramp, or null when it is printed as it is (no scarf asked, open, of varying width or flow, too short). */
+    /** [p]'s ramp, or null when it is printed as it is (no scarf asked, open, of its own flow, too short). */
     private fun ramp(p: ToolPath): Ramp? {
-        if (p.scarfUm <= 0 || !p.closed || p.widths != null || p.ePerMmOverride != null) return null
+        if (p.scarfUm <= 0 || !p.closed || p.ePerMmOverride != null) return null
         val m = p.xy.size / 2
         if (m < 3) return null
         fun x(i: Int) = p.xy[2 * (i % m)]
@@ -84,11 +85,19 @@ object Scarf {
         // where they are equal, about 9 % at 0.3 mm layers: a bulge at the seam, read back from the Benchy's g-code).
         // So each pass's `heights` is the thickness whose bead holds its share of one layer's bead, t / h of
         // it: the two passes then carry exactly one layer's plastic all along the ramp.
-        val w = p.widthUm.toDouble(); val kk = 1 - Math.PI / 4
-        val full = h * (w - kk * h)
-        fun flowThickness(share: Double): Long { val a = full * share.coerceIn(0.0, 1.0); return Math.round((w - Math.sqrt(w * w - 4 * kk * a)) / (2 * kk)) }
-        val upHs = LongArray(rn) { k -> flowThickness(t(s[k]) / h) }.also { it[rn - 1] = h }
-        val downHs = LongArray(rn) { k -> flowThickness(1 - t(s[k]) / h) }.also { it[rn - 1] = 0 }
+        val kk = 1 - Math.PI / 4
+        // each ramp point's width: the loop's own there (between its edge's ends), else the path's
+        val ws = p.widths
+        fun widthAt(k: Int): Double {
+            if (ws == null) return p.widthUm.toDouble()
+            val e = edgeOf[k]; val f = if (len[e] == 0.0) 0.0 else ((s[k] - (0 until e).sumOf { len[it] }) / len[e]).coerceIn(0.0, 1.0)
+            return ws[e % m] + (ws[(e + 1) % m] - ws[e % m]) * f
+        }
+        val rampW = DoubleArray(rn) { widthAt(it) }
+        fun flowThickness(share: Double, w: Double): Long { val a = h * (w - kk * h) * share.coerceIn(0.0, 1.0); return Math.round((w - Math.sqrt(w * w - 4 * kk * a)) / (2 * kk)) }
+        val upHs = LongArray(rn) { k -> flowThickness(t(s[k]) / h, rampW[k]) }.also { it[rn - 1] = h }
+        val downHs = LongArray(rn) { k -> flowThickness(1 - t(s[k]) / h, rampW[k]) }.also { it[rn - 1] = 0 }
+        val rampWidths = ws?.let { LongArray(rn) { k -> Math.round(rampW[k]) } }
         val downZs = LongArray(rn) { zTopUm }
         // the rest of the loop: Q, vertex j+1 .. the last, back to the seam
         val restN = m - j + 1
@@ -99,9 +108,10 @@ object Scarf {
         val sh = p.overhangShare
         val rampShares = sh?.let { a -> IntArray(rn) { k -> a[edgeOf[k]] } }
         val restShares = sh?.let { a -> IntArray(restN) { k -> a[(j + k) % m] } }
-        val up = Extrude(p.feature.label, rampXy, false, zTopUm, p.widthUm, h, tool, rampShares, null, p.retractBefore, null, zs = upZs, heights = upHs, hopOnly = p.hopOnly, ofLoop = true, scarf = true)
-        val rest = Extrude(p.feature.label, restXy, false, zTopUm, p.widthUm, h, tool, restShares, null, false, null, ofLoop = true)
-        val down = Extrude(p.feature.label, rampXy, false, zTopUm, p.widthUm, downHs.max(), tool, rampShares, null, false, null, zs = downZs, heights = downHs, ofLoop = true, scarf = true)
+        val restWidths = ws?.let { w -> LongArray(restN) { k -> if (k == 0) rampWidths!![rn - 1] else w[(j + k) % m] } }
+        val up = Extrude(p.feature.label, rampXy, false, zTopUm, p.widthUm, h, tool, rampShares, null, p.retractBefore, rampWidths, zs = upZs, heights = upHs, hopOnly = p.hopOnly, ofLoop = true, scarf = true)
+        val rest = Extrude(p.feature.label, restXy, false, zTopUm, p.widthUm, h, tool, restShares, null, false, restWidths, ofLoop = true)
+        val down = Extrude(p.feature.label, rampXy, false, zTopUm, p.widthUm, downHs.max(), tool, rampShares, null, false, rampWidths, zs = downZs, heights = downHs, ofLoop = true, scarf = true)
         return listOf(up, rest, down)
     }
 }

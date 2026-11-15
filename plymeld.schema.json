@@ -4364,6 +4364,25 @@
                     }
                   }
                 },
+                "line": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "width": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "max": {
+                          "description": "variable-width walls: the widest a wall line may be. An area too narrow for all its walls is laid by as many lines as its width holds, each between plan.layer.walls.line.width.min and this, as near the set widths as can be (one line as wide as the place; two sharing it; from three, the outer two at the outer wall's width and the rest sharing what is left); at least twice line.width.min, so one line can become two. Unset = twice the inner wall's width, and at least twice line.width.min — a length (mm); or a formula (= ...)",
+                          "type": [
+                            "string",
+                            "number"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
                 "order": {
                   "description": "the order each contour's walls are laid in: outer_first = the outer wall, then inward (the layer's first line and its un-retraction land on the visible face); inner_first = the innermost first, the outer wall last, laid against the wall beside it (an overhanging outer wall leans on it); inner_outer_inner = the walls past the one beside the outer wall, then the outer wall, then that one: the first line and the travel's arrival land on hidden walls and the outer wall is laid free; with fewer than three walls, or where the outer wall hangs out past the layer below (as far as the overhang slow-down starts), inner_first. Bundled: inner_outer_inner",
                   "enum": [
@@ -6484,6 +6503,25 @@
                       "properties": {
                         "width": {
                           "description": "INHERITED: inner wall line width — a length (mm); or a formula (= ...)",
+                          "type": [
+                            "string",
+                            "number"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "line": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "width": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "max": {
+                          "description": "variable-width walls: the widest a wall line may be. An area too narrow for all its walls is laid by as many lines as its width holds, each between plan.layer.walls.line.width.min and this, as near the set widths as can be (one line as wide as the place; two sharing it; from three, the outer two at the outer wall's width and the rest sharing what is left); at least twice line.width.min, so one line can become two. Unset = twice the inner wall's width, and at least twice line.width.min — a length (mm); or a formula (= ...)",
                           "type": [
                             "string",
                             "number"
@@ -8732,6 +8770,25 @@
                       "properties": {
                         "width": {
                           "description": "INHERITED: inner wall line width — a length (mm); or a formula (= ...)",
+                          "type": [
+                            "string",
+                            "number"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "line": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "width": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "max": {
+                          "description": "variable-width walls: the widest a wall line may be. An area too narrow for all its walls is laid by as many lines as its width holds, each between plan.layer.walls.line.width.min and this, as near the set widths as can be (one line as wide as the place; two sharing it; from three, the outer two at the outer wall's width and the rest sharing what is left); at least twice line.width.min, so one line can become two. Unset = twice the inner wall's width, and at least twice line.width.min — a length (mm); or a formula (= ...)",
                           "type": [
                             "string",
                             "number"

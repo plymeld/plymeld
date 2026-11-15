@@ -838,3 +838,151 @@ before this change; the check now refuses it); a sliver along a top or bottom fa
 leave it showing) is judged inside the object, the layer's outline alone telling the surface; and a part's own
 `plan.object.<key>.part.<part>.layer.sliver.*` is not read (the object's is), as for `sliver.width` before.
 
+
+## 28. An island too narrow anywhere for its walls is laid by its local width, every pair of lines a loop (2026-11-15)
+
+Amends 26: in such an island the loops, the center lines and their rules give way to this construction.
+
+**Context.** An area of a layer between about one and three lines wide was laid badly. A gray lens about 2.4 mm long,
+growing layer by layer from 0.7 to 1.2 mm deep against another part's straight edge, was one line along it while one
+line filled it; one layer higher, a small loop in its middle and two short lines at its ends: a hole in the loop's middle,
+gaps between the loop and the end pieces, the lens's long edge bare by up to 0.25 mm, an end piece 0.1 mm outside the
+model, the lines chopped into moves of hundredths of a millimetre. The cause was 26's construction: a loop is laid where
+its fixed-width bead fits, the rest of the area gets center lines, so the change from one line to two is a loop appearing
+whole, and a band between two and three lines wide holds two fixed-width beads and a gap. A ring 1 mm wide had a strip
+0.12 mm wide bare between its two loops all round. The pre-print check passed the lens.
+
+A first construction (lines traced along each side, one line carrying on as the other side's line where one became two,
+the new line starting beside it) covered the lens but laid such an island as open lines on some layers and a loop on
+others: an open line has no seam, so the next layer's loop read its jog from a seam elsewhere, and on a real three-object
+plate the seam measure rose from 65.5 to 159 mm² (all of it jogs).
+
+**Decision.**
+- An island (an outer polygon and its holes) where the set walls nowhere all fit (the innermost loop has no fit region in
+  it) is laid by bead count from its local width (Beads). The walls of 26 are still computed for the whole outline and
+  what they laid in such an island dropped: every other island's walls are the same objects as before.
+- The width: the island's medial axis from the Delaunay triangulation of its outline samples, each node's distance to the
+  outline its half-width.
+- The count: across a place W wide, the n lines (n up to twice the walls' count) whose widths are all between
+  `plan.layer.walls.line.width.min` and `plan.layer.walls.line.width.max` and nearest the set widths (the largest ratio
+  between a line's width and its set width, smallest). The sharing: one line is as wide as the place (down to
+  `feature.min`, as before); two share it equally; from three on, the outer two keep the outer wall's width (they are what
+  shows) and the inner ones share the rest equally. Neighboring lines overlap by the bead's rounded flank, h (1 - π/4).
+- `plan.layer.walls.line.width.max`, new: the widest a wall line may be; unset, twice the inner wall's width (the cap the
+  center lines already had, so nothing else changes), and at least twice `line.width.min`; set below that, refused, since
+  one line could not become two each at least the narrowest. No measured value: a bound for the count.
+- Every pair of lines is a loop, built from the outline: loop k (0 the outer) runs wherever a place holds 2k + 2 lines or
+  more, at its share's distance from the outline on each rib (node to outline sample), traced sample by sample round each
+  ring of the outline. Where the ring passes to a place too narrow for it (a tip, a neck, a sliver) the loop turns back
+  across that place's mouth (its two sides there about one narrowest line apart) and carries on along the other side: the
+  run of the outline beginning on the same node's rib to the other end of the triangle edge the narrow part hangs from. So
+  the outer loop exists on every layer the island is two narrowest lines wide anywhere, whatever the count does inside it,
+  and goes through the ordinary seam path (alignment, visibility, scarf). Where its pair is the innermost, each line takes
+  its share no narrower than the narrowest line; elsewhere its set width.
+- Where 2k + 1 lines fit, the middle line of loop k lies along the axis; it never runs across a loop's turn (only along
+  places of its own count). Its ends meeting a loop (a tip's or a neck's line where the outer loop turns) stop where the
+  round end reaches into the loop's line by `plan.layer.infill.wall_overlap` of its width past bead contact, as an interior
+  line's end reaches into the walls; a middle line between two turns close together is shortened before anything gives
+  way to it, and is gone where nothing is left of it.
+- A tip the loop runs into: a part with one line across (or 2k + 1) hanging off the loop at one mouth, no longer than
+  twice its middle's width at the mouth, where running into it lays twice no more than half the disc of the mouth's width
+  (what a separate line's round start over the loop's turn would): the loop runs on into it, its two sides at the narrowest
+  width at least, then out and back along the axis to where the place is `feature.min` wide. A lens's tip so: a separate
+  line there was shorter than it is wide (Planner drops such a speck beside another part) and a turn without the run-in
+  left the tip's last 0.11 to 0.14 mm bare. A longer tip, a neck, a sliver: the loop turns at its mouth, the part gets its
+  own line.
+- Where the count rises from even to odd (two lines to three), the middle line starting there is new within
+  `plan.layer.walls.transition_length` of the change: it starts with its round end and the lines beside it give way to it
+  across their own track (the outer loop on its inner side only, its outer edge staying on the outline, no narrower than
+  the narrowest line, never cut). So the outer line's width changes from its share of two lines (about 0.59 mm at the
+  switch for 0.44 mm lines) to the set width along the middle's round start and the transition length after it, not in a
+  step. A loop inside another gives way to the one outside it where they meet (a fast narrowing puts an inner loop's turn
+  close behind the outer loop's), and may be cut there.
+- Hysteresis: the count where the width lies within the slicing tolerance of a threshold is that of its decided
+  neighbors; a stretch with a count of its own shorter than `transition_length` takes its neighbors' count; a middle line
+  with fewer lines all round it shorter than `plan.layer.walls.length_factor.min` of its width takes the count below (the
+  loop round it widens to fill it: a lens just deep enough for three lines in its middle laid a dot-like 0.24 mm line), and
+  so does a short inner loop with fewer lines all round it (a ring round nothing at an L-shaped post's corner).
+- Corners: a dead-end branch of the axis shorter than the width where it joins, narrowing at least 0.6 of its length
+  (about 74 deg), runs into a corner; it keeps the count and places of its junction, so the loops turn the corner, ending at
+  the point of the axis that far from the outline.
+- A self-check: each such island's lines and its walls of 26 are measured on a 15 µm grid (IslandCheck: the widest
+  uncovered spot, the uncovered area wider than the floor, plastic outside, plastic laid twice); the lines are taken
+  where they leave nothing wider than the floor bare, no spot wider than 0.105 mm, nothing farther than 0.09 mm outside,
+  no more than 0.06 mm² laid twice, or else where they are no worse than the walls (limits in Walls); otherwise the island
+  keeps its walls. Islands over 4 million cells are not measured (kept as walls). The decision is cached by the island's
+  exact outline (an extruded shape repeats it layer after layer): the same output, decided once.
+
+**Rejected.** Assembling the outer loop from the traced pieces afterwards (joining side pieces across a narrowing): the
+joins doubled the spur's start and the trimming ate lines in contact with the loop. The walls' own fixed-width outer
+loop with lines inside it: where the island is two to about 2.7 lines wide it leaves an inside 0 to 0.3 mm wide, 26's
+hole again. Blending the lines' places and widths over the transition length where the count changes (the published
+framework's transition): where an area's two sides are not parallel, as a lens's, a node's ribs meet the two sides at
+different places along it and the lines overlapped by up to 0.23 mm; the outer line narrowing from two lines' share to the
+set width over the transition length before the middle line exists: a gap up to 0.3 mm wide, or a middle line narrower
+than the narrowest. A flat turn and a separate line in every tip: see the tip rule. Laying every island this way: a
+classic loop's mitred corners and its seam alignment would change on every ordinary island.
+
+**Consequences.** On the test models (0.44 mm lines, 0.08 mm layers, three walls), against 26's walls: a lens over 12 layers, uncovered
+0.26 mm² against 1.11, its widest spot 0.064 mm against 0.29, nothing uncovered wider than the floor (0.28 mm² before);
+one closed loop a layer (the shortest 4.4 mm) against up to three paths (0.43 mm); the largest shift between layers 0.039
+mm against 0.29; plastic laid twice beyond the usual overlap 0.70 mm² against 0.05, where the loop runs into its tips at the
+narrowest width and out and back along their ends. A lens 1.4 mm deep: one loop a layer, widest spot 0.036 mm. A ring 1 mm
+wide: 0.91 mm² uncovered against 17.8 (widest 0.020 against 0.135), two loops 0.51 mm wide. A wedge to 2 mm: 1.19 against
+1.89 mm² (widest 0.100 against 0.112), laid twice 0.26 against 1.24 mm². A strip in steps from 0.2 to 2 mm: 1.18 against
+6.62 mm², laid twice 0.61 against 1.20 mm², plastic outside 3.95 against 2.98 mm² (the narrowest steps' lines at the
+narrowest line). The ridges of 26 stay laid edge to edge.
+
+On a real plate of three objects (a nameplate base in two filaments and two variants of it; 0.08 mm layers) against 26:
+by the measure of 29, seam_scar 247.0 mm² against 379.6 (5,908 seams, 333 scarfed, jogs 331 mm, against 7,822, 362, 305
+mm; by the measure before 29, 48.2 mm² against 65.5); visible restarts 3,233 against 3,658, retractions 8,121 against
+8,572; predicted 150.6 min against 150.4; the pre-print check passes all three objects (26's walls: two refusals, one
+filament's bead on the other's surface at z 6.36 and 10.12). Planning 53 s against 38 (+40 %): about 4,500 narrow islands
+laid (CPU: 51 s building their lines, 46 s measuring them, 5 s measuring the walls of the 940 measured both ways). On the
+3DBenchy regression case the walls alone change: inner wall +1.5 % plastic, outer wall +0.3 %; its cabin posts are such
+islands, each a loop and a middle line as before (a ring of four lines where an L-post's corner reaches four lines wide
+was taken back to three by the short-stretch rule above).
+The first construction (open lines on some layers) read 159 mm² of seam scar on the same
+plate.
+
+Closed from 26: the notch where a line meets a loop's turn (in such an island a line ends against a turn reaching into it
+as an interior line does), a line stopping short on a taper (a short tip is the loop's), fixed-width loops leaving up to a
+narrowest line between them (the ring, the band between two and three lines), an outer loop cutting across a sharp
+concave corner (the loop follows the outline at its share's distance). Still open: an island wide enough for its walls
+somewhere keeps 26's construction throughout, its narrow parts too (a fin off a block, a hairline between two loops);
+where an area narrows fast from four lines to one (two blobs joined by a neck), the inner loop's turn close behind the
+outer's and the neck's line reaching into the outer's turn lay up to 0.24 mm² a layer twice, and the self-check keeps the
+walls on such layers; a loop's seam is placed against every seam of the layer below (Seams.place), while the measure reads
+only what lies under it; between layers the count has no memory, so an area whose width hovers within the tolerance of a
+threshold over many layers can switch more than once; and the pre-print check has no rule for an area left uncovered
+inside the walls (it passed 26's hole in the lens).
+
+## 29. seam_scar counts what is physically a seam: open lines' ends, and a jog only over what lies under it (2026-11-15)
+
+**Context.** The measure read only closed outer-wall loops. An open outer-wall line (a line along the outline where no
+loop fits) starts and stops on the surface, two blemishes, yet counted nothing; a loop's jog was read from the nearest
+seam anywhere on the layer below, so a loop over a place where the layer below had only an open line, or nothing, read a
+jog from a seam centimetres away on another island; and what hides a seam was read from the loops alone, so an open line
+in front of a seam hid nothing. On a real plate a construction that laid narrow islands as lines on some layers and loops
+on others read a jog of 50 mm on a single loop, and was scored worse than the one laying the same islands as many short
+open lines, whose ends counted nothing.
+
+**Decision.**
+- An open outer-wall line's two ends are point seams: a line width squared each (on a shelf, as wide as the shelf), seen
+  as the face there is (the larger of its two sides' exposure: a line's outline side is not known), with no jog.
+- A loop's jog is read from the seams (a loop's start, a line's two ends) of the paths under it on the layer below in its
+  stack: an outer loop whose inside it lies on, or a loop or line whose bead its bead overlaps or comes within a line width
+  of (its points within half its width, half the other's and a line of the other's center line). Nothing under it: no jog.
+- Open outer lines' beads are material for what hides a seam (the exposure raster ORs their footprints into the layer's
+  loops) and part of the layer's printed area for the layer above (shelf, step out).
+- The seam placement (Seams.place) still weighs a jog to every seam of the layer below: there the jog keeps the seams of a
+  column of loops together, and a new island's candidates are all far from the seams of other islands alike.
+
+**Rejected.** Counting an open line's ends as a scarf or at a share of a point seam: an end is a start or a stop on the
+surface, the same blemish as a point seam. Reading the jog from every seam below within some distance: a seam on another
+island close by is no step on this wall.
+
+**Consequences.** On the plate of 28: 26's walls 65.5 mm² by the old measure, 379.6 by this one (7,822 seams: their open
+center lines' ends now count); 28's lines 48.2 and 247.0 (5,908 seams). Tests with controls in SeamScarTest (a loop over
+nothing, a line's ends, a line hiding a seam; each control run and seen to fail without the rule). A seam decision on an
+unlocked object may choose differently where its candidates' jogs were read from unrelated seams.

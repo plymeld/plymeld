@@ -101,7 +101,7 @@ object Seams {
             val pts = lc.points
             fun v(i: Int): Double = seen[i]
             fun corner(i: Int) = lc.corner[i]
-            // the cost seam_scar charges this seam (SeamScar.measure): its blemish ([costsOf]) plus a jog from the nearest seam below,
+            // the cost seam_scar charges this seam (SeamScar.measure): its blemish ([costsOf]) plus a jog from the nearest seam below (here every seam of the layer below; the measure reads only those of what lies under the loop),
             // its length x the line width when further than a line, all times how much it is seen. Without the jog the placement
             // chased the least-seen point layer by layer and the seams wandered (with what hides a point nearby, the dual Benchy's
             // least-visible seams jogged 1586 mm against the corners' 431, and the measure scored the placement 33 % worse than the

@@ -24,12 +24,21 @@ import plymeld.geom.Polygon
  * length its ends reach into the walls they meet (Walls.arachne): not the thin area's own length, which is what makes a
  * line a speck (Planner).
  */
-class CenterLine(val xy: LongArray, val widths: LongArray, val reachUm: Double = 0.0) {
+class CenterLine(val xy: LongArray, val widths: LongArray, val reachUm: Double = 0.0,
+                 /** The wall it lays, counted from the outside (a narrow island's beads, [Beads]); -1 = the innermost, past the loops. */
+                 val wall: Int = -1) {
     val maxWidthUm: Long get() = widths.max()
 }
 
 /** [center]: variable-width center lines in areas too thin for another pair of loops (Arachne-style walls; empty for classic). */
-class LayerWalls(val walls: List<List<Polygon>>, val inner: List<Polygon>, val center: List<CenterLine> = emptyList())
+class LayerWalls(val walls: List<List<Polygon>>, val inner: List<Polygon>, val center: List<CenterLine> = emptyList(),
+                 /**
+                  * Per loop of [walls] (same nesting), its line width at each vertex where it varies (a narrow island's bead
+                  * round it, Beads); null, or a missing entry: the wall's own width throughout.
+                  */
+                 val loopWidths: List<List<LongArray?>> = emptyList()) {
+    fun widthsOf(k: Int, li: Int): LongArray? = loopWidths.getOrNull(k)?.getOrNull(li)
+}
 
 object Walls {
     fun spacing(widthUm: Long, heightUm: Long): Long = Math.round(widthUm - heightUm * (1 - Math.PI / 4))
@@ -42,7 +51,7 @@ object Walls {
      *     walls keep a loop wherever its center line exists, crowding two beads into a band.)
      *  2. What the loops leave uncovered is split by width: pieces at least two inner lines wide
      *     are the infill region; narrower pieces get ONE center line along their skeleton, as wide
-     *     as the piece is thick there, clamped to [minBeadUm, 2 x inner width]. Where a piece is thinner than
+     *     as the piece is thick there, clamped to [minBeadUm, maxBeadUm]. Where a piece is thinner than
      *     [minFeatureUm] no line is laid, however short the stretch (min_feature_size); between walls, pieces thinner than the
      *     narrowest line less what an interior line may overlap the walls a side ([endOverlap] of its width, the infill's
      *     wall overlap, or at least the bead's rounded flank, h (1 - pi / 4)) are left empty too: the narrowest line there
@@ -59,12 +68,18 @@ object Walls {
      *      - a center line's end against a loop's bead reaches into it by [endOverlap] of its width past bead contact, as an
      *        interior line's end does into the walls (plan.layer.infill.wall_overlap): where two lines become one, the
      *        single line meets the loop's turn with no gap.
-     * NOT YET (full Arachne): redistributing width over several beads (wall_distribution_count
-     * > 1), bead-count transitions spread over a length (wall_transition_length), thin walls of the outer loop.
+     *  4. A narrow island, an island (an outer polygon and its holes) where the set walls nowhere all fit (the innermost loop
+     *     has no fit region in it), is laid instead by bead count from its local width ([Beads]: as many lines across each
+     *     place as its width holds, each between [minBeadUm] and [maxBeadUm], the width shared among them); steps 1 to 3 are
+     *     computed for the whole outline as before and what they laid in such an island dropped, so every other island's
+     *     walls are the same as they were. An island wide enough for its walls somewhere keeps steps 1 to 3 throughout,
+     *     its narrow parts too (a fin off a block, a leftover between two loops).
      */
     fun arachne(outline: List<Polygon>, loops: Int, outerWidthUm: Long, innerWidthUm: Long, layerHeightUm: Long,
                 minBeadUm: Long, minFeatureUm: Long, minLengthFactor: Double, transitionUm: Long,
-                toleranceUm: Long = 0L, endOverlap: Double = 0.0): LayerWalls {
+                toleranceUm: Long = 0L, endOverlap: Double = 0.0,
+                /** The widest a wall line may be (plan.layer.walls.line.width.max): a center line's cap, a narrow island's beads' bound. */
+                maxBeadUm: Long = 2 * innerWidthUm): LayerWalls {
         val so = spacing(outerWidthUm, layerHeightUm)
         val si = spacing(innerWidthUm, layerHeightUm)
         // each loop's fit region (where its bead fits: its strict pieces, each an outer polygon and its holes) and its looser fit
@@ -158,7 +173,7 @@ object Walls {
             // h (1 - pi / 4)). The flanks alone (0.02 to 0.03 mm a side) left a leftover 0.29 mm wide between two inner walls
             // empty along 9 mm, where the narrowest line (0.36 mm) reached 0.035 mm into each
             val interiorOverlap = maxOf(innerWidthUm - si, Math.round(endOverlap * minBeadUm))
-            val center = if (thin.isEmpty()) emptyList() else centerLines(thin, minBeadUm, minFeatureUm, 2 * innerWidthUm, minLengthFactor, transitionUm, outline,
+            val center = if (thin.isEmpty()) emptyList() else centerLines(thin, minBeadUm, minFeatureUm, maxBeadUm, minLengthFactor, transitionUm, outline,
                 interiorMinUm = minBeadUm - 2 * interiorOverlap)
             return LayerWalls(walls, thick, if (covered.isEmpty()) center else center.map { reachInto(it, covered, endOverlap, sample) }) to covered
         }
@@ -171,7 +186,58 @@ object Walls {
             val taken = first.center.any { c -> (0 until c.xy.size / 2).any { v -> reach.any { p -> p.isCcw() && plymeld.geom.Polygons.contains(p, c.xy[2 * v], c.xy[2 * v + 1]) } } }
             if (!taken) orphans += k to i
         }
-        return if (orphans.isEmpty()) first else build(orphans).first
+        val laid = if (orphans.isEmpty()) first else build(orphans).first
+        // a narrow island, where the set walls nowhere all fit (the innermost loop has no fit region in it), is laid by bead
+        // count from its local width instead (Beads); every other island keeps what was laid above, the same object
+        if (loops <= 0) return laid
+        val last = fits.getOrNull(loops - 1)
+        val islands = plymeld.geom.Polygons.group(outline)
+        fun inIsland(o: Polygon, hs: List<Polygon>, x: Long, y: Long) = plymeld.geom.Polygons.contains(o, x, y) && hs.none { plymeld.geom.Polygons.contains(it, x, y) }
+        val narrow = islands.filter { (o, hs) -> last == null || last.strict.none { piece -> inIsland(o, hs, piece[0].x(0), piece[0].y(0)) } }
+        if (narrow.isEmpty()) return laid
+        val islandBeads = HashMap<Polygon, List<CenterLine>>()
+        val params = Beads.Params(Beads.Rule(outerWidthUm.toDouble(), innerWidthUm.toDouble(), loops, layerHeightUm * (1 - Math.PI / 4),
+            minBeadUm.toDouble(), maxBeadUm.toDouble()), minFeatureUm, transitionUm, toleranceUm, sample, endOverlap, minLengthFactor)
+        // each narrow island's beads, kept only where they lay it no worse than the walls above by IslandCheck's measures
+        // (coverage first): an island whose beads fail that keeps its walls
+        val flank = layerHeightUm * (1 - Math.PI / 4)
+        val floorUm = (minFeatureUm + 2 * toleranceUm).toDouble()
+        // the parameters the decision reads, for the cache below
+        val sig = longArrayOf(loops.toLong(), outerWidthUm, innerWidthUm, layerHeightUm, minBeadUm, minFeatureUm, transitionUm, toleranceUm,
+            maxBeadUm, sample, java.lang.Double.doubleToLongBits(endOverlap), java.lang.Double.doubleToLongBits(minLengthFactor))
+        val taken = narrow.filter { (o, hs) ->
+            val isl = listOf(o) + hs
+            // the same island (an outline repeated exactly, as a prism's is on layer after layer) is decided once ([narrowCache])
+            val key = NarrowKey(isl.map { it.xy }, sig)
+            val got = narrowCache[key] ?: narrowBeads(isl, laid, params, outerWidthUm, innerWidthUm, flank, floorUm, toleranceUm).also {
+                if (narrowCache.size >= NARROW_CACHE_ENTRIES) narrowCache.clear()
+                narrowCache[key] = it
+            }
+            if (got.isNotEmpty()) islandBeads[o] = got[0]
+            got.isNotEmpty()
+        }
+        if (taken.isEmpty()) return laid
+        fun inTaken(x: Long, y: Long) = taken.any { (o, hs) -> inIsland(o, hs, x, y) }
+        val walls = laid.walls.map { level -> level.filter { !inTaken(it.x(0), it.y(0)) } }.dropLastWhile { it.isEmpty() }
+        val inner = laid.inner.filter { !inTaken(it.x(0), it.y(0)) }
+        val center = laid.center.filter { c -> val m = c.xy.size / 4 * 2; !inTaken(c.xy[m], c.xy[m + 1]) }
+        // the beads' closed lines are loops of the walls, at their place from the outside, so they are laid as every loop is
+        // (seams, scarf, order, travel); a loop at its level's set width throughout keeps no widths of its own; the open
+        // lines stay lines
+        val levels = ArrayList<ArrayList<Polygon>>(); val levelWidths = ArrayList<ArrayList<LongArray?>>()
+        for (lv in walls) { levels.add(ArrayList(lv)); levelWidths.add(ArrayList(lv.map { null })) }
+        val open = ArrayList<CenterLine>()
+        for ((o, _) in taken) for (c in islandBeads.getValue(o)) {
+            val m = c.xy.size / 2
+            if (m < 4 || c.xy[0] != c.xy[2 * m - 2] || c.xy[1] != c.xy[2 * m - 1]) { open.add(c); continue }
+            val k = maxOf(0, c.wall)
+            while (levels.size <= k) { levels.add(ArrayList()); levelWidths.add(ArrayList()) }
+            val ws = c.widths.copyOf(m - 1)
+            levels[k].add(Polygon(c.xy.copyOf(2 * (m - 1))))
+            val set = if (k == 0) outerWidthUm else innerWidthUm
+            levelWidths[k].add(if (ws.all { Math.abs(it - set) <= toleranceUm }) null else ws)
+        }
+        return LayerWalls(levels, inner, center + open, levelWidths)
     }
 
     /**
@@ -210,7 +276,7 @@ object Walls {
         val xy = (a ?: LongArray(0)) + c.xy + (b ?: LongArray(0))
         val ws = (if (a != null) longArrayOf(c.widths[0]) else LongArray(0)) + c.widths + (if (b != null) longArrayOf(c.widths[n - 1]) else LongArray(0))
         fun added(p: LongArray?, k: Int) = if (p == null) 0.0 else Math.hypot((p[0] - c.xy[2 * k]).toDouble(), (p[1] - c.xy[2 * k + 1]).toDouble())
-        return CenterLine(xy, ws, c.reachUm + added(a, 0) + added(b, n - 1))
+        return CenterLine(xy, ws, c.reachUm + added(a, 0) + added(b, n - 1), c.wall)
     }
 
     /**
@@ -246,6 +312,69 @@ object Walls {
      * geometric threshold, plymeld's choice, not a print value.
      */
     private const val END_AHEAD_COS = 0.5
+
+    /**
+     * A narrow island's beads ([isl]: its outer polygon and its holes), or none where they lay it worse than the walls
+     * [laid] there by IslandCheck's measures (coverage first): a list of one entry, the beads, or empty (keep the walls).
+     * A function of the island and the parameters alone (the walls of one island do not reach another), so [narrowCache]
+     * may hold it.
+     */
+    private fun narrowBeads(isl: List<Polygon>, laid: LayerWalls, params: Beads.Params, outerWidthUm: Long, innerWidthUm: Long,
+                            flank: Double, floorUm: Double, toleranceUm: Long): List<List<CenterLine>> {
+        val o = isl[0]; val hs = isl.drop(1)
+        fun mine(x: Long, y: Long) = plymeld.geom.Polygons.contains(o, x, y) && hs.none { plymeld.geom.Polygons.contains(it, x, y) }
+        // simplified to the tolerance as laid, and measured so (the construction's points lie a few microns apart)
+        val beads = Beads.lay(isl, params).map { simplified(it, toleranceUm) }
+        val mb = IslandCheck.measure(isl, beads.map { IslandCheck.Line(it.xy, DoubleArray(it.widths.size) { k -> it.widths[k].toDouble() }, false) }, emptyList(), flank, floorUm, toleranceUm.toDouble())
+        // beads within the limits on their own need no comparison with the walls (the walls are then measured only to judge
+        // beads that are not)
+        if (mb != null && mb.wideUm2 == 0.0 && mb.widestUm <= NARROW_WIDEST_UM + IslandCheck.CELL_UM && mb.outsideUm <= NARROW_OUTSIDE_UM + IslandCheck.CELL_UM &&
+            mb.doubledUm2 <= NARROW_DOUBLED_SLACK_UM2) return listOf(beads)
+        val oldLines = ArrayList<IslandCheck.Line>()
+        for ((k, level) in laid.walls.withIndex()) for (p in level) if (mine(p.x(0), p.y(0)))
+            oldLines += IslandCheck.Line(p.xy, DoubleArray(p.size) { (if (k == 0) outerWidthUm else innerWidthUm).toDouble() }, true)
+        for (c in laid.center) { val m = c.xy.size / 4 * 2; if (mine(c.xy[m], c.xy[m + 1])) oldLines += IslandCheck.Line(c.xy, DoubleArray(c.widths.size) { c.widths[it].toDouble() }, false) }
+        val oldCovered = laid.inner.filter { mine(it.x(0), it.y(0)) }
+        val mo = IslandCheck.measure(isl, oldLines, oldCovered, flank, floorUm, toleranceUm.toDouble())
+        val ok = mo != null && mb != null && mb.wideUm2 <= mo.wideUm2 + NARROW_WIDE_SLACK_UM2 && mb.widestUm <= maxOf(mo.widestUm, NARROW_WIDEST_UM) + IslandCheck.CELL_UM &&
+            mb.outsideUm <= maxOf(mo.outsideUm, NARROW_OUTSIDE_UM) + IslandCheck.CELL_UM &&
+            (mb.doubledUm2 <= mo.doubledUm2 + NARROW_DOUBLED_SLACK_UM2 || (mo.wideUm2 - mb.wideUm2 > NARROW_HOLE_UM2 && mb.doubledUm2 <= NARROW_DOUBLED_MAX_UM2))
+        return if (ok) listOf(beads) else emptyList()
+    }
+
+    /** A narrow island's outline (each polygon's points) and the parameters its decision reads: [narrowCache]'s key. */
+    private class NarrowKey(val polys: List<LongArray>, val sig: LongArray) {
+        private val hash = polys.fold(sig.contentHashCode()) { h, p -> 31 * h + p.contentHashCode() }
+        override fun hashCode() = hash
+        override fun equals(other: Any?) = other is NarrowKey && other.hash == hash && other.sig.contentEquals(sig) &&
+            other.polys.size == polys.size && polys.indices.all { other.polys[it].contentEquals(polys[it]) }
+    }
+    /**
+     * Narrow islands decided, by shape: an extruded shape repeats its outline exactly on layer after layer, and is decided
+     * once. At most [NARROW_CACHE_ENTRIES], emptied when full (memory). A pure function's results: the output is the same
+     * with it or without it.
+     */
+    private val narrowCache = java.util.concurrent.ConcurrentHashMap<NarrowKey, List<List<CenterLine>>>()
+    /** plymeld's choice (memory: an island's beads are a few kilobytes). */
+    private const val NARROW_CACHE_ENTRIES = 4096
+
+    /*
+     * A narrow island's beads replace its walls only where they are no worse by IslandCheck (plymeld's choices, geometric
+     * allowances, not print values): uncovered area wider than the floor no more than 0.002 mm² over the walls'; the widest
+     * uncovered spot no wider than the walls' or 0.105 mm (what bead ends and corners leave), the larger; plastic no farther
+     * outside than the walls' or 0.09 mm (the narrowest line in the narrowest place laid, (0.3 - 0.15) / 2, and the
+     * tolerance); plastic laid twice no more than 0.06 mm² over the walls' (a new line's round start where the count rises,
+     * about 0.02 to 0.04 mm² each, two to an island), or, where the walls leave a hole wider than the floor of at least
+     * 0.01 mm² that the beads close, no more than 0.2 mm² in all (coverage first). Beads that leave nothing wider than the
+     * floor bare, no spot wider than 0.105 mm, nothing farther outside than 0.09 mm and no more than 0.06 mm² laid twice are
+     * taken without measuring the walls (each limit read a grid cell loose).
+     */
+    private const val NARROW_HOLE_UM2 = 10_000.0
+    private const val NARROW_DOUBLED_MAX_UM2 = 200_000.0
+    private const val NARROW_WIDE_SLACK_UM2 = 2_000.0
+    private const val NARROW_WIDEST_UM = 105.0
+    private const val NARROW_OUTSIDE_UM = 90.0
+    private const val NARROW_DOUBLED_SLACK_UM2 = 60_000.0
 
     /** Segments (ax, ay, bx, by, µm) bucketed in square cells of [cellUm], for "is any within this distance of a point". */
     private class EdgeGrid(private val edges: List<LongArray>, private val cellUm: Long) {
@@ -345,7 +474,7 @@ object Walls {
             while (b + 1 < n && fits(a, b + 1)) b++
             idx.add(b); a = b
         }
-        return CenterLine(LongArray(2 * idx.size) { c.xy[2 * idx[it / 2] + it % 2] }, LongArray(idx.size) { c.widths[idx[it]] }, c.reachUm)
+        return CenterLine(LongArray(2 * idx.size) { c.xy[2 * idx[it / 2] + it % 2] }, LongArray(idx.size) { c.widths[idx[it]] }, c.reachUm, c.wall)
     }
 
     /**

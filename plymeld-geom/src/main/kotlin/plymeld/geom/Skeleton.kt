@@ -65,7 +65,7 @@ class Skeleton(region: List<Polygon>, val sampleUm: Long, val minFeatureUm: Long
     val edgeCount: Int get() = edges.size / 6
 
     /** Point-in-region test with a row index of the outline's edges (crossing parity, CCW outers / CW holes). */
-    private class Inside(region: List<Polygon>) {
+    class Inside(region: List<Polygon>) {
         private val ex = ArrayList<DoubleArray>()
         private val y0: Double; private val rowH: Double; private val rows: Array<MutableList<Int>>
         init {

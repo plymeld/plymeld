@@ -90,12 +90,15 @@ class WallOrderTest : StringSpec({
         beside.retractBefore shouldBe false
     }
     "a step from an inner wall onto the outer wall's start goes unretracted only within two line widths; a longer one retracts" {
-        // a strip 1.6 mm wide, 20 mm long: an outer loop and a center line inside it; inner first, the center line ends at one end
-        // of the strip and the outer wall starts at its back, so the step between them is long (a letter's narrow stroke)
-        val s = SliceSettings.of(testSetup("plan.layer.walls.order" to "inner_first", "plan.layer.walls.style" to "variable_width"))
+        // one wall; a strip 1.6 mm wide, 20 mm long off a 10 mm block (an island wide enough for its wall somewhere, so laid by
+        // a loop where it fits and center lines in the rest): the outer loop and a center line inside the strip; inner first,
+        // the center line ends at one end of the strip and the outer wall starts at its back, so the step between them is long
+        // (a letter's narrow stroke)
+        val s = SliceSettings.of(testSetup("plan.layer.walls.order" to "inner_first", "plan.layer.walls.style" to "variable_width",
+            "plan.layer.walls.thickness" to "0.44 mm"))
         val n = 8
         val tops = LongArray(n) { s.firstLayerHeightUm + it * 200L }
-        val strip = Polygon(longArrayOf(30_000, 30_000, 50_000, 30_000, 50_000, 31_600, 30_000, 31_600))
+        val strip = Polygon(longArrayOf(30_000, 30_000, 60_000, 30_000, 60_000, 31_600, 40_000, 31_600, 40_000, 40_000, 30_000, 40_000))
         val steps = Planner.plan(s, List(n) { listOf(strip) }, tops).drop(1).flatMap { l ->
             val ws = l.paths.filter { it.feature == Feature.OUTER_WALL || it.feature == Feature.INNER_WALL }
             ws.zipWithNext().filter { (a, b) -> a.feature == Feature.INNER_WALL && b.feature == Feature.OUTER_WALL }.map { (a, b) ->

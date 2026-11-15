@@ -279,7 +279,7 @@ object Planner {
             o to when (if (reference) "classic" else s.wallGenerator) {
                 "classic" -> Walls.generate(o, s.wallLoops, wo, wi, h)
                 "arachne" -> Walls.arachne(o, s.wallLoops, wo, wi, h, s.minBeadUm, s.minFeatureUm, s.minLengthFactor, s.transitionLengthUm,
-                    toleranceUm = s.resolutionUm, endOverlap = s.infillWallOverlap)
+                    toleranceUm = s.resolutionUm, endOverlap = s.infillWallOverlap, maxBeadUm = s.maxBeadFor(wi))
                 else -> error("wall style '${s.wallGenerator}' is not known (fixed_width or variable_width; classic or arachne in another slicer's file)")
             }
             }
@@ -604,6 +604,7 @@ object Planner {
                 .text(coreLast[i]).text(coreLast[i].takeIf { it >= 0 }?.let { coreHeight[it] }).text(fillAngle[i])
                 .polys(effOutlines[i]).text(walls[i].walls.map { it.size })
             for (ws0 in walls[i].walls) kb.polys(ws0)
+            for (lv in walls[i].loopWidths) for (wa in lv) if (wa != null) kb.longs(wa)
             for (c in walls[i].center) kb.longs(c.xy).longs(c.widths)
             regions[i].let { r -> kb.polys(r.inner).polys(r.topSurface).polys(r.bottomSurface).polys(r.internalSolid).polys(r.sparse) }
             seams.getOrNull(i)?.let { ls -> kb.text("seams"); for (k in ls) { kb.text(k.size); for (p in k) kb.text(p.atCorner).longs(p.loop.xy) } } ?: kb.text("noseams")
@@ -1030,7 +1031,7 @@ object Planner {
                 val outer = Walls.alongOutline(c.xy, c.widths, effOutlines[i])
                 val f = if (outer) Feature.OUTER_WALL else Feature.INNER_WALL
                 val runs = overWaves(c.xy, false)
-                if (runs != null) { for (rn in runs) if (rn.size >= 4) paths.add(ToolPath(f, rn, false, c.maxWidthUm, h, wall = if (outer) 0 else ws.size)); continue }
+                if (runs != null) { for (rn in runs) if (rn.size >= 4) paths.add(ToolPath(f, rn, false, c.maxWidthUm, h, wall = if (outer) 0 else if (c.wall >= 0) c.wall else ws.size)); continue }
                 // a speck: an outer-wall line kept only because it lines the outline (shorter than two of its widths, the
                 // threshold Walls keeps it under) prints without a retraction and prime of its own wherever the travel to it
                 // stays in its island and crosses no wall, whatever the in-island switch (keepInIsland): a restart for a dot
@@ -1048,7 +1049,7 @@ object Planner {
                 // no line). Nor one wider somewhere than two narrowest lines: it fills a patch, not a sliver (a white dome
                 // 1.3 x 0.8 mm in a gray arch, too small for a loop, its one line 0.3 to 0.78 mm wide, had nothing laid in it).
                 if (speck && whole != null && c.widths.min() <= s.minBeadUm && c.maxWidthUm <= 2 * s.minBeadUm && ownLength < c.maxWidthUm && otherPartNear(c)) continue
-                paths.add(ToolPath(f, c.xy, false, c.maxWidthUm, h, widths = c.widths, speck = speck, wall = if (outer) 0 else ws.size)) } }
+                paths.add(ToolPath(f, c.xy, false, c.maxWidthUm, h, widths = c.widths, speck = speck, wall = if (outer) 0 else if (c.wall >= 0) c.wall else ws.size)) } }
             if (s.innerWallsFirst) center()
             if (s.fuzzySkin != "none") require(s.fuzzyMode == "displacement" && s.fuzzyNoise == "classic") {
                 "fuzzy skin mode '${s.fuzzyMode}' / noise '${s.fuzzyNoise}' is not implemented yet (only displacement + classic)" }
@@ -1090,10 +1091,24 @@ object Planner {
                         xy = f.xy
                         shares = smoothShares?.let { st -> IntArray(f.sourceEdge.size) { st[f.sourceEdge[it]] } }
                     }
+                    // a narrow island's bead round it has its own widths (Walls.LayerWalls.loopWidths): carried onto the loop as its
+                    // seam turned it (a point the seam added takes its nearer neighbor's) and as fuzz moved it (each point its source
+                    // edge's start); it takes a scarf as any loop does, each ramp point's plastic of its own width (Scarf)
+                    val loopWidths = walls[i].widthsOf(k, li)?.let { src ->
+                        val at = HashMap<Long, Long>(src.size * 2)
+                        for (v in 0 until loop.size) at[(loop.x(v) shl 32) xor (loop.y(v) and 0xffffffffL)] = src[v]
+                        val sm = placed.loop
+                        val onSmooth = LongArray(sm.size) { v -> at[(sm.x(v) shl 32) xor (sm.y(v) and 0xffffffffL)] ?: -1L }
+                        for (v in onSmooth.indices) if (onSmooth[v] < 0) onSmooth[v] = onSmooth[(v + 1) % onSmooth.size].takeIf { it >= 0 } ?: onSmooth[(v + onSmooth.size - 1) % onSmooth.size].coerceAtLeast(w)
+                        if (!fuzz) onSmooth else Fuzzy.loop(smooth, s.fuzzyThicknessUm, s.fuzzyPointDistUm, (i.toLong() shl 32) or (k.toLong() shl 20) or li.toLong())
+                            .sourceEdge.let { se -> LongArray(se.size) { onSmooth[se[it]] } }
+                    }
+                    val lw = loopWidths?.max() ?: w
                     // over the waves the loop is open runs on supported material, no seam or scarf (the beads carry the edge over air)
                     val runs = overWaves(xy, true)
-                    if (runs != null) { for (rn in runs) if (rn.size >= 4) paths.add(ToolPath(feature, rn, false, w, h, wall = k)); continue }
-                    paths.add(ToolPath(feature, xy, true, w, h, shares, scarfUm = scarfUm, scarfStart = s.scarfStart ?: 0.0, wall = k, scarfStepUm = s.scarfStepUm))
+                    if (runs != null) { for (rn in runs) if (rn.size >= 4) paths.add(ToolPath(feature, rn, false, lw, h, wall = k)); continue }
+                    paths.add(ToolPath(feature, xy, true, lw, h, shares, scarfUm = scarfUm,scarfStart = s.scarfStart ?: 0.0, widths = loopWidths,
+                        wall = k, scarfStepUm = s.scarfStepUm))
                 }
             }
             if (!s.innerWallsFirst) center()

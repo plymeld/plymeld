@@ -80,6 +80,23 @@ section the release's version and date.
 
 ### Changed
 
+- Variable-width walls lay an island too narrow anywhere for all its walls (a lens, a wedge, a ring, a strip, a
+  letter's stroke) by its local width: across each place as many lines as its width holds, each between
+  `plan.layer.walls.line.width.min` and the new `plan.layer.walls.line.width.max` (unset: twice the inner wall's width),
+  as near the set widths as can be; one line as wide as the place, two sharing it, from three the outer two at the outer
+  wall's width and the rest sharing what is left. Every pair of lines is a loop built from the outline, so the outer
+  loop is there on every layer where the island is two narrowest lines wide anywhere, closed, its seam placed as every
+  loop's: it turns back where the island narrows below two lines (a neck, a sliver, a long tip, each getting a line of its
+  own that meets the turn as a line meets a wall), and runs on into a short tip, out and back along its middle to the
+  tip's end. A middle line starts where three lines fit, the loop beside it giving way to its round start. A lens growing
+  from one line wide to three, which was laid as one line, then a small loop with a hole and two short end pieces, its
+  front edge bare by up to 0.25 mm, is one closed loop a layer, edge to edge (on a test lens: the widest spot left bare
+  0.064 mm against 0.29); a ring 1 mm wide, two loops with a 0.12 mm strip bare between them all round, is two lines
+  0.51 mm wide. Each such island's lines are measured against its walls of before and kept only where no worse. Islands
+  wide enough for their walls somewhere are laid as before.
+- `seam_scar` counts an open outer-wall line's two ends as point seams (a line along the outline where no loop fits
+  starts and stops on the surface), reads a loop's jog only from the seams of what lies under it (a loop over nothing on
+  the layer below, a new island, has no jog), and counts open outer lines as hiding what lies behind them, as loops do.
 - Each contour's walls are laid in the order `plan.layer.walls.order` names (it replaces the old switch, `inner_first`):
   `inner_outer_inner` by default, the walls past the one beside the outer wall, then the outer wall, then that one; so a
   layer's first line, its un-retraction and the travel's arrival land on hidden walls, not on the visible face, and the

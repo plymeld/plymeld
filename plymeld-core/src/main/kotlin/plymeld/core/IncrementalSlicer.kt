@@ -1824,7 +1824,7 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
             "hardware.tool.layer.height.min", "hardware.tool.layer.height.max", "plan.technique.flat.step.max", "plan.technique.flat.height_ratio", "plan.faces.sloped_top.z_antialiasing", "hardware.machine.motion.z.step")
         val WALL_KEYS = arrayOf("hardware.plate.first_layer.squish", "plan.layer.walls.count", "plan.layer.walls.outer.line.width", "plan.layer.walls.inner.line.width", "plan.mechanism.adhesion.first_layer.line.width",
             "plan.layer.walls.style", "plan.layer.walls.line.width.min", "plan.layer.walls.feature.min", "plan.layer.walls.length_factor.min", "plan.layer.walls.transition_length",
-            "plan.layer.sliver.width", "plan.layer.sliver.at_surface", "method.slicing.tolerance", "plan.layer.infill.wall_overlap")
+            "plan.layer.walls.line.width.max", "plan.layer.sliver.width", "plan.layer.sliver.at_surface", "method.slicing.tolerance", "plan.layer.infill.wall_overlap")
         val REGION_KEYS = arrayOf("plan.layer.top.thickness", "plan.layer.bottom.thickness",
             "plan.layer.infill.density", "plan.layer.infill.area.min", "plan.layer.top.under_parts")
         val PATH_KEYS = arrayOf(

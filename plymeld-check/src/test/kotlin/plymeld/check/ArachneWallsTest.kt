@@ -11,35 +11,39 @@ import java.util.Locale
 class ArachneWallsTest : StringSpec({
     fun rect(x0: Long, y0: Long, x1: Long, y1: Long) = Polygon(longArrayOf(x0, y0, x1, y0, x1, y1, x0, y1))
     val h = 80L; val wo = 420L; val wi = 450L
-    val so = Walls.spacing(wo, h); val si = Walls.spacing(wi, h)
 
-    "a 1.5 mm band: one loop, then one center line about 0.68 mm wide down the middle; classic crowds two loops" {
+    "a 1.5 mm band (too narrow for its four walls): four lines across it, the outer two at the outer width, the inner two sharing the rest; classic crowds two loops" {
         val band = listOf(rect(0, 0, 20_000, 1_500))
         val a = Walls.arachne(band, 4, wo, wi, h, minBeadUm = 340, minFeatureUm = 100, minLengthFactor = 0.5, transitionUm = 400)
         val c = Walls.generate(band, 4, wo, wi, h)
-        // worked: loop 1 needs a band 2 x (wo/2 + (so+si)/2 + si/2) thick
-        val need2 = 2 * (wo / 2 + (so + si) / 2 + si / 2)
-        println("band 1.5 mm: second loop needs %d um; arachne %d loop(s), classic %d".format(Locale.ROOT, need2, a.walls.size, c.walls.size))
-        a.walls.size shouldBe 1
         c.walls.size shouldBe 2                                   // control: classic keeps the crowded second loop
+        // worked: the band is laid by its local width (Beads); beads overlap by the flank f = h (1 - pi/4). Three lines: the
+        // middle one 1.5 - 2 (wo - f) = 0.694 mm (0.43 off the set width as a log ratio); four: the inner two each
+        // (1.5 - f - 2 (wo - f)) / 2 + f = 0.356 mm (0.235 off), at least the narrowest 0.34; five: under it. So four, as two
+        // closed loops: the outer at wo / 2 from the outline, the inner at wo - f + 0.356 / 2
+        val f = h * (1 - Math.PI / 4)
+        val inner = (1_500 - f - 2 * (wo - f)) / 2 + f
+        val expect = listOf(wo / 2.0 to wo.toDouble(), wo - f + inner / 2 to inner)
+        // two closed loops, laid as wall loops at their places from the outside, each with its widths where they are not its
+        // level's set width
         a.inner.isEmpty() shouldBe true
-        // center line(s): along y = 0.75 mm, width = what the outer beads leave: 1.5 - 2 x (wo/2 + so/2)
-        val expectW = 1_500 - 2 * (wo / 2 + so / 2)
-        var len = 0.0; var worstY = 0L; val mid = ArrayList<Long>()
-        for (c in a.center) {
-            val xy = c.xy
-            for (k in 0 until xy.size / 2) {
-                if (xy[2 * k] in 2_000..18_000) worstY = maxOf(worstY, Math.abs(xy[2 * k + 1] - 750))
-                if (xy[2 * k] in 5_000..15_000) mid.add(c.widths[k])
-            }
-            for (k in 1 until xy.size / 2) len += Math.hypot((xy[2 * k] - xy[2 * k - 2]).toDouble(), (xy[2 * k + 1] - xy[2 * k - 1]).toDouble())
+        a.center.isEmpty() shouldBe true
+        a.walls.map { it.size } shouldBe listOf(1, 1)
+        for (k in 0 until 2) {
+            val p = a.walls[k][0]
+            val n = p.size
+            val ws = a.widthsOf(k, 0)
+            // along the band's long sides, away from its ends: its distance from the nearer side and its width
+            val along = (0 until n).filter { p.x(it) in 2_000..18_000 }
+            val d = along.map { minOf(p.y(it), 1_500 - p.y(it)).toDouble() }
+            val w = along.map { (ws?.get(it) ?: (if (k == 0) wo else wi)).toDouble() }
+            val (ed, ew) = expect[k]
+            println("band 1.5 mm, loop %d: %d points along the sides, %.0f..%.0f um from the side (expected %.0f), %.0f..%.0f um wide (expected %.0f)".format(
+                Locale.ROOT, k, along.size, d.min(), d.max(), ed, w.min(), w.max(), ew))
+            (along.size >= 4) shouldBe true
+            d.all { Math.abs(it - ed) <= 15 } shouldBe true
+            w.all { Math.abs(it - ew) <= 15 } shouldBe true
         }
-        println("center lines: %d path(s), %.1f mm long, middle widths %d..%d (expected ~%d), worst |y - 0.75| %d um".format(
-            Locale.ROOT, a.center.size, len / 1000, mid.min(), mid.max(), expectW, worstY))
-        a.center.size shouldBe 1                                   // one line: the corner forks pruned, no width splits
-        (len > 17_000) shouldBe true
-        (worstY <= 10) shouldBe true                              // within 10 um of the middle
-        mid.all { Math.abs(it - expectW) <= 20 } shouldBe true
     }
 
     // the testplate fins (0.5/0.8/1.2/1.6 x 12 mm). With Arachne on, the

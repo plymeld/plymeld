@@ -82,8 +82,12 @@ class Visibility(val underside: Double, val bed: Double, val source: String, val
         return Visibility(underside, bed, source, away, doubleArrayOf(x / l, y / l, z / l), sample, quadrants)
     }
 
-    /** What hides a seam's point and how much its viewers count ([Exposure]) on these outer-wall [outlines] (per layer) with their [topsUm]; null when not sampled. */
-    fun exposure(outlines: List<List<plymeld.geom.Polygon>>, topsUm: LongArray): Exposure? = sample?.let { Exposure(outlines, topsUm, it, look) }
+    /**
+     * What hides a seam's point and how much its viewers count ([Exposure]) on these outer-wall [outlines] (per layer) with their
+     * [topsUm], the open outer-wall lines' footprints [bands] (per layer) material too; null when not sampled.
+     */
+    fun exposure(outlines: List<List<plymeld.geom.Polygon>>, topsUm: LongArray, bands: List<List<plymeld.geom.Polygon>> = emptyList()): Exposure? =
+        sample?.let { Exposure(outlines, topsUm, it, look, bands) }
 
     /** The direction term of a face whose normal's downward component is [down] (1 = facing straight down; 0 or less = level or facing up). */
     fun direction(down: Double): Double = if (down <= 0) 1.0 else 1.0 - (1.0 - underside) * minOf(1.0, down)
