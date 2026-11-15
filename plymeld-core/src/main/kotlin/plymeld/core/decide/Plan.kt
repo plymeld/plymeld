@@ -1,6 +1,7 @@
 package plymeld.core.decide
 
 import plymeld.mesh.TriangleSoup
+import plymeld.model.NozzleCone
 import plymeld.model.Overhang
 import plymeld.model.Resolver
 import plymeld.model.Setup
@@ -115,17 +116,17 @@ class Plan(/** Every decision, in the order made: each object's pose and techniq
 
         /**
          * [machine] with tool [tool]'s head shape from the user's config for object [k], over the machine description's
-         *: the nozzle's angle and height (TIP_CONE: curved layers need it), and the
+         *: the nozzle's angle and height (TIP_CONE: curved layers need it; one the tool sets alone takes the other from the
+         * machine description's toolhead, as [NozzleCone] reads them), and the
          * head's XY size with the nozzle's position in it (UNDERSIDE: the reach from the tip towards -X, +X, -Y, +Y).
          * A tier is set only when all its values are; a nozzle outside the head's outline is refused.
          */
         fun headFromConfig(machine: plymeld.machine.MachineDescription, tool: Int, setup: Setup, k: Int, part: Int? = null): plymeld.machine.MachineDescription {
             fun v(id: String) = Resolver.resolveOrNull(setup, id, plymeld.model.Context(k, part))
-            fun mm(r: plymeld.model.Resolved) = (r.value as Number).toDouble()
             var m = machine
-            val angle = v("hardware.tool.head.nozzle.angle"); val height = v("hardware.tool.head.nozzle.height")
-            if (angle != null && height != null)
-                m = m.withHead(tool, mapOf("tip_cone_deg" to mm(angle), "head.nozzle.height" to mm(height)), "nozzle angle and height", "${angle.from}; ${height.from}")
+            if (v("hardware.tool.head.nozzle.angle") != null || v("hardware.tool.head.nozzle.height") != null)
+                NozzleCone.of(setup, plymeld.model.Context(k, part), machine)?.let { c ->
+                    m = m.withHead(tool, mapOf(NozzleCone.ANGLE_KEY to c.angleDeg, NozzleCone.HEIGHT_KEY to c.heightMm), "nozzle angle and height", "${c.angleFrom}; ${c.heightFrom}") }
             headReach(setup, k, part)?.let { (r, from) ->
                 m = m.withHead(tool, mapOf("head_minus_x" to r.minusX, "head_plus_x" to r.plusX, "head_minus_y" to r.minusY, "head_plus_y" to r.plusY),
                     "head size and nozzle position", from)
@@ -161,6 +162,31 @@ class Plan(/** Every decision, in the order made: each object's pose and techniq
             out[setup.spool(o.spool).tool] = null
             for ((pi, p) in o.parts.withIndex()) out.putIfAbsent(setup.spool(p.spool).tool, pi)
             return out
+        }
+
+        /**
+         * The strictest nozzle cone over every tool printing object [k] ([toolsOf]): the narrowest angle and the lowest tip,
+         * each the tool's own value or its machine model's toolhead's ([NozzleCone]); null when a tool has neither. What a
+         * curved island is found and checked with (which of an object's tools lays an island is known only once it is found,
+         * and the slice refuses one over parts of different filaments), and what the pre-print check holds a curved band to.
+         */
+        fun nozzleCone(setup: Setup, k: Int): NozzleCone? {
+            val a = nozzleAngle(setup, k) ?: return null
+            val h = nozzleHeight(setup, k) ?: return null
+            return NozzleCone(a.first, h.first, a.second, h.second)
+        }
+
+        /** The narrowest nozzle angle (deg) over every tool printing object [k], with where it came from; null when a tool has none ([nozzleCone]). */
+        fun nozzleAngle(setup: Setup, k: Int): Pair<Double, String>? = strictest(setup, k) { m, c -> NozzleCone.angle(setup, c, m) }
+
+        /** The lowest nozzle tip (mm) over every tool printing object [k], with where it came from; null when a tool has none ([nozzleCone]). */
+        fun nozzleHeight(setup: Setup, k: Int): Pair<Double, String>? = strictest(setup, k) { m, c -> NozzleCone.height(setup, c, m) }
+
+        private fun strictest(setup: Setup, k: Int, value: (plymeld.machine.MachineDescription?, plymeld.model.Context) -> Pair<Double, String>?): Pair<Double, String>? {
+            val machine = NozzleCone.machineOf(setup)
+            val each = toolsOf(setup, k).map { (t, part) -> t to (value(machine, plymeld.model.Context(k, part)) ?: return null) }
+            val (t, v) = each.minBy { it.second.first }
+            return if (each.size == 1) v else v.first to "tool ${t + 1}'s, the strictest of the object's tools: ${v.second}"
         }
 
         /**
@@ -369,7 +395,9 @@ class Plan(/** Every decision, in the order made: each object's pose and techniq
                 // support's controls, locked at the settings (named as their keys): the bundled values are stand-ins until measured
                 val supportControls = Support.CONTROL_KEYS.mapNotNull { (id, unit) -> Resolver.resolveOrNull(setup, id, plymeld.model.Context(k))?.let { v ->
                     Control(id, unit, Control.Range.Steps(listOf((v.value as Number).toDouble())), v.from) } }
-                val nozzleHeight = Resolver.resolveOrNull(setup, "hardware.tool.head.nozzle.height", plymeld.model.Context(k))
+                // the nozzle's height (support's order: whether a column printed first would meet the head): the lowest of the
+                // object's tools', each the tool's own or its machine model's toolhead's
+                val nozzleHeight = nozzleHeight(setup, k)
                 // the visibility map every quality measure is weighted by: its placeholder weights and the view, with their provenance
                 val visibility = Visibility.from(setup, plymeld.model.Context(k))
                 // the stair-step measure's depth power (method.quality.stair_step.depth_power; PoseDecision.stairStep), with its provenance
@@ -393,7 +421,7 @@ class Plan(/** Every decision, in the order made: each object's pose and techniq
                     lockedSpots = locksK?.lockedSpots ?: emptyList(), supportSpotsLocked = locksK?.supportSpots, supportControls = supportControls,
                     blocked = locksK?.regions.orEmpty().filter { it.support == Region.NEVER },
                     supportColumnWidthMm = numOrNull("plan.support.column.width", k),
-                    nozzleHeightMm = (nozzleHeight?.value as Number?)?.toDouble(), nozzleHeightSource = nozzleHeight?.let { "hardware.tool.<key>.head.nozzle.height: ${it.from}" } ?: "hardware.tool.<key>.head.nozzle.height not set",
+                    nozzleHeightMm = nozzleHeight?.first, nozzleHeightSource = nozzleHeight?.second ?: "hardware.tool.<key>.head.nozzle.height not set, nor its machine model's toolhead's",
                     travelSpeedMmS = numOrNull("hardware.machine.motion.travel.speed", k),
                     poseKeepMargin = numOrNull("method.search.pose.keep_margin", k), poseShortlistMargin = numOrNull("method.search.pose.shortlist_margin", k), bridgeMaxSpanMm = numOrNull("hardware.filament.bridge.span.max", k),
                     visibility = visibility, outerLineWidthMm = numOrNull("plan.layer.walls.outer.line.width", k),
@@ -449,7 +477,8 @@ class Plan(/** Every decision, in the order made: each object's pose and techniq
                 // promises "it prints as planned and decides nothing again")
                 val islandD = if (objects.size != 1 || locks?.islands?.isNotEmpty() == true || locks?.techniques != null || d.technique.value.techniques != listOf(PrintTechnique.FLAT_LAYERS) ||
                     d.technique.value.curvedDepthAuto) null else {
-                    val angle = numOrNull("hardware.tool.head.nozzle.angle", k); val nh = numOrNull("hardware.tool.head.nozzle.height", k)
+                    // the cone: the strictest of the object's tools', each the tool's own or its machine model's toolhead's
+                    val cone = nozzleCone(setup, k)
                     val minL = numOrNull("hardware.tool.layer.height.min", k); val maxL = numOrNull("hardware.tool.layer.height.max", k)
                     val layer = d.technique.value.layerHeightMm ?: numOrNull("plan.technique.flat.layer.height", k)
                     // an object of several filaments or part settings is laid per part (IncrementalSlicer.multiProgram): islands there
@@ -460,10 +489,10 @@ class Plan(/** Every decision, in the order made: each object's pose and techniq
                     if (perPart && !oneTool) Decision("curved islands ($name)", d.technique.value,
                         "not offered: the object's parts are laid on several tools, and a tool change for a curved island is not written yet",
                         emptyList<String>(), overridden = false)
-                    else if (angle == null || nh == null || minL == null || maxL == null || layer == null) null else {
+                    else if (cone == null || minL == null || maxL == null || layer == null) null else {
                         val look = IslandDecision.Look.of(Resolver.resolveOrNull(setup, "job.faces.sloped_top.look", plymeld.model.Context(k))?.value as String?)
                         IslandDecision.decide(name, parts.map(d.pose.value::apply), d.technique.value,
-                            CurvedRegions.Params(angle, nh, layer, minL, minStartMm = numOrNull("plan.mechanism.adhesion.first_layer.height", k) ?: 0.0), maxL, look, wk,
+                            CurvedRegions.Params(cone.angleDeg, cone.heightMm, layer, minL, minStartMm = numOrNull("plan.mechanism.adhesion.first_layer.height", k) ?: 0.0), maxL, look, wk,
                             measure = { plans -> PoseDecision.measureAll(CurvedDepth.merged(parts), d.pose.value, pfk.overhang, f = pfk, withSections = false, plansFor = { _, _ -> plans }) },
                             predict = predictFinalist?.let { pf -> { plan: TechniquePlan -> pf(d.pose.value, plan, d.surfaceTechniques) } },
                             refuse = if (!perPart) { _ -> null } else posedParts(parts, d.pose.value).let { posed -> { isl: CurvedIsland -> islandUnits(posed, isl, units!!.partUnit) } })
@@ -539,12 +568,16 @@ class Plan(/** Every decision, in the order made: each object's pose and techniq
                     val name = objects[k].first
                     if (d.value.techniques != listOf(PrintTechnique.FLAT_LAYERS)) error("'$name': curved islands sit on flat layers; with ${d.value.techniques.joinToString { it.short }} they are not planned yet")
                     fun need(id: String) = numOrNull(id, k) ?: error("'$name': a curved island needs ${id.replace("hardware.tool.", "hardware.tool.<key>.")}")
-                    val p = CurvedRegions.Params(need("hardware.tool.head.nozzle.angle"), need("hardware.tool.head.nozzle.height"),
+                    // the nozzle's cone as every curved technique reads it: the strictest of the object's tools', each the tool's
+                    // own or its machine model's toolhead's (nozzleCone; the pre-print check finds the island again with it)
+                    val cone = nozzleCone(setup, k) ?: error("'$name': a curved island needs the nozzle's angle and height of every tool printing it: ${NozzleCone.WHERE}")
+                    val p = CurvedRegions.Params(cone.angleDeg, cone.heightMm,
                         d.value.layerHeightMm ?: need("plan.technique.flat.layer.height"), need("hardware.tool.layer.height.min"))
                     val isl = try { CurvedIsland.resolve(posed[k].second, locked, p, p.layerMm, need("hardware.tool.layer.height.max")) }
                         catch (e: IllegalArgumentException) { error("'$name': ${e.message}") }
                     Decision(d.step, d.value.withIslands(isl), d.why + "; curved islands locked: " + isl.joinToString("; "),
-                        d.facts + isl.map { "$it: its layers follow its cap, dipping by up to %.2f mm (the nozzle's height at most)".format(Locale.ROOT, it.dip.maxOrNull() ?: 0.0) },
+                        d.facts + "the nozzle's cone: %s deg (%s), its tip %s mm below the head (%s)".format(Locale.ROOT, fmt(cone.angleDeg), cone.angleFrom, fmt(cone.heightMm), cone.heightFrom) +
+                            isl.map { "$it: its layers follow its cap, dipping by up to %.2f mm (the nozzle's height at most)".format(Locale.ROOT, it.dip.maxOrNull() ?: 0.0) },
                         d.alternatives, d.standIns, d.overridden)
                 }
             }

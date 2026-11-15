@@ -241,8 +241,8 @@ object Schema {
         q("$t.first_layer.height.max", Dimension.LENGTH, "thickest FIRST layer it lays (the first layer only; the layers above keep layer.height.max): the first-layer window's heights are taken up to it, and a first-layer height set above it earns a warning; unset = layer.height.max")
         // the loaded head's shape around the nozzle: the head's XY size, the nozzle's XY position within it, the
         // nozzle's height and angle; measured, as makers do not publish them
-        q("$t.head.nozzle.angle", Dimension.ANGLE, "the nozzle's cone: the angle of its side from horizontal (a surface no steeper than it clears the cone); needed by curved layers", feeds = true)
-        q("$t.head.nozzle.height", Dimension.LENGTH, "how far the nozzle tip sits below the lowest other part of the loaded head (heater block, sock, duct, carriage); needed by curved layers", feeds = true)
+        q("$t.head.nozzle.angle", Dimension.ANGLE, "the nozzle's cone: the angle of its side from horizontal (a surface no steeper than it clears the cone); needed by curved layers; unset = its machine model's toolhead's (hardware.model.<key>.toolhead.<key>.head.nozzle.angle)", feeds = true)
+        q("$t.head.nozzle.height", Dimension.LENGTH, "how far the nozzle tip sits below the lowest other part of the loaded head (heater block, sock, duct, carriage); needed by curved layers; unset = its machine model's toolhead's (hardware.model.<key>.toolhead.<key>.head.nozzle.height)", feeds = true)
         q("$t.head.nozzle.x", Dimension.LENGTH, "the nozzle's position within the head along X: its distance from the head's edge on the machine's -X side (left on a front-left origin)", feeds = true)
         q("$t.head.nozzle.y", Dimension.LENGTH, "the nozzle's position within the head along Y: its distance from the head's edge on the machine's -Y side (front on a front-left origin)", feeds = true)
         q("$t.head.size.x", Dimension.LENGTH, "the loaded head's size along the machine's X axis, seen from below (its outline, a rectangle)", feeds = true)
@@ -408,7 +408,7 @@ object Schema {
         val ss = "plan.object.<key>.support.spot.<key>"
         d("$ss.min", Type.Point(Dimension.LENGTH), "a support spot the plan locks (what `plymeld plan -o` wrote of the search's choice): the faces too steep to hold themselves up within the box get tree support, nothing else does; the box's least corner: x and y from the posed object's corner (its least x and y), z from the object's bottom as posed")
         d("$ss.max", Type.Point(Dimension.LENGTH), "the locked support spot's greatest corner (above min on x and y, at or above it on z: a flat underside), in the same frame")
-        d("$ss.order", Type.Choice(listOf("interleaved", "first")), "the print order of the spot's support column beside the model's layers: interleaved = layer by layer with them; first = the column finished before the model's layers beside it start (only where it stays under the nozzle tip's protrusion, hardware.tool.<key>.head.nozzle.height). Unset = interleaved")
+        d("$ss.order", Type.Choice(listOf("interleaved", "first")), "the print order of the spot's support column beside the model's layers: interleaved = layer by layer with them; first = the column finished before the model's layers beside it start (only where it stays under the nozzle tip's protrusion, hardware.tool.<key>.head.nozzle.height, else the machine model's toolhead's, the lowest of the object's tools'). Unset = interleaved")
         d("plan.source_fingerprint.model.<key>", Type.Text, "fingerprint of an object's geometry when the plan was made")
         d("plan.source_fingerprint.config.<key>", Type.Text, "fingerprint of one section (hardware, model, job, method) of the config the plan was made from")
         // flat layers: uniform and adaptive layers as one technique

@@ -103,6 +103,14 @@ section the release's version and date.
 
 ### Fixed
 
+- The nozzle's angle and height (`hardware.tool.<key>.head.nozzle.angle` and `.height`), where the tool sets none, are its
+  machine model's toolhead's (`hardware.model.<key>.toolhead.<index>.head.nozzle.angle` and `.height`, as the bundled
+  Flashforge Creator 5 gives them) everywhere the cone is read: a curved island a plan locks (it was refused, "a curved
+  island needs hardware.tool.<key>.head.nozzle.angle"), the curved islands the plan weighs (not offered), the pre-print
+  check of a curved band or island (refused for want of the cone), support's order (a column was never finished first),
+  and the clearance every travel keeps over what is printed (the cone left out). The technique screen already read the
+  model's. An object printed with several tools takes the strictest cone among them: the narrowest angle and the lowest
+  tip. A value the tool sets still wins over its model's, and one it sets alone takes the other from the model.
 - A dead feed: with `plan.mechanism.motion.steady.share` set, a line of no length (a thin area's center line whose
   points come out as one, at sharp tips) was capped to a speed of 0 and written `G1 F0`, at which a printer stopped the
   print, beside a preheat comment of "NaN s"; and the pre-print check passed the file. Such a line is no longer capped.

@@ -147,7 +147,9 @@ internal fun curvedRead(text: String, plan: plymeld.core.decide.Plan, setup: ply
         val ctx = plymeld.model.Context(plan.layout.objectIndex[0])
         fun mm(id: String) = (plymeld.model.Resolver.resolveOrNull(setup, id, ctx)?.value as Number?)?.toDouble() ?: error("curved islands need ${id.replace("hardware.tool.", "hardware.tool.<key>.")}")
         val lim = curvedLimits(plan, setup, 0)
-        val p = plymeld.core.decide.CurvedRegions.Params(mm("hardware.tool.head.nozzle.angle"), mm("hardware.tool.head.nozzle.height"),
+        // the cone the plan found the islands with (Plan.nozzleCone: the strictest of the object's tools')
+        val cone = plymeld.core.decide.Plan.nozzleCone(setup, ctx.obj) ?: error("curved islands need the nozzle's angle and height of every tool printing them: ${plymeld.model.NozzleCone.WHERE}")
+        val p = plymeld.core.decide.CurvedRegions.Params(cone.angleDeg, cone.heightMm,
             plan.layout.techniques[0].layerHeightMm ?: mm("plan.technique.flat.layer.height"), lim.minLayerMm)
         val parts = plan.parts
         val islands = plymeld.core.decide.CurvedIsland.resolve(parts, locked.map { plymeld.core.decide.CurvedIsland.Lock(it.key, it.seedXMm, it.seedYMm, it.startMm, it.layerMm) }, p, p.layerMm, lim.maxLayerMm)
@@ -184,19 +186,15 @@ internal fun curvedLimits(plan: plymeld.core.decide.Plan, setup: plymeld.model.S
     fun mm(id: String) = (plymeld.model.Resolver.resolveOrNull(setup, id, ctx)?.value as Number?)?.toDouble()
     val s = plymeld.model.SliceSettings.of(setup, ctx)
     // the strictest head of every tool printing the object (the object's first part's tool alone): the narrowest
-    // cone, the lowest nozzle, the furthest reach each way; a tool with no head shape leaves the tip out
-    val tips = plymeld.core.decide.Plan.toolsOf(setup, ctx.obj).values.map { part ->
-        val pc = plymeld.model.Context(ctx.obj, part)
-        fun pm(id: String) = (plymeld.model.Resolver.resolveOrNull(setup, id, pc)?.value as Number?)?.toDouble()
-        Triple(pm("hardware.tool.head.nozzle.angle"), pm("hardware.tool.head.nozzle.height"), plymeld.core.decide.Plan.headReach(setup, ctx.obj, part)?.first)
-    }
-    val cone = if (tips.any { it.first == null }) null else tips.minOf { it.first!! }
-    val protrusion = if (tips.any { it.second == null }) null else tips.minOf { it.second!! }
-    val reach = if (tips.any { it.third == null }) null else tips.map { it.third!! }.let { rs ->
+    // cone, the lowest nozzle (each the tool's own or its machine model's toolhead's: Plan.nozzleCone), the furthest reach
+    // each way; a tool with no cone leaves the tip out
+    val cone = plymeld.core.decide.Plan.nozzleCone(setup, ctx.obj)
+    val reaches = plymeld.core.decide.Plan.toolsOf(setup, ctx.obj).values.map { part -> plymeld.core.decide.Plan.headReach(setup, ctx.obj, part)?.first }
+    val reach = if (reaches.any { it == null }) null else reaches.map { it!! }.let { rs ->
         plymeld.core.decide.Arrange.Reach(rs.maxOf { it.minusX }, rs.maxOf { it.plusX }, rs.maxOf { it.minusY }, rs.maxOf { it.plusY }) }
     return plymeld.core.check.CurvedCheck.Limits(mm("hardware.tool.layer.height.min") ?: error("curved layers need hardware.tool.<key>.layer.height.min"),
         mm("hardware.tool.layer.height.max") ?: error("curved layers need hardware.tool.<key>.layer.height.max"), s.resolutionUm / 1000.0,
-        if (cone != null && protrusion != null) plymeld.core.check.CurvedCheck.Tip(cone, protrusion, reach) else null)
+        cone?.let { plymeld.core.check.CurvedCheck.Tip(it.angleDeg, it.heightMm, reach) })
 }
 
 /** `plymeld plan -cf ... -m ... [-o plan.toml]`: each decision and why; with -o, the decisions as a config file to slice with. */

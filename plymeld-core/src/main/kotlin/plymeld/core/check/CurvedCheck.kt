@@ -23,8 +23,9 @@ import java.util.Locale
  *      nozzle angle (hardware.tool.head.nozzle.angle) wherever it is printed; and the head around the nozzle clear of what is printed:
  *      with the head's outline known (hardware.tool.head.size.x/y, nozzle_x/y), the plastic under its rectangle at every point
  *      printed under the nozzle height (hardware.tool.head.nozzle.height) above the nozzle ([HeadGrid]); without it, the layer's
- *      whole rise (its highest line less its lowest) under the nozzle height, whatever the outline. Without the angle
- *      and height a curved band is refused.
+ *      whole rise (its highest line less its lowest) under the nozzle height, whatever the outline. The angle and height
+ *      are the tool's own, else its machine model's toolhead's (NozzleCone), the strictest of the object's tools; without
+ *      them a curved band is refused.
  *
  * Z speed is not judged here: the firmware holds every move to its max_z_velocity by its Z share, and the predictor
  * counts it.
@@ -314,7 +315,7 @@ object CurvedCheck {
 
         val problems = ArrayList<String>()
         val tip = lim.tip
-        if (tip == null) problems += "curved layers need the nozzle's angle and height (hardware.tool.<key>.head.nozzle.angle and head.nozzle.height), which the config does not give: the head's clearance over a curved layer cannot be judged"
+        if (tip == null) problems += "curved layers need the nozzle's angle and height of every tool printing the object (${plymeld.model.NozzleCone.WHERE}), which the config does not give: the head's clearance over a curved layer cannot be judged"
         var curvedCount = 0
         val head = tip?.reach?.takeIf { printed.isNotEmpty() }?.let { HeadGrid(printedAll, it) }
         fun headOver(at: String, w: Worst, t: Tip) {
@@ -557,7 +558,7 @@ object CurvedCheck {
         fun below(k: Int): Double = (k - 1 downTo 0).firstOrNull { frame(it) == frame(k) && curved(it) }?.let { lz(it) } ?: startG[frame(k)]
 
         val tip = lim.tip
-        if (tip == null) problems += "curved islands need the nozzle's angle and height (hardware.tool.<key>.head.nozzle.angle and head.nozzle.height), which the config does not give: the head's clearance over an island's layer cannot be judged"
+        if (tip == null) problems += "curved islands need the nozzle's angle and height of every tool printing the object (${plymeld.model.NozzleCone.WHERE}), which the config does not give: the head's clearance over an island's layer cannot be judged"
         val head = tip?.reach?.takeIf { printed.isNotEmpty() }?.let { HeadGrid(printed, it) }
         fun headOver(at: String, w: Worst, t: Tip) {
             val r = t.reach ?: return

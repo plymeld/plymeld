@@ -81,14 +81,25 @@ class TravelClearanceTest : StringSpec({
         val c = write(machine + cone, program(tall, 110.0 to 100.0, 130.0 to 100.0))
         travelLow(c, 110.0 to 100.0, 130.0 to 100.0) shouldBe (0.4 plusOrMinus 1e-6)
     }
-    "the cone: a travel 4 mm beside a 5 mm line rises to at least 5 - (4 - 0.2) + 0.2 = 1.4; control: without a nozzle angle, no lift" {
+    /** [machine] on a model whose toolhead gives no cone (the Q2's), so only the tool's own values count. */
+    val bareModel = machine.map { if (it.first == "hardware.machine.m.model") it.first to "qidi-q2" else it }
+    "the cone: a travel 4 mm beside a 5 mm line rises to at least 5 - (4 - 0.2) + 0.2 = 1.4; control: without a nozzle angle (the tool's or its model's), no lift" {
         val tall = line(100.0, 110.0, 120.0, 110.0, 5.0)
         val g = write(machine + cone, program(tall, 90.0 to 106.0, 130.0 to 106.0))
         val low = travelLow(g, 90.0 to 106.0, 130.0 to 106.0)
         // at least the cone's own height there; at most a cell's diagonal (0.71 mm) higher, the grid counting a cell at its closest
         withClue("travel at $low") { (low >= 1.4 - 1e-6 && low <= 1.4 + 0.71 + 1e-6) shouldBe true }
         val noAngle = cone.filter { it.first != "hardware.tool.t1.head.nozzle.angle" }
-        travelLow(write(machine + noAngle, program(tall, 90.0 to 106.0, 130.0 to 106.0)), 90.0 to 106.0, 130.0 to 106.0) shouldBe (0.4 plusOrMinus 1e-6)
+        travelLow(write(bareModel + noAngle, program(tall, 90.0 to 106.0, 130.0 to 106.0)), 90.0 to 106.0, 130.0 to 106.0) shouldBe (0.4 plusOrMinus 1e-6)
+    }
+    "the cone where the tool sets none is its machine model's toolhead's (the Creator 5's 45 deg, 4 mm): the same travel lifts as with the tool's own; control: the tool's own 80 deg cone wins, and lifts less" {
+        val tall = line(100.0, 110.0, 120.0, 110.0, 5.0)
+        val own = travelLow(write(machine + cone, program(tall, 90.0 to 106.0, 130.0 to 106.0)), 90.0 to 106.0, 130.0 to 106.0)
+        val model = travelLow(write(machine, program(tall, 90.0 to 106.0, 130.0 to 106.0)), 90.0 to 106.0, 130.0 to 106.0)
+        withClue("tool's own $own, model's $model") { model shouldBe (own plusOrMinus 1e-6); (model > 0.4 + 1e-6) shouldBe true }
+        // an 80 deg cone, 4 mm high, reaches about 0.7 mm out from the bore's edge: 4 mm beside the line it clears it, no lift
+        val steep = travelLow(write(machine + listOf("hardware.tool.t1.head.nozzle.angle" to "80 deg"), program(tall, 90.0 to 106.0, 130.0 to 106.0)), 90.0 to 106.0, 130.0 to 106.0)
+        steep shouldBe (0.4 plusOrMinus 1e-6)
     }
     "the head: a 10 mm line 20 mm towards +Y (the head reaches 35) lifts the travel to 10 - 4 + 0.2 = 6.2; control: 40 mm away, no lift" {
         val near = line(100.0, 110.0, 120.0, 110.0, 10.0)

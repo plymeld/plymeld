@@ -1159,14 +1159,14 @@
                     "additionalProperties": false,
                     "properties": {
                       "angle": {
-                        "description": "the nozzle's cone: the angle of its side from horizontal (a surface no steeper than it clears the cone); needed by curved layers — a angle (deg); or a formula (= ...)",
+                        "description": "the nozzle's cone: the angle of its side from horizontal (a surface no steeper than it clears the cone); needed by curved layers; unset = its machine model's toolhead's (hardware.model.<key>.toolhead.<key>.head.nozzle.angle) — a angle (deg); or a formula (= ...)",
                         "type": [
                           "string",
                           "number"
                         ]
                       },
                       "height": {
-                        "description": "how far the nozzle tip sits below the lowest other part of the loaded head (heater block, sock, duct, carriage); needed by curved layers — a length (mm); or a formula (= ...)",
+                        "description": "how far the nozzle tip sits below the lowest other part of the loaded head (heater block, sock, duct, carriage); needed by curved layers; unset = its machine model's toolhead's (hardware.model.<key>.toolhead.<key>.head.nozzle.height) — a length (mm); or a formula (= ...)",
                         "type": [
                           "string",
                           "number"
@@ -7470,7 +7470,7 @@
                     ]
                   },
                   "order": {
-                    "description": "the print order of the spot's support column beside the model's layers: interleaved = layer by layer with them; first = the column finished before the model's layers beside it start (only where it stays under the nozzle tip's protrusion, hardware.tool.<key>.head.nozzle.height). Unset = interleaved",
+                    "description": "the print order of the spot's support column beside the model's layers: interleaved = layer by layer with them; first = the column finished before the model's layers beside it start (only where it stays under the nozzle tip's protrusion, hardware.tool.<key>.head.nozzle.height, else the machine model's toolhead's, the lowest of the object's tools'). Unset = interleaved",
                     "enum": [
                       "interleaved",
                       "first"
