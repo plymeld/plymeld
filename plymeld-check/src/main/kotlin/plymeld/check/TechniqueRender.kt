@@ -35,8 +35,9 @@ import kotlin.math.sin
  * that touch in the print join into one solid line; the moves projected, or cut to a slab across the line of sight, in
  * any direction round Z); and unrolled round a vertical axis (the angle as arc length at the moves' mean radius across,
  * Z up: a round wall laid flat). A [Window] zooms on the region that differs. Colors ([Coloring]): by feature (the
- * colors of [GcodeRender]), print order, part fan, nozzle temperature, declared line height, plastic per mm, or
- * alternate layers. Extrusion only: travels are left out.
+ * colors of [GcodeRender]), print order, part fan, nozzle temperature, declared line height, plastic per mm, alternate
+ * layers, or the tool laying each line. A panel may carry the model's surface as thin black lines over its moves
+ * (Panel.lines: the test's model cut by the view's plane, say). Extrusion only: travels are left out.
  *
  * How the pictures look (sizes, colors, the gradient, strokes drawn [TOP_FILL] of their width and beads [SIDE_FILL] of
  * their height so neighbors read apart, both said under each picture's title) is plymeld's choice, none of
@@ -55,6 +56,7 @@ object TechniqueRender {
         /** The object it belongs to (`; object start <name>`), null outside one. */ val obj: String?,
         /** Its place among the file's extruding moves. */ val index: Int,
         /** Its feedrate (mm/s). */ val speed: Double,
+        /** The tool laying it (the last `T<n>` before it; 0 before any). */ val tool: Int = 0,
     ) {
         val length: Double get() = hypot(x1 - x0, y1 - y0)
         /** Filament per mm of path. */
@@ -91,7 +93,7 @@ object TechniqueRender {
         val out = ArrayList<Move>(); val zs = ArrayList<Double>()
         var x = 0.0; var y = 0.0; var z = 0.0; var e = 0.0; var relE = false; var f = 0.0
         var feature = ""; var layer = -1; var layerZ = 0.0; var width = Double.NaN; var height = Double.NaN
-        var fan = 0.0; var temp = Double.NaN; var obj: String? = null; var pendingLayer = false; var diameter = Double.NaN
+        var fan = 0.0; var temp = Double.NaN; var obj: String? = null; var pendingLayer = false; var diameter = Double.NaN; var tool = 0
         val pauses = ArrayList<Int>()
         fun num(parts: List<String>, c: Char): Double? = parts.drop(1).firstOrNull { it.isNotEmpty() && it[0].uppercaseChar() == c }?.substring(1)?.toDoubleOrNull()
         for (raw in gcode.lineSequence()) {
@@ -124,7 +126,7 @@ object TechniqueRender {
                     val de = when { ne == null -> 0.0; relE -> ne; else -> ne - e }
                     if (ne != null) e = if (relE) e + ne else ne
                     // extrusion before the file's first layer change (a prime line) is layer -1: kept, a test filters it
-                    if (de > 0 && (nx != x || ny != y)) out += Move(x, y, z, nx, ny, nz, de, feature, layer, layerZ, width, height, fan, temp, obj, out.size, f)
+                    if (de > 0 && (nx != x || ny != y)) out += Move(x, y, z, nx, ny, nz, de, feature, layer, layerZ, width, height, fan, temp, obj, out.size, f, tool)
                     x = nx; y = ny; z = nz
                 }
                 "G2", "G3" -> error("an arc (${parts[0]}) in the sample's g-code: slice the samples with firmware.arcs = false")
@@ -136,6 +138,7 @@ object TechniqueRender {
                 "M106" -> fan = (num(parts, 'S') ?: 255.0) / 255.0
                 "M107" -> fan = 0.0
                 "M104", "M109" -> num(parts, 'S')?.let { temp = it }
+                else -> if (parts.size == 1 && Regex("T[0-9]+").matches(parts[0].uppercase())) tool = parts[0].substring(1).toInt()
             }
         }
         return Toolpath(out, zs, gcode, pauses, diameter)
@@ -148,9 +151,10 @@ object TechniqueRender {
 
     /**
      * What a move's color says: its feature, its place in print order, the part fan, the nozzle temperature, its declared
-     * height, its plastic per mm, or its layer (two colors, layer by layer, so each layer reads as a line of its own).
+     * height, its plastic per mm, its layer (two colors, layer by layer, so each layer reads as a line of its own), or the
+     * tool laying it (a color each).
      */
-    enum class Coloring { FEATURE, ORDER, FAN, TEMPERATURE, HEIGHT, FLOW, LAYER }
+    enum class Coloring { FEATURE, ORDER, FAN, TEMPERATURE, HEIGHT, FLOW, LAYER, TOOL }
 
     /** A point to mark (mm), drawn as a ring with [text] beside it. */
     class Mark(val x: Double, val y: Double, val z: Double, val text: String = "")
@@ -173,7 +177,9 @@ object TechniqueRender {
                 val coloring: Coloring = Coloring.FEATURE, val marks: List<Mark> = emptyList(),
                 val highlight: ((Move) -> Boolean)? = null, val slab: ClosedFloatingPointRange<Double>? = null,
                 val notes: List<Pair<Double, String>> = emptyList(), val widths: Map<String, Double> = emptyMap(),
-                /** Each bead's height from its plastic per mm ([Toolpath.beadHeight]) instead of the height the file declares. */ val plasticHeight: Boolean = false) {
+                /** Each bead's height from its plastic per mm ([Toolpath.beadHeight]) instead of the height the file declares. */ val plasticHeight: Boolean = false,
+                /** The model's surface drawn over the moves as thin black lines: segments x0, y0, z0, x1, y1, z1 (mm), e.g. its cut by the view's plane. */
+                val lines: List<DoubleArray> = emptyList()) {
         fun heightOf(m: Move): Double = if (plasticHeight) path.beadHeight(m) else m.height
         val moves: List<Move> by lazy { path.moves.filter(select) }
     }
@@ -189,7 +195,7 @@ object TechniqueRender {
         }
         fun at(p: Double, q: Double, t: Double) = p + (q - p) * t
         return Move(at(m.x0, m.x1, t0), at(m.y0, m.y1, t0), at(m.z0, m.z1, t0), at(m.x0, m.x1, t1), at(m.y0, m.y1, t1), at(m.z0, m.z1, t1),
-            m.e * (t1 - t0), m.feature, m.layer, m.layerZ, m.width, m.height, m.fan, m.temp, m.obj, m.index, m.speed)
+            m.e * (t1 - t0), m.feature, m.layer, m.layerZ, m.width, m.height, m.fan, m.temp, m.obj, m.index, m.speed, m.tool)
     }
 
     // ---- plymeld's choice: how the picture looks
@@ -209,6 +215,8 @@ object TechniqueRender {
     /** The moves a panel does not highlight. */
     private val CONTEXT = Color(0xD2, 0xD2, 0xD2)
     private val LAYER_COLORS = listOf(Color(0x2C, 0x5A, 0xA0), Color(0xE0, 0x8A, 0x1E))
+    /** The tools, T0 first (blue, red, green, purple). */
+    private val TOOL_COLORS = listOf(Color(0x2C, 0x5A, 0xA0), Color(0xC8, 0x32, 0x32), Color(0x33, 0xA0, 0x2C), Color(0x6A, 0x3D, 0x9A))
     private val EXTRA = mapOf(
         "Wave overhang" to Color(0x1C, 0x9C, 0xD8), "Bridge tack" to Color(0xD6, 0x4F, 0x8F), "Prime tower" to Color(0x80, 0x80, 0x80),
         "Custom" to Color(0xAA, 0xAA, 0xAA))
@@ -337,6 +345,7 @@ object TechniqueRender {
                     Coloring.HEIGHT -> ramp(spread(p.heightOf(m), hLo, hHi))
                     Coloring.FLOW -> ramp(spread(m.ePerMm, fLo, fHi))
                     Coloring.LAYER -> LAYER_COLORS[Math.floorMod(m.layer, LAYER_COLORS.size)]
+                    Coloring.TOOL -> TOOL_COLORS[Math.floorMod(m.tool, TOOL_COLORS.size)]
                 }
                 val w = p.widths[m.feature] ?: if (m.width.isNaN()) 0.4 else m.width
                 val a0 = u(m.x0, m.y0); val a1 = u(m.x1, m.y1)
@@ -355,6 +364,9 @@ object TechniqueRender {
                 bead.moveTo(sx(ua), sy(za)); bead.lineTo(sx(ub), sy(zb)); bead.lineTo(sx(ub), sy(zb - h)); bead.lineTo(sx(ua), sy(za - h)); bead.closePath()
                 g.fill(bead)
             }
+            // the model's surface over the moves
+            g.color = Color.BLACK; g.stroke = BasicStroke(1.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
+            for (s in p.lines) g.draw(Line2D.Double(sx(u(s[0], s[1])), sy(v(s[1], s[2])), sx(u(s[3], s[4])), sy(v(s[4], s[5]))))
             g.stroke = BasicStroke(2f); g.font = Font(Font.SANS_SERIF, Font.BOLD, 12)
             for (mk in p.marks) {
                 val px = sx(u(mk.x, mk.y)); val py = sy(v(mk.y, mk.z))
@@ -390,12 +402,25 @@ object TechniqueRender {
             g.color = CONTEXT; g.fillRect(lx, ly, 12, 12); g.color = Color.BLACK; g.drawString(s, lx + 16, ly + 11)
             lx += 30 + g.fontMetrics.stringWidth(s)
         }
+        if (panels.any { it.coloring == Coloring.TOOL }) {
+            val tools = panels.withIndex().filter { it.value.coloring == Coloring.TOOL }.flatMap { (k, p) -> drawn[k].filter { lit(p, it) }.map { it.tool } }.distinct().sorted()
+            for (t in tools) {
+                val s = "T$t"
+                g.color = TOOL_COLORS[Math.floorMod(t, TOOL_COLORS.size)]; g.fillRect(lx, ly, 12, 12); g.color = Color.BLACK; g.drawString(s, lx + 16, ly + 11)
+                lx += 30 + g.fontMetrics.stringWidth(s)
+            }
+        }
+        if (panels.any { it.lines.isNotEmpty() }) {
+            val s = "the model's surface"
+            g.color = Color.BLACK; g.fillRect(lx, ly + 5, 12, 2); g.drawString(s, lx + 16, ly + 11)
+            lx += 30 + g.fontMetrics.stringWidth(s)
+        }
         if (panels.any { it.coloring == Coloring.LAYER }) {
             for ((i, c) in LAYER_COLORS.withIndex()) { g.color = c; g.fillRect(lx + 14 * i, ly, 12, 12) }
             val s = "alternate layers"; g.color = Color.BLACK; g.drawString(s, lx + 14 * LAYER_COLORS.size + 4, ly + 11)
             lx += 14 * LAYER_COLORS.size + 20 + g.fontMetrics.stringWidth(s)
         }
-        val gradient = panels.map { it.coloring }.firstOrNull { it != Coloring.FEATURE && it != Coloring.LAYER }
+        val gradient = panels.map { it.coloring }.firstOrNull { it != Coloring.FEATURE && it != Coloring.LAYER && it != Coloring.TOOL }
         if (gradient != null) {
             val (lo, hi) = when (gradient) {
                 Coloring.ORDER -> "printed first" to "printed last"
@@ -403,7 +428,7 @@ object TechniqueRender {
                 Coloring.TEMPERATURE -> "${fmt(tLo)} C" to "${fmt(tHi)} C"
                 Coloring.HEIGHT -> "${fmt(hLo)} mm high" to "${fmt(hHi)} mm high"
                 Coloring.FLOW -> "${"%.4f".format(java.util.Locale.ROOT, fLo)} mm of filament per mm" to "%.4f".format(java.util.Locale.ROOT, fHi)
-                Coloring.FEATURE, Coloring.LAYER -> "" to ""
+                Coloring.FEATURE, Coloring.LAYER, Coloring.TOOL -> "" to ""
             }
             g.color = Color.BLACK; g.drawString(lo, lx, ly + 11); lx += g.fontMetrics.stringWidth(lo) + 6
             for (i in 0 until 120) { g.color = ramp(i / 119.0); g.fillRect(lx + i, ly, 1, 12) }

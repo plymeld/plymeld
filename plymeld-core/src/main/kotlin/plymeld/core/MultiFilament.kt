@@ -224,9 +224,22 @@ object MultiFilament {
               supportSpool: String? = null, interfaceSpool: String? = null,
               numberOf: (String) -> Int = { sp -> sp.removePrefix("spool ").trim().toIntOrNull() ?: 0 },
               loadedOn: Map<Int, String> = emptyMap(),
-              purgeInto: String = "tower", zaa: ZAntiAlias.Top? = null): List<plymeld.program.Step> =
+              purgeInto: String = "tower", zaa: ZAntiAlias.Top? = null,
+              /** An object's own layers among its flat ones (curved islands): as [plateSteps] takes them; null = none. */
+              own: OwnLayers? = null): List<plymeld.program.Step> =
         plateSteps(listOf(Laid(objectName, r.filaments, r.support, r.supportInterface, supportSpool, interfaceSpool, zaa)), order, toolOf, layerTopsUm, startTool, tower,
-            tempOf, idleOf, numberOf, loadedOn, purgeInto)
+            tempOf, idleOf, numberOf, loadedOn, purgeInto, own?.heightsUm, own?.objectLayers, own)
+
+    /**
+     * Layers of an object's own among its flat layers (an object laid per part with curved islands: each island layer a layer of
+     * the list, after the flat layer under it): each layer's thickness ([heightsUm]) and its layer of the object
+     * ([objectLayers]); the purge tower's layer each is laid with ([towerOf]: an island layer shares the flat layer's before it,
+     * so the tower keeps the flat layers' heights) and that tower layer's top ([towerTopsUm]); each layer's island mark
+     * ([island], null for a flat layer); and [lay], which lays a path of such a layer itself (back from its warped space) and
+     * says so, or leaves a flat layer's to the usual laying.
+     */
+    class OwnLayers(val heightsUm: LongArray, val objectLayers: IntArray, val towerOf: IntArray, val towerTopsUm: LongArray,
+                    val island: (Int) -> String?, val lay: (Int, ToolPath, Int, MutableList<plymeld.program.Step>) -> Boolean)
 
     /**
      * Objects laid per filament as print steps, layer by layer in [order] (from [layerOrder] over every object's spools):
@@ -261,13 +274,19 @@ object MultiFilament {
                * heights: [layerTopsUm] then holds a height more than once, a layer of each thickness that tops there), and the
                * layer of its object(s) it is (for the layer start); null = one stack of layers.
                */
-              heightsUm: LongArray? = null, objectLayers: IntArray? = null): List<plymeld.program.Step> {
+              heightsUm: LongArray? = null, objectLayers: IntArray? = null,
+              /** An object's own layers among the flat ones ([OwnLayers]: a lone object's curved islands); null = none. */
+              own: OwnLayers? = null): List<plymeld.program.Step> {
         require(purgeInto in PURGE_INTO) { "plan.mechanism.purge.into '$purgeInto' is not known (${PURGE_INTO.joinToString()})" }
+        require(own == null || objects.size == 1) { "an object's own layers are laid for a lone object" }
         val hs = heightsUm ?: Planner.heights(layerTopsUm)
         val byspool = objects.map { o -> o.filaments.groupBy { it.spool } }
         val perLayer = purgesPerLayer(order, toolOf, startTool, loadedOn)
-        // layers topping at one height share one layer of the tower ([towerLayers]): its base once, their purges in turn
-        val towerOf = towerLayers(layerTopsUm)
+        // layers topping at one height share one layer of the tower ([towerLayers]): its base once, their purges in turn; an
+        // object's own layers (curved islands) the flat layer's before them
+        val towerOf = own?.towerOf ?: towerLayers(layerTopsUm)
+        /** The height tower layer [ti] is laid at: the layer's own top, or for an object's own layers the tower's. */
+        fun towerZ(i: Int) = own?.towerTopsUm?.get(towerOf[i]) ?: layerTopsUm[i]
         val perTower = IntArray((towerOf.lastOrNull() ?: -1) + 1).also { a -> for (i in perLayer.indices) a[towerOf[i]] += perLayer[i] }
         val out = ArrayList<plymeld.program.Step>()
         var tool = startTool; var spoolNow: String? = null
@@ -279,14 +298,14 @@ object MultiFilament {
         // block does not leave the head low
         val head = ZAntiAlias.Head()
         /** Path [p] of object [o] on layer [i], laid with tool [t]. */
-        fun extrude(p: ToolPath, i: Int, t: Int, o: Int) = head.lay(out, p, layerTopsUm[i], hs[i], t, objects[o].zaa, layerTopsUm[i])
+        fun extrude(p: ToolPath, i: Int, t: Int, o: Int) { if (own?.lay?.invoke(i, p, t, out) != true) head.lay(out, p, layerTopsUm[i], hs[i], t, objects[o].zaa, layerTopsUm[i]) }
         fun endBlock(name: String) { head.lift(out); out += plymeld.program.ObjectEnd(name) }
         /** A path of the tower: on its first layer (its brim included) no faster than the tower's first-layer speed, when set. */
         fun towerExtrude(p: ToolPath, i: Int, t: Int) {
             val cap = tower?.firstLayerSpeed
-            if (towerOf[i] != 0 || cap == null) { out += Scarf.extrudes(p, layerTopsUm[i], t); return }
+            if (towerOf[i] != 0 || cap == null) { out += Scarf.extrudes(p, towerZ(i), t); return }
             val m = p.xy.size / 2
-            out += plymeld.program.Extrude(p.feature.label, p.xy, p.closed, layerTopsUm[i], p.widthUm, p.heightUm, t, p.overhangShare, p.ePerMmOverride,
+            out += plymeld.program.Extrude(p.feature.label, p.xy, p.closed, towerZ(i), p.widthUm, p.heightUm, t, p.overhangShare, p.ePerMmOverride,
                 p.retractBefore, p.widths, hopOnly = p.hopOnly, speedMax = DoubleArray(if (p.closed) m else m - 1) { cap })
         }
         /** Object [o]'s planned paths of [sp] on layer [i]. */
@@ -305,7 +324,7 @@ object MultiFilament {
         }
         var tl: PurgeTower.Layer? = null; var baseDone = true; var k = 0
         for (i in layerTopsUm.indices) {
-            out += plymeld.program.LayerStart(i, layerTopsUm[i], hs[i], objectLayer = objectLayers?.get(i) ?: i)
+            out += plymeld.program.LayerStart(i, layerTopsUm[i], hs[i], objectLayer = objectLayers?.get(i) ?: i, island = own?.island?.invoke(i))
             val ti = towerOf[i]
             if (i == 0 || towerOf[i - 1] != ti) {
                 // what each change on this layer of the tower (every layer topping here) still purges into the tower after

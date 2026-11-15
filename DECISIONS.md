@@ -641,3 +641,43 @@ out; the g-code written up to that line stays on disk, unfinished, and the messa
 steady share unset, the g-code is unchanged. A command the rule does not know is judged only where its values are
 written as numbers, so a macro's text arguments, lists, and names pass.
 
+## 25. A curved island over parts in several filaments: every part inside it follows its layers, each by its own tool (2026-11-14)
+
+**Context.** A curved island a plan locks on an object of parts in several filaments or part settings (laid per part)
+was refused when its area covered parts of more than one of them ("an island is laid as one"). An island's area is
+every cell of the top above its start joined to its cap (CurvedRegions.islandAt): on a small ledge in front of an inlaid
+letter (a pocket's lower wall on a block's sloped face) that is the whole object above the start, block and inlay
+alike, since both rise behind the ledge. So the island over the ledge could not be laid at all.
+
+**Decision.** The island is laid over every part inside its area. Each part is warped by the island's warp and sliced
+in the island's own layers on its own, all in one warped space, so where two parts meet they meet as they do in flat
+layers; the parts' loops the island holds are planned part group by part group as flat layers are (MultiFilament.plan:
+the areas split by `job.part_overlap`'s precedence, read from the flat layers, each group with its own walls, regions
+and paths, judged against the whole object), over the flat layers under the island for what its shells and bottom
+read. Each island layer then becomes a layer of the per-part program among the flat ones, after the last flat layer
+whose top is under its own warped top: its filaments are ordered, changed and purged as any layer's
+(MultiFilament.layerOrder: each layer starts with the filament the one before ended with, then the rest in the
+spools' order), each part's lines by its own tool, each path laid back from the warped space as an island layer of an
+object laid whole is. The purge tower keeps the flat layers' heights: a change on an island layer purges into the tower
+layer of the flat layer before it. The pre-print check reads the tower's lines on an island layer at that flat layer's
+top, and each island line against its own part's tool in the island's warped frame.
+
+A lock with no start, where the survey finds no start that removes stair-step from the island's top, takes the start
+that steps least (it was refused); the plan's facts say by how much its own layers step more than flat ones. The
+unlocked survey and the islands decision are unchanged: they still refuse such a cap, and the decision does not weigh an
+island over several tools or part groups (a plan locks it).
+
+**Rejected.** The island as one part's alone (the cap's), the other parts in its area left in flat layers: the island's
+area is not a strip round the cap but every part above the start joined to it, so a part beside the cap would have to be
+cut along a line inside the material, flat on one side and curved on the other, with walls along a seam no surface
+shows; laid together, the parts meet as in flat layers. An island layer's lines laid in the flat layers' turns of each
+filament (its block's lines in the flat layer's block turn, its inlay's in the inlay's), to save its changes: a layer
+would then be read in two pieces (each with its own layer start), and on the ledge the island takes the whole object's
+cross-section over its height, so its layers have no flat layer beside them to share a turn with. A tower layer of its
+own for each island layer: it would be as thin as the gap between the island's warped top and the flat top under it.
+
+**Consequences.** Island layers holding two filaments change tool once each, as flat layers do; on the ledge (flat
+layers 0.08 mm, the island's own about 0.11), the island's 7 layers over 0.75 mm take 5 changes where the flat layers
+there took 7 (44 against 48 over the print). Such an object on a plate of several objects is refused, and support
+inside the island's own layers on such an object is refused, both saying so. With no island locked, nothing changes.
+

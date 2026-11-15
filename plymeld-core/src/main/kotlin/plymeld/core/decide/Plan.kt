@@ -138,9 +138,10 @@ class Plan(/** Every decision, in the order made: each object's pose and techniq
         private fun posedParts(parts: List<plymeld.mesh.TriangleSoup>, pose: Pose) = parts.map(pose::apply)
 
         /**
-         * Why curved island [isl] (from the posed object's corner) cannot be laid over [posed] parts of units [partUnit] (an object
-         * laid per part): it covers parts of different units (a part is the island's where a vertex of it above the island's
-         * start lies in its area), and it is laid as one; null = it can.
+         * Why the islands decision does not weigh curved island [isl] (from the posed object's corner) over [posed] parts of units
+         * [partUnit] (an object laid per part): it covers parts of different units (a part is the island's where a vertex of it
+         * above the island's start lies in its area); null = it weighs it. A plan's lock lays such an island (each part by its
+         * own filament and settings); the decision does not weigh one yet.
          */
         private fun islandUnits(posed: List<plymeld.mesh.TriangleSoup>, isl: CurvedIsland, partUnit: IntArray): String? {
             val bs = posed.map { it.bounds() }
@@ -149,7 +150,7 @@ class Plan(/** Every decision, in the order made: each object's pose and techniq
             val mine = posed.indices.filter { p -> val s = posed[p]
                 (0 until s.count).any { t -> (0 until 3).any { c -> s.z(t, c) - z0 > isl.startMm && placed.covers(s.x(t, c).toDouble(), s.y(t, c).toDouble()) } } }
             val us = mine.map { partUnit[it] }.distinct()
-            return if (us.size <= 1) null else "it covers parts laid with different filaments or settings (parts ${mine.joinToString { "${it + 1}" }}), and an island is laid as one"
+            return if (us.size <= 1) null else "it covers parts laid with different filaments or settings (parts ${mine.joinToString { "${it + 1}" }}), which the decision does not weigh an island over yet (a plan may lock it)"
         }
 
         /**
@@ -481,13 +482,15 @@ class Plan(/** Every decision, in the order made: each object's pose and techniq
                     val cone = nozzleCone(setup, k)
                     val minL = numOrNull("hardware.tool.layer.height.min", k); val maxL = numOrNull("hardware.tool.layer.height.max", k)
                     val layer = d.technique.value.layerHeightMm ?: numOrNull("plan.technique.flat.layer.height", k)
-                    // an object of several filaments or part settings is laid per part (IncrementalSlicer.multiProgram): islands there
-                    // on one tool only (no tool change for an island yet), each over parts of one unit (it is laid as one)
+                    // an object of several filaments or part settings is laid per part (IncrementalSlicer.multiProgram): a locked
+                    // island is laid over any of its parts, each by its own tool; unlocked, the decision weighs islands there on one
+                    // tool only, each over parts of one unit, as before the general island (its weighing over several tools, with
+                    // their changes, is not measured yet)
                     val units = pfk.units
                     val perPart = (units?.partUnit?.distinct()?.size ?: 1) > 1
                     val oneTool = units == null || units.spools.map { setup.spool(it).tool }.distinct().size <= 1
                     if (perPart && !oneTool) Decision("curved islands ($name)", d.technique.value,
-                        "not offered: the object's parts are laid on several tools, and a tool change for a curved island is not written yet",
+                        "not offered: the object's parts are laid on several tools, and the decision does not weigh a curved island over several tools yet (a plan may lock one: plan.object.<key>.island.<key>)",
                         emptyList<String>(), overridden = false)
                     else if (cone == null || minL == null || maxL == null || layer == null) null else {
                         val look = IslandDecision.Look.of(Resolver.resolveOrNull(setup, "job.faces.sloped_top.look", plymeld.model.Context(k))?.value as String?)
@@ -577,7 +580,13 @@ class Plan(/** Every decision, in the order made: each object's pose and techniq
                         catch (e: IllegalArgumentException) { error("'$name': ${e.message}") }
                     Decision(d.step, d.value.withIslands(isl), d.why + "; curved islands locked: " + isl.joinToString("; "),
                         d.facts + "the nozzle's cone: %s deg (%s), its tip %s mm below the head (%s)".format(Locale.ROOT, fmt(cone.angleDeg), cone.angleFrom, fmt(cone.heightMm), cone.heightFrom) +
-                            isl.map { "$it: its layers follow its cap, dipping by up to %.2f mm (the nozzle's height at most)".format(Locale.ROOT, it.dip.maxOrNull() ?: 0.0) },
+                            isl.map { "$it: its layers follow its cap, dipping by up to %.2f mm (the nozzle's height at most)".format(Locale.ROOT, it.dip.maxOrNull() ?: 0.0) } +
+                            // an island whose own layers step more than flat layers by the stair-step measure, said plainly; locked with no
+                            // start, where no start removes stair-step, it took the start that steps least
+                            isl.filter { it.gainMm3 <= 0 }.map { i -> val noStart = locked.firstOrNull { it.key == i.key }?.startMm == null
+                                ("island '%s': by the stair-step measure its own layers (%.3f mm against flat %.3f mm) step %.3f mm³ more than flat layers there" +
+                                    (if (noStart) "; no start removes stair-step from its top, and locked with no start it takes the one that steps least (%.2f mm)" else " from its locked start (%.2f mm)"))
+                                    .format(Locale.ROOT, i.key, i.layerMm, p.layerMm, -i.gainMm3, i.startMm) },
                         d.alternatives, d.standIns, d.overridden)
                 }
             }

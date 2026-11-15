@@ -400,9 +400,13 @@ object Schema {
         val isl = "plan.object.<key>.island.<key>"
         for (a in listOf("x", "y")) q("$isl.$a", Dimension.LENGTH, "a curved island (locked only, for now): a cap of the top (sloping 1 deg to the nozzle angle, " +
             "joined where the top is continuous) printed in its own layers over the flat ones, its layers dipping to follow the cap (by the nozzle's height at most), " +
-            "merged by height with the other layers; the island named by a point on its cap, its $a from the posed object's corner (its least $a). The object's other " +
-            "layers must be flat (no band)")
-        q("$isl.start", Dimension.LENGTH, "where the island's own layers start, from the object's bottom (snapped down to the top of the flat layer under it); unset: the start whose layers follow the most of the cap")
+            "merged by height with the other layers; the island named by a point on its cap, its $a from the posed object's corner (its least $a). Its area is every part of " +
+            "the top above its start joined to the cap; in an object of parts in several filaments or settings, every part inside it follows its layers, each laid by its own " +
+            "filament, settings and tool in its turn of the layer. The object's other layers must be flat (no band); an object laid per part with an island is sliced on its own, " +
+            "not on a plate of several objects")
+        q("$isl.start", Dimension.LENGTH, "where the island's own layers start, from the object's bottom (snapped down to the top of the flat layer under it); unset: the start whose " +
+            "own layers remove the most stair-step from the island's top by the survey's measure, or, where none removes any, the one that steps least (the plan's facts say by how much " +
+            "it steps more than flat layers)")
         q("$isl.layer.height", Dimension.LENGTH, "the island's own layer height (where its layers do not dip; thinner where they do, never under the tool's thinnest): its height, from its start as printed to its top, is split into equal layers as near this as keeps every layer within the tool's thinnest and thickest; unset: the thinnest that keeps every layer at least the tool's thinnest, and no thinner than the flat layers")
         // a support spot the plan locks (written by `plymeld plan -o` from what the search chose)
         val ss = "plan.object.<key>.support.spot.<key>"

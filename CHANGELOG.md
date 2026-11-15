@@ -11,6 +11,16 @@ section the release's version and date.
 
 ### Added
 
+- A curved island over an object of parts in several filaments or settings (`plan.object.<key>.island.<key>`): every
+  part inside the island follows its layers, each laid by its own filament, settings, and tool in its turn of the layer,
+  the parts meeting in the island's layers as they do in flat ones. Each island layer is a layer among the flat ones: its
+  filaments are ordered and changed as any layer's (each layer starts with the filament the one before ended with), a
+  change there purges into the tower at the flat layer's height. It was refused ("an island is laid as one"). The
+  pre-print check reads each island line against its own part's tool. Not yet on a plate of several objects (refused,
+  saying so), and the plan does not weigh such an island unlocked: a plan locks it.
+- A curved island locked with no start where no start removes stair-step by the survey's measure takes the start that
+  steps least (it was refused: "no start removes stair-step from its top"); the plan's facts say how much more its own
+  layers step than flat layers there. Unlocked, such a cap still gets no island.
 - Short walls slower: with `plan.mechanism.motion.short_walls.length` set, a wall line or loop shorter than it prints
   no faster than `short_walls.speed` (bundled: half the visible lines' speed, a placeholder). With
   `short_walls.full_length` set too, a wall between the two lengths prints no faster than a speed rising in a straight
@@ -103,6 +113,8 @@ section the release's version and date.
 
 ### Fixed
 
+- The pre-print check of a curved island reads a wall by its own width: a lip as wide as two lines, laid as one wall that
+  wide, was refused as an unwalled side of the model.
 - The nozzle's angle and height (`hardware.tool.<key>.head.nozzle.angle` and `.height`), where the tool sets none, are its
   machine model's toolhead's (`hardware.model.<key>.toolhead.<index>.head.nozzle.angle` and `.height`, as the bundled
   Flashforge Creator 5 gives them) everywhere the cone is read: a curved island a plan locks (it was refused, "a curved

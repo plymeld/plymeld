@@ -561,19 +561,25 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
 
     /** One curved island's own layers, planned ([islandsStage]): in its shifted space, each [LayerPlanOut.topZUm] its warped top. */
     private class IslandLayers(val k: Int, val warp: plymeld.mesh.ShiftWarp, val layers: List<LayerPlanOut>,
-                               /** For an object laid per part: a part of the island's (its unit's filament and settings); null = the object's. */
-                               val part: Int? = null)
+                               /**
+                                * For an object laid per part: each part group's share of [layers] (its unit, MultiFilament.FilamentPlan.unit,
+                                * and its paths on each of them, in [layers]' order), each laid by its own filament's tool; null for an object
+                                * laid whole.
+                                */
+                               val units: List<Pair<String, List<LayerPlanOut>>>? = null)
 
     /**
      * Curved islands ([islands]): each sliced in its own layers above its start (the top of the last flat layer under it), the
      * model warped by its shifted warp (its start snapped down to that flat top, so no slab is printed twice), its layers
      * [plymeld.core.decide.CurvedIsland.layerMm] thick in warped space up to its top, its loops only; planned (walls, regions,
-     * paths) over the flat layers under it from the first (what its shells and bottom read), those dropped after.
+     * paths) over the flat layers under it from the first (what its shells and bottom read), those dropped after. An object laid
+     * per part: every part inside the island follows its layers, planned part group by part group ([perPartIsland]) and laid
+     * among the flat layers by [islandsAmong].
      */
     private val islandsStage = Stage("islands", { (if (multiFilament) filamentsStage.key() else pathsStage.key()) + "|islands=" + islands.size }) {
-        // the flat layers' loops and tops: the object's, or for an object laid per part (multiProgram) every part's together
-        val (layers, tops) = if (!multiFilament) sliceStage.get().also { pathsStage.get() } else partSliceStage.get().let { (pl, t) ->
-            pl[0].indices.map { li -> Layer(0.0, plymeld.geom.Booleans.unionPositive(pl.flatMap { it[li] }), emptyList()) } to t }
+        // the flat layers' loops and tops: the object's; for an object laid per part (multiProgram) its tops, each part's loops
+        // read by [perPartIsland]
+        val (layers, tops) = if (!multiFilament) sliceStage.get().also { pathsStage.get() } else emptyList<Layer>() to partSliceStage.get().second
         timed("islands") {
             val b = soup.bounds()
             val min = (Resolver.resolveOrNull(setup!!, "hardware.tool.layer.height.min", ctx)?.value as Number?)?.toDouble() ?: error("layers need hardware.tool.<key>.layer.height.min")
@@ -587,20 +593,14 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
                     .format(java.util.Locale.ROOT, startAbs - b[2], isl.topMm, min, max))
                 val own = LayerPlan.uniform(startAbs, w.zTop, h, h, min)
                 val sliced = parts.map { w.warpSoup(it) }
-                val perPart = if (sliced.size == 1) null else sliced.map { Slicer.slice(it, own.slices) }
-                val raw: List<Layer> = if (perPart == null) Slicer.slice(sliced[0], own.slices) else
+                // an object laid per part: every part inside the island follows its layers, each laid by its own filament and
+                // settings ([perPartIsland])
+                if (multiFilament) return@mapIndexed perPartIsland(k, isl, w, own, sliced, after, tops)
+                val raw: List<Layer> = if (sliced.size == 1) Slicer.slice(sliced[0], own.slices) else {
+                    val perPart = sliced.map { Slicer.slice(it, own.slices) }
                     own.slices.indices.map { li -> Layer(own.slices[li], plymeld.geom.Booleans.normalize(perPart.flatMap { it[li].loops }), emptyList()) }
-                // the island's parts (those with a loop it holds) and the settings it is laid with: for an object laid per part,
-                // its parts must share one unit (filament and settings of their own); the object's own settings otherwise
-                val mine = perPart?.indices?.filter { p -> perPart[p].any { l -> l.loops.any { islandLoop(isl, it) } } }.orEmpty()
-                val unitPart = if (!multiFilament) null else {
-                    val units = partUnits()
-                    val us = mine.map { units[it] }.distinct()
-                    require(us.size <= 1) { "'$objectName': curved island '${isl.key}' covers parts laid with different filaments or settings (" +
-                        mine.joinToString { "part ${it + 1}: ${units[it]}" } + "): an island is laid as one, so it is not built over them yet" }
-                    mine.firstOrNull()
                 }
-                val st = unitPart?.let { p -> if (partUnits()[p] == setup!!.objects[objectId].spool) s!! else SliceSettings.of(setup!!, plymeld.model.Context(objectId, p)) } ?: s!!
+                val st = s!!
                 val ownLayers = cleanUp(raw, st).map { l -> Layer(l.z, l.loops.filter { islandLoop(isl, it) }, emptyList()) }
                 // the flat layers under it, from the first (the planner reads its first layer as the one on the bed: brim, first-layer
                 // widths; a context starting part-way up got a brim round the island's column), for what its shells and bottom read;
@@ -621,9 +621,46 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
                 val wl = Planner.walls(st, loops, pTops)
                 val r = Planner.regions(st, wl, if (adaptive) Planner.shellCounts(st, pTops) else null)
                 val planned = Planner.paths(st, loops, wl, r, pTops)
-                IslandLayers(k, w, planned.drop(nBelow).take(own.count).filter { it.paths.isNotEmpty() }, unitPart)
+                IslandLayers(k, w, planned.drop(nBelow).take(own.count).filter { it.paths.isNotEmpty() })
             }
         }
+    }
+
+    /**
+     * Curved island [isl] (the [k]th) of an object laid per part, in its own layers [own] (warped by [w]; [sliced]: the parts
+     * warped): each part's loops the island holds, sliced in those layers part by part (in one warped space, so where two parts
+     * meet they meet as in the flat layers), planned part group by part group as the flat layers are (MultiFilament.plan: the
+     * areas split by job.part_overlap's precedence, each group with its own walls, regions and paths against the whole object),
+     * over each part's flat layers under the island (what its shells and bottom read; [after]: the last of them) and, for an
+     * island holding a taller part, the flat layers over its top that part goes on in.
+     */
+    private fun perPartIsland(k: Int, isl: plymeld.core.decide.CurvedIsland, w: plymeld.mesh.ShiftWarp, own: LayerPlan, sliced: List<TriangleSoup>,
+                              after: Int, tops: LongArray): IslandLayers {
+        val b = soup.bounds()
+        val (flat, _) = partSliceStage.get()
+        val st = s!!
+        val mine = sliced.map { p -> cleanUp(Slicer.slice(p, own.slices), st).map { l -> l.loops.filter { islandLoop(isl, it) } } }
+        val upto = islandTopIndex(isl, tops)
+        val above = if (upto == Int.MAX_VALUE) emptyList() else
+            (upto + 1 until tops.size).takeWhile { li -> flat.any { pl -> pl[li].any { islandLoop(isl, it) } } }
+        val partLayers = parts.indices.map { p -> flat[p].subList(0, after + 1) + mine[p] + above.map { li -> flat[p][li].filter { islandLoop(isl, it) } } }
+        val nBelow = after + 1
+        val pTops = LongArray(nBelow + own.count + above.size) { i -> when {
+            i < nBelow -> tops[i]
+            i < nBelow + own.count -> Math.round((own.tops[i - nBelow] - b[2]) * 1000)
+            else -> tops[above[i - nBelow - own.count]]
+        } }
+        val spools = partSpools(); val units = partUnits()
+        val slots = spools.map { sp -> setup!!.spools.indexOfFirst { it.id == sp } + 1 }
+        val rule = Resolver.resolve(setup!!, "job.part_overlap", ctx).value as String
+        // the flat layers' precedence (each part's first flat layer), so the island splits contested area as they do
+        val precedence = FilamentAreas.precedence(rule, slots, flat.map { layers -> layers.indexOfFirst { it.isNotEmpty() } })
+        val r = MultiFilament.plan(st, partLayers, spools, precedence, pTops, setup!!.objects[objectId].spool, units, unitSettings(units), varyingLayers = adaptive)
+        require((nBelow until nBelow + own.count).all { i -> r.support.getOrNull(i).isNullOrEmpty() && r.supportInterface.getOrNull(i).isNullOrEmpty() }) {
+            "'$objectName': curved island '${isl.key}' needs support in its own layers; on an object laid per part that is not laid yet (lock its start above the overhang, or keep support off there)" }
+        val keep = (nBelow until nBelow + own.count).filter { i -> r.filaments.any { it.layers[i].paths.isNotEmpty() } }
+        val layers = keep.map { i -> LayerPlanOut(i, pTops[i], r.filaments.first().layers[i].heightUm, r.filaments.flatMap { it.layers[i].paths }) }
+        return IslandLayers(k, w, layers, r.filaments.map { f -> f.unit to keep.map { f.layers[it] } })
     }
 
     /** The planned layers in print order: [pathsStage]'s, and each of several lifted bridges' ([bandsStage]) after the layer it rests on. */
@@ -845,7 +882,12 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
 
     /** A multi-filament object as a print program: filament order per layer, tool changes between object blocks. */
     private fun multiProgram(setup: Setup): PrintProgram {
-        val (r, tops) = plannedFilaments(setup)
+        val (rFlat, flatTops) = plannedFilaments(setup)
+        // curved islands: their layers among the flat ones by height, each a layer of the list with every filament's lines in it
+        val withOwn = if (islands.isEmpty()) null else islandsAmong(rFlat, flatTops)
+        val r = withOwn?.first ?: rFlat
+        val tops = withOwn?.second ?: flatTops
+        val own = withOwn?.third
         val spoolOrder = setup.spools.map { it.id }
         val (supSpool, itfSpool) = supportSpools()
         val present = MultiFilament.present(r, supSpool, itfSpool)
@@ -861,54 +903,87 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         val loadedOn = setup.spools.filter { it.id.removePrefix("spool ").trim().toIntOrNull() == it.tool + 1 }.associate { it.tool to it.id }
         // the tower's bands: one per purge, a tool change or a spool swapped by hand on a tool
         val perLayer = MultiFilament.purgesPerLayer(order, toolOf, startTool, loadedOn)
-        val tower = if (perLayer.all { it == 0 }) null else purgeTower(setup, perLayer, tops)
+        // the tower keeps the flat layers' heights: an island layer's purges go into the tower layer of the flat layer before it
+        val perTower = if (own == null) perLayer else IntArray(own.towerTopsUm.size).also { a -> for (i in perLayer.indices) a[own.towerOf[i]] += perLayer[i] }
+        val tower = if (perTower.all { it == 0 }) null else purgeTower(setup, perTower, own?.towerTopsUm ?: tops)
         // temperatures per spool: the material x tool values of a part on that spool
         val partsOf = setup.objects[objectId].parts
         val bySpool = setup.spools.associate { sp -> sp.id to partsOf.indexOfFirst { it.spool == sp.id }.takeIf { it >= 0 }?.let { SliceSettings.of(setup, plymeld.model.Context(objectId, it)) } }
         val tempOf = { sp: String, layer: Int -> bySpool[sp]?.let { if (layer == 0) it.nozzleTempFirstC else it.nozzleTempC } }
-        val drop = if (perLayer.all { it == 0 }) null else (Resolver.resolveOrNull(setup, "hardware.filament.temperature.idle_drop", ctx)?.value as Number?)?.toInt()
+        val drop = if (perTower.all { it == 0 }) null else (Resolver.resolveOrNull(setup, "hardware.filament.temperature.idle_drop", ctx)?.value as Number?)?.toInt()
         val idleOf = { sp: String, layer: Int -> tempOf(sp, layer)?.let { t -> drop?.takeIf { it > 0 }?.let { t - it } } }
         // the regions' caps on the object's lines, the tower's left alone (its curved islands' layers get them in layerSteps)
         // Z anti-aliasing: every filament's lines lowered onto the object's whole top (all its parts)
         val steps = MotionRegions.applyByObject(MultiFilament.steps(r, order, toolOf, obj.name, tops, startTool, tower, tempOf, idleOf, supSpool, itfSpool,
-            loadedOn = loadedOn, purgeInto = s!!.purgeInto, zaa = zaaTop(s!!)), mapOf(obj.name to regionBoxes))
-        return PrintProgram(if (islands.isEmpty()) steps else withIslandLayers(steps, setup), listOf(obj))
+            loadedOn = loadedOn, purgeInto = s!!.purgeInto, zaa = zaaTop(s!!), own = own), mapOf(obj.name to regionBoxes))
+        return PrintProgram(steps, listOf(obj))
     }
 
     /**
-     * [steps] (an object laid per part) with its curved islands' own layers in, by height as [plannedLayers] puts them: each
-     * before the first layer topping above it, a layer of its own (its own layer start, marked), laid with the tool of its
-     * parts' filament, which must be the tool printing there (a tool change for an island is not written yet). Layer starts
-     * renumbered in print order.
+     * An object laid per part ([r], its flat layers topping at [tops]) with its curved islands' own layers in, by height as
+     * [plannedLayers] puts them (each after the last flat layer whose top is under its own warped top): one list of layers,
+     * each island layer one of them with every part group's lines it holds, so its filaments are ordered, changed and purged
+     * as any layer's are (MultiFilament.layerOrder: each layer starts with the filament the one before ended with). The
+     * list's tops (an island layer's its warped top) and how its own layers are laid (MultiFilament.OwnLayers: the purge
+     * tower keeps the flat layers' heights, an island layer's paths go back from its warped space, [islandPath]).
      */
-    private fun withIslandLayers(steps: List<Step>, setup: Setup): List<Step> {
+    private fun islandsAmong(r: MultiFilament.Result, tops: LongArray): Triple<MultiFilament.Result, LongArray, MultiFilament.OwnLayers> {
         val stage = islandsStage.get()
-        val spools = partSpools()
-        val queue = stage.flatMap { il -> il.layers.map { it to il } }.sortedBy { it.first.topZUm }
-        val out = ArrayList<Step>(steps.size + queue.size * 8)
-        var q = 0; var idx = 0; var tool: Int? = null
-        val last = doubleArrayOf(Double.NaN, Double.NaN)
-        fun emit(l: LayerPlanOut, il: IslandLayers) {
-            islandOf[l] = il.k
-            val t = setup.spool(il.part?.let { spools[it] } ?: setup.objects[objectId].spool).tool
-            require(tool == null || tool == t) { "'$objectName': curved island '${islandKeyOf(l)}' is on tool T$t, where T$tool prints: a tool change for an island is not written yet" }
-            val (z, ls) = layerSteps(l, t, last)
-            out += LayerStart(idx++, z, l.heightUm, objectLayer = l.index, island = islandKeyOf(l))
-            out += ObjectStart(obj.name); out.addAll(ls); out += ObjectEnd(obj.name)
-            tool = t
+        val queue = stage.flatMap { il -> il.layers.indices.map { j -> il to j } }.sortedBy { (il, j) -> il.layers[j].topZUm }
+        /** One layer of the list: flat layer [flat], or (with [il]) island layer [j] of [il], after flat layer [flat]. */
+        class E(val flat: Int, val il: IslandLayers?, val j: Int)
+        val es = ArrayList<E>(); var q = 0
+        for (i in tops.indices) {
+            es += E(i, null, 0)
+            val next = tops.getOrNull(i + 1) ?: Long.MAX_VALUE
+            while (q < queue.size && queue[q].let { (il, j) -> il.layers[j].topZUm } < next) { es += E(i, queue[q].first, queue[q].second); q++ }
         }
-        for (st in steps) {
-            if (st is LayerStart) {
-                while (q < queue.size && queue[q].first.topZUm < st.zUm) { emit(queue[q].first, queue[q].second); q++ }
-                out += LayerStart(idx++, st.zUm, st.heightUm, st.objectLayer, st.archedBridge, st.printTemp, st.island)
-                continue
-            }
-            if (st is Extrude) tool = st.tool
-            if (st is plymeld.program.ToolChange) tool = st.tool
-            out += st
+        val flatHs = Planner.heights(tops)
+        val towerOfFlat = MultiFilament.towerLayers(tops)
+        val towerTops = tops.indices.filter { it == 0 || towerOfFlat[it] != towerOfFlat[it - 1] }.map { tops[it] }.toLongArray()
+        fun islandLayer(e: E) = e.il!!.layers[e.j]
+        val filaments = r.filaments.map { f ->
+            MultiFilament.FilamentPlan(f.spool, es.map { e -> if (e.il == null) f.areas[e.flat] else emptyList() },
+                es.mapIndexed { n, e -> if (e.il == null) f.layers[e.flat] else e.il.units!!.firstOrNull { it.first == f.unit }?.second?.get(e.j)
+                    ?: islandLayer(e).let { LayerPlanOut(n, it.topZUm, it.heightUm, emptyList()) } }, f.unit)
         }
-        while (q < queue.size) { emit(queue[q].first, queue[q].second); q++ }
-        return out
+        fun flatOnly(ls: List<List<ToolPath>>) = es.map { e -> if (e.il == null) ls.getOrNull(e.flat).orEmpty() else emptyList() }
+        val merged = MultiFilament.Result(filaments, DoubleArray(es.size) { n -> es[n].let { e -> if (e.il == null) r.overlapUm2PerLayer[e.flat] else 0.0 } }, r.whole, r.timingMs,
+            flatOnly(r.support), flatOnly(r.supportInterface))
+        val allTops = LongArray(es.size) { n -> es[n].let { e -> if (e.il == null) tops[e.flat] else islandLayer(e).topZUm } }
+        val own = MultiFilament.OwnLayers(
+            heightsUm = LongArray(es.size) { n -> es[n].let { e -> if (e.il == null) flatHs[e.flat] else islandLayer(e).heightUm } },
+            objectLayers = IntArray(es.size) { n -> es[n].let { e -> if (e.il == null) e.flat else islandLayer(e).index } },
+            towerOf = IntArray(es.size) { n -> towerOfFlat[es[n].flat] }, towerTopsUm = towerTops,
+            island = { n -> es[n].il?.let { il -> islands[il.k].key.ifEmpty { "island ${il.k + 1}" } } },
+            lay = { n, p, t, out -> val e = es[n]; if (e.il == null) false else { islandPath(e.il, islandLayer(e), p, t, out); true } })
+        return Triple(merged, allTops, own)
+    }
+
+    /**
+     * Path [p] of island layer [l] (of [il], planned in its warped space) laid with [tool] onto [out]: back in real space
+     * (CurvedLayers.unwarp), with each vertex's Z and thickness, the travel to it lifted over the layer's surface it crosses
+     * (plus the tool's z-hop) from where the head last laid a line, as [layerSteps] lays an island layer of an object laid
+     * whole; after a tool change (the head's place unknown) the writer rises clear of everything printed instead.
+     */
+    private fun islandPath(il: IslandLayers, l: LayerPlanOut, p: ToolPath, tool: Int, out: MutableList<Step>) {
+        val bottom = soup.bounds()[2]
+        val bottomUm = Math.round(bottom * 1000)
+        val topW = bottom + l.topZUm / 1000.0
+        val u = CurvedLayers.unwarp(p.xy, p.closed, p.widths, p.overhangShare, il.warp, topW - l.heightUm / 1000.0, topW, s!!.resolutionUm / 1000.0)
+        var from: DoubleArray? = null
+        for (k in out.indices.reversed()) {
+            val st = out[k]
+            if (st is plymeld.program.ToolChange) break
+            if (st is Extrude) { val m = st.xy.size / 2; val i = if (st.closed) 0 else m - 1; from = doubleArrayOf(st.xy[2 * i] / 1000.0, st.xy[2 * i + 1] / 1000.0); break }
+        }
+        from?.let { f ->
+            val over = CurvedLayers.highestAlong(il.warp, f[0], f[1], u.xy[0] / 1000.0, u.xy[1] / 1000.0, topW, TRAVEL_SAMPLE_MM)
+            out.add(LiftTo(Math.round((over + s!!.zHopUm / 1000.0) * 1000) - bottomUm))
+        }
+        val zs = LongArray(u.zs.size) { u.zs[it] - bottomUm }
+        out.add(Extrude(p.feature.label, u.xy, p.closed, zs.max(), p.widthUm, u.heights.max(), tool, u.overhangShare, p.ePerMmOverride, p.retractBefore,
+            u.widths, zs = zs, heights = u.heights, hopOnly = p.hopOnly))
     }
 
     /**

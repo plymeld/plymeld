@@ -172,13 +172,18 @@ object CurvedRegions {
 
     /**
      * The shifted-warp survey of [r]'s caps ([soupLayerMm]: the model's own layer height; [maxLayerMm]: the tool's thickest):
-     * per cap its best island (the start whose layers follow the most of the cap; ties, the thinnest own layers, then the higher start), or why none.
+     * per cap its best island (the start whose own layers remove the most stair-step from its top, [Island.gainMm3]; ties, the thinnest
+     * own layers, then the higher start), or why none (none removes any stair-step among them).
      * An island holding a part taller than the cap takes it in ([Island.shared], stage 6).
      */
     fun shifted(r: Result, p: Params, soupLayerMm: Double, maxLayerMm: Double): List<Pair<Cap, Any>> = r.caps.map { c -> c to bestIsland(r, p, c, soupLayerMm, maxLayerMm) }
 
-    /** Cap [c]'s best island ([shifted]): the start whose layers follow the most of the cap, or why it has none. */
-    fun bestIsland(r: Result, p: Params, c: Cap, soupLayerMm: Double, maxLayerMm: Double): Any {
+    /**
+     * Cap [c]'s best island ([shifted]): the start whose layers remove the most stair-step from its top, or why it has none.
+     * [acceptLoss]: a start whose own layers step more than they follow is still taken, the one that steps least (a plan's lock,
+     * which asks for the island whatever the measure says: [Island.gainMm3] says by how much it is worse); false, refused.
+     */
+    fun bestIsland(r: Result, p: Params, c: Cap, soupLayerMm: Double, maxLayerMm: Double, acceptLoss: Boolean = false): Any {
         var best: Island? = null
         var bestLayer = Double.POSITIVE_INFINITY
         val stop = maxOf(p.stepMm, p.minStartMm, c.zLoMm - SCAN_BELOW_MM)
@@ -202,7 +207,7 @@ object CurvedRegions {
             }
         }
         best?.let { b ->
-            if (b.gainMm3 <= 0) return "no start removes stair-step from its top: its own layers step more than it follows (at best %+.3f mm³ at %.2f mm, %.3f mm layers against flat %.3f mm)"
+            if (b.gainMm3 <= 0 && !acceptLoss) return "no start removes stair-step from its top: its own layers step more than it follows (at best %+.3f mm³ at %.2f mm, %.3f mm layers against flat %.3f mm)"
                 .format(Locale.ROOT, -b.gainMm3, b.startMm, b.layerMm, soupLayerMm)
             return islandAt(r, p, c, b.startMm, soupLayerMm)
         }
