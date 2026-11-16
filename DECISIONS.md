@@ -1734,3 +1734,38 @@ gone), filament 5838 to 5833 mm, retractions 8642 to 8640, seams unchanged; its 
 boolean). Open: where both fills' gaps between line ends meet, holes up to 0.275 mm across remain (0.15 mm
 where the same fill meets a wall on that layer; the hole rule's floor there is 0.176 mm, and the rule does not read
 infill).
+
+## 55. A narrow island's beads and their measure take less work, with the same output (2026-11-16)
+
+**Context.** NarrowIslandTimeTest (a 55 mm strip laid by its beads and measured against its walls, decision 28, at most
+3.5 times the same call answered by the narrow-island cache) failed once in CI. Measured over 150 islands after 60 to
+warm up, the ratio had not moved across the commits since the test was written (2.45 to 2.68 at each); the test's own
+reading, 15 islands after 30, varies by about 0.3 from run to run (2.3 to 3.1 on the development machine), and a CI
+runner reads it on fewer cores. Profiled, the uncached call spent 60 % of its time on the narrow island: the island's
+measure 27 % (both measures run on this strip: the beads alone exceed the absolute limits, so the walls are measured too;
+almost all of it whole-grid passes over about 550,000 cells, not the distance searches), the beads' construction 26 %
+(a third of it the Delaunay triangulation the cached path's skeleton uses too), the simplification of the beads' lines
+7 %.
+
+**Decision.** The same results, with less work:
+- IslandCheck.measure finds each row's crossings edge by edge over the rows the edge spans (flat arrays, not a list of
+  boxed numbers per row scanning every edge), fills the covered area straight into the cover, marks a cell's owner as
+  the line's number plus one (zero: none, the array's own zeros), counts the cells two lines own as each is first
+  found, and makes one pass over the grid for the uncovered cells inside and the covered cells outside, in order.
+- Walls.simplified keeps the narrowest and widest width of a move's points as the move grows (every width lies within
+  twice the half-tolerance of the move's exactly where these two do), reads the points between newest first, and settles
+  a point whose distance from the move is clearly within or beyond the half-tolerance (by more than a millionth of its
+  square) from the exact whole-µm cross and dot products, the full computation as before for the rest.
+- The beads' grids (the middle lines' ends against the loops, giving way, the loops' turns) are primitive hash tables of
+  cell lists, not maps of boxed keys to lists; each look-up's result does not depend on the order it reads a cell's items.
+
+**Rejected.** Raising the test's limit or measuring over more islands: the limit is the measure of the narrow path's
+cost, and the test is not to change. A faster triangulation: it takes as much off the cached path's skeleton as off the
+beads, so it moves the ratio the wrong way (an option for planning time on its own).
+
+**Consequences.** The strip, over 150 islands after 60: 27.5 ms an island against 10.5 cached (2.6 times) to 22.2 against
+10.6 (2.1 times); the test's own reading, ten runs: 2.39, 2.29, 2.43, 2.53, 2.75, 2.51, 2.53, 2.29, 2.52, 2.61 (2.6 to 3.1
+before), and 2.4 inside the fast suite, beside the other tests. The regress cases,
+the catalog, and a real three-object plate's g-code are byte for byte the same; the plate's planning 49.7, 50.6, 50.3 s
+before and 41.5, 48.1, 47.4 s after (three runs each, in turn; a fourth after, alone, 50.4 s): no more than the runs'
+spread shows.

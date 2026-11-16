@@ -12,9 +12,10 @@ import plymeld.geom.Polygon
  * Read against the same call answered by the cache, which still lays the walls of steps 1 to 3 for the whole outline (what
  * every island costs, narrow or not): the beads and their self-check may take no more than two and a half times that again
  * (the whole call no more than 3.5 times it). A ratio, so a slower machine reads the same. Measured on the development
- * machine: about 32 ms an island against 12 ms cached (2.6 times); with the construction as one method too large for the
- * virtual machine to compile (it ran interpreted), 51 ms (4.5 times): the control, run and seen to fail. The limit is
- * plymeld's choice between those measurements.
+ * machine: about 31 ms an island against 12.5 ms cached (2.5 times; ten runs read 2.3 to 2.75, the test's 15 islands
+ * after 30 to warm up being a noisy reading: 2.1 times over 150 islands after 60); with the construction as one method too
+ * large for the virtual machine to compile (it ran interpreted), 51 ms (4.5 times): the control, run and seen to fail.
+ * The limit is plymeld's choice between those measurements.
  */
 class NarrowIslandTimeTest : StringSpec({
     fun strip(shiftUm: Long): Polygon {
@@ -35,10 +36,12 @@ class NarrowIslandTimeTest : StringSpec({
 
     "a long narrow strip's beads and their self-check take no more than 2.5 times its ordinary walls again, once warm" {
         // warm-up: the virtual machine compiles what runs often
-        for (i in 0 until 30) walls(strip(1000L + i))
-        val laid = (0 until 15).map { i -> timed { val w = walls(strip(2000L + i)); (w.walls.isNotEmpty()) shouldBe true } }.sorted()
+        // (60 islands to warm up and 45 read each way: with 30 and 15, one run's ratio swung by 0.3 either side of the
+        // same code's steady reading)
+        for (i in 0 until 60) walls(strip(1000L + i))
+        val laid = (0 until 45).map { i -> timed { val w = walls(strip(2000L + i)); (w.walls.isNotEmpty()) shouldBe true } }.sorted()
         // the same islands again, each answered by the cache (its ordinary walls laid, its beads not)
-        val cached = (0 until 15).map { i -> timed { walls(strip(2000L + i)) } }.sorted()
+        val cached = (0 until 45).map { i -> timed { walls(strip(2000L + i)) } }.sorted()
         val m = laid[laid.size / 2]; val c = cached[cached.size / 2]
         println(String.format(java.util.Locale.ROOT, "narrow strip: median %.1f ms an island (%.1f to %.1f); cached %.1f ms; %.1f times", m, laid.first(), laid.last(), c, m / c))
         (c < m) shouldBe true

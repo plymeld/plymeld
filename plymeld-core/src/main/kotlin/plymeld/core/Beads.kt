@@ -138,6 +138,38 @@ object Beads {
             it.node.addAll(node.reversed()); it.sample.addAll(sample.reversed()); it.newPt.addAll(newPt.reversed()) }
     }
 
+    /**
+     * Items (numbers) by grid cell, a cell named by its two indices: each cell's items in a list of its own, the newest
+     * first. Primitive arrays (no boxed keys or lists); one per use, never shared.
+     */
+    private class CellLists {
+        private var keys = LongArray(64); private var heads = IntArray(64) { -1 }; private var size = 0
+        private var item = IntArray(64); private var next = IntArray(64); private var count = 0
+        private fun slot(key: Long): Int {
+            var h = (java.lang.Long.hashCode(key * -0x61c8864680b583ebL) and 0x7fffffff) and (keys.size - 1)
+            while (heads[h] >= 0 && keys[h] != key) h = (h + 1) and (keys.size - 1)
+            return h
+        }
+        fun add(i: Long, j: Long, it: Int) {
+            if (2 * (size + 1) > keys.size) grow()
+            val key = (i shl 32) xor (j and 0xffffffffL)
+            val s = slot(key)
+            if (heads[s] < 0) { keys[s] = key; size++ }
+            if (count == item.size) { item = item.copyOf(2 * count); next = next.copyOf(2 * count) }
+            item[count] = it; next[count] = heads[s]; heads[s] = count++
+        }
+        private fun grow() {
+            val ok = keys; val oh = heads
+            keys = LongArray(2 * ok.size); heads = IntArray(2 * ok.size) { -1 }
+            for (s in ok.indices) if (oh[s] >= 0) { val t = slot(ok[s]); keys[t] = ok[s]; heads[t] = oh[s] }
+        }
+        /** The first entry of cell (i, j)'s list (-1: none); [itemOf] and [nextOf] walk it. */
+        fun first(i: Long, j: Long): Int = heads[slot((i shl 32) xor (j and 0xffffffffL))]
+        fun has(i: Long, j: Long): Boolean = first(i, j) >= 0
+        fun itemOf(e: Int) = item[e]
+        fun nextOf(e: Int) = next[e]
+    }
+
     /** A step of the walk along a rib in giving way (µm): a geometric resolution, plymeld's choice. */
     private const val GIVE_WAY_STEP_UM = 5.0
 
@@ -709,18 +741,19 @@ object Beads {
             // the segments by cell, each in every cell its box widened by half its width touches; a point looks in the cells
             // within half its own width
             val cellUm = 200.0
-            val grid = HashMap<Long, ArrayList<DoubleArray>>()
-            fun key(i: Long, j: Long) = (i shl 32) xor (j and 0xffffffffL)
-            for (g in segs) { val rr = g[4] / 2 + 1.0
+            val grid = CellLists()
+            for ((k, g) in segs.withIndex()) { val rr = g[4] / 2 + 1.0
                 for (i in Math.floor((minOf(g[0], g[2]) - rr) / cellUm).toLong()..Math.floor((maxOf(g[0], g[2]) + rr) / cellUm).toLong())
                     for (j in Math.floor((minOf(g[1], g[3]) - rr) / cellUm).toLong()..Math.floor((maxOf(g[1], g[3]) + rr) / cellUm).toLong())
-                        grid.getOrPut(key(i, j)) { ArrayList() }.add(g) }
+                        grid.add(i, j, k) }
             fun clear(pc: Piece, i: Int): Boolean {
                 val x = pc.xs[i]; val y = pc.ys[i]; val w = pc.ws[i]
                 val rq = w / 2 + 1.0
                 for (ci in Math.floor((x - rq) / cellUm).toLong()..Math.floor((x + rq) / cellUm).toLong())
-                    for (cj in Math.floor((y - rq) / cellUm).toLong()..Math.floor((y + rq) / cellUm).toLong())
-                        for (g in grid[key(ci, cj)] ?: continue) {
+                    for (cj in Math.floor((y - rq) / cellUm).toLong()..Math.floor((y + rq) / cellUm).toLong()) {
+                        var e = grid.first(ci, cj)
+                        while (e >= 0) {
+                            val g = segs[grid.itemOf(e)]; e = grid.nextOf(e)
                             val need = w / 2 + g[4] / 2 - f - p.endOverlap * w
                             if (need <= 0 || x < minOf(g[0], g[2]) - need || x > maxOf(g[0], g[2]) + need || y < minOf(g[1], g[3]) - need || y > maxOf(g[1], g[3]) + need) continue
                             val dx = g[2] - g[0]; val dy = g[3] - g[1]; val l2 = dx * dx + dy * dy
@@ -728,6 +761,7 @@ object Beads {
                             val ex = x - g[0] - t * dx; val ey = y - g[1] - t * dy
                             if (ex * ex + ey * ey < need * need) return false
                         }
+                    }
                 return true
             }
             val out = ArrayList<Piece>()
@@ -763,14 +797,19 @@ object Beads {
             val segs = ArrayList<DoubleArray>()   // x0 y0 x1 y1, the half-width (narrowed), the piece, the loop's level (-1: a new bead)
             val turnReach = 2 * rule.maxUm + rule.minUm
             // the turns' ends by cell of [turnReach], for "is a turn's end within reach"
-            val turnCells = HashMap<Long, ArrayList<DoubleArray>>()
-            fun turnKey(ci: Long, cj: Long) = (ci shl 32) xor (cj and 0xffffffffL)
+            val turnCells = CellLists()
             fun cellOf(v: Double) = Math.floor(v / turnReach).toLong()
-            for (t in turns) for (e in 0..1) turnCells.getOrPut(turnKey(cellOf(t[2 * e]), cellOf(t[2 * e + 1]))) { ArrayList() }.add(doubleArrayOf(t[2 * e], t[2 * e + 1]))
+            for ((k, t) in turns.withIndex()) for (e in 0..1) turnCells.add(cellOf(t[2 * e]), cellOf(t[2 * e + 1]), 2 * k + e)
             fun nearTurn(x: Double, y: Double): Boolean {
                 val ci = cellOf(x); val cj = cellOf(y)
-                for (di in -1L..1L) for (dj in -1L..1L) for (e in turnCells[turnKey(ci + di, cj + dj)] ?: continue)
-                    if (Math.hypot(e[0] - x, e[1] - y) < turnReach) return true
+                for (di in -1L..1L) for (dj in -1L..1L) {
+                    var q = turnCells.first(ci + di, cj + dj)
+                    while (q >= 0) {
+                        val te = turnCells.itemOf(q); q = turnCells.nextOf(q)
+                        val t = turns[te / 2]; val e = te % 2
+                        if (Math.hypot(t[2 * e] - x, t[2 * e + 1] - y) < turnReach) return true
+                    }
+                }
                 return false
             }
             for ((pi, pc) in pieces.withIndex()) {
@@ -787,13 +826,12 @@ object Beads {
             }
             if (segs.isEmpty()) return@run
             val cell = 200.0
-            val grid = HashMap<Long, ArrayList<Int>>()
-            fun key(i: Long, j: Long) = (i shl 32) xor (j and 0xffffffffL)
+            val grid = CellLists()
             for ((k, g) in segs.withIndex()) {
                 val rr = g[4]
                 for (i in Math.floor((minOf(g[0], g[2]) - rr) / cell).toLong()..Math.floor((maxOf(g[0], g[2]) + rr) / cell).toLong())
                     for (j in Math.floor((minOf(g[1], g[3]) - rr) / cell).toLong()..Math.floor((maxOf(g[1], g[3]) + rr) / cell).toLong())
-                        grid.getOrPut(key(i, j)) { ArrayList() }.add(k)
+                        grid.add(i, j, k)
             }
             /**
              * How far from (x, y) along the unit (dx, dy) plastic piece [self] gives way to starts (a new bead's, or a loop's
@@ -803,13 +841,15 @@ object Beads {
                 var best = Double.POSITIVE_INFINITY
                 val ex = x + dx * limit; val ey = y + dy * limit
                 for (ci in Math.floor(minOf(x, ex) / cell).toLong()..Math.floor(maxOf(x, ex) / cell).toLong())
-                    for (cj in Math.floor(minOf(y, ey) / cell).toLong()..Math.floor(maxOf(y, ey) / cell).toLong())
-                        for (k in grid[key(ci, cj)] ?: continue) {
-                            val g = segs[k]
+                    for (cj in Math.floor(minOf(y, ey) / cell).toLong()..Math.floor(maxOf(y, ey) / cell).toLong()) {
+                        var q = grid.first(ci, cj)
+                        while (q >= 0) {
+                            val g = segs[grid.itemOf(q)]; q = grid.nextOf(q)
                             if (g[5].toInt() == self || (g[6] >= 0 && g[6] >= level)) continue
                             val t = rayCapsule(x, y, dx, dy, g[0], g[1], g[2], g[3], g[4])
                             if (t < best) best = t
                         }
+                    }
                 return if (best < limit) best else Double.NaN
             }
             fun box(sel: (DoubleArray) -> Boolean): DoubleArray? { val s = segs.filter(sel); if (s.isEmpty()) return null
@@ -825,7 +865,7 @@ object Beads {
                 if (level < 0 && (nb == null || pc.xs.min() - wMax > nb[2] || pc.xs.max() + wMax < nb[0] || pc.ys.min() - wMax > nb[3] || pc.ys.max() + wMax < nb[1])) continue
                 // nothing to give way to near any of its points: as it is
                 if ((0 until pc.size).none { i -> val ci = Math.floor(pc.xs[i] / cell).toLong(); val cj = Math.floor(pc.ys[i] / cell).toLong()
-                        (-3L..3L).any { di -> (-3L..3L).any { dj -> grid.containsKey(key(ci + di, cj + dj)) } } }) continue
+                        (-3L..3L).any { di -> (-3L..3L).any { dj -> grid.has(ci + di, cj + dj) } } }) continue
                 // across the track at points a few steps apart (each part of it gives way, not only where its ribs are), the
                 // way across from the track as it runs over a sample's length (not from point to point: a middle bead's nodes
                 // come in pairs at one place)

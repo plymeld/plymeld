@@ -42,17 +42,37 @@ object IslandCheck {
         val ox = x0 - margin; val oy = y0 - margin
         val nx = Math.ceil((x1 - x0 + 2 * margin) / cell).toInt(); val ny = Math.ceil((y1 - y0 + 2 * margin) / cell).toInt()
         val n = nx * ny
+        // each row's crossings of the polygons' edges with its center line, found edge by edge over the rows each edge spans
+        // (with a row to spare each side; the crossing rule decides), counted, then placed, then sorted row by row
         fun fill(polys: List<Polygon>, into: BooleanArray) {
-            for (j in 0 until ny) {
-                val yc = oy + (j + 0.5) * cell
-                val xs = ArrayList<Double>()
+            val start = IntArray(ny + 1)
+            fun crossings(place: DoubleArray?) {
                 for (p in polys) for (i in 0 until p.size) {
                     val ay = p.y(i).toDouble(); val by = p.y((i + 1) % p.size).toDouble()
-                    if ((ay > yc) != (by > yc)) { val ax = p.x(i).toDouble(); val bx = p.x((i + 1) % p.size).toDouble(); xs += ax + (yc - ay) / (by - ay) * (bx - ax) }
+                    if (ay == by) continue
+                    val jLo = maxOf(0, Math.floor((minOf(ay, by) - oy) / cell - 0.5).toInt() - 1)
+                    val jHi = minOf(ny - 1, Math.ceil((maxOf(ay, by) - oy) / cell - 0.5).toInt() + 1)
+                    for (j in jLo..jHi) {
+                        val yc = oy + (j + 0.5) * cell
+                        if ((ay > yc) == (by > yc)) continue
+                        if (place == null) { start[j + 1]++; continue }
+                        val ax = p.x(i).toDouble(); val bx = p.x((i + 1) % p.size).toDouble()
+                        place[start[j]++] = ax + (yc - ay) / (by - ay) * (bx - ax)
+                    }
                 }
-                xs.sort()
-                var k = 0
-                while (k + 1 < xs.size) {
+            }
+            crossings(null)
+            for (j in 0 until ny) start[j + 1] += start[j]
+            val xs = DoubleArray(start[ny])
+            crossings(xs)
+            // (placing moved each row's start to its end: the row before's end is its start again)
+            for (j in ny downTo 1) start[j] = start[j - 1]
+            start[0] = 0
+            for (j in 0 until ny) {
+                val s = start[j]; val e = start[j + 1]
+                java.util.Arrays.sort(xs, s, e)
+                var k = s
+                while (k + 1 < e) {
                     val i0 = maxOf(0, Math.ceil((xs[k] - ox) / cell - 0.5).toInt()); val i1 = minOf(nx - 1, Math.floor((xs[k + 1] - ox) / cell - 0.5).toInt())
                     for (i in i0..i1) into[j * nx + i] = !into[j * nx + i]
                     k += 2
@@ -60,9 +80,11 @@ object IslandCheck {
             }
         }
         val inside = BooleanArray(n); fill(island, inside)
+        // (the area handed to infill filled straight into the cover, still empty)
         val cov = BooleanArray(n)
-        if (covered.isNotEmpty()) { val c = BooleanArray(n); fill(covered, c); for (i in 0 until n) if (c[i]) cov[i] = true }
-        val owner = IntArray(n) { -1 }; val doubled = BooleanArray(n)
+        if (covered.isNotEmpty()) fill(covered, cov)
+        // each cell's owner, the line's number + 1 (0: none); the cells two lines own, counted as each is first found
+        val owner = IntArray(n); val doubled = BooleanArray(n); var dbl = 0
         /** The cells within [r] of segment a-b covered; those within [rCore] (<= r) owned by line [id] (a second line's: doubled). */
         // row by row, the span of cell centers the capsule holds (a capsule is convex: its cut by a row is one span)
         val span = DoubleArray(2)
@@ -76,7 +98,7 @@ object IslandCheck {
                 for (i in i0..i1) cov[j * nx + i] = true
                 if (rCore <= 0 || !capsuleSpan(ax, ay, bx, by, rCore, py, span)) continue
                 val k0 = maxOf(0, Math.ceil((span[0] - ox) / cell - 0.5).toInt()); val k1 = minOf(nx - 1, Math.floor((span[1] - ox) / cell - 0.5).toInt())
-                for (i in k0..k1) { val c = j * nx + i; val o = owner[c]; if (o < 0) owner[c] = id else if (o != id) doubled[c] = true }
+                for (i in k0..k1) { val c = j * nx + i; val o = owner[c]; if (o == 0) owner[c] = id + 1 else if (o != id + 1 && !doubled[c]) { doubled[c] = true; dbl++ } }
             }
         }
         for ((id, l) in lines.withIndex()) {
@@ -119,11 +141,18 @@ object IslandCheck {
         // distances by searching round each cell measured (the cells measured are few and their distances short: a narrow
         // island's uncovered spots and the plastic just outside it); where an uncovered spot is wider than the search, the
         // distance transform of its box instead
-        val uncovered = BooleanArray(n) { inside[it] && !cov[it] }
+        // (one pass over the grid: the cells uncovered inside the island, and the covered ones outside it, each in order)
+        val uncovered = BooleanArray(n)
+        var uncL = IntArray(256); var nu = 0
+        var outL = IntArray(256); var no = 0
+        for (c in 0 until n) {
+            val ins = inside[c]
+            if (ins == cov[c]) continue
+            if (ins) { uncovered[c] = true; if (nu == uncL.size) uncL = uncL.copyOf(2 * nu); uncL[nu++] = c }
+            else { if (no == outL.size) outL = outL.copyOf(2 * no); outL[no++] = c }
+        }
         var widest = 0.0; var wide = 0
-        var nu = 0
-        for (c in 0 until n) if (uncovered[c]) nu++
-        val unc = IntArray(nu).also { var q = 0; for (c in 0 until n) if (uncovered[c]) it[q++] = c }
+        val unc = uncL.copyOf(nu)
         if (unc.isNotEmpty()) {
             val dU = DoubleArray(unc.size) { nearest(uncovered, nx, ny, unc[it], RING_CELLS, true, invert = true) }
             val rr = floorUm / 2 / cell
@@ -143,8 +172,7 @@ object IslandCheck {
         }
         var farthest = 0.0
         val reach = Math.ceil(margin / cell).toInt()
-        for (c in 0 until n) if (cov[c] && !inside[c]) farthest = maxOf(farthest, minOf(nearest(inside, nx, ny, c, reach, false), reach.toDouble()))
-        val dbl = doubled.count { it }
+        for (q in 0 until no) farthest = maxOf(farthest, minOf(nearest(inside, nx, ny, outL[q], reach, false), reach.toDouble()))
         return Measure(2 * widest * cell, wide * cellA, farthest * cell, dbl * cellA, cell)
     }
 

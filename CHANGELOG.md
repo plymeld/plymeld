@@ -153,6 +153,9 @@ section the release's version and date.
 - `slice` holds less in memory: the slicer's stages are let go once the file is written, before the pre-print check
   reads it; the check reads the file line by line rather than holding it as a list of lines, keeps its look-up of each
   layer's outline in flat arrays and lets it go once the layer is read. The file written is the same.
+- An island laid by its width is planned with less work: its lines' simplification, their measure against its walls, and
+  the grids its construction reads cost less. The file written is the same; a long narrow strip's walls take about a
+  fifth less time.
 
 ### Fixed
 

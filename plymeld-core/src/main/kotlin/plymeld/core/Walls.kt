@@ -1036,6 +1036,18 @@ object Walls {
             LongArray(ow.size) { Math.round(ow[it]) }, c.reachUm, c.wall)
     }
 
+    /**
+     * [simplified]'s quick test of a point against a move: a move no longer than about a metre (its squared length below
+     * this, µm²), so the products of µm offsets it reads are exact in doubles.
+     */
+    private const val EXACT_LEN2 = 1.099511627776e12   // 2^40
+    /**
+     * [simplified]'s quick test settles a point only where its squared distance from the move is this share or more away
+     * from the tolerance's square: the distance as computed in full is good to about 1e-10 of it there (a numerical
+     * margin, not a print value).
+     */
+    private const val DIST_MARGIN = 1e-6
+
     fun simplified(c0: CenterLine, tolUm: Long, /** false: no [merged] first (a test's control) */ merge: Boolean = true): CenterLine {
         if (c0.xy.size / 2 <= 2 || tolUm <= 0) return c0
         val c = if (merge) merged(c0, tolUm) else c0
@@ -1045,29 +1057,51 @@ object Walls {
         // and the full [tolUm] again opened cracks at bead contact (Benchy z 24 bow: shell gap volume
         // 0.165 -> 0.231 mm3).
         val tol = tolUm / 2.0
+        // the widest and narrowest width from a to the b being tried, kept as b grows: every width of a..b lies within 2 tol
+        // of the move's (the mean of its ends') exactly where these two do
+        var wLo = 0L; var wHi = 0L
         fun fits(a: Int, b: Int): Boolean {
             val ax = c.xy[2 * a].toDouble(); val ay = c.xy[2 * a + 1].toDouble()
             val dx = c.xy[2 * b] - ax; val dy = c.xy[2 * b + 1] - ay
             val len2 = dx * dx + dy * dy
             val mean = (c.widths[a] + c.widths[b]) / 2.0
-            for (k in a..b) {
-                if (Math.abs(c.widths[k] - mean) > 2 * tol) return false
-                if (k == a || k == b) continue
+            if (Math.abs(wHi - mean) > 2 * tol || Math.abs(wLo - mean) > 2 * tol) return false
+            // the points between, the newest first (where a move stops fitting, it is usually the newest that leaves it). The
+            // point's offsets, cross and dot products are whole numbers of µm, exact in doubles: where the point projects inside
+            // the move and its distance from it is clearly within or beyond the tolerance (by far more than the rounding of the
+            // distance as computed below), that settles it; else the distance is computed as always
+            val lim = tol * tol * len2
+            val exact = len2 > 0 && len2 < EXACT_LEN2
+            for (k in b - 1 downTo a + 1) {
                 val px = c.xy[2 * k] - ax; val py = c.xy[2 * k + 1] - ay
+                if (exact) {
+                    val dot = px * dx + py * dy
+                    if (dot > 0 && dot < len2) {
+                        val cross = px * dy - py * dx; val c2 = cross * cross
+                        if (c2 < lim * (1 - DIST_MARGIN)) continue
+                        if (c2 > lim * (1 + DIST_MARGIN)) return false
+                    }
+                }
                 val t = if (len2 > 0) ((px * dx + py * dy) / len2).coerceIn(0.0, 1.0) else 0.0
                 val ex = px - t * dx; val ey = py - t * dy
                 if (ex * ex + ey * ey > tol * tol) return false
             }
             return true
         }
-        val idx = arrayListOf(0)
+        val idx = IntArray(n); var ni = 1
         var a = 0
         while (a < n - 1) {
             var b = a + 1
-            while (b + 1 < n && fits(a, b + 1)) b++
-            idx.add(b); a = b
+            wLo = minOf(c.widths[a], c.widths[b]); wHi = maxOf(c.widths[a], c.widths[b])
+            while (b + 1 < n) {
+                val w = c.widths[b + 1]
+                if (w < wLo) wLo = w; if (w > wHi) wHi = w
+                if (!fits(a, b + 1)) break
+                b++
+            }
+            idx[ni++] = b; a = b
         }
-        return CenterLine(LongArray(2 * idx.size) { c.xy[2 * idx[it / 2] + it % 2] }, LongArray(idx.size) { c.widths[idx[it]] }, c.reachUm, c.wall)
+        return CenterLine(LongArray(2 * ni) { c.xy[2 * idx[it / 2] + it % 2] }, LongArray(ni) { c.widths[idx[it]] }, c.reachUm, c.wall)
     }
 
     /**
