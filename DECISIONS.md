@@ -1579,3 +1579,64 @@ check's young collections 92 to 42, the file the same byte for byte. What the pl
 whole (about 45 MB), the overhang survey's footprints (about 20 MB), and each layer's stages. Held by tests: `CheckMemoryTest` (a grid under 64 bytes a segment retained, 49 measured, the boxed
 form 94; a layer's grids let go after the model check) and `SliceSessionSlicersTest` (`slice`'s session holds no slicer
 after writing; the window's holds and reuses them).
+
+## 52. A loop's fit keeps a line's distance from a sharp notch's tip, and the necks its mitred shrink cuts (2026-11-16)
+
+Amends 26.
+
+**Context.** Decision 50 left 29 spots of plastic laid twice on a real three-object two-color plate. The catalog's
+slivers ending inside a second part read 24 spots, 20.7 mm², on 13 layers. Read loop by loop, two causes were in the
+walls' fit regions (decision 26: loop k is laid round the outline shrunk by its inset and half its spacing, mitred so its
+corners stay sharp):
+- Past the miter limit (twice the shrink) the offset joined the two moved edges with a bevel. Shrinking at a notch
+  sharper than 60 degrees, the bevel keeps ground d cos(a/2) from the tip (a the turn): 0.21 mm for a shrink of 0.8 mm
+  at a tip of 30 degrees. The loop grown back from that fit ran across the notch's tip, over the loop inside it.
+- At a turn into the area within the limit the mitred shrink cuts deeper than d, to the miter point. A band narrowing
+  past such a turn was cut through where the exact shrink (every point at least d from the outline) keeps a neck: the
+  fit fell into two pieces, or two holes' grown outlines met, and the loops grown from them ended against each other
+  across the cut, or crossed it twice, closer than a line.
+
+**Decision.**
+- The offset takes `roundBeyondLimit`: past the miter limit (a reversal too) a round arc instead of the bevel, the rest
+  mitred as before; every other caller's offset is unchanged. The walls' fits use it.
+- A fit's necks are joined again (Walls.necksJoined), in the strict fit and in the looser one: each piece of the exact
+  (round) shrink that the mitred one leaves out and that meets it along two separate stretches (an edge of the piece lying
+  along the mitred fit's, within 3 µm, the two shrinks' grid rounding) is added. A lune in one corner meets it along
+  the two moved edges through the corner, one stretch, and stays out: elsewhere a loop keeps its sharp corners. A loop
+  the hysteresis (decision 26) joins round the looser fit is cut to the inset less the tolerance round, not mitred,
+  where its fit had a neck joined.
+- The exact shrink is made only where a neck can be: a turn within the limit whose miter reaches more than 3 µm past d,
+  whose lune (in the triangle of the moved edges' ends and the miter point) another edge comes within d of or another
+  turn's kite overlaps, with the mitred fit within the miter's reach. A turn on a smooth curve is none: its neighbors'
+  edges stay more than d from its lune.
+
+**Rejected.** Rounding every join of the fit: an inner loop's concave corner would pull away from the sharp corner of
+the loop outside it, and their beads overlap there. Telling a cut neck by the exact and mitred shrinks' numbers of
+pieces and holes, each mitred piece assigned to the exact piece holding its first point (as first written): the two share
+their moved edges, a mitred piece's first point can lie on the exact piece's boundary, and three spots on the plate
+stayed (one read layer by layer: an inner loop cut in two at a V between letters). Joining necks in the looser fit
+alone: the hysteresis then made one loop round the looser fit, and its mitred cut to the inset less the tolerance cut
+it again beside the neck (two spots on the plate came back, one an outer loop broken there). Making the exact shrink of
+the outline cut to boxes round the turns: hundreds of overlapping boxes made the booleans the slowest step (planning 47
+to 86 s), and one spot appeared that the whole shrink does not make. A neck only where the miter point itself is cut
+from the fit: an edge inside the kite can part the lune with the corner kept (two spots on the plate stayed). Cutting
+every joined loop to the round inset, as first written: arcs at every turn of the outline (that first version, the
+exact shrink made on every layer, planned the plate in 54 s against 47 s).
+
+**Consequences.** The catalog's slivers inside a second part: 24 spots, 20.7 mm², to none. A spike's tip beyond its
+notch, which the loop ran across, is laid by a short outer line of its own on each of its 13 layers (outer wall paths 39
+to 52, seams 52 to 78, visible restarts 15 to 28, seam scar 0.68 to 1.17 mm²); the loops that ended at the neck are one
+(inner wall paths 131 to 118). Elsewhere in the catalog walls move by up to 0.026 mm on a few layers of the web 2.2 mm,
+the finger in a second part and the inlay, where a neck at a polygon's vertex is kept; on one layer of the inlay a neck
+joins two inner loops into one, whose round turn there lies nearer the loop outside it (no spot). The real plate: 29
+spots, 4.833 mm², on 22 layers to 10, 1.199 mm², on 9 layers; its planning takes longer, 47.2 s to 49.7 s (three runs
+each, in turn), the exact shrink and its difference with the mitred one about 4 % of the planning's CPU (on this plate's
+letters most layers have a turn the gate keeps; a cache of the necks by outline found almost no outline repeated, and
+was dropped). Open: that cost. Tests: OffsetTest (a thin
+triangle grown past the limit, its area in closed form, the bevel's as the control; a notched square shrunk, nothing of
+it nearer the outline than d less the arc's chord sag, the bevel 0.21 mm from the tip as the control; random polygons
+against the sleeve method with the arc), NecksJoinedTest (a band round a square corner whose inner fit's neck the mitre
+cuts: one inner loop, its sides a spacing apart; control, the necks not joined: two loops whose ends lie 0.305 mm apart).
+Still open on the plate: a loop crossing a web between two letter pockets twice, not a neck the mitre cut (the exact
+and mitred shrinks agree there); outer loops at a V between letters; small inner loops of a letter; two outer loops of
+one letter crossing; two fills sharing an edge; one internal solid line over another.

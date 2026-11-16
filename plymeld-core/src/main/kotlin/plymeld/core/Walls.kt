@@ -48,7 +48,10 @@ object Walls {
      *  1. Loop k is laid only where its whole bead fits without meeting its twin from the opposite
      *     side: along the opening of the region at least (inset_k + spacing_k / 2) deep, i.e. the
      *     classic loop where the region is thick, nothing where a band is too thin for it. (Classic
-     *     walls keep a loop wherever its center line exists, crowding two beads into a band.)
+     *     walls keep a loop wherever its center line exists, crowding two beads into a band.) The fit region is the outline
+     *     shrunk mitred, so a loop keeps its corners sharp, but round where the miter would reach past its limit (a sharp
+     *     notch's tip: no ground nearer it than the bead fits), and with the necks the mitre cuts at a turn into the area
+     *     joined again where the exact shrink keeps them ([necksJoined]).
      *  2. What the loops leave uncovered is split by width: pieces at least two inner lines wide
      *     are the infill region; narrower pieces get ONE center line along their skeleton, as wide
      *     as the piece is thick there, clamped to [minBeadUm, maxBeadUm]. Where a piece is thinner than
@@ -89,27 +92,45 @@ object Walls {
                 /** False: a narrow island whose beads are not taken keeps its walls with their slits unshared (a test's control). */
                 keptWallsShared: Boolean = true,
                 /** False: an island laid by its beads gives up what the walls hand to infill only by each piece's first point (a test's control). */
-                innerTakenByArea: Boolean = true): LayerWalls {
+                innerTakenByArea: Boolean = true,
+                /** False: a loop's fit keeps the necks its mitred shrink cut ([necksJoined]; a test's control). */
+                joinNecks: Boolean = true): LayerWalls {
         val so = spacing(outerWidthUm, layerHeightUm)
         val si = spacing(innerWidthUm, layerHeightUm)
         // each loop's fit region (where its bead fits: its strict pieces, each an outer polygon and its holes) and its looser fit
         // (the hysteresis: [toleranceUm] further out), as the looser fit's pieces that hold some of the strict fit, each strict
         // piece by the looser piece it lies in ([of]); tiny looser pieces flagged
-        class Fit(val sk: Long, val inset: Long, val strict: List<List<Polygon>>, val of: IntArray, val pieces: List<List<Polygon>>, val tiny: BooleanArray) {
+        // ([necks]: a neck the mitre cut was joined again in its strict or looser fit, [necksJoined])
+        class Fit(val sk: Long, val inset: Long, val strict: List<List<Polygon>>, val of: IntArray, val pieces: List<List<Polygon>>, val tiny: BooleanArray,
+                  val necks: Boolean) {
             /** How many strict pieces each looser piece holds. */
             val held = IntArray(pieces.size).also { n -> for (p in of) n[p]++ }
         }
         val fits = ArrayList<Fit>(loops)
+        // the outline's edges in cells, for [necksJoined]: made when a fit first has a sharp turn into the area to read
+        val outlineEdges = lazy(LazyThreadSafetyMode.NONE) { outlineEdgeGrid(outline, 2 * innerWidthUm) }
         run {
             var inset = outerWidthUm / 2
             for (k in 0 until loops) {
                 if (k == 1) inset += (so + si) / 2 else if (k > 1) inset += si
                 val sk = if (k == 0) so else si
-                val high = Offset.offset(outline, -(inset + sk / 2), Offset.Join.MITER)
+                // the fit: the outline shrunk mitred (a loop's corners sharp), round past the miter limit (a bevel there kept
+                // ground closer to a sharp notch's tip than the bead fits: the loop ran across the notch), with the necks the
+                // mitre cut joined again ([necksJoined]), in the strict fit and in the looser one (in the looser one alone,
+                // the hysteresis below made the strict pieces one loop, round the looser fit, which its mitred cut to the
+                // inset less the tolerance cut again beside the neck where only the strict fit's mitre had cut it)
+                var necks = false
+                fun fit(d: Long): List<Polygon> {
+                    val mitred = Offset.offset(outline, -d, Offset.Join.MITER, roundBeyondLimit = true)
+                    val joined = if (joinNecks) necksJoined(outline, outlineEdges, mitred, d) else mitred
+                    if (joined !== mitred) necks = true
+                    return joined
+                }
+                val high = fit(inset + sk / 2)
                 if (high.isEmpty()) break
                 val strict = plymeld.geom.Polygons.group(high).map { (o, hs) -> listOf(o) + hs }
                 val loose = if (toleranceUm <= 0) strict
-                    else plymeld.geom.Polygons.group(Offset.offset(outline, -(inset + sk / 2 - toleranceUm), Offset.Join.MITER)).map { (o, hs) -> listOf(o) + hs }
+                    else plymeld.geom.Polygons.group(fit(inset + sk / 2 - toleranceUm)).map { (o, hs) -> listOf(o) + hs }
                 // each strict piece's looser piece: the one holding its first point (the strict fit lies inside the looser one)
                 val bounds = loose.map { it[0].bounds() }
                 val ofLoose = IntArray(strict.size) { j ->
@@ -126,7 +147,7 @@ object Walls {
                 var extra = used.size
                 val of = IntArray(strict.size) { j -> if (ofLoose[j] >= 0) index.getValue(ofLoose[j]) else extra++ }
                 val tiny = BooleanArray(pieces.size) { val b = pieces[it][0].bounds(); Math.hypot((b[2] - b[0]).toDouble(), (b[3] - b[1]).toDouble()) < transitionUm }
-                fits += Fit(sk, inset, strict, of, pieces, tiny)
+                fits += Fit(sk, inset, strict, of, pieces, tiny, necks)
             }
         }
         val sample = maxOf(MIN_SAMPLE_UM, minFeatureUm / 2)
@@ -149,8 +170,10 @@ object Walls {
                 val alone = kept.toHashSet().apply { removeAll(joined.toSet()) }
                 val high = f.strict.indices.filter { f.of[it] in alone }.flatMap { f.strict[it] }
                 val strict = if (high.isEmpty()) high else Offset.offset(high, f.sk / 2, Offset.Join.MITER)
+                // (kept within the inset less the tolerance exactly, round, where a neck was joined into the fit: a mitred
+                // clip, deeper at the turn beside the neck, cut it again)
                 val loose = if (joined.isEmpty()) emptyList() else Booleans.intersection(Offset.offset(joined.flatMap { f.pieces[it] }, f.sk / 2 - toleranceUm, Offset.Join.MITER),
-                    Offset.offset(outline, -(f.inset - toleranceUm), Offset.Join.MITER))
+                    Offset.offset(outline, -(f.inset - toleranceUm), if (f.necks) Offset.Join.ROUND else Offset.Join.MITER))
                 // a loop round any piece of fit region is at least a circle of the bead's spacing round (pi x spacing); one
                 // shorter is a degenerate scrap of the offset (a test plate's pins: closed loops 0.08 mm round, a dot each,
                 // a restart and a retraction for a blob)
@@ -284,6 +307,163 @@ object Walls {
         }
         return LayerWalls(levels, inner, center + open, levelWidths)
     }
+
+    /**
+     * A loop's fit [mitred] (the outline shrunk by [d], mitred, round past the miter limit) with the necks the mitre cut
+     * joined again; [mitred] itself where it cut none. Where the outline turns in (a notch, a dent, a hole's pointed end)
+     * a mitred shrink cuts deeper than [d] (to the miter point, up to [Offset.MITER_LIMIT] times [d] from the turn), and a
+     * band narrowing past such a turn can be cut through where the exact shrink (round there: every point at least [d] from
+     * the outline) keeps a neck: the fit falls into two pieces, or two holes' grown outlines meet. The loops grown from it
+     * then end in points facing each other across the cut, or cross the cut twice, closer than a line, and lie over each
+     * other there. Each piece of the exact shrink that the mitre leaves out and that meets the mitred fit along two
+     * separate stretches (a neck between two stretches of it, not the lune in one corner) is added back. Only such necks:
+     * elsewhere a loop keeps its mitred corners (rounded, an inner loop's concave corner would pull away from the sharp
+     * corner of the loop outside it, and their beads overlap there).
+     *
+     * The two shrinks differ only at a turn into the area within the miter limit, inside the miter's kite (the turn, the
+     * moved edges' ends and the miter point). The exact shrink is made only where such a neck may be ([mayCutNeck]: a
+     * turn whose miter reaches more than [NECK_TOUCH_UM] past [d], with another edge of the outline near it and the mitred
+     * fit within its reach; alone, the kite's lune meets the fit along the two moved edges through the corner, one
+     * stretch). Where a lune meets the fit is read off its own edges (an edge lying along the fit's, within the two
+     * shrinks' grid rounding), not by which piece of the exact shrink holds which mitred piece: the two share their moved
+     * edges, and a mitred piece's points lie on the exact piece's boundary as often as inside it.
+     */
+    private fun necksJoined(outline: List<Polygon>, edges: Lazy<EdgeGrid>, mitred: List<Polygon>, d: Long): List<Polygon> {
+        if (mitred.isEmpty()) return mitred
+        val mitredEdges = lazy(LazyThreadSafetyMode.NONE) { outlineEdgeGrid(mitred, NECK_CELL_UM) }
+        if (!mayCutNeck(outline, edges, mitredEdges, d)) return mitred
+        val added = neckPieces(outline, mitred, mitredEdges, d)
+        return if (added.isEmpty()) mitred else Booleans.union(mitred, added)
+    }
+
+    /** The pieces of the exact shrink of [outline] by [d] that join necks of [mitred] (necksJoined). */
+    private fun neckPieces(outline: List<Polygon>, mitred: List<Polygon>, mitredEdges: Lazy<EdgeGrid>, d: Long): List<Polygon> {
+        val lunes = Booleans.difference(Offset.offset(outline, -d, Offset.Join.ROUND), mitred)
+        if (lunes.isEmpty()) return emptyList()
+        /** The stretches along which [rings] meets the mitred fit: runs of edges lying along it (an edge's middle within the two shrinks' grid rounding of it), a ring along it all the way one. */
+        fun stretches(rings: List<Polygon>): Int = rings.sumOf { q ->
+            val n = q.size
+            val along = BooleanArray(n) { e -> val f = (e + 1) % n; mitredEdges.value.within((q.x(e) + q.x(f)) / 2.0, (q.y(e) + q.y(f)) / 2.0, NECK_TOUCH_UM.toDouble()) }
+            if (along.all { it }) 1 else (0 until n).count { along[it] && !along[(it + n - 1) % n] }
+        }
+        val added = ArrayList<Polygon>()
+        for ((o, hs) in plymeld.geom.Polygons.group(lunes)) if (stretches(listOf(o) + hs) >= 2) { added += o; added += hs }
+        return added
+    }
+
+    /**
+     * Whether the mitred shrink of [outline] by [d] may have cut a neck the exact one keeps (necksJoined): a turn into the
+     * area within the miter limit whose miter reaches more than [NECK_TOUCH_UM] past [d], whose lune (in the triangle of
+     * the moved edges' ends and the miter point) another edge of the outline than the turn's own two comes within [d] of,
+     * or another turn's kite overlaps, and with the mitred fit ([mitredEdges]) within the miter's reach of the turn. A turn
+     * on a smooth curve is none: its neighbors' edges stay more than [d] from its lune, their kites behind their own moved
+     * edges.
+     */
+    private fun mayCutNeck(outline: List<Polygon>, edges: Lazy<EdgeGrid>, mitredEdges: Lazy<EdgeGrid>, d: Long): Boolean {
+        // the kites: each turn's corner, its moved edges' ends and its miter point (x, y of the four in turn), its own two
+        // edges' numbers, and its miter's reach
+        val kx = ArrayList<DoubleArray>(); val ky = ArrayList<DoubleArray>(); val own = ArrayList<IntArray>(); val reaches = ArrayList<Double>()
+        var base = 0
+        for (p in outline) {
+            val n = p.size
+            for (i in 0 until if (n >= 3) n else 0) {
+                val a = (i + n - 1) % n; val c = (i + 1) % n
+                val e1x = (p.x(i) - p.x(a)).toDouble(); val e1y = (p.y(i) - p.y(a)).toDouble()
+                val e2x = (p.x(c) - p.x(i)).toDouble(); val e2y = (p.y(c) - p.y(i)).toDouble()
+                val l1 = Math.hypot(e1x, e1y); val l2 = Math.hypot(e2x, e2y)
+                // the area on the left of each edge (the offset's rule): a turn to the right turns into it
+                if (l1 == 0.0 || l2 == 0.0 || e1x * e2y - e1y * e2x >= 0) continue
+                val cosHalf = Math.sqrt(maxOf(0.0, (1 + (e1x * e2x + e1y * e2y) / (l1 * l2)) / 2))
+                // past the miter limit both shrinks are round there
+                if (cosHalf * Offset.MITER_LIMIT < 1.0) continue
+                val reach = d / cosHalf
+                if (reach - d <= NECK_TOUCH_UM) continue
+                val x = p.x(i).toDouble(); val y = p.y(i).toDouble()
+                val n1x = -e1y / l1; val n1y = e1x / l1; val n2x = -e2y / l2; val n2y = e2x / l2
+                val bl = Math.hypot(n1x + n2x, n1y + n2y)
+                kx += doubleArrayOf(x, x + d * n1x, x + (n1x + n2x) / bl * reach, x + d * n2x)
+                ky += doubleArrayOf(y, y + d * n1y, y + (n1y + n2y) / bl * reach, y + d * n2y)
+                own += intArrayOf(base + a, base + i); reaches += reach
+            }
+            base += n
+        }
+        if (kx.isEmpty()) return false
+        // the kites by their boxes, in cells
+        val cell = maxOf(1L, d)
+        val cells = HashMap<Long, MutableList<Int>>()
+        fun key(cx: Long, cy: Long) = (cx shl 32) xor (cy and 0xffffffffL)
+        fun cellsOf(xs: DoubleArray, ys: DoubleArray, f: (Long) -> Unit) {
+            for (cx in Math.floorDiv(Math.floor(xs.min()).toLong(), cell)..Math.floorDiv(Math.ceil(xs.max()).toLong(), cell))
+                for (cy in Math.floorDiv(Math.floor(ys.min()).toLong(), cell)..Math.floorDiv(Math.ceil(ys.max()).toLong(), cell)) f(key(cx, cy))
+        }
+        for (k in kx.indices) cellsOf(kx[k], ky[k]) { cells.getOrPut(it) { ArrayList() }.add(k) }
+        val dd = d.toDouble()
+        for (k in kx.indices) {
+            val xs = kx[k]; val ys = ky[k]
+            // the lune lies in the triangle of the moved edges' ends and the miter point (the rest of the kite is within d
+            // of the corner): another edge within d of it (the exact shrink's reach and a mitred edge's), or another kite
+            // over it (a mitred corner's), may part the lune's meeting with the fit; else it meets it along the two moved
+            // edges through the corner, one stretch
+            val tx = doubleArrayOf(xs[1], xs[2], xs[3]); val ty = doubleArrayOf(ys[1], ys[2], ys[3])
+            val o = own[k]
+            val near = edges.value.any(tx.min() - dd, ty.min() - dd, tx.max() + dd, ty.max() + dd) { e, idx ->
+                idx != o[0] && idx != o[1] && segPolyDistance(e[0].toDouble(), e[1].toDouble(), e[2].toDouble(), e[3].toDouble(), tx, ty) < dd } ||
+                run { var hit = false
+                    cellsOf(tx, ty) { c -> if (!hit) for (j in cells[c] ?: emptyList()) if (j != k && convexOverlap(kx[j], ky[j], tx, ty)) { hit = true; break } }
+                    hit }
+            // and the mitred fit within the reach: a lune meets it within the kite
+            if (near && mitredEdges.value.within(xs[0], ys[0], reaches[k] + NECK_TOUCH_UM)) return true
+        }
+        return false
+    }
+
+    /** The distance from segment a-b to the convex polygon [px], [py] (0 where they meet). */
+    private fun segPolyDistance(ax: Double, ay: Double, bx: Double, by: Double, px: DoubleArray, py: DoubleArray): Double {
+        if (convexOverlap(doubleArrayOf(ax, bx), doubleArrayOf(ay, by), px, py)) return 0.0
+        var best = Double.MAX_VALUE
+        for (i in px.indices) {
+            val j = (i + 1) % px.size
+            best = minOf(best, pointSeg(ax, ay, px[i], py[i], px[j], py[j]), pointSeg(bx, by, px[i], py[i], px[j], py[j]),
+                pointSeg(px[i], py[i], ax, ay, bx, by))
+        }
+        return best
+    }
+
+    private fun pointSeg(x: Double, y: Double, ax: Double, ay: Double, bx: Double, by: Double): Double {
+        val dx = bx - ax; val dy = by - ay; val l2 = dx * dx + dy * dy
+        val t = if (l2 == 0.0) 0.0 else (((x - ax) * dx + (y - ay) * dy) / l2).coerceIn(0.0, 1.0)
+        return Math.hypot(x - (ax + t * dx), y - (ay + t * dy))
+    }
+
+    /** Whether two convex polygons (a segment is one of two points) overlap or touch: no edge's direction separates them. */
+    private fun convexOverlap(ax: DoubleArray, ay: DoubleArray, bx: DoubleArray, by: DoubleArray): Boolean {
+        fun separated(sx: DoubleArray, sy: DoubleArray): Boolean {
+            for (i in sx.indices) {
+                val j = (i + 1) % sx.size
+                if (sx.size == 2 && i == 1) break
+                val nx = -(sy[j] - sy[i]); val ny = sx[j] - sx[i]
+                if (nx == 0.0 && ny == 0.0) continue
+                var aMin = Double.MAX_VALUE; var aMax = -Double.MAX_VALUE; var bMin = Double.MAX_VALUE; var bMax = -Double.MAX_VALUE
+                for (q in ax.indices) { val v = ax[q] * nx + ay[q] * ny; aMin = minOf(aMin, v); aMax = maxOf(aMax, v) }
+                for (q in bx.indices) { val v = bx[q] * nx + by[q] * ny; bMin = minOf(bMin, v); bMax = maxOf(bMax, v) }
+                if (aMax < bMin || bMax < aMin) return true
+            }
+            return false
+        }
+        return !separated(ax, ay) && !separated(bx, by)
+    }
+
+    /** [outline]'s edges (ax, ay, bx, by), numbered polygon after polygon (edge i of a polygon from its vertex i), in cells of [cellUm]. */
+    private fun outlineEdgeGrid(outline: List<Polygon>, cellUm: Long): EdgeGrid {
+        val es = ArrayList<LongArray>()
+        for (p in outline) for (e in 0 until p.size) { val f = (e + 1) % p.size; es += longArrayOf(p.x(e), p.y(e), p.x(f), p.y(f)) }
+        return EdgeGrid(es, maxOf(1L, cellUm))
+    }
+
+    /** How near (µm) an edge of the exact shrink lies to the mitred one to run along it: the two shrinks' grid rounding. */
+    private const val NECK_TOUCH_UM = 3L
+    /** The cells (µm) of the mitred fit's edges: a lookup structure's size, not a dimension of the print. */
+    private const val NECK_CELL_UM = 500L
 
     /**
      * [c] with each open end that stops against the walls' beads ([covered]: their bands, out to bead contact) reaching into
@@ -623,11 +803,27 @@ object Walls {
         private val cells = HashMap<Long, MutableList<Int>>()
         private fun key(cx: Long, cy: Long) = (cx shl 32) xor (cy and 0xffffffffL)
         init {
+            // each edge in the cells it passes through: column by column, the rows its stretch in the column spans (a long
+            // slanted edge is not entered in every cell of its box)
             for ((i, e) in edges.withIndex()) {
-                for (cx in Math.floorDiv(minOf(e[0], e[2]), cellUm)..Math.floorDiv(maxOf(e[0], e[2]), cellUm))
-                    for (cy in Math.floorDiv(minOf(e[1], e[3]), cellUm)..Math.floorDiv(maxOf(e[1], e[3]), cellUm))
+                val x0 = minOf(e[0], e[2]); val x1 = maxOf(e[0], e[2])
+                val dx = (e[2] - e[0]).toDouble(); val dy = (e[3] - e[1]).toDouble()
+                fun yAt(x: Long) = if (dx == 0.0) e[1].toDouble() else e[1] + (x - e[0]) * dy / dx
+                for (cx in Math.floorDiv(x0, cellUm)..Math.floorDiv(x1, cellUm)) {
+                    val xa = maxOf(x0, cx * cellUm); val xb = minOf(x1, cx * cellUm + cellUm)
+                    val ya = if (dx == 0.0) minOf(e[1], e[3]).toDouble() else minOf(yAt(xa), yAt(xb))
+                    val yb = if (dx == 0.0) maxOf(e[1], e[3]).toDouble() else maxOf(yAt(xa), yAt(xb))
+                    for (cy in Math.floorDiv(Math.floor(ya).toLong(), cellUm)..Math.floorDiv(Math.ceil(yb).toLong(), cellUm))
                         cells.getOrPut(key(cx, cy)) { ArrayList() }.add(i)
+                }
             }
+        }
+        /** Whether [test] holds for an edge (its points, its number) in a cell the box x0..x1, y0..y1 meets. */
+        fun any(x0: Double, y0: Double, x1: Double, y1: Double, test: (LongArray, Int) -> Boolean): Boolean {
+            for (i in Math.floorDiv(Math.floor(x0).toLong(), cellUm)..Math.floorDiv(Math.ceil(x1).toLong(), cellUm))
+                for (j in Math.floorDiv(Math.floor(y0).toLong(), cellUm)..Math.floorDiv(Math.ceil(y1).toLong(), cellUm))
+                    for (k in cells[key(i, j)] ?: continue) if (test(edges[k], k)) return true
+            return false
         }
         fun within(x: Double, y: Double, d: Double): Boolean {
             val r = Math.ceil(d / cellUm).toLong()

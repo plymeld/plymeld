@@ -156,6 +156,13 @@ section the release's version and date.
 
 ### Fixed
 
+- Walls no longer run across the tip of a sharp notch in an area, or end against each other at a narrow neck. A loop's
+  place is found by shrinking the area's outline; at a notch sharper than 60 degrees that shrink cut the corner short,
+  keeping ground nearer the tip than the line fits, and the loop ran across the notch over the loop inside it. It now
+  keeps a line's distance from the tip. Where an area turns in beside a narrow neck, the shrink cut deeper at the turn
+  than the line needs and cut the neck through, and the loops grown from the two sides ended against each other or
+  crossed the cut twice; such a neck is now kept and one loop runs through it. On a real three-object plate, plastic
+  laid twice falls from 29 spots (4.8 mm²) to 10 (1.2 mm²).
 - On an object of several filaments, a sliver of one filament too thin for a line that goes over to the filament around
   it now takes the gap between them along. Parts meet a few microns apart, and that gap was left as a crack in the
   neighbor's area, a hole of its own or one opening onto its edge, which the neighbor's walls looped round: three or four
