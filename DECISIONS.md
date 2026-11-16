@@ -1386,3 +1386,70 @@ Open from 34: a pocket with three sides (WallsByWidthTest's web 1.6 mm, up to 0.
 into the corner) is not shared: a ray from the hole's loop through the pocket's middle leaves through its mouth to the
 wider area beyond, and where a ray does meet the line's turn, the line seen back along its last segment's normal touches
 the hole's loop.
+
+## 47. The pre-print check finds plastic laid twice beyond the planned overlaps (2026-11-16)
+
+**Context.** Decision 45's walls laid 63 mm of lines up to 0.9 mm wide across a layer's infill, and the check passed
+them: it had rules for plastic missing (outline, bare outline, holes) and none for plastic laid where plastic of the same
+layer already lies.
+
+**Decision.** On each layer the check reads, on the hole rule's 25 µm grid, where the beads (each line's width from its
+plastic) of two runs lie over each other; a run is what the nozzle lays without stopping. Each bead is narrowed by the
+overlaps the planner makes on purpose, each from the settings: half the rounded flanks of two touching beads a side
+(t (1 - pi/4), on the line's own thickness), the slicing tolerance a side, fuzzy skin's thickness for a wall line, and
+`plan.layer.infill.wall_overlap` of its width off each end of an open run (a line end's reach into the walls). Not read:
+ironing (laid over a top on purpose), wave beads (the over-air rule's), one run over itself (a scarf's ramps, a tip's
+run-in, a loop's end over its start), and two sparse infill lines (a grid's families cross). A spot laid twice wider than
+the narrowest place a line is laid in (the hole rule's floor) and two cells counts, with its layer, place, area and
+the two kinds of line (reported, not refused: decision 48). The layer is read in windows of 256 x 256 cells, one at a
+time; only the doubled cells are kept, at most 100,000 a layer (62.5 mm², far past a spot that counts; at a million the
+curved Benchy's check ran out of a 512 MB test heap); a layer with more is read that far and said to be cut short.
+
+**Rejected.** Narrowing an interior line's sides by its reach into the walls too: a whole interior line laid over another
+then read narrower than the floor (the control on a hand-written print passed). Judging every overlap however thin: a
+thin area's center line between walls overlaps them by up to `wall_overlap` of the narrowest line a side by design, and
+an interior line's linking runs lie that far past contact along the walls; a sliver thinner than the floor is left.
+
+**Consequences.** Controls: a hand-written box with a loop laid again, a wall line along an infill line, and infill ends
+laid through the innermost loop are found, and the file the inlay's walls of decision 45 were written to (its one layer,
+a fixture) is found at that layer (29 spots, 45.9 mm²). The first reading of the catalog found spots on 27 model rows,
+nearly all on the internal bridge layer: a bridge's lines were clipped with their middle on the edge of the area they fill, half
+a line over the walls and the infill beside it (the planner's own rule for every other interior line places them at bead
+contact); fixed, for bridges over air too (a bridge laid across a tooth's own wall loop on a real plate). Still found,
+and recorded in the catalog's baseline: where an internal bridge meets the internal solid or sparse infill of its own
+layer, both fills place their lines against the shared edge as against a wall's bead, and their linking runs lie over each
+other along it (the bridges and the sloped top). On a real three-object plate it finds teeth along the outline laid as
+loops of their own over the main outer loop, and wall junctions in narrow webs. Decision 48 lists what is still open.
+
+## 48. Plastic laid twice is reported, not refused, until the planner lays none (2026-11-16)
+
+**Context.** Decision 47's rule, as a refusal, refused what the planner has always laid: a plain Benchy, a two-part
+Benchy, a real three-object plate, and dozens of the test suite's own slices, at overlaps of 0.25 to 0.55 mm between
+lines the planner placed. They are real overlaps, to be fixed in the planner one cause at a time; a slicer that refuses
+an ordinary model in the meantime cannot be used.
+
+**Decision.** The check reads the rule on every layer as before, and its spots are a measure, not problems: `slice` does
+not fail on them and writes the file. The slice's report says them in one line beside the seams and strings, `laid
+twice:` the number of spots, their area, the number of layers holding one, and the widest (its layer, place, width, area,
+and the two kinds of line), with a picture of each layer that has one beside the check's others; a layer whose reading
+stopped at the rule's 100,000 cells says so in the line, so a count cut short does not read as whole. The window's
+console shows the same line. The test catalog records the measure for every model and row (`laid_twice.spots`,
+`.area_mm2`, `.layers`, `.widest_mm`, and `.capped_layers` when any), so each later fix shows as a movement of the
+baseline and a new overlap fails it. One switch in the code decides report or refuse (`DoubledCheck.REFUSES`), turned
+on when the catalog, the regression cases, and the slow suite's models all read zero spots; `DoubledCheckTest` holds
+its effect. It is not a user setting: whether a file with plastic laid twice may print is not a preference, and a
+setting would outlive the planner's fixes.
+
+**Rejected.** Keeping the refusal and naming each known overlap as an expected finding (the catalog's `expect`): a
+refused Benchy is not landable, and the tests that slice real models would each need the same list. Raising the rule's
+floor until the planner's overlaps pass: they are 0.25 mm and wider, as wide as the faults the rule is for.
+
+**Consequences.** Open, each a planner cause the rule finds:
+- two fills sharing an edge (an internal bridge beside internal solid or sparse infill, a top beside internal solid):
+  both place their lines against the edge as against a wall's bead, and their linking runs and ends overlap by 0.25 to
+  0.30 mm along it (the commonest);
+- teeth along an outline (protrusions about a line wide) laid as outer loops of their own over the main outer loop;
+- wall junctions in narrow webs, where loops and center lines meet;
+- a concentric solid ring laid over an inner wall along a side;
+- two parts' fills over each other on a two-part model (not yet read);
+- a curved island's rising rim: its outer wall over its inner wall.

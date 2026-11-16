@@ -12,6 +12,8 @@ import java.util.Locale
  * name and its value as text (fixed decimals), read from the written file and what the writing measured, with the readers
  * plymeld and its tests already have:
  *  - `check.*`: the pre-print check as `slice` runs it (Slicing.sliceCheck): how many problems, and the first three;
+ *  - `laid_twice.*`: that check's laid-twice rule as `slice` reports it (DoubledCheck.Summary): the spots, their area,
+ *    the layers holding one, the widest spot's width; and the layers whose reading stopped at its cap, when any;
  *  - `walls.*` (a walls case, its base row): WallCoverage's reading over the layers [Entry.walls] names: uncovered area,
  *    the widest uncovered spot and the area wider than the floor; plastic outside and how far; plastic laid twice; paths,
  *    the shortest path and move; the largest shift from one layer to the next;
@@ -35,9 +37,14 @@ object CatalogMeasures {
     fun measure(e: Entry, row: Row): Measured {
         val w = Catalog.write(e, row, seams = true)
         val out = LinkedHashMap<String, String>()
-        val problems = Slicing.sliceCheck(w)
+        val checked = Slicing.sliceCheck(w)
+        val problems = checked.problems
         out["check.problems"] = problems.size.toString()
         for ((i, p) in problems.take(3).withIndex()) out["check.problem.${i + 1}"] = text(p)
+        val twice = checked.laidTwice
+        out["laid_twice.spots"] = twice.spots.toString(); out["laid_twice.area_mm2"] = f(twice.areaMm2, 3)
+        out["laid_twice.layers"] = twice.spotLayers.toString(); out["laid_twice.widest_mm"] = f(twice.widest?.second?.widthMm ?: 0.0, 3)
+        if (twice.cappedLayers > 0) out["laid_twice.capped_layers"] = twice.cappedLayers.toString()
         if (e.walls != null && row === Catalog.BASE) {
             val r = Slicing.wallReading(e.name, w, e.walls)
             out["walls.layers"] = r.layers.size.toString()

@@ -1295,14 +1295,19 @@ object Planner {
             // Bridges: direction chosen PER connected region. One angle for the whole layer let the
             // largest region decide for all: a test model's layer laid 2.4 mm strips 4 deg off
             // their length, broken into short groups, 153 retractions in the layer vs QIDIStudio's 10.
-            fun bridgeEach(region: List<Polygon>, below: List<Polygon>, bw: Long, h: Long, out: MutableList<ToolPath>, grow: Long = 0,
+            // A bridge's lines are clipped with their center at bead contact with what is around the region (the walls, the
+            // infill beside it), then reach on by [grow] (infill_wall_overlap of the line), as every interior line's (hatch).
+            // Clipped on the region's edge itself, every line end and every linking run lay half a line over the walls and
+            // the infill beside it (the pre-print check's laid-twice rule: on the internal bridge layer of nearly every model of
+            // the test catalog, and a bridge over air laid across a tooth's own wall loop)
+            fun bridgeEach(region: List<Polygon>, below: List<Polygon>, bw: Long, h: Long, out: MutableList<ToolPath>, grow: Long,
                            feature: Feature = Feature.BRIDGE,
                            families: List<Bridges.Family>? = null) {
                 val sp = Walls.spacing(bw, h)
                 for ((o, hs) in Polygons.group(region)) {
                     val piece = listOf(o) + hs
                     val angle = families?.let { Bridges.internalAngle(piece, below, it, sp, bw) } ?: Bridges.bestAngle(piece, below, sp, bw)
-                    val hatchIn = if (grow != 0L) Offset.offset(piece, grow) else piece
+                    val hatchIn = Offset.offset(piece, grow - contactInset(bw, h))
                     val (segs, idx) = Hatch.indexed(hatchIn, angle, sp)
                     for (chain in plymeld.geom.Linker.link(segs, idx, hatchIn, 3 * sp)) out.add(ToolPath(feature, chain, false, bw, h, null))
                 }
@@ -1325,7 +1330,7 @@ object Planner {
                 val bw = s.nozzleDiameterUm
                 val anchored = if (air.isEmpty()) emptyList() else Booleans.intersection(Offset.offset(air, 2 * bw), r.bottomSurface)
                 surface(Booleans.difference(r.bottomSurface, anchored), Feature.BOTTOM, solidW, Walls.spacing(solidW, h), listOf(solidAngle), s.bottomPattern)
-                if (anchored.isNotEmpty()) bridgeEach(anchored, onBed, bw, h, paths)
+                if (anchored.isNotEmpty()) bridgeEach(anchored, onBed, bw, h, paths, grow = Math.round(s.infillWallOverlap * bw))
             } else if (first) {
                 surface(r.bottomSurface, Feature.BOTTOM, solidW, Walls.spacing(solidW, h), listOf(solidAngle), s.bottomPattern)
             } else if (r.bottomSurface.isNotEmpty()) {
@@ -1343,7 +1348,7 @@ object Planner {
                     val anchored = Booleans.intersection(Offset.offset(overAir, 2 * bw), r.inner).let { if (onInsert.isEmpty()) it else Booleans.difference(it, onInsert) }
                     internalSolid = Booleans.difference(internalSolid, anchored)
                     sparseRegion = Booleans.difference(sparseRegion, anchored)
-                    bridgeEach(anchored, bridgeAnchors[i] ?: allPrinted[i - 1], bw, h, paths)
+                    bridgeEach(anchored, bridgeAnchors[i] ?: allPrinted[i - 1], bw, h, paths, grow = Math.round(s.infillWallOverlap * bw))
                 }
             }
             if (!first) {

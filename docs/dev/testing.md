@@ -13,7 +13,8 @@ domed tops, a small pillar, holes and pins). Each is sliced with a rig (the mach
 tests' setup) under a few rows of settings that matter to it, the first always the rig as it is.
 
 It is for catching side effects during development, not for judging a printer. `CatalogTest` slices every model
-under every row, one after another, and measures each file: the pre-print check as `slice` runs it; for the walls cases,
+under every row, one after another, and measures each file: the pre-print check as `slice` runs it, and its laid-twice
+measure as `slice` reports it (the spots, their area, the layers holding one, the widest); for the walls cases,
 the uncovered area, plastic outside, plastic laid twice, paths and the shift between layers; the seam scar, seams,
 scarf seams and jogs; unretracted travel over open air and across tops, visible restarts, retractions; filament and
 predicted time; and the paths and length of every feature type. Planning time is not among them (it varies from run

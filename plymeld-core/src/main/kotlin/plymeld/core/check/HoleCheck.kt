@@ -207,7 +207,7 @@ internal object HoleCheck {
     private val DJ = intArrayOf(0, 0, 1, -1, 1, -1, 1, -1)
 
     /** The distance (cells, between centers) from cell (i, j) to the nearest cell not [inPiece], searched out to [limit]. */
-    private inline fun nearestOut(i: Int, j: Int, limit: Int, inPiece: (Int, Int) -> Boolean): Double {
+    internal inline fun nearestOut(i: Int, j: Int, limit: Int, inPiece: (Int, Int) -> Boolean): Double {
         var best2 = Long.MAX_VALUE
         var k = 1
         while (k <= limit) {

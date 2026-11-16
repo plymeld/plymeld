@@ -85,33 +85,42 @@ object Slicing {
 
     /**
      * The pre-print check as the technique tests run it on a lone object (GcodeCheck, ModelCheck), with the walls' floor
-     * [floorMm], fuzzy skin's [fuzzMm] and the narrowest infill area; not each part's tool, the hand-over widths or the first
+     * [floorMm], fuzzy skin's [fuzzMm], the narrowest infill area, and the slicing tolerance and line ends' reach into the
+     * walls the laid-twice rule allows; not each part's tool, the hand-over widths or the first
      * layer's inset ([sliceCheck] passes every allowance `slice` does).
      */
     fun problems(w: Written, g: String = w.g, floorMm: Double = SliceSettings.of(w.setup).let { (it.minFeatureUm + 2 * it.resolutionUm) / 1000.0 },
-                 fuzzMm: Double = 0.0): List<String> {
+                 fuzzMm: Double = 0.0): List<String> = checked(w, g, floorMm, fuzzMm).problems
+
+    /** As [problems], with the laid-twice rule's measure (ModelCheck.Result: GcodeCheck's problems first among the problems). */
+    fun checked(w: Written, g: String = w.g, floorMm: Double = SliceSettings.of(w.setup).let { (it.minFeatureUm + 2 * it.resolutionUm) / 1000.0 },
+                fuzzMm: Double = 0.0): ModelCheck.Result {
         val zBase = w.plan.parts.minOf { it.bounds()[2] }
         val sf = ModelCheck.Surface(w.plan.parts, zBase, g)
-        return GcodeCheck.check(g, Expectations.forSetup(w.setup, sf::at)) + ModelCheck.check(g, w.plan.parts, zBase, surface = sf, featureMinMm = floorMm,
-            fuzzMm = fuzzMm, infillMinMm = 2 * SliceSettings.of(w.setup).innerWallWidthUm / 1000.0)
+        val m = ModelCheck.checkAll(g, w.plan.parts, zBase, surface = sf, featureMinMm = floorMm,
+            fuzzMm = fuzzMm, infillMinMm = 2 * SliceSettings.of(w.setup).innerWallWidthUm / 1000.0,
+            slicingTolMm = SliceSettings.of(w.setup).resolutionUm / 1000.0, endOverlap = SliceSettings.of(w.setup).infillWallOverlap)
+        return ModelCheck.Result(GcodeCheck.check(g, Expectations.forSetup(w.setup, sf::at)) + m.problems, m.laidTwice)
     }
 
     /**
      * The pre-print check as `slice` runs it on a lone flat object, every allowance from the object's settings: GcodeCheck
      * against the setup with each part's tool, and ModelCheck with each part's tool, the hand-over widths, the walls' floor,
-     * the first layer's inset, fuzzy skin and the narrowest infill area (SliceSession.check).
+     * the first layer's inset, fuzzy skin, the narrowest infill area, the slicing tolerance and the line ends' reach into
+     * the walls (SliceSession.check). Its problems, and the laid-twice rule's measure `slice` reports.
      */
-    fun sliceCheck(w: Written): List<String> {
+    fun sliceCheck(w: Written): ModelCheck.Result {
         val s = SliceSettings.of(w.setup)
         val zBase = w.plan.parts.minOf { it.bounds()[2] }
         val sf = ModelCheck.Surface(w.plan.parts, zBase, w.g)
         // part B on the second tool (T1), the others on the first ([write])
         val tools = w.plan.parts.indices.map { if (it == 1) 1 else 0 }
-        return GcodeCheck.check(w.g, Expectations.forSetup(w.setup, sf::at, tools.toSet(), tools.toSet())) +
-            ModelCheck.check(w.g, w.plan.parts, zBase, surface = sf, partTools = tools,
+        val m = ModelCheck.checkAll(w.g, w.plan.parts, zBase, surface = sf, partTools = tools,
                 handOverMm = (s.sliverWidthUm ?: 0L) / 1000.0, featureMinMm = (s.minFeatureUm + 2 * s.resolutionUm) / 1000.0,
                 firstLayerInsetMm = s.elephantFootUm / 1000.0, surfaceHandOverMm = if (s.sliverAtSurface == "neighbor") s.sliverHandOverUm / 1000.0 else 0.0,
-                fuzzMm = if (s.fuzzySkin == "none") 0.0 else s.fuzzyThicknessUm / 1000.0, infillMinMm = 2 * s.innerWallWidthUm / 1000.0)
+                fuzzMm = if (s.fuzzySkin == "none") 0.0 else s.fuzzyThicknessUm / 1000.0, infillMinMm = 2 * s.innerWallWidthUm / 1000.0,
+                slicingTolMm = s.resolutionUm / 1000.0, endOverlap = s.infillWallOverlap)
+        return ModelCheck.Result(GcodeCheck.check(w.g, Expectations.forSetup(w.setup, sf::at, tools.toSet(), tools.toSet())) + m.problems, m.laidTwice)
     }
 
     /** One model's wall reading: each read layer's measure (its part 0, tool 0) and the shift from the layer below. */

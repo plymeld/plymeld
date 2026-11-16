@@ -47,9 +47,17 @@ object PlateCheck {
               /** Its fuzzy skin's thickness where on ([ModelCheck.check]'s fuzzMm); 0 = off. */
               val fuzzMm: Double = 0.0,
               /** The narrowest area its walls hand to infill ([ModelCheck.check]'s infillMinMm). */
-              val infillMinMm: Double = Double.MAX_VALUE)
-    /** [surfaces]: each run's (each frame's) model surface, for GcodeCheck's travel rule ([ModelCheck.Surfaces]). */
-    class Result(val text: String, val parts: List<TriangleSoup>, val problems: List<String>, val curvedLayers: Int, val surfaces: List<ModelCheck.Surface> = emptyList())
+              val infillMinMm: Double = Double.MAX_VALUE,
+              /** Its slicing tolerance ([ModelCheck.check]'s slicingTolMm). */
+              val slicingTolMm: Double = 0.0,
+              /** How far its interior lines reach into the walls, a share of their width ([ModelCheck.check]'s endOverlap). */
+              val endOverlap: Double = 0.0)
+    /**
+     * [surfaces]: each run's (each frame's) model surface, for GcodeCheck's travel rule ([ModelCheck.Surfaces]); [laidTwice]:
+     * the laid-twice rule's measure over every object, each layer named by its object (and frame).
+     */
+    class Result(val text: String, val parts: List<TriangleSoup>, val problems: List<String>, val curvedLayers: Int, val surfaces: List<ModelCheck.Surface> = emptyList(),
+                 val laidTwice: DoubledCheck.Summary = DoubledCheck.Summary.NONE)
 
     /** How far outside an object's X and Y extent a printed line end may lie and still be over it (mm): the walls' squish, a brim. plymeld's choice. */
     const val FOOTPRINT_MARGIN_MM = 3.0
@@ -86,6 +94,7 @@ object PlateCheck {
         val out = lines.toMutableList()
         val checkParts = objects.map { it.parts }.toMutableList()
         val surfaces = ArrayList<ModelCheck.Surface>()
+        val twice = ArrayList<DoubledCheck.Summary>()
         var curved = 0
         for ((ri, r) in runs.withIndex()) {
             val k = owner[ri] ?: continue
@@ -93,9 +102,9 @@ object PlateCheck {
             // read alone, the run would start on T0
             val tool = (r.first - 1 downTo 0).firstOrNull { TOOL.matches(lines[it].substringBefore(';').trim()) }?.let { lines[it].substringBefore(';').trim() }
             curved += readObject(k, objects[k], lines.subList(r.first, r.last + 1), null, r.first, if (tool != null) "$tool\n" else "", zBase, imagesDir, zaa,
-                problems, surfaces, checkParts) { rl -> for (i in rl.indices) out[r.first + i] = rl[i] }
+                problems, surfaces, checkParts, twice) { rl -> for (i in rl.indices) out[r.first + i] = rl[i] }
         }
-        return Result(out.joinToString("\n"), checkParts.flatten(), problems, curved, surfaces)
+        return Result(out.joinToString("\n"), checkParts.flatten(), problems, curved, surfaces, twice.fold(DoubledCheck.Summary.NONE, DoubledCheck.Summary::plus))
     }
 
     /** [zaa]: as for [oneAtATime]. */
@@ -132,6 +141,7 @@ object PlateCheck {
         val out = lines.toMutableList()
         val checkParts = objects.map { it.parts }.toMutableList()
         val surfaces = ArrayList<ModelCheck.Surface>()
+        val twice = ArrayList<DoubledCheck.Summary>()
         var curved = 0
         // which objects print on each layer
         val onLayer = List(layers) { HashSet<Int>() }
@@ -152,10 +162,10 @@ object PlateCheck {
                 if (keep) raw else ""
             }
             // what comes back re-warped: its own lines, and all of a layer only it prints on (the layer's header in its warp)
-            curved += readObject(k, o, own, text, 0, "", zBase, imagesDir, zaa, problems, surfaces, checkParts) { rl ->
+            curved += readObject(k, o, own, text, 0, "", zBase, imagesDir, zaa, problems, surfaces, checkParts, twice) { rl ->
                 for (i in rl.indices) if (owner[i] == k || (layerOf[i] >= 0 && onLayer[layerOf[i]] == setOf(k) && owner[i] < 0)) out[i] = rl[i] }
         }
-        return Result(out.joinToString("\n"), checkParts.flatten(), problems, curved, surfaces)
+        return Result(out.joinToString("\n"), checkParts.flatten(), problems, curved, surfaces, twice.fold(DoubledCheck.Summary.NONE, DoubledCheck.Summary::plus))
     }
 
     /**
@@ -163,11 +173,12 @@ object PlateCheck {
      * the curved check's head rule, and the layers it does not print on dropped before the planar check), starting at the
      * file's line [lineOffset], with [pre] prepended (a tool selection in force): read in the object's own warp when it has a
      * curved band, then ModelCheck against its parts (each frame on its own); its surface(s) added to [surfaces], its
-     * (warped) parts set in [checkParts], and the re-warped lines handed to [writeBack]. Returns its curved layers.
+     * (warped) parts set in [checkParts], its laid-twice measure (each frame's) added to [twice], and the re-warped lines
+     * handed to [writeBack]. Returns its curved layers.
      */
     private fun readObject(k: Int, o: Obj, text: List<String>, headText: String?, lineOffset: Int, pre: String, zBase: Double, imagesDir: java.nio.file.Path?, zaa: ZaaRule?,
                            problems: MutableList<String>, surfaces: MutableList<ModelCheck.Surface>, checkParts: MutableList<List<TriangleSoup>>,
-                           writeBack: (List<String>) -> Unit): Int {
+                           twice: MutableList<DoubledCheck.Summary>, writeBack: (List<String>) -> Unit): Int {
         var runText = text.joinToString("\n")
         var frames: List<CurvedCheck.Frame>? = null
         var thickness: ModelCheck.Thickness? = null
@@ -189,8 +200,11 @@ object PlateCheck {
             val planar = pre + (if (headText == null) fr.text else withoutEmptyLayers(fr.text))
             val sf = ModelCheck.Surface(fr.parts, zBase, planar, zaaMinMm = z?.minMm, cut = o.cut, thickness = fr.thickness).also { surfaces += it }
             val where = if (fr.name.isEmpty()) "'${o.name}'" else "'${o.name}' ${fr.name}"
-            problems += ModelCheck.check(planar, fr.parts, zBase, imagesDir = if (fr.name.isEmpty()) dir else dir?.resolve(fr.name.replace(' ', '_'))?.also { java.nio.file.Files.createDirectories(it) },
-                surface = sf, partTools = o.partTools?.let { t -> fr.partIndex.map { t[it] } }, zaa = z, handOverMm = o.handOverMm, featureMinMm = o.featureMinMm, firstLayerInsetMm = o.firstLayerInsetMm, surfaceHandOverMm = o.surfaceHandOverMm, fuzzMm = o.fuzzMm, infillMinMm = o.infillMinMm).map { "$where: $it" }
+            val r = ModelCheck.checkAll(planar, fr.parts, zBase, imagesDir = if (fr.name.isEmpty()) dir else dir?.resolve(fr.name.replace(' ', '_'))?.also { java.nio.file.Files.createDirectories(it) },
+                surface = sf, partTools = o.partTools?.let { t -> fr.partIndex.map { t[it] } }, zaa = z, handOverMm = o.handOverMm, featureMinMm = o.featureMinMm, firstLayerInsetMm = o.firstLayerInsetMm, surfaceHandOverMm = o.surfaceHandOverMm, fuzzMm = o.fuzzMm, infillMinMm = o.infillMinMm,
+                slicingTolMm = o.slicingTolMm, endOverlap = o.endOverlap)
+            problems += r.problems.map { "$where: $it" }
+            twice += r.laidTwice.at(where)
         }
         return curved
     }

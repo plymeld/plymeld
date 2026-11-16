@@ -25,6 +25,11 @@ import java.util.Locale
  *  - hole: a spot of the cross-section no line covers, closed in by walls alone (not the outline's, not an infill's gap),
  *    wider than that narrowest place for a line and narrower than the walls hand to infill ([HoleCheck]): a hole inside the
  *    walls. On a layer laid with wave beads, not judged;
+ *  - laid twice: a spot where two runs' lines lie over each other further than the planner overlaps lines on purpose
+ *    (neighboring beads' flanks, the slicing tolerance, a line end's reach into the walls, fuzzy skin), wider than that
+ *    narrowest place for a line ([DoubledCheck]); ironing, wave beads, one run over itself and two sparse infill lines
+ *    crossing are not judged. Measured on every layer and reported ([checkAll]'s Result); a problem only when
+ *    [DoubledCheck.REFUSES] (its own words say why it is off and when it turns on);
  *  - Z anti-aliasing (a [ZaaRule]): a layer's outline also takes in its cut at the thinnest lowered line (ZaaRule.minMm) above its bottom
  *    (the layer reaches out over a slope to there), and a point of a line below its layer, on the model's top within the
  *    layer, is not outside;
@@ -59,13 +64,18 @@ object ModelCheck {
     /**
      * A printed segment: [w], its path's width as the file states it (`;WIDTH`, a variable-width line's widest); [bead], this
      * segment's own width from its plastic ([layers]: its share of the path's widest extrusion per mm, on the layer's
-     * thickness where it lies).
+     * thickness where it lies); [t], that thickness (NaN: not read).
      */
     internal class Seg(val x0: Double, val y0: Double, val x1: Double, val y1: Double, val w: Double, val wall: Boolean, val tool: Int = 0,
                        val z0: Double = Double.NaN, val z1: Double = Double.NaN, val wave: Boolean = false,
                        /** A line of an infill or a surface (not a wall: [INFILL]). */
-                       val infill: Boolean = false) {
+                       val infill: Boolean = false,
+                       /** Its feature, as the file names it. */
+                       val feature: String = "",
+                       /** Its run: what the nozzle lays without stopping ([layers]); one number a run, increasing through the file. */
+                       val run: Int = 0) {
         var bead: Double = w
+        var t: Double = Double.NaN
     }
     /** The features that fill an area (infill, surfaces, bridges, ironing), as against the walls. */
     private val INFILL = setOf("Sparse infill", "Internal solid infill", "Solid infill", "Top surface", "Bottom surface", "Bridge", "Internal Bridge",
@@ -77,7 +87,7 @@ object ModelCheck {
      * [parts]: the placed meshes in bed coordinates; [zBaseMm]: the height of the bed in their frame
      * (g-code Z = mesh Z - zBase). [tolUm]: extra allowance beyond half a line (fuzzy skin, rounding); gaps in the
      * cross-section narrower than it are not outline.
-     * [imagesDir]: when given, a picture of each layer with a problem (ModelCheckPlot). [surface]: the
+     * [imagesDir]: when given, a picture of each layer with a problem or a spot laid twice (ModelCheckPlot). [surface]: the
      * model cut at this g-code's layers, when already made (shared with GcodeCheck's travel rule).
      * [partTools]: the tool (0-based, T0 = the tool of index 1) the config's loadout assigns each of [parts], in their
      * order; null: the tool is not judged. [handOverMm]: how thin an area of one filament the config hands to the
@@ -94,15 +104,35 @@ object ModelCheck {
      * each wall line as covering that much further either side (its points move in and out by up to it).
      * [infillMinMm]: the narrowest area the walls hand to infill (two inner wall lines, plan.layer.walls.inner.line.width):
      * the hole rule leaves an uncovered piece that wide to the infill region (no line of a sparse infill need cross it).
+     * [slicingTolMm]: the slicing tolerance (method.slicing.tolerance) and [endOverlap]: how far a line's end reaches into
+     * the walls past bead contact, a share of its width (plan.layer.infill.wall_overlap): overlaps the laid-twice rule
+     * allows ([DoubledCheck]); 0: none.
+     * The problems only; [checkAll] gives the laid-twice rule's measure too.
      */
     fun check(text: String, parts: List<TriangleSoup>, zBaseMm: Double, tolUm: Long = 100, maxProblems: Int = 30,
               imagesDir: java.nio.file.Path? = null, surface: Surface? = null, partTools: List<Int>? = null, zaa: ZaaRule? = null,
               progress: plymeld.program.Progress = plymeld.program.Progress.NONE, handOverMm: Double = 0.0, featureMinMm: Double = 0.0,
-              firstLayerInsetMm: Double = 0.0, surfaceHandOverMm: Double = 0.0, fuzzMm: Double = 0.0, infillMinMm: Double = Double.MAX_VALUE): List<String> {
+              firstLayerInsetMm: Double = 0.0, surfaceHandOverMm: Double = 0.0, fuzzMm: Double = 0.0, infillMinMm: Double = Double.MAX_VALUE,
+              slicingTolMm: Double = 0.0, endOverlap: Double = 0.0): List<String> =
+        checkAll(text, parts, zBaseMm, tolUm, maxProblems, imagesDir, surface, partTools, zaa, progress, handOverMm, featureMinMm,
+            firstLayerInsetMm, surfaceHandOverMm, fuzzMm, infillMinMm, slicingTolMm, endOverlap).problems
+
+    /**
+     * The check's outcome: its [problems] (the file is refused on any), and the laid-twice rule's measure over every layer
+     * ([DoubledCheck.Summary]: reported, and among the problems only when [DoubledCheck.REFUSES]).
+     */
+    class Result(val problems: List<String>, val laidTwice: DoubledCheck.Summary)
+
+    /** As [check], with the laid-twice rule's measure ([Result]). */
+    fun checkAll(text: String, parts: List<TriangleSoup>, zBaseMm: Double, tolUm: Long = 100, maxProblems: Int = 30,
+                 imagesDir: java.nio.file.Path? = null, surface: Surface? = null, partTools: List<Int>? = null, zaa: ZaaRule? = null,
+                 progress: plymeld.program.Progress = plymeld.program.Progress.NONE, handOverMm: Double = 0.0, featureMinMm: Double = 0.0,
+                 firstLayerInsetMm: Double = 0.0, surfaceHandOverMm: Double = 0.0, fuzzMm: Double = 0.0, infillMinMm: Double = Double.MAX_VALUE,
+                 slicingTolMm: Double = 0.0, endOverlap: Double = 0.0): Result {
         require(partTools == null || partTools.size == parts.size) { "${partTools!!.size} part tools for ${parts.size} parts" }
         val sf = surface ?: Surface(parts, zBaseMm, text, zaaMinMm = zaa?.minMm)
         val layers = sf.layerLines
-        if (layers.isEmpty()) return listOf("no layers in the g-code")
+        if (layers.isEmpty()) return Result(listOf("no layers in the g-code"), DoubledCheck.Summary.NONE)
         // this check's own pictures from an earlier run would describe another file: cleared first
         imagesDir?.takeIf { java.nio.file.Files.isDirectory(it) }?.let { d ->
             java.nio.file.Files.list(d).use { s -> s.filter { it.fileName.toString().matches(Regex("z[0-9.]+\\.png")) }.forEach { java.nio.file.Files.delete(it) } }
@@ -111,9 +141,12 @@ object ModelCheck {
         if (imagesDir != null) System.setProperty("java.awt.headless", "true")
         // every layer on its own, in parallel; the problems in layer order (the model's cuts made first, here: Parallel)
         sf.ready()
-        return plymeld.core.Parallel.map(layers.size, progress.Counter("model check", layers.size)) { k ->
-            layerProblems(sf, k, tol, imagesDir, zaa, featureMinMm, if (k == 0) firstLayerInsetMm else 0.0, fuzzMm, infillMinMm) + airProblems(sf, k, tol, imagesDir) +
-                toolProblems(sf, k, tol + handOverMm, partTools) + surfaceToolProblems(sf, k, tol + surfaceHandOverMm, partTools) }.flatten().take(maxProblems)
+        // each layer's problems and its laid-twice reading, returned by its own task (nothing shared between the tasks)
+        val per = plymeld.core.Parallel.map(layers.size, progress.Counter("model check", layers.size)) { k ->
+            val lo = layerProblems(sf, k, tol, imagesDir, zaa, featureMinMm, if (k == 0) firstLayerInsetMm else 0.0, fuzzMm, infillMinMm, slicingTolMm, endOverlap)
+            (lo.problems + airProblems(sf, k, tol, imagesDir) + toolProblems(sf, k, tol + handOverMm, partTools) + surfaceToolProblems(sf, k, tol + surfaceHandOverMm, partTools)) to lo.twice }
+        return Result(per.flatMap { it.first }.take(maxProblems),
+            DoubledCheck.Summary(per.indices.mapNotNull { k -> per[k].second.takeIf { it.spots.isNotEmpty() || it.capped }?.let { DoubledCheck.Layer(layers[k].z, "", it) } }))
     }
 
     /** The unlaid area over air a waved layer may leave (mm2): a few sampling cells, so a corner's rounding is not one. */
@@ -299,23 +332,27 @@ object ModelCheck {
      */
     private const val SURFACE_RUN_MM = 1.0
 
-    /** One layer's problems (and its picture, when [imagesDir] is given). */
+    /** One layer's problems and its laid-twice reading ([DoubledCheck]). */
+    private class LayerOut(val problems: List<String>, val twice: DoubledCheck.Reading)
+
+    /** One layer's problems and laid-twice reading (and its picture, when [imagesDir] is given). */
     private fun layerProblems(sf: Surface, k: Int, tol: Double, imagesDir: java.nio.file.Path?, zaa: ZaaRule?, featureMinMm: Double, insetMm: Double,
-                              fuzzMm: Double, infillMinMm: Double): List<String> {
+                              fuzzMm: Double, infillMinMm: Double, slicingTolMm: Double, endOverlap: Double): LayerOut {
         val out = ArrayList<String>()
         val layer = sf.layerLines[k]
+        var reading = DoubledCheck.Reading.NONE
         run {
             // the outline the walls must cover (with Z anti-aliasing, reaching out over slopes); "outside" is judged on the
             // cut at the layer's middle, a point of a line lowered onto the model's top excused (below)
             val loops = sf.wallLoops(k)
             val model = layer.segs
-            if (loops.isEmpty()) { if (model.isNotEmpty()) out += "layer at z ${f(layer.z, 3)}: ${model.size} model lines printed where the model has no cross-section"; return out }
+            if (loops.isEmpty()) { if (model.isNotEmpty()) out += "layer at z ${f(layer.z, 3)}: ${model.size} model lines printed where the model has no cross-section"; return LayerOut(out, reading) }
             if (model.isEmpty()) {
                 // a cross-section with nothing of the model printed on it: a sliver too thin to print, or a missing layer (its
                 // cut at the middle: what reaches out over a slope with Z anti-aliasing is a sliver by nature)
                 val area = sf.loops(k).sumOf { it.signedAreaMm2() }
                 if (area > 1.0) out += "layer at z ${f(layer.z, 3)}: nothing of the model printed, though its cross-section there is ${f(area, 1)} mm2"
-                return out
+                return LayerOut(out, reading)
             }
             val edges = sf.grid(k)
             // outside
@@ -419,13 +456,30 @@ object ModelCheck {
             val badHole = hole != null && hole.widthMm > floor + 2 * HoleCheck.CELL_MM
             if (badHole) { uncPts += doubleArrayOf(hole.x, hole.y)
                 out += "layer at z ${f(layer.z, 3)}: a hole inside the walls ${f(hole.widthMm, 2)} mm wide (${f(hole.areaMm2, 3)} mm2, at ${f(hole.x, 2)}, ${f(hole.y, 2)}), where the model holds a line: no line laid there" }
-            if (imagesDir != null && (badOutside || badOutline || badBare || badHole)) {
-                val (cx, cy) = if (badOutline) ux to uy else if (badBare) bare.x to bare.y else if (badHole) hole.x to hole.y else wx to wy
-                ModelCheckPlot.write(imagesDir.resolve("z%07.3f.png".format(Locale.ROOT, layer.z)), "layer at z ${f(layer.z, 3)}: ${out.last().substringAfter(": ")}",
-                    loops, model.map { doubleArrayOf(it.x0, it.y0, it.x1, it.y1, it.w, if (it.wall) 1.0 else 0.0) }, outPts, uncPts, cx, cy)
+            // plastic laid twice (DoubledCheck): two lines over each other further than neighboring lines overlap by plan, over
+            // a spot wider than the narrowest place a line is laid in, read to a grid cell either side. Measured on every
+            // layer (the slice's "laid twice" line), a problem only when DoubledCheck.REFUSES; drawn in the layer's picture
+            // either way
+            reading = DoubledCheck.read(model, floor, slicingTolMm, endOverlap, fuzzMm)
+            val twice = reading.spots
+            val twiceWords = twice.firstOrNull()?.let { s ->
+                "plastic laid twice over a spot ${f(s.widthMm, 2)} mm wide (${f(s.areaMm2, 3)} mm2, at ${f(s.x, 2)}, ${f(s.y, 2)}): " +
+                    "${s.lines()} of the same layer, further than neighboring lines overlap" +
+                    (if (twice.size > 1) " (${twice.size} such spots on the layer, ${f(twice.sumOf { it.areaMm2 }, 3)} mm2 in all)" else "") +
+                    (if (reading.capped) String.format(Locale.ROOT, " (the reading stopped at %,d cells laid twice: more lies twice on the layer than this counts)", DoubledCheck.MAX_CELLS) else "") }
+            if (twiceWords != null) uncPts += doubleArrayOf(twice[0].x, twice[0].y)
+            if (twiceWords != null && DoubledCheck.REFUSES) out += "layer at z ${f(layer.z, 3)}: $twiceWords"
+            if (imagesDir != null && (badOutside || badOutline || badBare || badHole || twiceWords != null)) {
+                val (cx, cy) = if (badOutline) ux to uy else if (badBare) bare.x to bare.y else if (badHole) hole.x to hole.y else if (twiceWords != null) twice[0].x to twice[0].y else wx to wy
+                val file = imagesDir.resolve("z%07.3f.png".format(Locale.ROOT, layer.z))
+                val lines = model.map { doubleArrayOf(it.x0, it.y0, it.x1, it.y1, it.w, if (it.wall) 1.0 else 0.0) }
+                // a layer with nothing refused, drawn for its spots laid twice: titled and marked as that
+                if (out.isEmpty()) ModelCheckPlot.write(file, "layer at z ${f(layer.z, 3)}: $twiceWords", loops, lines, outPts, uncPts, cx, cy,
+                    uncoveredIs = "the widest spot laid twice")
+                else ModelCheckPlot.write(file, "layer at z ${f(layer.z, 3)}: ${out.last().substringAfter(": ")}", loops, lines, outPts, uncPts, cx, cy)
             }
         }
-        return out
+        return LayerOut(out, reading)
     }
 
     /**
@@ -670,6 +724,9 @@ object ModelCheck {
         // the lines laid in this layer's block for the layer above (ABOVE): carried into the next layer's
         var above = ArrayList<Seg>()
         var x = Double.NaN; var y = Double.NaN; var zc = Double.NaN; var w = 0.4; var feature = ""; var tool = 0
+        // the run: what the nozzle lays without stopping (Seg.run); a travel, a retraction, a tool or layer change, or a line
+        // that is not the model's, ends it
+        var run = 0; var broken = true
         // the segments of the path being read, each with its plastic per mm: a path's widest (its stated width) sets the
         // scale for the rest (Seg.bead): the bead's cross-section, t (w - t (1 - pi/4)) on a layer t thick, goes as the
         // plastic per mm
@@ -683,7 +740,7 @@ object ModelCheck {
             if (ts == null) {
                 val top = long.maxOf { it.second }
                 val flank = h * (1 - Math.PI / 4)
-                if (top > 0) for ((s, rate) in path) s.bead = flank + (s.w - flank) * minOf(1.0, rate / top)
+                for ((s, rate) in path) { s.t = h; if (top > 0) s.bead = flank + (s.w - flank) * minOf(1.0, rate / top) }
             } else {
                 // a layer whose thickness varies along the path (a curved layer): a segment's cross-section, c times its plastic
                 // per mm, is t (bead - t (1 - pi/4)) on its own thickness t; c makes the path's widest bead its stated width
@@ -696,10 +753,11 @@ object ModelCheck {
                     if (rate > 0 && (!longOnly || Math.hypot(s.x1 - s.x0, s.y1 - s.y0) >= 0.05)) c = minOf(c, (s.w - ts[i] * (1 - Math.PI / 4)) * ts[i] / rate) }
                 if (c < Double.MAX_VALUE) for ((i, p) in path.withIndex()) { val (s, rate) = p; val t = ts[i]
                     s.bead = minOf(s.w, c * rate / t + t * (1 - Math.PI / 4)) }
+                for ((i, p) in path.withIndex()) p.first.t = ts[i]
             }
             path.clear()
         }
-        fun flush() { endPath(); if (started && !z.isNaN()) out += LayerLines(z, h, segs); segs = above; above = ArrayList() }
+        fun flush() { endPath(); broken = true; if (started && !z.isNaN()) out += LayerLines(z, h, segs); segs = above; above = ArrayList() }
         for (raw in text.lineSequence()) {
             val l = raw.trim()
             if (l.startsWith(";LAYER_CHANGE") || l.startsWith("; CHANGE_LAYER")) { flush(); started = true; continue }
@@ -715,25 +773,26 @@ object ModelCheck {
                 l.startsWith("; FEATURE:") -> feature = l.removePrefix("; FEATURE:").trim()
             }
             val c = l.substringBefore(';').trim()
-            if (TOOL.matches(c)) { endPath(); tool = c.substring(1).toInt(); continue }
+            if (TOOL.matches(c)) { endPath(); broken = true; tool = c.substring(1).toInt(); continue }
             val ws = c.split(Regex("\\s+"))
             val arc = ws[0] == "G2" || ws[0] == "G3"
             if (!(ws[0] == "G1" || ws[0] == "G0" || arc)) continue
             fun num(ch: Char) = ws.drop(1).firstOrNull { it.isNotEmpty() && it[0] == ch }?.substring(1)?.toDoubleOrNull()
             val nx = num('X') ?: x; val ny = num('Y') ?: y; val nz = num('Z') ?: zc; val e = num('E') ?: 0.0
             if (started && e > 0 && !x.isNaN() && (nx != x || ny != y || arc) && feature in MODEL) {
+                if (broken) { run++; broken = false }
                 if (arc) {
                     val chords = ArrayList<Seg>()
-                    arcChords(x, y, nx, ny, x + (num('I') ?: 0.0), y + (num('J') ?: 0.0), ws[0] == "G2") { ax, ay, bx, by -> chords += Seg(ax, ay, bx, by, w, feature in WALLS, tool, nz, nz, feature in WAVES, feature in INFILL) }
+                    arcChords(x, y, nx, ny, x + (num('I') ?: 0.0), y + (num('J') ?: 0.0), ws[0] == "G2") { ax, ay, bx, by -> chords += Seg(ax, ay, bx, by, w, feature in WALLS, tool, nz, nz, feature in WAVES, feature in INFILL, feature, run) }
                     val len = chords.sumOf { Math.hypot(it.x1 - it.x0, it.y1 - it.y0) }
                     segs += chords
                     if (len > 0) for (s in chords) path += s to e / len
                 } else {
-                    val s = Seg(x, y, nx, ny, w, feature in WALLS, tool, zc, nz, feature in WAVES, feature in INFILL)
+                    val s = Seg(x, y, nx, ny, w, feature in WALLS, tool, zc, nz, feature in WAVES, feature in INFILL, feature, run)
                     (if (feature == ABOVE) above else segs) += s
                     path += s to e / Math.hypot(nx - x, ny - y)
                 }
-            } else if (nx != x || ny != y || e < 0) endPath()     // a travel or a retraction ends it (a feed rate alone does not)
+            } else if (nx != x || ny != y || e < 0) { endPath(); broken = true }     // a travel or a retraction ends it (a feed rate alone does not)
             x = nx; y = ny; zc = nz
         }
         flush()

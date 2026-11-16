@@ -11,6 +11,15 @@ section the release's version and date.
 
 ### Added
 
+- The pre-print check finds plastic laid twice: a spot of a layer where two lines lie over each other further than
+  neighboring lines overlap by plan (their beads' rounded flanks, the slicing tolerance, a line end's reach into the walls,
+  `plan.layer.infill.wall_overlap`, and fuzzy skin's thickness allowed), wider than the narrowest place a line is laid in.
+  Ironing, wave beads, a line over itself without stopping, and sparse infill lines crossing each other are not judged.
+  `slice` reports it in a `laid twice:` line beside the seams and strings (the window's console too): the number of
+  spots, their area, the layers holding one, and the widest (its layer, place, width, area, and the two kinds of line),
+  with a picture of each such layer among the check's pictures. It does not refuse the file for them: the planner still
+  lays some plastic twice itself, in places on ordinary models.
+
 - A curved island over an object of parts in several filaments or settings (`plan.object.<key>.island.<key>`): every
   part inside the island follows its layers, each laid by its own filament, settings, and tool in its turn of the layer,
   the parts meeting in the island's layers as they do in flat ones. Each island layer is a layer among the flat ones: its
@@ -144,6 +153,10 @@ section the release's version and date.
 
 ### Fixed
 
+- A bridge's lines, over air or over sparse infill, ended with their middle on the edge of the area they fill: every line
+  end and every run linking two lines along that edge lay half a line over the walls and the infill beside it. They now
+  end where their bead touches the wall's and reach on by `plan.layer.infill.wall_overlap`, as every other interior
+  line does.
 - A hole of an area was sometimes read as another area's: a hole whose first corner touched a smaller area beside it (a
   sliver a micron wide, as the space between two walls' lines can leave) was given to that area, and the area that does
   hold it was taken to have none. Variable-width walls then laid lines up to 0.9 mm wide along the middle of that whole

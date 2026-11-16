@@ -144,9 +144,12 @@ class SliceSession {
     /**
      * Reads the file back as the printer would: against the config (machine, retraction, travels, tools, header, start and
      * end) and against the model (nothing printed outside it, its outline walled). The problems, empty when it passed; the
-     * check's line echoed either way (the command refuses the file on any).
+     * check's line echoed either way (the command refuses the file on any), and the laid-twice line before it (the rule's
+     * measure: spots, their area, the layers with one, the widest).
      */
-    class Checked(val problems: List<String>, /** The refusal as `slice` prints it (its message), or null when the file passed. */ val refusal: String?)
+    class Checked(val problems: List<String>, /** The refusal as `slice` prints it (its message), or null when the file passed. */ val refusal: String?,
+                  /** The laid-twice rule's measure over the file (DoubledCheck), as the "laid twice" line says it. */
+                  val laidTwice: plymeld.core.check.DoubledCheck.Summary = plymeld.core.check.DoubledCheck.Summary.NONE)
 
     fun check(w: Written, echo: (String) -> Unit, progress: Progress = Progress.NONE): Checked {
         val (pr, plan, setup, output, text, partTools) = w
@@ -203,12 +206,16 @@ class SliceSession {
         // the narrowest area object j's walls hand to infill (two inner wall lines), for the hole rule: an uncovered piece that
         // wide is the infill region's
         fun infillMin(j: Int): Double = 2 * plymeld.model.SliceSettings.of(setup, plymeld.model.Context(j)).innerWallWidthUm / 1000.0
+        // object j's slicing tolerance (method.slicing.tolerance) and its lines' reach into the walls (plan.layer.infill.wall_overlap),
+        // for the laid-twice rule: overlaps between lines the planner makes on purpose
+        fun slicingTol(j: Int): Double = plymeld.model.SliceSettings.of(setup, plymeld.model.Context(j)).resolutionUm / 1000.0
+        fun endOverlap(j: Int): Double = plymeld.model.SliceSettings.of(setup, plymeld.model.Context(j)).infillWallOverlap
         val plate = if (!several) null else {
             var at = 0
             val objs = plan.layout.placed.withIndex().map { (j, pl) ->
                 val tools = partTools.subList(at, at + pl.parts.size).also { at += pl.parts.size }
                 val (ps, ts) = if (curvedSpec(plan, setup, j) == null) cutParts(j, pl.parts, tools) else pl.parts to tools
-                plymeld.core.check.PlateCheck.Obj(pl.name, ps, ts, curvedSpec(plan, setup, j), cutOf(j), handOver(j), featureMin(j), firstInset(j), surfaceHandOver(j), fuzz(j), infillMin(j))
+                plymeld.core.check.PlateCheck.Obj(pl.name, ps, ts, curvedSpec(plan, setup, j), cutOf(j), handOver(j), featureMin(j), firstInset(j), surfaceHandOver(j), fuzz(j), infillMin(j), slicingTol(j), endOverlap(j))
             }
             if (sequential) plymeld.core.check.PlateCheck.oneAtATime(text, objs, zBase, Path.of("$output.check"), zaa)
             else plymeld.core.check.PlateCheck.together(text, objs, zBase, Path.of("$output.check"), zaa)
@@ -243,20 +250,28 @@ class SliceSession {
             plymeld.core.check.SupportCheck.check(text, sp.spots.map { s -> plymeld.core.check.SupportCheck.Spot(s.id, bx + s.region.x0, bx + s.region.x1, by + s.region.y0, by + s.region.y1) })
                 .map { "'${pl.name}': $it" }
         }
-        val problems = spotProblems + (plate?.problems ?: emptyList()) + (curved?.problems ?: emptyList()) + gProblems +
-            (if (plate != null) emptyList()
-            else if (frames != null) frames.flatMapIndexed { i, fr ->
-                plymeld.core.check.ModelCheck.check(fr.text, fr.parts, zBase, imagesDir = Path.of("$output.check", fr.name.replace(' ', '_')).also { Files.createDirectories(it) },
+        // the model check: a lone object's whole file, or each of its frames; a plate's objects were read by PlateCheck
+        val modelResults: List<plymeld.core.check.ModelCheck.Result> =
+            if (plate != null) emptyList()
+            else if (frames != null) frames.mapIndexed { i, fr ->
+                plymeld.core.check.ModelCheck.checkAll(fr.text, fr.parts, zBase, imagesDir = Path.of("$output.check", fr.name.replace(' ', '_')).also { Files.createDirectories(it) },
                     surface = frameSurfaces!![i], partTools = fr.partIndex.map { partTools[it] }, zaa = if (fr.flat) zaa else null, progress = progress,
-                    handOverMm = handOver(0), featureMinMm = featureMin(0), firstLayerInsetMm = firstInset(0), surfaceHandOverMm = surfaceHandOver(0), fuzzMm = fuzz(0), infillMinMm = infillMin(0)).map { "${fr.name}: $it" } }
-            else plymeld.core.check.ModelCheck.check(checkText, checkParts, zBase, imagesDir = Path.of("$output.check"), surface = surface, partTools = checkTools, zaa = zaa, progress = progress,
-                handOverMm = handOver(0), featureMinMm = featureMin(0), firstLayerInsetMm = firstInset(0), surfaceHandOverMm = surfaceHandOver(0), fuzzMm = fuzz(0), infillMinMm = infillMin(0)))
+                    handOverMm = handOver(0), featureMinMm = featureMin(0), firstLayerInsetMm = firstInset(0), surfaceHandOverMm = surfaceHandOver(0), fuzzMm = fuzz(0), infillMinMm = infillMin(0),
+                    slicingTolMm = slicingTol(0), endOverlap = endOverlap(0)).let { r -> plymeld.core.check.ModelCheck.Result(r.problems.map { "${fr.name}: $it" }, r.laidTwice.at(fr.name)) } }
+            else listOf(plymeld.core.check.ModelCheck.checkAll(checkText, checkParts, zBase, imagesDir = Path.of("$output.check"), surface = surface, partTools = checkTools, zaa = zaa, progress = progress,
+                handOverMm = handOver(0), featureMinMm = featureMin(0), firstLayerInsetMm = firstInset(0), surfaceHandOverMm = surfaceHandOver(0), fuzzMm = fuzz(0), infillMinMm = infillMin(0),
+                slicingTolMm = slicingTol(0), endOverlap = endOverlap(0)))
+        val problems = spotProblems + (plate?.problems ?: emptyList()) + (curved?.problems ?: emptyList()) + gProblems + modelResults.flatMap { it.problems }
+        // plastic laid twice (DoubledCheck): measured on every layer, reported here; among the problems only when DoubledCheck.REFUSES
+        val laidTwice = modelResults.fold(plate?.laidTwice ?: plymeld.core.check.DoubledCheck.Summary.NONE) { a, r -> a + r.laidTwice }
         plate?.let { echo("check: ${plan.layout.placed.size} objects, ${if (sequential) "one at a time: each object's run of layers" else "together: each object's lines, by the file's object markers,"} read against that object alone") }
         (plate?.curvedLayers ?: curved?.curvedLayers)?.takeIf { it > 0 }?.let { echo("check: $it curved layer(s) read in warped space (the check's own warp, from the model)") }
+        echo("laid twice: ${laidTwice.words()}" + (if (laidTwice.spots == 0 || plymeld.core.check.DoubledCheck.REFUSES) "" else
+            " (the pre-print check's laid-twice rule, reported, not refused; a picture of each layer with one in $output.check)"))
         val took = (System.nanoTime() - t1) / 1_000_000
         val times = "$took ms: model cut $tCut, g-code check $tG, model check ${took - tCut - tG}"
-        if (problems.isEmpty()) { echo("check: the g-code reads back as the config and the model say ($times)"); return Checked(problems, null) }
-        return Checked(problems, "check: ${problems.size} problem(s) in $output ($times); do not print it before they are understood:\n" + problems.joinToString("\n") { "  $it" })
+        if (problems.isEmpty()) { echo("check: the g-code reads back as the config and the model say ($times)"); return Checked(problems, null, laidTwice) }
+        return Checked(problems, "check: ${problems.size} problem(s) in $output ($times); do not print it before they are understood:\n" + problems.joinToString("\n") { "  $it" }, laidTwice)
     }
 
     /** The file's writer, with [tap] written to as well when given. */
