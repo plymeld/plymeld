@@ -37,7 +37,8 @@ import java.util.Locale
  * plan.layer.walls.feature.min and the slicing tolerance a side) and two cells: as much plastic again as a line there. A
  * sliver along a line's side is not, and the planner lays some on purpose: a thin area's center line between walls
  * overlaps them by up to wall_overlap of the narrowest line a side (Walls), and an interior line's runs linking its lines
- * along the region's edge lie wall_overlap of its width past bead contact along the walls (Planner). Narrowing the
+ * along the region's edge lie wall_overlap of its width past bead contact along the walls, and along the lines of a fill
+ * that owns an edge it shares with them (Planner). Narrowing the
  * lines' sides by those too would leave a whole interior line laid over another narrower than the floor.
  * Limits: a run laid twice over itself, and two sparse infill lines laid over each other, pass.
  *

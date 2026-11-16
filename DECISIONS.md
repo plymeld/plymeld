@@ -1682,3 +1682,55 @@ wall's kinks, and holds the outer wall of its models of straight sides and true 
 square with a short move and a spike inserted is counted (control). Test: CenterLineSimplifyTest (a narrow island's rib
 pairs, open and closed: no move shorter than the tolerance, no point moved as far, the plastic within half a micron of
 width; control: without the merge the moves of 5 µm stay).
+
+## 54. Where two fills share an edge, one owns it; a band's loops stay in the band (2026-11-16)
+
+Amends 47 and 48.
+
+**Context.** Decision 48 named two fills sharing an edge as the commonest cause of plastic laid twice. Read spot by spot on
+a plain Benchy (92 spots, 58.6 mm², 19 layers) and a two-part Benchy (52 spots, 45.8 mm², 12 layers), with each layer's
+regions dumped:
+- Every fill of a layer (internal solid, sparse, an internal bridge, a top, a bridge over air) placed its lines against
+  each edge of its region as against a wall's bead: bead contact, then the line-end overlap
+  (`plan.layer.infill.wall_overlap`). Where two fills meet there is no wall, and both did so: their line ends and linking
+  runs lay over each other along the edge (top beside internal solid, internal solid beside sparse, a bridge beside
+  internal solid; 0.25 to 0.38 mm wide).
+- The largest spots were another cause. A band of internal solid up to five lines wide with a hole (round a sparse core,
+  or between a deck's top and a cabin's walls) is laid as loops; they were the band's outer edge moved in, so where the
+  band is narrower than its mean width they ran on over its hole: over the sparse infill (12.9 mm² on one layer of the
+  Benchy, 13.8 mm² on the two-part one: the same place, not two parts' fills) and over a cabin's inner walls (9.1 mm²).
+  Decision 48's "concentric solid ring over an inner wall" and "two parts' fills over each other" are this.
+
+**Decision.**
+- The fills of a layer are decided before any is laid. Where two share an edge, one owns it, in the order a top, a bottom,
+  a bridge over air, an internal bridge, internal solid, a narrow sparse piece laid solid, sparse infill. The owner lays
+  its lines against the edge as against a wall's bead; the other lays its lines against the owner's beads as against a
+  wall's: bead contact with them, then the line-end overlap (Planner.reachUm). A sparse piece's single loop runs along
+  the owner's beads at bead contact. A top gives a bridge's anchor area up, as internal solid and sparse do.
+- A band's loops are cut where their middle leaves the band (SurfaceFill.outOfHoles: the cut the outside-in concentric
+  pattern makes at a hole grown by half a spacing, here with none, so a loop is kept wherever it covers more of the band
+  than of the hole).
+
+**Rejected.** Both fills at bead contact with each other and no overlap (each line half a spacing from the edge, the first
+version): where the gaps between both fills' round line ends met, it left holes about 0.3 mm across along the edge (a
+seam: 1.07 mm² bare along 20 mm between two fills hatched at 45 and -45 degrees). Both fills reaching the line-end
+overlap past bead contact with each other: the linking runs along the edge lie over each other by that overlap twice,
+more than a fill and a wall overlap by plan. A line of its own along the shared edge, laid as a wall between the fills:
+it would close the gaps between line ends too, at a path and its ends more on every such edge; not built.
+
+**Consequences.** The plain Benchy: 92 spots, 58.6 mm², on 19 layers to 16, 4.4 mm², on 8 (no fill over another fill or a
+wall left); the two-part Benchy: 52, 45.8 mm², 12 layers to 14, 4.0 mm², 6. What is left there: internal solid over
+internal solid where a narrow piece's loops (each the piece's edge moved in) come within a spacing of one another, and
+two bridges' lines at one place on the first bridge layer. Filament: Benchy 4060 to 4022 mm (internal solid -4.7 % of
+its length, of it 3.6 % the band loops' stretches outside their band, sparse -3.0 %); the two-part Benchy internal solid
+-3.3 %, sparse -2.0 %. The catalog: the bridges' 7 spots and the sloped top's 28 to none; sparse infill shorter on
+most models (up to half on the narrow ridges, where a narrow sparse piece beside solid shells gives up its edge to them);
+no wall, seam, or check measure moves. Its new model, a stepped top (a top beside internal solid, an internal bridge
+beside internal solid and sparse), reads none. FillContactTest: a stepped block and a table, no plastic laid twice
+between fills; controls on two fills side by side: both placed against the edge lay 1.12 mm² twice, both at bead contact
+leave 1.07 mm² bare. A real three-object plate: 10 spots, 1.199 mm², on 9 layers to 9, 1.116 mm², on 8 (the fills' one
+gone), filament 5838 to 5833 mm, retractions 8642 to 8640, seams unchanged; its planning 44.4, 46.7, 48.0 s before and
+47.1, 46.6, 46.2 s after (three runs each, in turn): within the runs' spread (a layer with one fill makes no extra
+boolean). Open: where both fills' gaps between line ends meet, holes up to 0.275 mm across remain (0.15 mm
+where the same fill meets a wall on that layer; the hole rule's floor there is 0.176 mm, and the rule does not read
+infill).

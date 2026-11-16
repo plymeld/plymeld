@@ -166,7 +166,9 @@ class LayerPlanOut(val index: Int, val topZUm: Long, val heightUm: Long, val pat
  *    - bridges over air, and internal bridges over sparse infill, each with its own direction
  *      rule ([Bridges]); ironing on top surfaces;
  *  where s = bead spacing(width, height). Infill lines end where their bead touches the wall
- *  bead (contact), then reach on by infill_wall_overlap.
+ *  bead (contact), then reach on by infill_wall_overlap. Where two fills of a layer share an edge, one owns it (a top,
+ *  a bottom, a bridge, an internal bridge, internal solid, sparse, in that order) and lays its lines against it as against
+ *  a wall; the other lays its lines against the owner's beads the same way.
  * Lines are joined into continuous runs along the region's edge ([plymeld.geom.Linker]), and each
  * group is ordered to cut travel ([Ordering]; top, bottom, and ironing as one-way sweeps).
  */
@@ -192,6 +194,15 @@ object Planner {
      * stadium model's overlap between adjacent beads subtracted (Walls.spacing uses the same).
      */
     fun contactInset(widthUm: Long, hUm: Long): Long = widthUm / 2 - Math.round(hUm * (1 - Math.PI / 4))
+
+    /**
+     * How far past its region's edge an interior line of width [widthUm] and height [hUm] lays plastic where it meets a
+     * wall: its center [contactInset] less the line-end overlap ([overlap], plan.layer.infill.wall_overlap, a share of the
+     * width) inside the edge, so its bead reaches h(1 - pi/4) + overlap x w past it. Where two fills of a layer share an
+     * edge, the one that owns it lays its lines so, and the other lays its lines against that plastic as against a wall's
+     * bead (Planner's fills: [contactInset] and the overlap from the owner's reach).
+     */
+    fun reachUm(widthUm: Long, hUm: Long, overlap: Double): Long = widthUm / 2 - contactInset(widthUm, hUm) + Math.round(overlap * widthUm)
 
     /**
      * The sparse line families printed on layer [i] (top [zUm], height [hUm]): the same rules as the sparse fill. [rectAngle]:
@@ -1123,7 +1134,8 @@ object Planner {
                 fun off(p: List<Polygon>) = if (p.isEmpty()) p else Booleans.difference(p, waveCovered)
                 LayerRegions(off(g.inner), off(g.topSurface), off(g.bottomSurface), off(g.internalSolid), off(g.sparse)) }
             val parity = i % 2
-            fun hatch(region: List<Polygon>, feature: Feature, width: Long, spacing: Long, angles: List<Double>, height: Long = h, phases: List<Double>? = null) {
+            fun hatch(region: List<Polygon>, feature: Feature, width: Long, spacing: Long, angles: List<Double>, height: Long = h, phases: List<Double>? = null,
+                      beside: ((Long) -> List<Polygon>)? = null) {
                 if (region.isEmpty()) return
                 var hatchRegion = region
                 if (feature != Feature.SPARSE) {
@@ -1161,8 +1173,14 @@ object Planner {
                         var placed = false
                         for (k in 0 until loopsN) {
                             val d = Math.round(share * (k + 0.5))
-                            for (lp in Offset.offset(listOf(outer), -d)) if (lp.isCcw() && lp.signedAreaMm2() > 0.01) {
-                                paths.add(ToolPath(feature, seamAtBack(lp).xy, true, widthK, h)); placed = true
+                            val loops = Offset.offset(listOf(outer), -d).filter { lp -> lp.isCcw() && lp.signedAreaMm2() > 0.01 }
+                            if (holes.isEmpty()) for (lp in loops) { paths.add(ToolPath(feature, seamAtBack(lp).xy, true, widthK, h)); placed = true }
+                            // a band's loops follow its outer edge; where the band is narrower than its mean width they would
+                            // run on over its hole (the walls round it, or the fill inside it: a Benchy's deck ring laid two
+                            // loops on its cabin's inner wall), so each is cut where its middle leaves the band
+                            else for (pc in SurfaceFill.outOfHoles(loops, holes, 0L, 2 * widthK)) {
+                                paths.add(if (pc.closed) ToolPath(feature, seamAtBack(Polygon(pc.xy)).xy, true, widthK, h) else ToolPath(feature, pc.xy, false, widthK, h))
+                                placed = true
                             }
                         }
                         if (!placed) { leftovers.add(outer); leftovers.addAll(holes) }
@@ -1185,7 +1203,15 @@ object Planner {
                 // linking run on the wall: testplate overfill near the surface 175 mm2 on three
                 // layers, missing + excess plastic 16.1 mm3 against 6.1 with contact placement
                 // (a deposition sweep against the model).
+                // Where the region shares an edge with another of the layer's fills that owns that edge ([beside]: the
+                // layer's fills), there is no wall at the edge: the owner's lines are, laid against the edge as against a
+                // wall, and these lines are placed against the owner's beads the same way (bead contact, then the line-end
+                // overlap). Both placed against the edge itself, their line ends and linking runs lay over each other along
+                // it, 0.25 to 0.30 mm wide (the pre-print check's laid-twice rule: 92 spots on a plain Benchy); both placed
+                // at bead contact with no overlap, the gaps between their line ends' round caps met in a bare seam about
+                // 0.3 mm wide (FillContactTest).
                 val grown = Offset.offset(hatchRegion, Math.round(s.infillWallOverlap * width) - contactInset(width, height))
+                    .let { g -> if (beside == null || g.isEmpty()) g else Booleans.difference(g, beside(contactInset(width, height) - Math.round(s.infillWallOverlap * width))) }
                 if (feature == Feature.SPARSE && s.sparsePattern == "gyroid") {
                     // gyroid: the surface's cross-section at the layer's middle height, [spacing] its period (Gyroid)
                     for (pl in Gyroid.curves(grown, spacing, layerTopsUm[i] - height / 2.0, sparseCenter, 2 * width, s.sparseChordUm ?: 0L))
@@ -1268,13 +1294,18 @@ object Planner {
             val solidW = if (first) s.firstLayerWidthUm else s.solidWidthUm
             /** A solid surface in its pattern: line patterns hatch; concentric-outside-in, concentric-inside-out, and archimedeanchords per [SurfaceFill]. */
             var ringSeq = 0
-            fun surface(region: List<Polygon>, feature: Feature, width: Long, spacing: Long, angles: List<Double>, pattern: String) {
+            fun surface(region: List<Polygon>, feature: Feature, width: Long, spacing: Long, angles: List<Double>, pattern: String,
+                        beside: ((Long) -> List<Polygon>)? = null) {
                 if (region.isEmpty()) return
-                val grown = { Offset.offset(region, Math.round(s.infillWallOverlap * width)) }
+                // the rings start half a spacing inside this; beside a fill that owns the edge ([beside], hatch), the first
+                // runs along that fill's beads at bead contact, as along a wall's
+                val grown = { Offset.offset(region, Math.round(s.infillWallOverlap * width)).let { g -> if (beside == null || g.isEmpty()) g else
+                    Booleans.difference(g, beside(contactInset(width, h) - Walls.spacing(width, h) / 2)) } }
                 // archimedean chords are clipped on the region's edge like hatch lines: contact placement (see hatch)
-                val clipped = { Offset.offset(region, Math.round(s.infillWallOverlap * width) - contactInset(width, h)) }
+                val clipped = { Offset.offset(region, Math.round(s.infillWallOverlap * width) - contactInset(width, h))
+                    .let { g -> if (beside == null || g.isEmpty()) g else Booleans.difference(g, beside(contactInset(width, h) - Math.round(s.infillWallOverlap * width))) } }
                 when (pattern) {
-                    in SurfaceFill.LINE_PATTERNS -> hatch(region, feature, width, spacing, angles)
+                    in SurfaceFill.LINE_PATTERNS -> hatch(region, feature, width, spacing, angles, beside = beside)
                     // the ring patterns are laid as generated, ring after ring in one direction ([ToolPath.sequence])
                     // the rings joined into one path where they lie side by side (SurfaceFill.joined: one start, not one per ring);
                     // the first starts at the back
@@ -1303,12 +1334,14 @@ object Planner {
             // infill (Walls.arachne, an island laid by its beads)
             fun bridgeEach(region: List<Polygon>, below: List<Polygon>, bw: Long, h: Long, out: MutableList<ToolPath>, grow: Long,
                            feature: Feature = Feature.BRIDGE,
-                           families: List<Bridges.Family>? = null) {
+                           families: List<Bridges.Family>? = null, owners: ((Long) -> List<Polygon>)? = null) {
                 val sp = Walls.spacing(bw, h)
+                // beside a fill that owns the edge, against that fill's beads as against a wall's (hatch)
+                val beside = owners?.invoke(contactInset(bw, h) - grow).orEmpty()
                 for ((o, hs) in Polygons.group(region)) {
                     val piece = listOf(o) + hs
                     val angle = families?.let { Bridges.internalAngle(piece, below, it, sp, bw) } ?: Bridges.bestAngle(piece, below, sp, bw)
-                    val hatchIn = Offset.offset(piece, grow - contactInset(bw, h))
+                    val hatchIn = Offset.offset(piece, grow - contactInset(bw, h)).let { g -> if (beside.isEmpty() || g.isEmpty()) g else Booleans.difference(g, beside) }
                     val (segs, idx) = Hatch.indexed(hatchIn, angle, sp)
                     for (chain in plymeld.geom.Linker.link(segs, idx, hatchIn, 3 * sp)) out.add(ToolPath(feature, chain, false, bw, h, null))
                 }
@@ -1321,6 +1354,14 @@ object Planner {
             var sparseRegion = r.sparse
             // the sparse region a core group shares is laid by the group's last layer (the core, below)
             if (coreLast[i] >= 0) sparseRegion = Booleans.difference(sparseRegion, coreRegion.getValue(coreLast[i]))
+            // The layer's fills are decided first and laid after (below), so that where two of them share an edge each lays
+            // its lines against the other's: a bottom surface, a bridge over air, an internal bridge, internal solid,
+            // sparse infill (and a narrow piece of it laid solid), a top surface
+            var bottomFill: List<Polygon> = emptyList()
+            // a bridge over air (on the first layer: over the bed's hollow) and what its direction is chosen by
+            var airBridge: List<Polygon> = emptyList()
+            var airBelow: List<Polygon> = emptyList()
+            val bw = s.nozzleDiameterUm
             if (first && onBed != null) {
                 // layers that follow the underside: the bottom over the hollow is in
                 // the air, a bridge at the nozzle's width whose direction is chosen by where its lines land on the bed
@@ -1328,16 +1369,15 @@ object Planner {
                 // the solid around it, and the bed's bottom gives that area up
                 val q = s.nozzleDiameterUm / 2
                 val air = Offset.offset(Offset.offset(Booleans.difference(r.bottomSurface, onBed), -q), q)  // drop hairline slivers
-                val bw = s.nozzleDiameterUm
                 val anchored = if (air.isEmpty()) emptyList() else Booleans.intersection(Offset.offset(air, 2 * bw), r.bottomSurface)
-                surface(Booleans.difference(r.bottomSurface, anchored), Feature.BOTTOM, solidW, Walls.spacing(solidW, h), listOf(solidAngle), s.bottomPattern)
-                if (anchored.isNotEmpty()) bridgeEach(anchored, onBed, bw, h, paths, grow = Math.round(s.infillWallOverlap * bw))
+                bottomFill = Booleans.difference(r.bottomSurface, anchored)
+                airBridge = anchored; airBelow = onBed
             } else if (first) {
-                surface(r.bottomSurface, Feature.BOTTOM, solidW, Walls.spacing(solidW, h), listOf(solidAngle), s.bottomPattern)
+                bottomFill = r.bottomSurface
             } else if (r.bottomSurface.isNotEmpty()) {
                 // a planned insert: the bottom over its socket is laid onto the insert, a bottom surface, not a bridge
                 val onInsert = coverAt[i]?.let { Booleans.intersection(r.bottomSurface, it) }.orEmpty()
-                if (onInsert.isNotEmpty()) surface(onInsert, Feature.BOTTOM, solidW, Walls.spacing(solidW, h), listOf(solidAngle), s.bottomPattern)
+                bottomFill = onInsert
                 var overAir = if (onInsert.isEmpty()) r.bottomSurface else Booleans.difference(r.bottomSurface, onInsert)
                 // the waves' area is theirs (above); only what they do not reach is bridged
                 if (waveCovered.isNotEmpty() && overAir.isNotEmpty()) overAir = Booleans.difference(overAir, waveCovered)
@@ -1345,13 +1385,16 @@ object Planner {
                 // reach two widths into the surrounding solid/sparse to anchor; those regions give
                 // the anchor area up so nothing is printed twice.
                 if (overAir.isNotEmpty()) {
-                    val bw = s.nozzleDiameterUm
                     val anchored = Booleans.intersection(Offset.offset(overAir, 2 * bw), r.inner).let { if (onInsert.isEmpty()) it else Booleans.difference(it, onInsert) }
                     internalSolid = Booleans.difference(internalSolid, anchored)
                     sparseRegion = Booleans.difference(sparseRegion, anchored)
-                    bridgeEach(anchored, bridgeAnchors[i] ?: allPrinted[i - 1], bw, h, paths, grow = Math.round(s.infillWallOverlap * bw))
+                    airBridge = anchored; airBelow = bridgeAnchors[i] ?: allPrinted[i - 1]
                 }
             }
+            // a top surface gives a bridge's anchor area up as the solid and sparse infill do (a shelf one layer thick is
+            // both: laid as the bridge, once)
+            val topRegion = if (airBridge.isEmpty() || r.topSurface.isEmpty()) r.topSurface else Booleans.difference(r.topSurface, airBridge)
+            var ib: List<Polygon> = emptyList()
             if (!first) {
                 // Internal bridge: solid laid directly over the layer below's SPARSE infill spans the
                 // gaps between infill lines, so it is printed as a bridge (QIDIStudio does the same:
@@ -1368,17 +1411,9 @@ object Planner {
                     val perim = o.perimeterMm() + hs.sumOf { it.perimeterMm() }
                     !(hs.isNotEmpty() && perim > 0 && 2 * area / perim * 1000 <= ringLimit)
                 }.flatMap { (o, hs) -> listOf(o) + hs }
-                val ib = Offset.offset(Offset.offset(wideOverSparse, -q), q)  // drop hairline slivers
-                if (ib.isNotEmpty()) {
-                    internalSolid = Booleans.difference(internalSolid, ib)
-                    val bw = s.nozzleDiameterUm
-                    val support = Booleans.difference(allPrinted[i - 1], allSparse[i - 1])
-                    val across = whole?.sparseFamilies?.get(i - 1) ?: sparseFamilies(s, i - 1, layerTopsUm[i - 1], hs[i - 1], spanAngle(i - 1), spanBase[i - 1] ?: s.infillAngleDeg, sparseCenter)
-                    bridgeEach(ib, support, bw, h, paths, grow = Math.round(s.infillWallOverlap * bw), feature = Feature.INTERNAL_BRIDGE, families = across)
-                }
+                ib = Offset.offset(Offset.offset(wideOverSparse, -q), q)  // drop hairline slivers
+                if (ib.isNotEmpty()) internalSolid = Booleans.difference(internalSolid, ib)
             }
-            // internal solid is hidden: plain lines, the fastest fill
-            hatch(internalSolid, Feature.SOLID, solidW, Walls.spacing(solidW, h), listOf(solidAngle))
             val sparseW = if (first) s.firstLayerWidthUm else s.sparseWidthUm
             // Sparse patterns. Each family of lines is spaced (families x bead spacing / density) so
             // the pattern holds the density whatever its family count.
@@ -1426,28 +1461,70 @@ object Planner {
                 val perim = o.perimeterMm() + hs.sumOf { it.perimeterMm() }
                 perim > 0 && 2 * area / perim * 1000 < narrowUm
             }.let { (n, w) -> (narrowParts + n) to w }
+            val narrowAll = narrowSparse.flatMap { (o, hs) -> listOf(o) + hs }
+            val wideAll = wideSparse.flatMap { (o, hs) -> listOf(o) + hs }
+            val topW = if (first) s.firstLayerWidthUm else s.topWidthUm
+            // The layer's fills, in the order laid. Where two share an edge, one owns it: the top (the face seen), then a
+            // bottom, a bridge over air, an internal bridge, internal solid, a narrow piece of sparse laid solid, sparse. The
+            // owner lays its lines against the edge as against a wall's bead (bead contact, then the line-end overlap), the
+            // other against the owner's beads as against a wall's: nothing lies twice beyond what a fill and a wall overlap
+            // by plan, and the line ends meeting the owner's beads overlap them as line ends overlap a wall, so the gaps
+            // between round caps are closed as they are at a wall.
+            val narrowSolid = if (s.narrowFill == "solid") narrowAll else emptyList()
+            val sparseFill = (if (s.narrowFill == "solid") wideAll else narrowAll + wideAll) + (if (coreLast[i] == i) coreRegion.getValue(i) else emptyList())
+            val fills = listOf(bottomFill, airBridge, ib, internalSolid, narrowSolid, sparseFill, topRegion)
+            val fillWidth = longArrayOf(solidW, bw, bw, solidW, solidW, sparseW, topW)
+            val owns = intArrayOf(5, 4, 3, 2, 1, 0, 6)
+            /**
+             * The fills that own an edge fill [k] shares with them, each grown by its lines' reach past its edge ([reachUm]) and
+             * [inset]: the area a line of [k] keeps its center out of to lie [inset] from their beads' edge. Null when no
+             * fill beside it owns an edge.
+             */
+            fun ownersOf(k: Int): ((Long) -> List<Polygon>)? {
+                if (fills[k].isEmpty()) return null
+                val js = fills.indices.filter { it != k && owns[it] > owns[k] && fills[it].isNotEmpty() }
+                if (js.isEmpty()) return null
+                return { inset ->
+                    var acc: List<Polygon> = emptyList()
+                    for (j in js) Offset.offset(fills[j], reachUm(fillWidth[j], h, s.infillWallOverlap) + inset).let { g -> acc = if (acc.isEmpty()) g else Booleans.union(acc, g) }
+                    acc
+                }
+            }
+            if (bottomFill.isNotEmpty()) surface(bottomFill, Feature.BOTTOM, solidW, Walls.spacing(solidW, h), listOf(solidAngle), s.bottomPattern, ownersOf(0))
+            if (airBridge.isNotEmpty()) bridgeEach(airBridge, airBelow, bw, h, paths, grow = Math.round(s.infillWallOverlap * bw), owners = ownersOf(1))
+            if (ib.isNotEmpty()) {
+                val support = Booleans.difference(allPrinted[i - 1], allSparse[i - 1])
+                val across = whole?.sparseFamilies?.get(i - 1) ?: sparseFamilies(s, i - 1, layerTopsUm[i - 1], hs[i - 1], spanAngle(i - 1), spanBase[i - 1] ?: s.infillAngleDeg, sparseCenter)
+                bridgeEach(ib, support, bw, h, paths, grow = Math.round(s.infillWallOverlap * bw), feature = Feature.INTERNAL_BRIDGE, families = across, owners = ownersOf(2))
+            }
+            // internal solid is hidden: plain lines, the fastest fill
+            hatch(internalSolid, Feature.SOLID, solidW, Walls.spacing(solidW, h), listOf(solidAngle), beside = ownersOf(3))
             // The loop runs ALONGSIDE the wall, so it sits as a neighboring wall does: at bead contact.
             // (infill_wall_overlap is for line ENDS, which touch a wall only with their cap; along a
             // whole loop it laid a double band the full length of a test model's walls: overfill 0 -> 105
             // mm2.) Half a line in (the first version) left a crack on both sides: Benchy cabin walls,
             // z 12, the whole length (a deposition check against the model). A region too thin for a
-            // loop half a line in still gets none.
+            // loop half a line in still gets none. Beside a fill that owns the edge, at bead contact with its beads.
             val loopInset = contactInset(sparseW, h)
             // or, with plan.layer.infill.narrow.fill = solid (an option), solid like internal solid infill
-            if (s.narrowFill == "solid") hatch(narrowSparse.flatMap { (o, hs) -> listOf(o) + hs }, Feature.SOLID, solidW, Walls.spacing(solidW, h), listOf(solidAngle))
-            else for ((o, hs) in narrowSparse) if (Offset.offset(listOf(o) + hs, -sparseW / 2).isNotEmpty()) for (lp in Offset.offset(listOf(o) + hs, -loopInset))
-                if (lp.size >= 3 && Math.abs(lp.signedAreaMm2()) > 0.01 && lp.perimeterMm() * 1000 >= 2 * sparseW) paths.add(ToolPath(Feature.SPARSE, seamAtBack(lp).xy, true, sparseW, h))
-            hatch(wideSparse.flatMap { (o, hs) -> listOf(o) + hs }, Feature.SPARSE, sparseW, sparseSpacing, sparseAngles, phases = sparsePhasesAt(layerTopsUm[i], sparseSpacing))
+            if (s.narrowFill == "solid") hatch(narrowSolid, Feature.SOLID, solidW, Walls.spacing(solidW, h), listOf(solidAngle), beside = ownersOf(4))
+            else if (narrowSparse.isNotEmpty()) {
+                val beside = ownersOf(5)?.invoke(loopInset).orEmpty()
+                for ((o, hs) in narrowSparse) if (Offset.offset(listOf(o) + hs, -sparseW / 2).isNotEmpty())
+                    for (lp in Offset.offset(listOf(o) + hs, -loopInset).let { if (beside.isEmpty() || it.isEmpty()) it else Booleans.difference(it, beside) })
+                        if (lp.size >= 3 && Math.abs(lp.signedAreaMm2()) > 0.01 && lp.perimeterMm() * 1000 >= 2 * sparseW) paths.add(ToolPath(Feature.SPARSE, seamAtBack(lp).xy, true, sparseW, h))
+            }
+            val sparseOwners = ownersOf(5)
+            hatch(wideAll, Feature.SPARSE, sparseW, sparseSpacing, sparseAngles, phases = sparsePhasesAt(layerTopsUm[i], sparseSpacing), beside = sparseOwners)
             // the core: the group's shared sparse infill, the group's height thick, spaced for that bead
             if (coreLast[i] == i) {
                 val hc = coreHeight.getValue(i)
                 val coreSpacing = sparseStep(hc)
-                hatch(coreRegion.getValue(i), Feature.SPARSE, sparseW, coreSpacing, sparseAngles, height = hc, phases = sparsePhasesAt(layerTopsUm[i], coreSpacing))
+                hatch(coreRegion.getValue(i), Feature.SPARSE, sparseW, coreSpacing, sparseAngles, height = hc, phases = sparsePhasesAt(layerTopsUm[i], coreSpacing), beside = sparseOwners)
             }
-            val topW = if (first) s.firstLayerWidthUm else s.topWidthUm
             // the top surface at its usual angle even on a bridge laid all along (lines across the bridge allowed on its
             // finishing layers)
-            surface(r.topSurface, Feature.TOP, topW, Walls.spacing(topW, h), listOf(usualAngle), s.topPattern)
+            surface(topRegion, Feature.TOP, topW, Walls.spacing(topW, h), listOf(usualAngle), s.topPattern, ownersOf(6))
             // Ironing (ironing_type "top"): the layer's whole exposed top — this layer minus the next,
             // walls included — shrunk by half a line (+ ironing_inset) so the nozzle stays inside the
             // edges. Measured against QIDIStudio: area within 0.4 % on 7 of 10 ironed layers of

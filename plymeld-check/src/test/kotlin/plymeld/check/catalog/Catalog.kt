@@ -106,6 +106,8 @@ object Catalog {
             { listOf(Models.overhangLadder) }, rows = listOf(BASE, SUPPORT)),
         Entry("bridges", "decks bridging 5, 10 and 20 mm between piers", Slicing.ONE_TOOL, { listOf(Models.bridges) }),
         Entry("sloped top", "a top sloping at 14 deg: stair-stepped top surfaces", Slicing.ONE_TOOL, { listOf(Models.slopedTop) }),
+        Entry("stepped top", "a block in three steps: fills of several kinds sharing an edge on one layer, one laid against the other's lines",
+            Slicing.ONE_TOOL, { listOf(Models.steppedTop) }),
         Entry("domed top", "a dome on a cylinder: top surfaces shrinking to a point", Slicing.ONE_TOOL, { listOf(Models.domedTop) },
             rows = listOf(BASE, Row("flat tops ironed", listOf("plan.faces.flat_top.technique" to "ironing")))),
         // small layers, holes and pins

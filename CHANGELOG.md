@@ -156,6 +156,17 @@ section the release's version and date.
 
 ### Fixed
 
+- Two fills sharing an edge no longer lay their edges over each other. Every fill of a layer (internal solid, sparse
+  infill, a bridge, a top) placed its lines against each edge of its area as against a wall: where two of them met, both
+  did, and their line ends and linking runs lay over each other along the edge, 0.25 to 0.38 mm wide. Now one fill owns
+  such an edge (a top, a bottom, a bridge, an internal bridge, internal solid, sparse, in that order) and lays its lines
+  against it as against a wall, and the other lays its lines against the owner's as against a wall's, with the same
+  line-end overlap (`plan.layer.infill.wall_overlap`). And a band of solid fill laid as loops (up to five lines wide, round
+  a hole) kept its loops at the band's mean width all round: where the band is narrower they ran on over its hole, over
+  sparse infill or a wall. They are now cut where they leave the band. On a plain Benchy, plastic laid twice went from 92
+  spots (58.6 mm²) on 19 layers to 16 (4.4 mm²) on 8, and filament from 4060 to 4022 mm; on a two-part Benchy from 52
+  spots (45.8 mm²) to 14 (4.0 mm²). Where the gaps between both fills' round line ends meet, holes up to about 0.3 mm
+  across remain along the edge.
 - Far fewer moves of a few microns in the walls of narrow areas. An area too narrow for its walls is laid by its local
   width, its lines built from points on the outline's samples, two or three points to a sample a few microns apart, each
   with a width of its own; the lines kept them all, so the printer was sent thousands of moves shorter than the slicing

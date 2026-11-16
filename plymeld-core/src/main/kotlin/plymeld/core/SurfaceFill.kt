@@ -98,19 +98,30 @@ object SurfaceFill {
         for ((outer, holes) in Polygons.group(region)) {
             val rings = concentric(listOf(outer), spacing)
             if (holes.isEmpty()) { rings.forEach { out += Piece(it.xy, true) }; continue }
-            val keepOut = Offset.offset(holes.map { it.reversed() }, spacing / 2)    // holes as areas, half a line wider
-            val boxes = keepOut.map { it.bounds() }
-            fun inKeepOut(x: Double, y: Double): Boolean {
-                var w = 0
-                for ((j, k) in keepOut.withIndex()) {
-                    val b = boxes[j]
-                    if (x < b[0] || x > b[2] || y < b[1] || y > b[3]) continue
-                    if (Polygons.contains(k, Math.round(x), Math.round(y))) w += if (k.isCcw()) 1 else -1
-                }
-                return w > 0
-            }
-            for (r in rings) cut(r, keepOut, boxes, ::inKeepOut, minLenUm, out)
+            out += outOfHoles(rings, holes, spacing / 2, minLenUm)    // holes as areas, half a line wider
         }
+        return out
+    }
+
+    /**
+     * [rings] (each laid round from an outer edge) cut where they enter [holes] (a region's holes, clockwise), each hole
+     * taken as an area grown by [growUm]: a ring crossing none stays closed, the rest are open pieces longer than [minLenUm].
+     */
+    fun outOfHoles(rings: List<Polygon>, holes: List<Polygon>, growUm: Long, minLenUm: Long): List<Piece> {
+        val out = ArrayList<Piece>()
+        val areas = holes.map { it.reversed() }
+        val keepOut = if (growUm == 0L) areas else Offset.offset(areas, growUm)
+        val boxes = keepOut.map { it.bounds() }
+        fun inKeepOut(x: Double, y: Double): Boolean {
+            var w = 0
+            for ((j, k) in keepOut.withIndex()) {
+                val b = boxes[j]
+                if (x < b[0] || x > b[2] || y < b[1] || y > b[3]) continue
+                if (Polygons.contains(k, Math.round(x), Math.round(y))) w += if (k.isCcw()) 1 else -1
+            }
+            return w > 0
+        }
+        for (r in rings) cut(r, keepOut, boxes, ::inKeepOut, minLenUm, out)
         return out
     }
 

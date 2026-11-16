@@ -277,6 +277,13 @@ object Models {
 
     /** A block 16 by 12 mm whose top slopes from 7 mm at its left to 3 mm at its right (14 deg). */
     val slopedTop by lazy { prismAlongY(listOf(CX - 8 to 0.0, CX + 8 to 0.0, CX + 8 to 3.0, CX - 8 to 7.0), CY - 6, CY + 6) }
+    /**
+     * A block 18 by 12 mm in three steps: its right third 3.0 mm tall, its middle third 3.2 mm, its left third 5.0 mm. On a
+     * few layers fills of several kinds share an edge: a top beside internal solid, an internal bridge beside internal
+     * solid, internal solid and bridges beside sparse infill.
+     */
+    val steppedTop by lazy { join(box(CX - 9, CY - 6, 0.0, CX + 9, CY + 6, 3.0), box(CX - 9, CY - 6, 3.0, CX + 3, CY + 6, 3.2),
+        box(CX - 9, CY - 6, 3.2, CX - 3, CY + 6, 5.0)) }
     /** A cylinder 12 mm across, 2 mm tall, under a dome 4 mm high (a cap of a sphere 13 mm across). */
     val domedTop by lazy {
         val n = 96
