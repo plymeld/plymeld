@@ -169,6 +169,16 @@ section the release's version and date.
   out only on the object's surface; along a part's edge inside the object it is laid: between the lettering and the rim
   of a two-color plate, the pocket where a stroke between letters met the rim was left bare, 0.25 to 0.45 mm wide, on 7
   layers.
+- Fewer retractions for the short lines walls by width keep: a wall or infill path whose travel in or out would retract
+  is moved beside a path that ends within `hardware.filament.retract.travel.min` of it, a travel that never retracts; such
+  a travel counts its length alone when paths are ordered; an open line is turned end to end where its far end lies
+  nearer the next path; and lines meeting end to end within that travel are laid with one contour's walls (each went
+  with its own nearest contour, and a thin area's pieces between two contours were laid apart). On a three-object
+  two-color plate, 8,764 retractions to 8,663.
+- An outer line no longer steps back where the line beside it gives way to a middle line's round start: each point moved
+  across the track on its own, and one moved farther than the point before it landed behind it, a spike 15 to 30 µm
+  long turning about 159 degrees on every layer of a wedge (22 on the test wedge, none now). A point left behind, or
+  moved to within the slicing tolerance of the one before it, is left out.
 - Planning runs each layer as a task of its own on the cores: the slowest layers of a run (an object's first layers)
   ran one after another on one core. A three-object two-color plate plans in about 43 s instead of about 60 s,
   the g-code unchanged; a few of the walls' and paths' measures skip what lies too far away to count.

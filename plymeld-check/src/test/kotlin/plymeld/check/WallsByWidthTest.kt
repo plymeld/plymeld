@@ -352,6 +352,52 @@ class WallsByWidthTest : StringSpec({
         }
     }
 
+    /*
+     * Where a middle line starts (the wedge's change from two lines to three), the outer loop gives way to its round start,
+     * each point moved across the track on its own: a point moved farther than the one before it landed behind it, and the
+     * outer line stepped back and out again, a spike 15 to 30 µm long turning about 159 degrees, on every layer (22 on the
+     * wedge). Counted here: an outer-wall vertex turning more than 150 degrees beside a step shorter than the outer line's
+     * width (a tip's run-in turns back by design, along the axis, and is not on the wedge). Control: the count finds the
+     * spike as it was written.
+     */
+    "no spike on an outer line where the lines beside it give way (the wedge)" {
+        fun spikes(g: String): Int {
+            var n = 0; var feat = ""; var x = Double.NaN; var y = Double.NaN
+            val run = ArrayList<DoubleArray>()
+            fun close() {
+                for (k in 1 until run.size - 1) {
+                    val ax = run[k][0] - run[k - 1][0]; val ay = run[k][1] - run[k - 1][1]; val bx = run[k + 1][0] - run[k][0]; val by = run[k + 1][1] - run[k][1]
+                    val la = Math.hypot(ax, ay); val lb = Math.hypot(bx, by)
+                    if (la == 0.0 || lb == 0.0) continue
+                    val turn = Math.toDegrees(Math.acos(((ax * bx + ay * by) / (la * lb)).coerceIn(-1.0, 1.0)))
+                    if (turn > 150 && minOf(la, lb) < 0.44) n++
+                }
+                run.clear()
+            }
+            for (raw in g.lines()) {
+                val l = raw.trim()
+                if (l.startsWith(";TYPE:")) { close(); feat = l.substring(6); continue }
+                val w = l.substringBefore(';').trim().split(' ').filter { it.isNotEmpty() }
+                if (w.isEmpty() || w[0] != "G1") continue
+                var nx = x; var ny = y; var e = 0.0
+                for (t in w.drop(1)) when (t[0]) { 'X' -> nx = t.substring(1).toDouble(); 'Y' -> ny = t.substring(1).toDouble(); 'E' -> e = t.substring(1).toDouble() }
+                val moved = nx != x || ny != y
+                if (e > 0 && moved && feat == "Outer wall") { if (run.isEmpty()) run.add(doubleArrayOf(x, y)); run.add(doubleArrayOf(nx, ny)) }
+                else if (moved) close()
+                x = nx; y = ny
+            }
+            close()
+            return n
+        }
+        val wedge = spikes(model("wedge").first.g)
+        println("wedge: $wedge outer-line spikes")
+        wedge shouldBe 0
+        // control: the outer line as the wedge's second layer had it before
+        val before = ";TYPE:Outer wall\nG1 X104.772 Y100.759\nG1 X100.867 Y100.368 E0.05493\nG1 X100.834 Y100.302 E0.00118\nG1 X100.791 Y100.337 E0.00091\n" +
+            "G1 X100.804 Y100.355 E0.00032\nG1 X100.73 Y100.304 E0.00142\nG1 X100.714 Y100.279 E0.00054\nG1 X98.095 Y100.149 E0.03797\n"
+        (spikes(before) >= 1) shouldBe true
+    }
+
     "the growing lens changes from one line to two once, both sides of the change covered" {
         for (n in listOf("lens beside a second part", "lens alone")) {
             val r = model(n).second

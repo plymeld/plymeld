@@ -1525,6 +1525,9 @@ object Planner {
             // Q2 preset: 500 mm/s x 2 x 0.8 mm / 30 mm/s = 26.7 mm). Plain nearest-first hopped across
             // holes (hole block: 16 sparse-to-sparse retractions vs QIDIStudio's 11).
             val retractCostUm = s.travelSpeed * (s.retractMm / s.retractSpeed + s.retractMm / s.deretractSpeed) * 1000
+            // a travel no longer than hardware.filament.retract.travel.min never retracts (the writer's rule): ordered at its
+            // length alone (Ordering's freeUm), and a path whose travel would retract is put beside a path ending that near it
+            val minTravelUm = s.retractMinTravelMm * 1000
             val interiorExtra: ((Long, Long, Long, Long) -> Double)? =
                 if (hidden.isEmpty()) null else { x0, y0, x1, y1 -> if (staysHidden(x0, y0, x1, y1)) 0.0 else retractCostUm }
             // Ordering walls (plan.mechanism.motion.no_retract_in_island): a travel between an island's wall runs that stays inside it and
@@ -1556,7 +1559,7 @@ object Planner {
                     }
                     else if (g[0].feature in monotonic) Ordering.sweep(g, lastX, lastY)
                     else Ordering.order(g, lastX, lastY, if (g.any { it.feature in interior }) interiorExtra
-                        else if (g.all { it.feature == Feature.OUTER_WALL || it.feature == Feature.INNER_WALL }) wallExtra else null)
+                        else if (g.all { it.feature == Feature.OUTER_WALL || it.feature == Feature.INNER_WALL }) wallExtra else null, freeUm = minTravelUm)
                 ordered.addAll(o)
                 val tail = o.last()
                 if (tail.closed) { lastX = tail.xy[0]; lastY = tail.xy[1] } else { lastX = tail.xy[tail.xy.size - 2]; lastY = tail.xy[tail.xy.size - 1] }
@@ -1622,8 +1625,8 @@ object Planner {
                 // wall then has a wall beside it to lean on
                 val split = s.wallOrder == "inner_outer_inner" && outer[0].overhangShare == null && inner.any { it.wall >= 2 } && inner.any { it.wall == 1 }
                 val before = if (split) inner.filter { it.wall != 1 } else inner
-                val forward = Ordering.order(before, lastX, lastY, wallExtra)
-                val backward = Ordering.order(before, sx, sy, wallExtra).asReversed().map { if (it.closed) it else it.reversed() }
+                val forward = Ordering.order(before, lastX, lastY, wallExtra, freeUm = minTravelUm)
+                val backward = Ordering.order(before, sx, sy, wallExtra, freeUm = minTravelUm).asReversed().map { if (it.closed) it else it.reversed() }
                 val chosen = if (cost(backward) < cost(forward)) backward else forward
                 // the inner wall laid just before the outer one, a loop, starts (and so ends) nearest the outer wall's start (an
                 // inner wall's start is not seen): left at its own seam, the step onto the outer wall was a travel of tens of mm
@@ -1650,8 +1653,30 @@ object Planner {
                 val specks = allOuters.filter { it.speck && it !in outers }
                 if (outers.size <= 1) { emitContour(ws.filter { it.feature == Feature.INNER_WALL }, outers, specks); return }
                 val family = List(outers.size) { arrayListOf(outers[it]) }
-                for (p in ws) if (p.feature == Feature.INNER_WALL || p in specks)
-                    family[outers.indices.minBy { distToPath(outers[it], p.xy[0], p.xy[1]) }].add(p)
+                val members = ws.filter { it.feature == Feature.INNER_WALL || it in specks }
+                val fam = IntArray(members.size) { k -> outers.indices.minBy { distToPath(outers[it], members[k].xy[0], members[k].xy[1]) } }
+                // open inner lines that meet end to end within a travel that needs no retraction (retract.travel.min) go with one
+                // contour, the longest one's: assigned each by its own nearest contour, a thin area's pieces between two contours
+                // were split between them and laid apart, each piece then reached by a retracted travel (a three-object plate:
+                // 655 of 1,117 lines under 1 mm with a retraction had another line's end within 1 mm)
+                run {
+                    val open = members.indices.filter { !members[it].closed && members[it].feature == Feature.INNER_WALL }
+                    if (open.size < 2) return@run
+                    val root = IntArray(members.size) { it }
+                    fun find(a: Int): Int { var r = a; while (root[r] != r) r = root[r]; var b = a; while (root[b] != r) { val nb = root[b]; root[b] = r; b = nb }; return r }
+                    fun endsOf(p: ToolPath) = longArrayOf(p.xy[0], p.xy[1], p.xy[p.xy.size - 2], p.xy[p.xy.size - 1])
+                    val ends = open.map { endsOf(members[it]) }
+                    for (a in open.indices) for (b in a + 1 until open.size) {
+                        val ea = ends[a]; val eb = ends[b]
+                        var near = false
+                        for (u in 0..1) for (v in 0..1) if (Math.hypot((ea[2 * u] - eb[2 * v]).toDouble(), (ea[2 * u + 1] - eb[2 * v + 1]).toDouble()) <= minTravelUm) near = true
+                        if (near) root[find(open[a])] = find(open[b])
+                    }
+                    val longest = HashMap<Int, Int>()
+                    for (k in open) { val r = find(k); val cur = longest[r]; if (cur == null || polylineLength(members[k].xy) > polylineLength(members[cur].xy)) longest[r] = k }
+                    for (k in open) fam[k] = fam[longest.getValue(find(k))]
+                }
+                for ((k, p) in members.withIndex()) family[fam[k]].add(p)
                 val left = outers.indices.toMutableSet()
                 while (left.isNotEmpty()) {
                     val f = left.minWith(compareBy<Int>({ family[it].minOf { p -> Math.hypot((p.xy[0] - lastX).toDouble(), (p.xy[1] - lastY).toDouble()) } }, { it }))

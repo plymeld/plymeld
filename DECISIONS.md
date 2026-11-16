@@ -1171,3 +1171,54 @@ layer's task that waited on the lock; the cuts are now made before the layers' t
 **Consequences.** Real plate: planning 61.8 s (profiled) to 42 to 43.5 s (two runs), the g-code byte for byte the same;
 the per-index tasks alone took the walls of the three objects from 23.9 s to 16.9 s. Test: ParallelLockTest (the
 check of 2 to 200 layers of two parts finishes; control: with the cuts a synchronized lazy again, 16 layers hung).
+
+## 39. A path whose travel would retract is laid beside a path that ends within a travel that never retracts (2026-11-16)
+
+**Context.** The short lines kept by decisions 31, 33 and 36 close holes, and each cost retractions: on a three-object
+two-color plate, open inner-wall lines under 1 mm rose from 179 to 1,282 and retractions from 8,121 to 8,764 (about
+40 % of all of them are a section's, its cut pieces each entered by a retracted travel, unchanged). Read by the path on
+each side of a retracted travel: the lines in a thin area's chain were reached one by one from far off, the order
+greedy (nearest-first) left a short line for last and crossed the part to it, a line was entered at its nearer end
+whatever that left for its exit, and the pieces of one thin area between two contours went with each one's nearest
+contour, laid apart. The order costed every travel that crosses a wall a retraction, the ones no longer than
+`hardware.filament.retract.travel.min` too, which the writer never retracts.
+
+**Decision.**
+- Ordering takes that travel: no longer than it, a travel costs its length alone.
+- The improvement pass over the greedy order also turns a single open path end to end, and moves a path whose travel in
+  or out costs more than its length beside a path that ends within that travel of it (an open one either way round),
+  when the total cost falls. Only such places are tried.
+- Open inner-wall lines whose ends meet within that travel go with one contour's walls (the longest line's contour).
+
+**Rejected.** Trying every place in the group for every path: the right order, 7 to 11 s more planning on the plate.
+Joining a short line to the line it touches into one path: a fork starts in from the middle of the line it meets
+(decision 33), not at an end. Laying a center line after the outer wall with the wall beside it: with two walls, the
+contour's first line would be the outer wall (inner_outer_inner keeps the first line and its restart on hidden walls).
+
+**Consequences.** On the plate: retractions 8,764 to 8,663, visible restarts 3,097 to 3,096, predicted 152.3 to
+152.0 min; planning unchanged within the runs' spread. What is left: chains of a thin area each entered once; isolated
+pockets and corner forks with nothing within the travel (369 of about 1,100 short lines with a retraction); and lines a
+section's cut leaves. Test: OrderingTest (a short line beside a long line's end, left for last by the greedy order;
+control: no free travel, the retracted travel stays).
+
+## 40. A loop giving way to a middle line goes on forward (2026-11-16)
+
+**Context.** Where a middle line starts (decision 28: the count rises from two lines to three) the loop beside it gives
+way to its round start: each point of the loop moves across the track by what it gives way, on its own. A point moved
+farther than the one before it can land behind it along the track: on the test wedge the outer line stepped back and
+out again, 15 to 30 µm, turning about 159 degrees, on every layer (22 such turns). Taken alone, a move shorter than the
+slicing tolerance remained after it.
+
+**Decision.** After giving way, a moved point that lies behind the last point kept (along the track) or within the
+slicing tolerance of it is left out; the line goes on to the next point ahead.
+
+**Rejected.** Simplifying every line of a narrow island again at the tolerance: the narrow islands' lines are already
+simplified once (Walls.narrowBeads); twice, the errors added, the wedge's uncovered area went from 1.19 to 3.0 mm² and
+the pre-print check refused its first layer. Smoothing the shifts along the track: the giving way is what keeps the two
+lines from laying plastic twice.
+
+**Consequences.** The wedge: no such turn (22 before), no move shorter than the tolerance on its outer line; its
+coverage unchanged by the self-check's measure. On the three-object plate, outer-wall turns over 150 degrees beside a
+step shorter than the line 967 to 746, moves shorter than the tolerance 10,567 to 10,252 (most of what is left lies
+outside the narrow islands, not read here; a tip's run-in turns back by design). Test: WallsByWidthTest (no such spike
+on the wedge; control: the old layer's line is counted).

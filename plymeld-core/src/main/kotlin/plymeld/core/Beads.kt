@@ -127,6 +127,11 @@ object Beads {
             }
             xs.clear(); xs.addAll(nx); ys.clear(); ys.addAll(ny); ws.clear(); ws.addAll(nw); node.clear(); node.addAll(nn); sample.clear(); sample.addAll(ns); newPt.clear(); newPt.addAll(nb)
         }
+        /** Only the points where [keep] is true. */
+        fun keepOnly(keep: BooleanArray) {
+            fun <T> ArrayList<T>.only() { val k = filterIndexed { i, _ -> keep[i] }; clear(); addAll(k) }
+            xs.only(); ys.only(); ws.only(); node.only(); sample.only(); newPt.only()
+        }
         fun length(): Double { var l = 0.0; for (i in 1 until xs.size) l += Math.hypot(xs[i] - xs[i - 1], ys[i] - ys[i - 1]); return l }
         fun reversed(): Piece = Piece(ArrayList(xs.reversed()), ArrayList(ys.reversed()), ArrayList(ws.reversed()), wall, closed).also {
             it.newBead = newBead; it.midStart = midEnd; it.midEnd = midStart; it.newStart = newEnd; it.newEnd = newStart; it.cutStart = cutEnd; it.cutEnd = cutStart
@@ -836,6 +841,7 @@ object Beads {
                     if (l > 0) { nx[i] = -dy / l; ny[i] = dx / l }
                 }
                 val xs0 = DoubleArray(m) { pc.xs[it] }; val ys0 = DoubleArray(m) { pc.ys[it] }
+                val moved = BooleanArray(m)
                 for (i in 0 until m) {
                     if (nx[i] == 0.0 && ny[i] == 0.0 || pc.newPt[i]) continue
                     val w = pc.ws[i]
@@ -860,7 +866,24 @@ object Beads {
                     if (pc.loop && pc.wall == 0 && reach[0] + reach[1] < rule.minUm) { val inner = if (sides[0] > 0) 0 else 1; reach[inner] = rule.minUm - reach[1 - inner] }
                     val shift = (reach[0] - reach[1]) / 2
                     pc.xs[i] = xs0[i] + nx[i] * shift; pc.ys[i] = ys0[i] + ny[i] * shift; pc.ws[i] = reach[0] + reach[1]
+                    moved[i] = true
                 }
+                // each point moves across the track on its own: where the plastic given way to begins (a new bead's round
+                // start), a point moved out farther than the one before it can land behind it along the track, and the line
+                // stepped back and out again, a spike of 15 to 30 µm turning 155 to 160 degrees on a wedge's outer loop, on
+                // every layer. Such a point is left out, and so is one moved to within the slicing tolerance of the point
+                // before it (a move of a few µm): the line goes on from the point before it to the next one ahead.
+                val keep = BooleanArray(m) { true }
+                var last = -1
+                for (i in 0 until m) {
+                    if (last >= 0 && moved[i] && (nx[i] != 0.0 || ny[i] != 0.0)) {
+                        // the track's direction at i (its normal turned back a quarter)
+                        val ahead = (pc.xs[i] - pc.xs[last]) * ny[i] - (pc.ys[i] - pc.ys[last]) * nx[i]
+                        if (ahead <= 0 || Math.hypot(pc.xs[i] - pc.xs[last], pc.ys[i] - pc.ys[last]) < p.toleranceUm) { keep[i] = false; continue }
+                    }
+                    last = i
+                }
+                if (!keep.all { it }) pc.keepOnly(keep)
             }
         }
         }
