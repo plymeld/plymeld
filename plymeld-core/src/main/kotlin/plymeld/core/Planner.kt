@@ -255,17 +255,20 @@ object Planner {
      * (multi-color): classic loops, whatever the generator; arachne's center lines are not used there.
      * [onBed]: layers that follow the underside: where the first layer lies on the bed; over
      * the hollow it is in the air, nothing spreads it, so the squish compensation shrinks only the edge on the bed.
+     * [whole]: for one filament's areas of a multi-color object, per layer the WHOLE object's cut: where these areas' edge is
+     * not the object's surface but another part beside them (a thin area's spot left bare there is a hole between walls).
      */
     fun walls(s: SliceSettings, outlines: List<List<Polygon>>, layerTopsUm: LongArray, wholeFirst: List<Polygon>? = null, reference: Boolean = false,
               onBed: List<Polygon>? = null, progress: Progress = Progress.NONE,
               /** The settings this stage reads, as text (IncrementalSlicer's WALL_KEYS): the layer cache's settings part; every setting read so far by default. */
-              settingsKey: String = s.key()): WallsOut {
+              settingsKey: String = s.key(), whole: List<List<Polygon>>? = null): WallsOut {
         val hs = heights(layerTopsUm)
         val sk = settingsKey
         // layers are independent here: all cores, results in layer order; each layer's walls kept (LayerCache) by what they read
         val per = Parallel.map(outlines.size, progress.Counter("walls", outlines.size)) { i ->
             val first = i == 0
             val kb = LayerCache.Builder("walls").text(sk).text(first).text(reference).text(hs[i]).polys(outlines[i])
+            if (whole != null) kb.text("whole").polys(whole[i])
             if (first) kb.text(wholeFirst != null).polys(wholeFirst ?: emptyList()).text(onBed != null).polys(onBed ?: emptyList())
             LayerCache.get(kb.build(), { r: Pair<List<Polygon>, LayerWalls> -> LayerCache.bytesOfPolys(r.first) + r.second.walls.sumOf { LayerCache.bytesOfPolys(it) } + LayerCache.bytesOfPolys(r.second.inner) + r.second.center.sumOf { it.xy.size * 16L } }, s) {
             val o = if (first && s.elephantFootUm > 0) {
@@ -279,7 +282,8 @@ object Planner {
             o to when (if (reference) "classic" else s.wallGenerator) {
                 "classic" -> Walls.generate(o, s.wallLoops, wo, wi, h)
                 "arachne" -> Walls.arachne(o, s.wallLoops, wo, wi, h, s.minBeadUm, s.minFeatureUm, s.minLengthFactor, s.transitionLengthUm,
-                    toleranceUm = s.resolutionUm, endOverlap = s.infillWallOverlap, maxBeadUm = s.maxBeadFor(wi))
+                    toleranceUm = s.resolutionUm, endOverlap = s.infillWallOverlap, maxBeadUm = s.maxBeadFor(wi),
+                    surface = whole?.get(i)?.let { if (first && s.elephantFootUm > 0) Offset.offset(it, -s.elephantFootUm) else it })
                 else -> error("wall style '${s.wallGenerator}' is not known (fixed_width or variable_width; classic or arachne in another slicer's file)")
             }
             }
@@ -622,9 +626,13 @@ object Planner {
             // the other parts beside this one, for one part of several: they leave out a speck in front of one and lay a seam
             // one covers as a point seam
             if (otherParts != null) kb.text("others").polys(otherPartsAt[i].value)
+            // and the whole object's outline, a speck on its surface told from one inside it
+            if (whole != null) kb.text("whole").polys(whole.w.effOutlines[i])
             LayerCache.get(kb.build(), { b: Built -> LayerCache.bytesOfPaths(b.paths) }, s) {
             var droppedHere = 0.0
             val first = i == 0
+            // the layer below as the walls' overhang shares read it, made once for the layer's loops
+            val belowForShares by lazy { Overhangs.Below(allPrinted[i - 1]) }
             val h = hs[i]
             val paths = ArrayList<ToolPath>()
             if (first && objectWide && s.brimType == "outer_only" && s.brimWidthUm > 0) {
@@ -1048,7 +1056,11 @@ object Planner {
                 // left out, it left a hole as wide as the band (a ridge of one filament beside another, 0.9 mm along it with
                 // no line). Nor one wider somewhere than two narrowest lines: it fills a patch, not a sliver (a white dome
                 // 1.3 x 0.8 mm in a gray arch, too small for a loop, its one line 0.3 to 0.78 mm wide, had nothing laid in it).
-                if (speck && whole != null && c.widths.min() <= s.minBeadUm && c.maxWidthUm <= 2 * s.minBeadUm && ownLength < c.maxWidthUm && otherPartNear(c)) continue
+                // And only on the object's surface (along the whole object's outline): a speck along a part's edge inside
+                // the object shows no dot, and nothing behind it fills its place (a pocket between a letter-gap stroke's
+                // loop, the rim's loop and the letters beside it, 0.45 mm wide, was left bare)
+                if (speck && whole != null && c.widths.min() <= s.minBeadUm && c.maxWidthUm <= 2 * s.minBeadUm && ownLength < c.maxWidthUm && otherPartNear(c) &&
+                    Walls.alongOutline(c.xy, c.widths, whole.w.effOutlines[i])) continue
                 paths.add(ToolPath(f, c.xy, false, c.maxWidthUm, h, widths = c.widths, speck = speck, wall = if (outer) 0 else if (c.wall >= 0) c.wall else ws.size)) } }
             if (s.innerWallsFirst) center()
             if (s.fuzzySkin != "none") require(s.fuzzyMode == "displacement" && s.fuzzyNoise == "classic") {
@@ -1083,7 +1095,7 @@ object Planner {
                             !SeamScar.scarfPays(w / 1000.0, sh(placed.loop.x(0), placed.loop.y(0)), s.seamScarfShare, scarfWanted / 1000.0) } == true) 0L else scarfWanted
                     // overhang share per segment against the layer below (walls only, above layer 0),
                     // judged on the SMOOTH loop: fuzz pushing a point 0.3 mm out is not an overhang
-                    val smoothShares = if (!first) Overhangs.edgeShares(smooth, allPrinted[i - 1], w, h) else null
+                    val smoothShares = if (!first) Overhangs.edgeShares(smooth, allPrinted[i - 1], w, h, belowForShares) else null
                     var xy = smooth
                     var shares = smoothShares
                     if (fuzz) {
@@ -1806,7 +1818,10 @@ object Planner {
         private val edges = groups.map { (o, hs) -> (listOf(o) + hs).map { Line(-1, false, it.xy, true) } }
         val walls = paths.withIndex().filter { (_, p) -> p.feature == Feature.OUTER_WALL || p.feature == Feature.INNER_WALL }
             .map { (k, p) -> Line(k, p.feature == Feature.OUTER_WALL, p.xy, p.closed, p.widthUm / 2) }
-        private fun groupOf(x: Long, y: Long) = groups.indexOfFirst { (o, hs) -> Polygons.contains(o, x, y) && hs.none { Polygons.contains(it, x, y) } }
+        // each island's box, to pass over the islands a point is nowhere near
+        private val boxes = groups.map { (o, _) -> o.bounds() }
+        private fun groupOf(x: Long, y: Long) = groups.indices.firstOrNull { g -> val b = boxes[g]
+            x >= b[0] && x <= b[2] && y >= b[1] && y <= b[3] && groups[g].let { (o, hs) -> Polygons.contains(o, x, y) && hs.none { Polygons.contains(it, x, y) } } } ?: -1
         /** Whether (x0, y0) and (x1, y1) lie in one island. */
         fun sameIsland(x0: Long, y0: Long, x1: Long, y1: Long): Boolean = groupOf(x1, y1).let { g -> g >= 0 && groupOf(x0, y0) == g }
 

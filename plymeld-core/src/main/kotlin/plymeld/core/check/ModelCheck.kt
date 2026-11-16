@@ -22,6 +22,9 @@ import java.util.Locale
  *    narrowest place for a line, plan.layer.walls.feature.min, fits touching the outline there): a hole in a band a
  *    line or two wide, whose walls on either side the uncovered rule counts as near. Within a line of a convex corner, and
  *    on a layer laid with wave beads, not judged;
+ *  - hole: a spot of the cross-section no line covers, closed in by walls alone (not the outline's, not an infill's gap),
+ *    wider than that narrowest place for a line and narrower than the walls hand to infill ([HoleCheck]): a hole inside the
+ *    walls. On a layer laid with wave beads, not judged;
  *  - Z anti-aliasing (a [ZaaRule]): a layer's outline also takes in its cut at the thinnest lowered line (ZaaRule.minMm) above its bottom
  *    (the layer reaches out over a slope to there), and a point of a line below its layer, on the model's top within the
  *    layer, is not outside;
@@ -51,9 +54,14 @@ object ModelCheck {
      * segment's own width from its plastic ([layers]: its share of the path's widest extrusion per mm).
      */
     internal class Seg(val x0: Double, val y0: Double, val x1: Double, val y1: Double, val w: Double, val wall: Boolean, val tool: Int = 0,
-                       val z0: Double = Double.NaN, val z1: Double = Double.NaN, val wave: Boolean = false) {
+                       val z0: Double = Double.NaN, val z1: Double = Double.NaN, val wave: Boolean = false,
+                       /** A line of an infill or a surface (not a wall: [INFILL]). */
+                       val infill: Boolean = false) {
         var bead: Double = w
     }
+    /** The features that fill an area (infill, surfaces, bridges, ironing), as against the walls. */
+    private val INFILL = setOf("Sparse infill", "Internal solid infill", "Solid infill", "Top surface", "Bottom surface", "Bridge", "Internal Bridge",
+        "Gap infill", "Ironing")
     /** A wave bead (laid in its own layer or carried into the one above): a layer with one lays the area over air ([airProblems]). */
     private val WAVES = setOf("Wave overhang", ABOVE)
 
@@ -74,11 +82,15 @@ object ModelCheck {
      * [firstLayerInsetMm]: how far the first layer's outline is drawn in (hardware.plate.first_layer.squish): there the
      * bare-outline rule judges the outline drawn in by it, which is where the walls lie (a star's thin tips, drawn in,
      * recede by a millimetre and more).
+     * [fuzzMm]: the fuzzy skin's thickness where it is on (plan.technique.fuzzy_skin.thickness), 0 = off: the hole rule reads
+     * each wall line as covering that much further either side (its points move in and out by up to it).
+     * [infillMinMm]: the narrowest area the walls hand to infill (two inner wall lines, plan.layer.walls.inner.line.width):
+     * the hole rule leaves an uncovered piece that wide to the infill region (no line of a sparse infill need cross it).
      */
     fun check(text: String, parts: List<TriangleSoup>, zBaseMm: Double, tolUm: Long = 100, maxProblems: Int = 30,
               imagesDir: java.nio.file.Path? = null, surface: Surface? = null, partTools: List<Int>? = null, zaa: ZaaRule? = null,
               progress: plymeld.program.Progress = plymeld.program.Progress.NONE, handOverMm: Double = 0.0, featureMinMm: Double = 0.0,
-              firstLayerInsetMm: Double = 0.0, surfaceHandOverMm: Double = 0.0): List<String> {
+              firstLayerInsetMm: Double = 0.0, surfaceHandOverMm: Double = 0.0, fuzzMm: Double = 0.0, infillMinMm: Double = Double.MAX_VALUE): List<String> {
         require(partTools == null || partTools.size == parts.size) { "${partTools!!.size} part tools for ${parts.size} parts" }
         val sf = surface ?: Surface(parts, zBaseMm, text, zaaMinMm = zaa?.minMm)
         val layers = sf.layerLines
@@ -89,9 +101,10 @@ object ModelCheck {
         }
         val tol = tolUm / 1000.0
         if (imagesDir != null) System.setProperty("java.awt.headless", "true")
-        // every layer on its own, in parallel; the problems in layer order
+        // every layer on its own, in parallel; the problems in layer order (the model's cuts made first, here: Parallel)
+        sf.ready()
         return plymeld.core.Parallel.map(layers.size, progress.Counter("model check", layers.size)) { k ->
-            layerProblems(sf, k, tol, imagesDir, zaa, featureMinMm, if (k == 0) firstLayerInsetMm else 0.0) + airProblems(sf, k, tol, imagesDir) +
+            layerProblems(sf, k, tol, imagesDir, zaa, featureMinMm, if (k == 0) firstLayerInsetMm else 0.0, fuzzMm, infillMinMm) + airProblems(sf, k, tol, imagesDir) +
                 toolProblems(sf, k, tol + handOverMm, partTools) + surfaceToolProblems(sf, k, tol + surfaceHandOverMm, partTools) }.flatten().take(maxProblems)
     }
 
@@ -279,7 +292,8 @@ object ModelCheck {
     private const val SURFACE_RUN_MM = 1.0
 
     /** One layer's problems (and its picture, when [imagesDir] is given). */
-    private fun layerProblems(sf: Surface, k: Int, tol: Double, imagesDir: java.nio.file.Path?, zaa: ZaaRule?, featureMinMm: Double, insetMm: Double): List<String> {
+    private fun layerProblems(sf: Surface, k: Int, tol: Double, imagesDir: java.nio.file.Path?, zaa: ZaaRule?, featureMinMm: Double, insetMm: Double,
+                              fuzzMm: Double, infillMinMm: Double): List<String> {
         val out = ArrayList<String>()
         val layer = sf.layerLines[k]
         run {
@@ -391,8 +405,14 @@ object ModelCheck {
             uncPts += bare.pts
             val badBare = !badOutline && bare.longest > wb
             if (badBare) out += "layer at z ${f(layer.z, 3)}: the model's outline has no line beside it along ${f(bare.longest, 2)} mm in one stretch, where the model holds a line (ending near ${f(bare.x, 2)}, ${f(bare.y, 2)})"
-            if (imagesDir != null && (badOutside || badOutline || badBare)) {
-                val (cx, cy) = if (badOutline) ux to uy else if (badBare) bare.x to bare.y else wx to wy
+            // a hole inside the walls (HoleCheck) wider than the narrowest place a line is laid in, read to a grid cell either
+            // side; a layer laid with wave beads is left to the over-air rule, as above
+            val hole = if (model.any { it.wave }) null else HoleCheck.widest(loops, model, edges, fuzzMm, infillMinMm)
+            val badHole = hole != null && hole.widthMm > floor + 2 * HoleCheck.CELL_MM
+            if (badHole) { uncPts += doubleArrayOf(hole.x, hole.y)
+                out += "layer at z ${f(layer.z, 3)}: a hole inside the walls ${f(hole.widthMm, 2)} mm wide (${f(hole.areaMm2, 3)} mm2, at ${f(hole.x, 2)}, ${f(hole.y, 2)}), where the model holds a line: no line laid there" }
+            if (imagesDir != null && (badOutside || badOutline || badBare || badHole)) {
+                val (cx, cy) = if (badOutline) ux to uy else if (badBare) bare.x to bare.y else if (badHole) hole.x to hole.y else wx to wy
                 ModelCheckPlot.write(imagesDir.resolve("z%07.3f.png".format(Locale.ROOT, layer.z)), "layer at z ${f(layer.z, 3)}: ${out.last().substringAfter(": ")}",
                     loops, model.map { doubleArrayOf(it.x0, it.y0, it.x1, it.y1, it.w, if (it.wall) 1.0 else 0.0) }, outPts, uncPts, cx, cy)
             }
@@ -569,8 +589,10 @@ object ModelCheck {
         private val sections = if (layerLines.isEmpty()) emptyList() else
             parts.map { p -> Slicer.slice(p, cutZ).let { ls -> if (clip == null && cutRect == null) ls else ls.mapIndexed { k, l ->
                 plymeld.mesh.Layer(l.z, inCut(cutZ[k], if (clip == null) l.loops else clip.invoke(cutZ[k], l.loops)), l.openChains) } } }
-        // each layer's union of the parts, all layers at once in parallel (the union is the slow part)
-        private val unions: List<List<Polygon>> by lazy {
+        // each layer's union of the parts, all layers at once in parallel (the union is the slow part). Made by [ready] on the
+        // calling thread before the per-layer work reads it, and never under a lock (PUBLICATION): a lazy's lock taken by a
+        // pool task whose initializer then forked the layers and joined them left the pool's tasks waiting on each other
+        private val unions: List<List<Polygon>> by lazy(LazyThreadSafetyMode.PUBLICATION) {
             plymeld.core.Parallel.map(layerLines.size) { k -> sections.flatMap { it[k].loops }.let { if (it.size > 1) plymeld.geom.Booleans.unionPositive(it) else it }
                 .let { if (clip == null) it else clip.invoke(cutZ[k], it) } }
         }
@@ -579,14 +601,18 @@ object ModelCheck {
             layerLines.indices.filter { k -> val l = layerLines[k]; l.z - l.h > 1e-6 && l.z - l.h + zaaMinMm < l.z - l.h / 2 - 1e-9 }.toIntArray()
         private val zaaSections = if (zaaLayers.isEmpty()) emptyList() else
             parts.map { p -> Slicer.slice(p, DoubleArray(zaaLayers.size) { j -> layerLines[zaaLayers[j]].let { it.z - it.h + zaaMinMm!! } + zBaseMm }) }
-        private val wallUnions: List<List<Polygon>> by lazy {
+        // (as [unions]: made by [ready], never under a lock; [unions] made first, on this thread, not by each of its tasks)
+        private val wallUnions: List<List<Polygon>> by lazy(LazyThreadSafetyMode.PUBLICATION) {
             val at = HashMap<Int, Int>(); for ((j, k) in zaaLayers.withIndex()) at[k] = j
+            val u = unions
             plymeld.core.Parallel.map(layerLines.size) { k ->
-                val j = at[k] ?: return@map unions[k]
+                val j = at[k] ?: return@map u[k]
                 val extra = zaaSections.flatMap { it[j].loops }
-                if (extra.isEmpty()) unions[k] else plymeld.geom.Booleans.unionPositive(sections.flatMap { it[k].loops } + extra).let { if (clip == null) it else clip.invoke(cutZ[k], it) }
+                if (extra.isEmpty()) u[k] else plymeld.geom.Booleans.unionPositive(sections.flatMap { it[k].loops } + extra).let { if (clip == null) it else clip.invoke(cutZ[k], it) }
             }
         }
+        /** The layers' unions and wall outlines made now, on the calling thread: before per-layer parallel work reads them. */
+        internal fun ready() { wallUnions }
         /** The outline a layer's walls must cover: its cut at the middle, and with Z anti-aliasing where it reaches out over a slope. */
         internal fun wallLoops(k: Int): List<Polygon> = wallUnions[k]
         private val grids = arrayOfNulls<Grid>(layerLines.size)
@@ -666,12 +692,12 @@ object ModelCheck {
             if (started && e > 0 && !x.isNaN() && (nx != x || ny != y || arc) && feature in MODEL) {
                 if (arc) {
                     val chords = ArrayList<Seg>()
-                    arcChords(x, y, nx, ny, x + (num('I') ?: 0.0), y + (num('J') ?: 0.0), ws[0] == "G2") { ax, ay, bx, by -> chords += Seg(ax, ay, bx, by, w, feature in WALLS, tool, nz, nz, feature in WAVES) }
+                    arcChords(x, y, nx, ny, x + (num('I') ?: 0.0), y + (num('J') ?: 0.0), ws[0] == "G2") { ax, ay, bx, by -> chords += Seg(ax, ay, bx, by, w, feature in WALLS, tool, nz, nz, feature in WAVES, feature in INFILL) }
                     val len = chords.sumOf { Math.hypot(it.x1 - it.x0, it.y1 - it.y0) }
                     segs += chords
                     if (len > 0) for (s in chords) path += s to e / len
                 } else {
-                    val s = Seg(x, y, nx, ny, w, feature in WALLS, tool, zc, nz, feature in WAVES)
+                    val s = Seg(x, y, nx, ny, w, feature in WALLS, tool, zc, nz, feature in WAVES, feature in INFILL)
                     (if (feature == ABOVE) above else segs) += s
                     path += s to e / Math.hypot(nx - x, ny - y)
                 }

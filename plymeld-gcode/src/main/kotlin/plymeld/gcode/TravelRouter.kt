@@ -124,12 +124,17 @@ object TravelRouter {
         // whether the last path was an open outer-wall line (a speck's end may lie past the walls: CombRegion.edgeReach), and a speck
         var pOpenOuter = false; var pSpeck = false
         var below: Lazy<CombLayer>? = null
-        for ((k, s0) in starts.withIndex()) {
-            val s1 = if (k + 1 < starts.size) starts[k + 1] else steps.size
-            val layer = steps.subList(s0, s1)
+        val layers = starts.indices.map { k -> steps.subList(starts[k], if (k + 1 < starts.size) starts[k + 1] else steps.size) }
+        for (layer in layers) layerCombs.add(lazy { combRegions(layer, combInsetUm) })
+        // each layer's comb regions are a function of its own paths alone: made on all cores ahead of the walk below, which
+        // goes layer by layer (the head's place carries from one travel to the next), at every inset of the ladder (a thin
+        // part's comb reaches the smaller ones). The same regions as made on first use, so the same routes
+        java.util.stream.IntStream.range(0, layers.size).parallel().forEach { layerCombs[it].value }
+        val ladder = COMB_INSET_SHARES.size
+        java.util.stream.IntStream.range(0, layers.size * ladder).parallel().forEach { layerCombs[it / ladder].value.levels.getOrNull(it % ladder)?.value }
+        for ((k, layer) in layers.withIndex()) {
             val hulls = islands(layer, marginUm)
-            val combs = lazy { combRegions(layer, combInsetUm) }
-            layerCombs.add(combs)
+            val combs = layerCombs[k]
             var first = true
             for (st in layer) {
                 when (st) {

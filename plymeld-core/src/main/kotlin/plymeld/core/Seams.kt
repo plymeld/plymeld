@@ -14,8 +14,9 @@ import plymeld.geom.Polygon
  * layer below (the overhang slow-down's measure, [Overhangs.seamOverhangs]) are candidates only when the loop has no other
  * (plan.seam = "back" too: the back-most held-up point). Among the rest:
  * the candidates: the loop's inside corners if it has any, else its outside corners, else every point of it. Seams are
- * aligned layer to layer: the candidate nearest a seam of the same wall on the layer below. With none below (the first
- * layer, a new island), the sharpest corner (turns within [TIE_DEG] counting as equal), ties to the back-most; a loop
+ * aligned layer to layer: the candidate nearest a seam of the same wall on the layer below, of a loop that lies under this
+ * one (as the seam measure reads a jog, SeamScar.isUnder: a seam elsewhere on the layer below is no step). With none under
+ * it (the first layer, a new island), the sharpest corner (turns within [TIE_DEG] counting as equal), ties to the back-most; a loop
  * with no corner then starts at its back-most point ([Planner.seamAtBack]).
  */
 object Seams {
@@ -58,7 +59,7 @@ object Seams {
 
     /**
      * [p] rotated to start at its seam ([cornerDeg] null: no corners, only alignment, else the back). [below]: the seams
-     * (x, y in µm, pairs) of the same wall on the layer below; empty: none to align with. [overhangs]: per vertex, whether
+     * (x, y in µm, pairs) of the same wall's loops on the layer below that lie under [p]; empty: none to align with. [overhangs]: per vertex, whether
      * it lies on an edge that hangs over the layer below ([Overhangs.seamOverhangs]); null: all held up. Held-up points are
      * preferred over overhanging ones before every other preference (a helix whose every loop started at
      * its overhanging end printed a row of beads there); among them the rules above. A loop with no held-up point at all
@@ -101,7 +102,7 @@ object Seams {
             val pts = lc.points
             fun v(i: Int): Double = seen[i]
             fun corner(i: Int) = lc.corner[i]
-            // the cost seam_scar charges this seam (SeamScar.measure): its blemish ([costsOf]) plus a jog from the nearest seam below (here every seam of the layer below; the measure reads only those of what lies under the loop),
+            // the cost seam_scar charges this seam (SeamScar.measure): its blemish ([costsOf]) plus a jog from the nearest seam below (of what lies under the loop, as the measure reads it),
             // its length x the line width when further than a line, all times how much it is seen. Without the jog the placement
             // chased the least-seen point layer by layer and the seams wandered (with what hides a point nearby, the dual Benchy's
             // least-visible seams jogged 1586 mm against the corners' 431, and the measure scored the placement 33 % worse than the
@@ -233,8 +234,8 @@ object Seams {
     }
 
     /**
-     * Every layer's wall loops placed, layer by layer, each wall's seams aligned with that wall's on the layer below (the
-     * outer walls' least-visible seams with the point [planColumn] planned for them as the seam below, over the [runsOf]):
+     * Every layer's wall loops placed, layer by layer, each wall's seams aligned with those of that wall's loops on the layer
+     * below that lie under it (SeamScar.isUnder; the outer walls' least-visible seams with the point [planColumn] planned for them as the seam below, over the [runsOf]):
      * [loops][layer][wall][loop] -> the same shape. [spanUm] (layer, wall): the corner span, two of that wall's lines.
      */
     fun alignAll(loops: List<List<List<Polygon>>>, cornerDeg: Double?, overhangs: List<List<List<BooleanArray>>?>? = null,
@@ -249,7 +250,19 @@ object Seams {
                  /** Each layer's test of whether another part covers an outer wall's point ([place]'s covered); null = none. */
                  coveredOf: ((Int) -> ((Long, Long) -> Boolean)?)? = null): List<List<List<Placed>>> {
         val out = ArrayList<List<List<Placed>>>(loops.size)
-        var below: List<LongArray> = emptyList()
+        // each wall's loops placed on the layer below, as the seam measure reads them (SeamScar.Under)
+        var belowUnders: List<List<SeamScar.Under>> = emptyList()
+        /**
+         * The seams of wall [k]'s loops on the layer below that lie under [lp] of width [wUm] (SeamScar.isUnder, the measure's
+         * notion: a jog is read only from what lies under a loop): x, y pairs; none = nothing under it, no seam to align with.
+         */
+        fun seamsUnder(k: Int, lp: Polygon, wUm: Double): LongArray {
+            val us = belowUnders.getOrNull(k) ?: return LongArray(0)
+            var n = 0
+            val xy = LongArray(2 * us.size)
+            for (u in us) if (SeamScar.isUnder(lp.xy, wUm, u)) { xy[n++] = u.seams[0]; xy[n++] = u.seams[1] }
+            return xy.copyOf(n)
+        }
         // the outer walls' exposures, the layers in parallel (the placement itself runs layer by layer, each from the one below)
         if (leastVisible && exposure != null) java.util.stream.IntStream.range(0, loops.size).parallel()
             .forEach { i -> loops[i].getOrNull(0)?.forEach { lp -> if (lp.size >= 3) exposure.ofLoop(i, lp) } }
@@ -260,18 +273,18 @@ object Seams {
         val planned = List(loops.size) { i -> arrayOfNulls<LongArray>(loops[i].getOrNull(0)?.size ?: 0) }
         for ((i, layer) in loops.withIndex()) {
             runs[i]?.forEach { run ->
-                planColumn(run, loops, below.getOrElse(0) { LongArray(0) }, cornerDeg, overhangs, spanUm, vis!!, cornerShare, exposure, shelfOf, rampUm, rampOffCorners, scarfShare, coveredOf)
+                planColumn(run, loops, seamsUnder(0, loops[run[0].first][0][run[0].second], spanUm(run[0].first, 0) / 2), cornerDeg, overhangs, spanUm, vis!!, cornerShare, exposure, shelfOf, rampUm, rampOffCorners, scarfShare, coveredOf)
                     .forEachIndexed { r, xy -> planned[run[r].first][run[r].second] = xy }
             }
             val oh = overhangs?.get(i)
             // what hides a point nearby is read for the outer walls only (an inner wall's seam is not seen; its rays start in material)
             val placed = layer.mapIndexed { k, wall -> wall.mapIndexed { li, lp ->
                 val ref = if (k == 0) planned[i].getOrNull(li) else null
-                place(lp, cornerDeg, spanUm(i, k), ref ?: below.getOrElse(k) { LongArray(0) }, oh?.get(k)?.get(li), back, leastVisible, vis, cornerShare,
+                place(lp, cornerDeg, spanUm(i, k), ref ?: seamsUnder(k, lp, spanUm(i, k) / 2), oh?.get(k)?.get(li), back, leastVisible, vis, cornerShare,
                 if (k == 0) exposure else null, i, if (k == 0 && leastVisible) shelfOf?.invoke(i) else null,
                 if (k == 0) rampUm else 0, rampOffCorners, scarfShare, if (k == 0 && leastVisible) coveredOf?.invoke(i) else null) } }
             out += placed
-            below = placed.map { wall -> LongArray(2 * wall.size) { j -> val q = wall[j / 2].loop; if (j % 2 == 0) q.x(0) else q.y(0) } }
+            belowUnders = placed.mapIndexed { k, wall -> wall.map { pl -> SeamScar.Under(pl.loop.xy, true, spanUm(i, k) / 2, longArrayOf(pl.loop.x(0), pl.loop.y(0))) } }
         }
         return out
     }

@@ -79,7 +79,13 @@ object Walls {
                 minBeadUm: Long, minFeatureUm: Long, minLengthFactor: Double, transitionUm: Long,
                 toleranceUm: Long = 0L, endOverlap: Double = 0.0,
                 /** The widest a wall line may be (plan.layer.walls.line.width.max): a center line's cap, a narrow island's beads' bound. */
-                maxBeadUm: Long = 2 * innerWidthUm): LayerWalls {
+                maxBeadUm: Long = 2 * innerWidthUm,
+                /**
+                 * The object's surface on this layer where [outline] is one part of several (its whole cut): where a part's
+                 * edge meets another part, a spot left bare is between walls, not on the surface (centerLines' forks). Null:
+                 * [outline] is the surface.
+                 */
+                surface: List<Polygon>? = null): LayerWalls {
         val so = spacing(outerWidthUm, layerHeightUm)
         val si = spacing(innerWidthUm, layerHeightUm)
         // each loop's fit region (where its bead fits: its strict pieces, each an outer polygon and its holes) and its looser fit
@@ -120,7 +126,9 @@ object Walls {
             }
         }
         val sample = maxOf(MIN_SAMPLE_UM, minFeatureUm / 2)
-        /** The walls with the tiny pieces left out except those [keep] names (loop index, piece index). */
+        // the thin pieces' lines, kept from the first build for the second (the pieces a kept tiny loop does not change)
+        val pieceLines = HashMap<PieceKey, List<CenterLine>>()
+        /** The walls with the tiny pieces left out except those [keep] names (loop index, piece index); and what their loops' bands leave. */
         fun build(keep: Set<Pair<Int, Int>>): Pair<LayerWalls, List<Polygon>> {
             val walls = ArrayList<List<Polygon>>(fits.size)
             var covered: List<Polygon> = emptyList()
@@ -174,10 +182,11 @@ object Walls {
             // empty along 9 mm, where the narrowest line (0.36 mm) reached 0.035 mm into each
             val interiorOverlap = maxOf(innerWidthUm - si, Math.round(endOverlap * minBeadUm))
             val center = if (thin.isEmpty()) emptyList() else centerLines(thin, minBeadUm, minFeatureUm, maxBeadUm, minLengthFactor, transitionUm, outline,
-                interiorMinUm = minBeadUm - 2 * interiorOverlap)
-            return LayerWalls(walls, thick, if (covered.isEmpty()) center else center.map { reachInto(it, covered, endOverlap, sample) }) to covered
+                interiorMinUm = minBeadUm - 2 * interiorOverlap, keepWiderUm = minFeatureUm + 2 * toleranceUm, endOverlap = endOverlap, surface = surface,
+                pieceCache = pieceLines)
+            return LayerWalls(walls, thick, if (covered.isEmpty()) center else center.map { reachInto(it, covered, endOverlap, sample) }) to left
         }
-        val first = build(emptySet()).first
+        val firstBuilt = build(emptySet()); val first = firstBuilt.first
         // a tiny piece left out where no center line took its place keeps its loop (a pin too small for a loop of length
         // keeps the one it has; it is no stretch of a band)
         val orphans = HashSet<Pair<Int, Int>>()
@@ -186,15 +195,21 @@ object Walls {
             val taken = first.center.any { c -> (0 until c.xy.size / 2).any { v -> reach.any { p -> p.isCcw() && plymeld.geom.Polygons.contains(p, c.xy[2 * v], c.xy[2 * v + 1]) } } }
             if (!taken) orphans += k to i
         }
-        val laid = if (orphans.isEmpty()) first else build(orphans).first
+        val (laid0, left0) = if (orphans.isEmpty()) firstBuilt else build(orphans)
         // a narrow island, where the set walls nowhere all fit (the innermost loop has no fit region in it), is laid by bead
-        // count from its local width instead (Beads); every other island keeps what was laid above, the same object
-        if (loops <= 0) return laid
+        // count from its local width instead (Beads); every other island keeps what was laid above, the same object, its
+        // slits between loops shared by the loops beside them (shareSlits: a narrow island's walls are judged against its
+        // beads as laid above, and keep them so where the beads are not taken)
+        val interiorMin = minBeadUm - 2 * maxOf(innerWidthUm - si, Math.round(endOverlap * minBeadUm))
+        if (loops <= 0) return shareSlits(outline, laid0, left0, outerWidthUm, innerWidthUm, so, si, interiorMin, maxBeadUm, toleranceUm, sample) { _, _ -> false }
         val last = fits.getOrNull(loops - 1)
         val islands = plymeld.geom.Polygons.group(outline)
         fun inIsland(o: Polygon, hs: List<Polygon>, x: Long, y: Long) = plymeld.geom.Polygons.contains(o, x, y) && hs.none { plymeld.geom.Polygons.contains(it, x, y) }
         val narrow = islands.filter { (o, hs) -> last == null || last.strict.none { piece -> inIsland(o, hs, piece[0].x(0), piece[0].y(0)) } }
-        if (narrow.isEmpty()) return laid
+        val shared = shareSlits(outline, laid0, left0, outerWidthUm, innerWidthUm, so, si, interiorMin, maxBeadUm, toleranceUm, sample) { x, y ->
+            narrow.any { (o, hs) -> inIsland(o, hs, x, y) } }
+        if (narrow.isEmpty()) return shared
+        val laid = laid0
         val islandBeads = HashMap<Polygon, List<CenterLine>>()
         val params = Beads.Params(Beads.Rule(outerWidthUm.toDouble(), innerWidthUm.toDouble(), loops, layerHeightUm * (1 - Math.PI / 4),
             minBeadUm.toDouble(), maxBeadUm.toDouble()), minFeatureUm, transitionUm, toleranceUm, sample, endOverlap, minLengthFactor)
@@ -208,7 +223,12 @@ object Walls {
         val taken = narrow.filter { (o, hs) ->
             val isl = listOf(o) + hs
             // the same island (an outline repeated exactly, as a prism's is on layer after layer) is decided once ([narrowCache])
-            val key = NarrowKey(isl.map { it.xy }, sig)
+            // (and the object's surface near it, where the outline is one part's: the walls the beads are judged against read it)
+            val key = NarrowKey(isl.map { it.xy } + listOfNotNull(surface?.let { sf ->
+                val b = o.bounds(); val m = maxBeadUm
+                sf.flatMap { p -> (0 until p.size).filter { e -> val f = (e + 1) % p.size
+                    !(maxOf(p.x(e), p.x(f)) < b[0] - m || minOf(p.x(e), p.x(f)) > b[2] + m || maxOf(p.y(e), p.y(f)) < b[1] - m || minOf(p.y(e), p.y(f)) > b[3] + m) }
+                    .flatMap { e -> listOf(p.x(e), p.y(e)) } }.toLongArray() }), sig)
             val got = narrowCache[key] ?: narrowBeads(isl, laid, params, outerWidthUm, innerWidthUm, flank, floorUm, toleranceUm).also {
                 if (narrowCache.size >= NARROW_CACHE_ENTRIES) narrowCache.clear()
                 narrowCache[key] = it
@@ -216,16 +236,18 @@ object Walls {
             if (got.isNotEmpty()) islandBeads[o] = got[0]
             got.isNotEmpty()
         }
-        if (taken.isEmpty()) return laid
+        if (taken.isEmpty()) return shared
         fun inTaken(x: Long, y: Long) = taken.any { (o, hs) -> inIsland(o, hs, x, y) }
-        val walls = laid.walls.map { level -> level.filter { !inTaken(it.x(0), it.y(0)) } }.dropLastWhile { it.isEmpty() }
-        val inner = laid.inner.filter { !inTaken(it.x(0), it.y(0)) }
-        val center = laid.center.filter { c -> val m = c.xy.size / 4 * 2; !inTaken(c.xy[m], c.xy[m + 1]) }
+        // (each kept loop with its widths, where a slit is shared)
+        val kept = shared.walls.mapIndexed { k, level -> level.indices.filter { !inTaken(level[it].x(0), level[it].y(0)) }.map { level[it] to shared.widthsOf(k, it) } }
+            .dropLastWhile { it.isEmpty() }
+        val inner = shared.inner.filter { !inTaken(it.x(0), it.y(0)) }
+        val center = shared.center.filter { c -> val m = c.xy.size / 4 * 2; !inTaken(c.xy[m], c.xy[m + 1]) }
         // the beads' closed lines are loops of the walls, at their place from the outside, so they are laid as every loop is
         // (seams, scarf, order, travel); a loop at its level's set width throughout keeps no widths of its own; the open
         // lines stay lines
         val levels = ArrayList<ArrayList<Polygon>>(); val levelWidths = ArrayList<ArrayList<LongArray?>>()
-        for (lv in walls) { levels.add(ArrayList(lv)); levelWidths.add(ArrayList(lv.map { null })) }
+        for (lv in kept) { levels.add(ArrayList(lv.map { it.first })); levelWidths.add(ArrayList(lv.map { it.second })) }
         val open = ArrayList<CenterLine>()
         for ((o, _) in taken) for (c in islandBeads.getValue(o)) {
             val m = c.xy.size / 2
@@ -280,6 +302,175 @@ object Walls {
     }
 
     /**
+     * [laid] with each loop widened where a slit too narrow for a line ([interiorMinUm], centerLines) is left between it and
+     * another loop: the two lines beside the slit share its width, each a quarter of it nearer the slit and half of it wider
+     * (its other edge stays where it was: the outer loop's on the outline), up to [maxBeadUm]. A web 1 mm wide between a hole
+     * and the block's side, its two outer loops 0.15 mm apart over 2 mm, left that slit bare on every layer. The slit's width
+     * at a point of a loop: the distance to the nearest other loop on that side, less the two loops' bands (half of each
+     * one's spacing, [outerSpacingUm] for the outer loops, [innerSpacingUm] else): the leftover between them, which gets a
+     * center line where it is at least [interiorMinUm] wide. A gap in a piece of [leftover] (what the loops' bands leave)
+     * that holds some of the infill region is that region's corner, not a slit. Read every [stepUm] along a loop's edges near another loop;
+     * a loop unchanged anywhere (within [toleranceUm]) is the same polygon, with no widths.
+     */
+    private fun shareSlits(outline: List<Polygon>, laid: LayerWalls, leftover: List<Polygon>, outerWidthUm: Long, innerWidthUm: Long, outerSpacingUm: Long, innerSpacingUm: Long,
+                           interiorMinUm: Long, maxBeadUm: Long, toleranceUm: Long, stepUm: Long, skip: (Long, Long) -> Boolean): LayerWalls {
+        val walls = laid.walls
+        if (walls.isEmpty() || interiorMinUm <= toleranceUm) return laid
+        // every loop's edges: (level, loop, edge) and the loop's arc length at the edge's start
+        // (and the center lines' edges, level -1: a leftover with a line in it is the line's, no slit; [sp]: the band's width,
+        // the line's spacing)
+        class Edge(val k: Int, val li: Int, val e: Int, val ax: Long, val ay: Long, val bx: Long, val by: Long, val arc: Double, val sp: Double)
+        val edges = ArrayList<Edge>(); val loopLen = HashMap<Long, Double>(); val loopBase = HashMap<Long, Int>()
+        fun loopKey(k: Int, li: Int) = (k.toLong() shl 32) or li.toLong()
+        fun width(k: Int) = if (k == 0) outerWidthUm else innerWidthUm
+        fun spacingOf(k: Int) = if (k == 0) outerSpacingUm else innerSpacingUm
+        for ((k, lv) in walls.withIndex()) for ((li, p) in lv.withIndex()) {
+            loopBase[loopKey(k, li)] = edges.size
+            var arc = 0.0
+            val ws = laid.widthsOf(k, li)
+            for (e in 0 until p.size) {
+                val f = (e + 1) % p.size
+                val sp = if (ws == null) spacingOf(k).toDouble() else (ws[e] + ws[f]) / 2.0 - (width(k) - spacingOf(k))
+                edges += Edge(k, li, e, p.x(e), p.y(e), p.x(f), p.y(f), arc, sp)
+                arc += Math.hypot((p.x(f) - p.x(e)).toDouble(), (p.y(f) - p.y(e)).toDouble())
+            }
+            loopLen[loopKey(k, li)] = arc
+        }
+        val flank = (innerWidthUm - innerSpacingUm).toDouble()
+        for ((ci, c) in laid.center.withIndex()) for (e in 0 until c.xy.size / 2 - 1)
+            edges += Edge(-1, ci, e, c.xy[2 * e], c.xy[2 * e + 1], c.xy[2 * e + 2], c.xy[2 * e + 3], 0.0, (c.widths[e] + c.widths[e + 1]) / 2.0 - flank)
+        val reach = (maxOf(outerSpacingUm, innerSpacingUm, maxBeadUm) + interiorMinUm).toDouble()
+        val cell = maxOf(reach.toLong(), 1L)
+        val grid = HashMap<Long, MutableList<Int>>()
+        fun gkey(cx: Long, cy: Long) = (cx shl 32) xor (cy and 0xffffffffL)
+        for ((i, e) in edges.withIndex())
+            for (cx in Math.floorDiv(minOf(e.ax, e.bx), cell)..Math.floorDiv(maxOf(e.ax, e.bx), cell))
+                for (cy in Math.floorDiv(minOf(e.ay, e.by), cell)..Math.floorDiv(maxOf(e.ay, e.by), cell)) grid.getOrPut(gkey(cx, cy)) { ArrayList() }.add(i)
+        fun inModel(x: Double, y: Double) = outline.count { plymeld.geom.Polygons.contains(it, Math.round(x), Math.round(y)) } % 2 == 1
+        // the pieces of what the loops leave ([leftover]) that hold some of the infill region: a gap in one, between a loop and
+        // a line in its corner, is the corner of the area the walls hand to infill, not a slit between walls (a loop widened
+        // into it narrowed that area below what infill is handed, 0.80 to 0.79 mm, and left it bare inside the walls)
+        val infillPieces by lazy {
+            if (laid.inner.isEmpty()) emptyList() else {
+                plymeld.geom.Polygons.group(leftover).filter { (o, hs) -> laid.inner.any { p -> p.isCcw() &&
+                    (0 until p.size).any { v -> plymeld.geom.Polygons.contains(o, p.x(v), p.y(v)) && hs.none { h -> plymeld.geom.Polygons.contains(h, p.x(v), p.y(v)) } } } }
+            }
+        }
+        fun inInfill(x: Double, y: Double): Boolean { val px = Math.round(x); val py = Math.round(y)
+            return infillPieces.any { (o, hs) -> plymeld.geom.Polygons.contains(o, px, py) && hs.none { plymeld.geom.Polygons.contains(it, px, py) } } }
+        val nearMemo = HashMap<List<Long>, Set<Int>>()
+        fun nearCells(x0: Double, y0: Double, x1: Double, y1: Double): Set<Int> {
+            val cx0 = Math.floorDiv((x0 - reach).toLong(), cell); val cx1 = Math.floorDiv((x1 + reach).toLong(), cell)
+            val cy0 = Math.floorDiv((y0 - reach).toLong(), cell); val cy1 = Math.floorDiv((y1 + reach).toLong(), cell)
+            // a range of cells read once (each point of a long edge reads the few cells round it)
+            return nearMemo.getOrPut(listOf(cx0, cx1, cy0, cy1)) {
+                val out = HashSet<Int>()
+                for (cx in cx0..cx1) for (cy in cy0..cy1) grid[gkey(cx, cy)]?.let { out.addAll(it) }
+                out
+            }
+        }
+        /** Whether [o] is of loop ([k], [li]) within [gap] of arc length [arc] along it (or of center line [li] where [k] is -1). */
+        fun ownNear(o: Edge, k: Int, li: Int, arc: Double, gap: Double): Boolean {
+            if (o.k != k || o.li != li) return false
+            if (k < 0) return true
+            val len = loopLen.getValue(loopKey(k, li)); val lo = Math.hypot((o.bx - o.ax).toDouble(), (o.by - o.ay).toDouble())
+            if (arc >= o.arc && arc <= o.arc + lo) return true
+            val da = Math.abs(o.arc - arc).let { minOf(it, len - it) }
+            val db = Math.abs(o.arc + lo - arc).let { minOf(it, len - it) }
+            return minOf(da, db) < gap
+        }
+        val noBand = doubleArrayOf(Double.POSITIVE_INFINITY, -1.0)
+        /** Where the ray from (px, py) along (dx, dy) first enters a band of [cand] not [skipped]: the distance and the edge. */
+        fun firstBand(px: Double, py: Double, dx: Double, dy: Double, cand: Collection<Int>, skipped: (Edge) -> Boolean): DoubleArray {
+            var best = Double.POSITIVE_INFINITY; var bi = -1
+            for (i in cand) {
+                val o = edges[i]
+                if (skipped(o)) continue
+                val t = Beads.rayCapsule(px, py, dx, dy, o.ax.toDouble(), o.ay.toDouble(), o.bx.toDouble(), o.by.toDouble(), o.sp / 2)
+                if (t < best) { best = t; bi = i }
+            }
+            return if (bi < 0) noBand else doubleArrayOf(best, bi.toDouble())
+        }
+        /**
+         * The slit [o]'s line sees toward (px, py): from the point of its center line nearest (hx, hy) (where a ray from
+         * (px, py) entered its band), along its normal toward (px, py), to the first other band; less half its band.
+         */
+        fun backGap(o: Edge, hx: Double, hy: Double, px: Double, py: Double): Double {
+            val ax = o.ax.toDouble(); val ay = o.ay.toDouble(); val dx = o.bx - ax; val dy = o.by - ay; val l2 = dx * dx + dy * dy
+            if (l2 == 0.0) return 0.0
+            val u = (((hx - ax) * dx + (hy - ay) * dy) / l2).coerceIn(0.0, 1.0)
+            val qx = ax + u * dx; val qy = ay + u * dy; val l = Math.sqrt(l2)
+            var nx = -dy / l; var ny = dx / l
+            if (nx * (px - qx) + ny * (py - qy) < 0) { nx = -nx; ny = -ny }
+            val arcQ = o.arc + u * l
+            val gap = if (o.k < 0) 0.0 else 2.0 * width(o.k) + interiorMinUm
+            val hit = firstBand(qx, qy, nx, ny, nearCells(qx, qy, qx, qy)) { e -> ownNear(e, o.k, o.li, arcQ, gap) }
+            return hit[0] - o.sp / 2
+        }
+        val newWalls = walls.map { ArrayList(it) }
+        val newWidths = walls.mapIndexed { k, lv -> ArrayList<LongArray?>(lv.indices.map { laid.widthsOf(k, it) }) }
+        var changed = false
+        for ((k, lv) in walls.withIndex()) for ((li, p) in lv.withIndex()) {
+            if (laid.widthsOf(k, li) != null || skip(p.x(0), p.y(0))) continue      // laid by its width already, or a narrow island's
+            val w = width(k).toDouble(); val s = spacingOf(k).toDouble()
+            // the loop's own edges farther along it than this count as another loop (its far side across a narrow middle)
+            val ownGap = 2 * w + interiorMinUm
+            val xs = ArrayList<Long>(); val ws = ArrayList<Long>()
+            var any = false
+            for (e in 0 until p.size) {
+                val f = (e + 1) % p.size
+                val ax = p.x(e).toDouble(); val ay = p.y(e).toDouble(); val bx = p.x(f).toDouble(); val by = p.y(f).toDouble()
+                val el = Math.hypot(bx - ax, by - ay)
+                val arc0 = edges[loopBase.getValue(loopKey(k, li)) + e].arc
+                // the other edges near this one (within reach of its box; along a long edge, of each point read)
+                val long = el > 2.0 * cell
+                val near = if (long) emptySet() else nearCells(minOf(ax, bx), minOf(ay, by), maxOf(ax, bx), maxOf(ay, by))
+                val steps = if (el == 0.0) 1 else maxOf(1, Math.ceil(el / stepUm).toInt())
+                // the edge's normal, to its left (the way the loop runs)
+                val nx = if (el == 0.0) 0.0 else -(by - ay) / el; val ny = if (el == 0.0) 0.0 else (bx - ax) / el
+                for (q in 0 until steps) {
+                    val t = q.toDouble() / steps
+                    val px = ax + (bx - ax) * t; val py = ay + (by - ay) * t; val arc = arc0 + el * t
+                    val cand = if (long) nearCells(px, py, px, py) else near
+                    // each side, how far along the normal the first other band begins: the leftover from this band's edge to it
+                    val left = if (el > 0) firstBand(px, py, nx, ny, cand) { o -> ownNear(o, k, li, arc, ownGap) } else noBand
+                    val right = if (el > 0) firstBand(px, py, -nx, -ny, cand) { o -> ownNear(o, k, li, arc, ownGap) } else noBand
+                    // the slit each side, and the share of it this line takes (half its width, a quarter nearer): only where the
+                    // line across sees it too (along its own normal back to this band: a loop's sharp inner corner and the next
+                    // loop's round turn leave a void only the first sees, there by any loops' corners, no slit), the narrower
+                    // of the two; only in the model (between two islands' outer loops the gap is outside it)
+                    fun slit(hit: DoubleArray, sx: Double): Double {
+                        val g = hit[0] - s / 2
+                        if (!(g > toleranceUm && g < interiorMinUm)) return 0.0
+                        if (!inModel(px + sx * (s / 2 + g / 2) * nx, py + sx * (s / 2 + g / 2) * ny)) return 0.0
+                        if (inInfill(px + sx * (s / 2 + g / 2) * nx, py + sx * (s / 2 + g / 2) * ny)) return 0.0
+                        val back = backGap(edges[hit[1].toInt()], px + sx * hit[0] * nx, py + sx * hit[0] * ny, px, py)
+                        return if (back > toleranceUm) minOf(g, back) else 0.0
+                    }
+                    val gl = slit(left, 1.0); val gr = slit(right, -1.0)
+                    val mx = px + nx * (gl - gr) / 4; val my = py + ny * (gl - gr) / 4
+                    val nw = minOf(w + (gl + gr) / 2, maxBeadUm.toDouble())
+                    if (gl > 0 || gr > 0) any = true
+                    // an edge with no slit keeps its own vertex only
+                    if (q > 0 && gl == 0.0 && gr == 0.0 && (ws.lastOrNull() ?: 0L) == width(k)) continue
+                    xs.add(Math.round(mx)); xs.add(Math.round(my)); ws.add(Math.round(nw))
+                }
+            }
+            if (!any) continue
+            // simplified to the tolerance as any line, as a closed path (first point repeated)
+            val c = simplified(CenterLine((xs + listOf(xs[0], xs[1])).toLongArray(), (ws + listOf(ws[0])).toLongArray()), toleranceUm)
+            val m = c.xy.size / 2 - 1
+            if (m < 3) continue
+            newWalls[k][li] = Polygon(c.xy.copyOf(2 * m))
+            val cw = c.widths.copyOf(m)
+            newWidths[k][li] = if (cw.all { Math.abs(it - width(k)) <= toleranceUm }) null else cw
+            changed = true
+        }
+        if (!changed) return laid
+        return LayerWalls(newWalls, laid.inner, laid.center, newWidths)
+    }
+
+    /**
      * Whether a center line ([xy], its width per vertex [widths]) runs along the outline [outline]: more than half its
      * vertices within half their bead and [EDGE_TOL_UM] of an outline edge, i.e. the bead's side IS the part's outer
      * surface there (no outer loop beside it). Such a line is the outer wall where it runs.
@@ -328,18 +519,27 @@ object Walls {
         val mb = IslandCheck.measure(isl, beads.map { IslandCheck.Line(it.xy, DoubleArray(it.widths.size) { k -> it.widths[k].toDouble() }, false) }, emptyList(), flank, floorUm, toleranceUm.toDouble())
         // beads within the limits on their own need no comparison with the walls (the walls are then measured only to judge
         // beads that are not)
-        if (mb != null && mb.wideUm2 == 0.0 && mb.widestUm <= NARROW_WIDEST_UM + IslandCheck.CELL_UM && mb.outsideUm <= NARROW_OUTSIDE_UM + IslandCheck.CELL_UM &&
+        if (mb.wideUm2 == 0.0 && mb.widestUm <= NARROW_WIDEST_UM + mb.cellUm && mb.outsideUm <= NARROW_OUTSIDE_UM + mb.cellUm &&
             mb.doubledUm2 <= NARROW_DOUBLED_SLACK_UM2) return listOf(beads)
         val oldLines = ArrayList<IslandCheck.Line>()
-        for ((k, level) in laid.walls.withIndex()) for (p in level) if (mine(p.x(0), p.y(0)))
-            oldLines += IslandCheck.Line(p.xy, DoubleArray(p.size) { (if (k == 0) outerWidthUm else innerWidthUm).toDouble() }, true)
+        for ((k, level) in laid.walls.withIndex()) for ((li, p) in level.withIndex()) if (mine(p.x(0), p.y(0))) {
+            val ws = laid.widthsOf(k, li)
+            oldLines += IslandCheck.Line(p.xy, DoubleArray(p.size) { (ws?.get(it) ?: if (k == 0) outerWidthUm else innerWidthUm).toDouble() }, true)
+        }
         for (c in laid.center) { val m = c.xy.size / 4 * 2; if (mine(c.xy[m], c.xy[m + 1])) oldLines += IslandCheck.Line(c.xy, DoubleArray(c.widths.size) { c.widths[it].toDouble() }, false) }
         val oldCovered = laid.inner.filter { mine(it.x(0), it.y(0)) }
         val mo = IslandCheck.measure(isl, oldLines, oldCovered, flank, floorUm, toleranceUm.toDouble())
-        val ok = mo != null && mb != null && mb.wideUm2 <= mo.wideUm2 + NARROW_WIDE_SLACK_UM2 && mb.widestUm <= maxOf(mo.widestUm, NARROW_WIDEST_UM) + IslandCheck.CELL_UM &&
-            mb.outsideUm <= maxOf(mo.outsideUm, NARROW_OUTSIDE_UM) + IslandCheck.CELL_UM &&
+        val ok = mb.wideUm2 <= mo.wideUm2 + NARROW_WIDE_SLACK_UM2 && mb.widestUm <= maxOf(mo.widestUm, NARROW_WIDEST_UM) + mb.cellUm &&
+            mb.outsideUm <= maxOf(mo.outsideUm, NARROW_OUTSIDE_UM) + mb.cellUm &&
             (mb.doubledUm2 <= mo.doubledUm2 + NARROW_DOUBLED_SLACK_UM2 || (mo.wideUm2 - mb.wideUm2 > NARROW_HOLE_UM2 && mb.doubledUm2 <= NARROW_DOUBLED_MAX_UM2))
         return if (ok) listOf(beads) else emptyList()
+    }
+
+    /** A thin piece's points (each polygon's), compared by content: centerLines' piece cache key. */
+    class PieceKey(private val xys: List<LongArray>) {
+        private val hash = xys.fold(1) { h, a -> 31 * h + a.contentHashCode() }
+        override fun hashCode() = hash
+        override fun equals(other: Any?) = other is PieceKey && other.hash == hash && other.xys.size == xys.size && xys.indices.all { other.xys[it].contentEquals(xys[it]) }
     }
 
     /** A narrow island's outline (each polygon's points) and the parameters its decision reads: [narrowCache]'s key. */
@@ -423,15 +623,109 @@ object Walls {
                      * The thinnest area between walls (away from [outline]) that gets a line: there the narrowest line, wider than
                      * the area, overlaps the walls on both sides. 0: [minFeatureUm], as at the surface.
                      */
-                    interiorMinUm: Long = 0L): List<CenterLine> {
+                    interiorMinUm: Long = 0L,
+                    /**
+                     * A short line is kept where its area is wider than this somewhere (a spot that wide left bare is a hole,
+                     * not a corner void: the pre-print check refuses it); [Long.MAX_VALUE]: no such exception.
+                     */
+                    keepWiderUm: Long = Long.MAX_VALUE,
+                    /** How far past bead contact a line springing from another reaches into it, a fraction of its width (giveWay). */
+                    endOverlap: Double = 0.0,
+                    /** The object's surface where [outline] is one part of several (Walls.arachne); null: [outline]. */ surface: List<Polygon>? = null,
+                    /**
+                     * Each thin piece's lines by its points, for calls with the same other arguments (Walls.arachne's second
+                     * build): a piece's lines are a function of the piece and those arguments alone. Null: none kept.
+                     */
+                    pieceCache: MutableMap<PieceKey, List<CenterLine>>? = null): List<CenterLine> {
         // one triangulation per connected thin piece: one for a whole layer's thin areas ran out of
         // memory on a large test model's layer
-        val lines = plymeld.geom.Polygons.group(thin).flatMap { (o, hs) -> centerLinesOfPiece(listOf(o) + hs, minBeadUm, minFeatureUm, maxWidthUm, minLengthFactor, transitionUm, outline,
-            maxOf(minFeatureUm, interiorMinUm)) }
+        val lines = plymeld.geom.Polygons.group(thin).flatMap { (o, hs) -> val piece = listOf(o) + hs
+            fun lay() = centerLinesOfPiece(piece, minBeadUm, minFeatureUm, maxWidthUm, minLengthFactor, transitionUm, outline,
+                maxOf(minFeatureUm, interiorMinUm), keepWiderUm, surface)
+            if (pieceCache == null) lay() else pieceCache.getOrPut(PieceKey(piece.map { it.xy })) { lay() } }
         // two ends are not joined across a place the model is narrower than min_feature: the walls lay no line there
-        val surface by lazy { EdgeGrid(outline.flatMap { p -> (0 until p.size).map { e -> longArrayOf(p.x(e), p.y(e), p.x((e + 1) % p.size), p.y((e + 1) % p.size)) } }, maxOf(maxWidthUm, 4 * minFeatureUm)) }
-        return joinEnds(lines, transitionUm) { ax, ay, bx, by -> outline.isEmpty() ||
-            (0..8).none { k -> surface.within(ax + (bx - ax) * k / 8.0, ay + (by - ay) * k / 8.0, minFeatureUm / 2.0) } }
+        val outlineGrid by lazy { EdgeGrid(outline.flatMap { p -> (0 until p.size).map { e -> longArrayOf(p.x(e), p.y(e), p.x((e + 1) % p.size), p.y((e + 1) % p.size)) } }, maxOf(maxWidthUm, 4 * minFeatureUm)) }
+        val joined = joinEnds(lines, transitionUm, maxOf(MIN_SAMPLE_UM, minFeatureUm / 2)) { ax, ay, bx, by -> outline.isEmpty() ||
+            (0..8).none { k -> outlineGrid.within(ax + (bx - ax) * k / 8.0, ay + (by - ay) * k / 8.0, minFeatureUm / 2.0) } }
+        return giveWay(joined, endOverlap, maxOf(MIN_SAMPLE_UM, minFeatureUm / 2))
+    }
+
+    /**
+     * Each open line's end that springs from another line (lies on its center line, within [slackUm]: a third branch of a
+     * junction the other two run through) cut back to where its bead reaches into the other's by [overlap] of its width past
+     * contact, as an end against a wall's bead does (reachInto); laid from the junction, the two lines laid the same plastic
+     * twice across the other's width. A line within that reach of the other throughout is dropped. Ends are cut one at a
+     * time against the lines as they then are, so two ends on one point are not both cut back.
+     */
+    private fun giveWay(lines: List<CenterLine>, overlap: Double, slackUm: Long): List<CenterLine> {
+        if (lines.size < 2) return lines
+        val out = lines.toMutableList<CenterLine?>()
+        fun box(c: CenterLine): LongArray {
+            var x0 = Long.MAX_VALUE; var y0 = Long.MAX_VALUE; var x1 = Long.MIN_VALUE; var y1 = Long.MIN_VALUE
+            for (k in 0 until c.xy.size / 2) { x0 = minOf(x0, c.xy[2 * k]); x1 = maxOf(x1, c.xy[2 * k]); y0 = minOf(y0, c.xy[2 * k + 1]); y1 = maxOf(y1, c.xy[2 * k + 1]) }
+            return longArrayOf(x0, y0, x1, y1)
+        }
+        val boxes = out.map { box(it!!) }.toMutableList()
+        /** The nearest point of [c]'s center line to (px, py): its distance and the line's half width there. */
+        fun nearest(c: CenterLine, px: Double, py: Double): DoubleArray {
+            var best = Double.MAX_VALUE; var half = 0.0
+            for (m in 0 until c.xy.size / 2 - 1) {
+                val ax = c.xy[2 * m].toDouble(); val ay = c.xy[2 * m + 1].toDouble(); val dx = c.xy[2 * m + 2] - ax; val dy = c.xy[2 * m + 3] - ay
+                val l2 = dx * dx + dy * dy; val t = if (l2 == 0.0) 0.0 else (((px - ax) * dx + (py - ay) * dy) / l2).coerceIn(0.0, 1.0)
+                val d = Math.hypot(px - ax - t * dx, py - ay - t * dy)
+                if (d < best) { best = d; half = (c.widths[m] + t * (c.widths[m + 1] - c.widths[m])) / 2 }
+            }
+            return doubleArrayOf(best, half)
+        }
+        fun isClosed(c: CenterLine): Boolean { val n = c.xy.size / 2; return n >= 2 && c.xy[0] == c.xy[2 * n - 2] && c.xy[1] == c.xy[2 * n - 1] }
+        for (i in out.indices) for (last in listOf(false, true)) {
+            val c = out[i] ?: continue
+            val n = c.xy.size / 2
+            if (n < 2 || isClosed(c)) continue
+            fun at(k: Int) = if (last) n - 1 - k else k
+            val px = c.xy[2 * at(0)].toDouble(); val py = c.xy[2 * at(0) + 1].toDouble()
+            // the line it springs from: another line's center line within the slack of this end
+            var from = -1; var fromHalf = 0.0; var fromD = Double.MAX_VALUE
+            for (j in out.indices) {
+                if (j == i) continue
+                val o = out[j] ?: continue; val b = boxes[j]
+                if (px < b[0] - slackUm || px > b[2] + slackUm || py < b[1] - slackUm || py > b[3] + slackUm) continue
+                val (d, h) = nearest(o, px, py).let { it[0] to it[1] }
+                if (d <= slackUm && d < fromD) { from = j; fromHalf = h; fromD = d }
+            }
+            if (from < 0) continue
+            val o = out[from]!!
+            // walk in from the end to where this line's bead reaches no further into the other's than the overlap allows
+            fun need(k: Int, d: Double, h: Double) = d >= h + c.widths[at(k)] / 2.0 - overlap * c.widths[at(k)]
+            var cut = -1; var cx = 0.0; var cy = 0.0; var cw = 0.0
+            var prevX = px; var prevY = py
+            for (k in 1 until n) {
+                val qx = c.xy[2 * at(k)].toDouble(); val qy = c.xy[2 * at(k) + 1].toDouble()
+                val nq = nearest(o, qx, qy)
+                if (!need(k, nq[0], nq[1])) { prevX = qx; prevY = qy; continue }
+                // the crossing within the step from k - 1 to k, by halving
+                var lo = 0.0; var hi = 1.0
+                val w0 = c.widths[at(k - 1)].toDouble(); val w1 = c.widths[at(k)].toDouble()
+                repeat(20) {
+                    val t = (lo + hi) / 2; val x = prevX + (qx - prevX) * t; val y = prevY + (qy - prevY) * t; val w = w0 + (w1 - w0) * t
+                    val nm = nearest(o, x, y)
+                    if (nm[0] >= nm[1] + w / 2 - overlap * w) hi = t else lo = t
+                }
+                cut = k; cx = prevX + (qx - prevX) * hi; cy = prevY + (qy - prevY) * hi; cw = w0 + (w1 - w0) * hi
+                break
+            }
+            if (cut < 0) { out[i] = null; continue }
+            // the line from the cut on (in its own direction)
+            val keep = (cut until n).map { at(it) }.let { if (last) it.reversed() else it }
+            val xs = ArrayList<Long>(); val ws = ArrayList<Long>()
+            fun add(x: Long, y: Long, w: Long) { xs.add(x); xs.add(y); ws.add(w) }
+            if (!last) add(Math.round(cx), Math.round(cy), Math.round(cw))
+            for (k in keep) add(c.xy[2 * k], c.xy[2 * k + 1], c.widths[k])
+            if (last) add(Math.round(cx), Math.round(cy), Math.round(cw))
+            val cutLine = CenterLine(xs.toLongArray(), ws.toLongArray(), c.reachUm, c.wall)
+            out[i] = cutLine; boxes[i] = box(cutLine)
+        }
+        return out.filterNotNull()
     }
 
     /**
@@ -484,7 +778,7 @@ object Walls {
      * continuous through such transitions (wall_transition_length), so plymeld does too, but only where the gap may be
      * crossed ([crossable]: not past the model's surface closer than half of min_feature, a neck no line is laid in).
      */
-    private fun joinEnds(lines: List<CenterLine>, joinUm: Long, crossable: (Double, Double, Double, Double) -> Boolean): List<CenterLine> {
+    private fun joinEnds(lines: List<CenterLine>, joinUm: Long, slackUm: Long, crossable: (Double, Double, Double, Double) -> Boolean): List<CenterLine> {
         val open = lines.filter { l -> val n = l.xy.size / 2; !(l.xy[0] == l.xy[2 * n - 2] && l.xy[1] == l.xy[2 * n - 1]) }.toMutableList()
         val closed = lines - open.toSet()
         fun end(l: CenterLine, last: Boolean): LongArray { val k = if (last) l.xy.size / 2 - 1 else 0; return longArrayOf(l.xy[2 * k], l.xy[2 * k + 1]) }
@@ -493,25 +787,78 @@ object Walls {
             return CenterLine(LongArray(2 * n) { k -> l.xy[2 * (n - 1 - k / 2) + k % 2] }, LongArray(n) { l.widths[n - 1 - it] })
         }
         val lim = joinUm.toDouble() * joinUm
+        // the way a line runs out at an end (unit vector), for ends on one point: the pair that runs on straightest is joined
+        // (three lines from one junction: the two in line make one path, the third springs from it and gives way)
+        fun outward(l: CenterLine, last: Boolean): DoubleArray {
+            val n = l.xy.size / 2; val k = if (last) n - 1 else 0
+            var j = if (last) n - 2 else 1
+            while (j in 0 until n && l.xy[2 * j] == l.xy[2 * k] && l.xy[2 * j + 1] == l.xy[2 * k + 1]) j += if (last) -1 else 1
+            if (j !in 0 until n) return doubleArrayOf(0.0, 0.0)
+            val dx = (l.xy[2 * k] - l.xy[2 * j]).toDouble(); val dy = (l.xy[2 * k + 1] - l.xy[2 * j + 1]).toDouble(); val d = Math.hypot(dx, dy)
+            return doubleArrayOf(dx / d, dy / d)
+        }
+        // An end that springs from another line (lies on its center line, within [slackUm], away from that line's ends) is
+        // a branch of a junction the other runs through: it joins nothing across a gap (giveWay cuts it back). Joined to an
+        // end nearby, the joining segment ran back over the other line's branch (a junction's three forks: one laid out and
+        // back over another).
+        val s = slackUm.toDouble()
+        // each line's box, to pass over the lines an end is nowhere near
+        val boxes = java.util.IdentityHashMap<CenterLine, LongArray>()
+        fun boxOf(m: CenterLine): LongArray = boxes.getOrPut(m) {
+            var x0 = Long.MAX_VALUE; var y0 = Long.MAX_VALUE; var x1 = Long.MIN_VALUE; var y1 = Long.MIN_VALUE
+            for (k in 0 until m.xy.size / 2) { x0 = minOf(x0, m.xy[2 * k]); x1 = maxOf(x1, m.xy[2 * k]); y0 = minOf(y0, m.xy[2 * k + 1]); y1 = maxOf(y1, m.xy[2 * k + 1]) }
+            longArrayOf(x0, y0, x1, y1)
+        }
+        fun springs(l: CenterLine, last: Boolean): Boolean {
+            val p = end(l, last); val px = p[0].toDouble(); val py = p[1].toDouble()
+            for (m in open.asSequence().filter { it !== l } + closed.asSequence()) {
+                val b = boxOf(m)
+                if (px < b[0] - s || px > b[2] + s || py < b[1] - s || py > b[3] + s) continue
+                val n = m.xy.size / 2
+                if (Math.hypot(px - m.xy[0], py - m.xy[1]) <= s || Math.hypot(px - m.xy[2 * n - 2], py - m.xy[2 * n - 1]) <= s) continue
+                for (k in 0 until n - 1) if (pointSegUm(px, py, longArrayOf(m.xy[2 * k], m.xy[2 * k + 1], m.xy[2 * k + 2], m.xy[2 * k + 3])) <= s) return true
+            }
+            return false
+        }
+        // whether each end springs, kept from one join to the next: a join changes it only for an end within the slack of the
+        // joined line's ends or of the segment joining the two (elsewhere the joined line is what the two were, end for end)
+        val springing = java.util.IdentityHashMap<CenterLine, Array<Boolean?>>()
+        fun springsMemo(i: Int, last: Boolean): Boolean {
+            val l = open[i]; val m = springing.getOrPut(l) { arrayOfNulls(2) }; val k = if (last) 1 else 0
+            return m[k] ?: springs(l, last).also { m[k] = it }
+        }
         while (true) {
             var best = Double.MAX_VALUE; var bi = -1; var bj = -1; var biLast = false; var bjLast = false
             for (i in open.indices) for (j in i + 1 until open.size) for (il in listOf(false, true)) for (jl in listOf(false, true)) {
                 val a = end(open[i], il); val b = end(open[j], jl)
                 val dx = (a[0] - b[0]).toDouble(); val dy = (a[1] - b[1]).toDouble(); val d = dx * dx + dy * dy
-                if (d <= lim && d < best && crossable(a[0].toDouble(), a[1].toDouble(), b[0].toDouble(), b[1].toDouble())) { best = d; bi = i; bj = j; biLast = il; bjLast = jl }
+                if (d > lim) continue
+                if (d > 1.0 && (springsMemo(i, il) || springsMemo(j, jl))) continue
+                // closest first; ends on one point (within a micron) before any other, the straighter pair first (the dot of
+                // the ways they run out: -1 runs straight on)
+                val score = if (d <= 1.0) { val u = outward(open[i], il); val v = outward(open[j], jl); -2.0 + u[0] * v[0] + u[1] * v[1] } else d
+                if (score < best && crossable(a[0].toDouble(), a[1].toDouble(), b[0].toDouble(), b[1].toDouble())) { best = score; bi = i; bj = j; biLast = il; bjLast = jl }
             }
             if (bi < 0) break
             // orient: open[bi] ends at the joined end, open[bj] starts there
             val a = if (biLast) open[bi] else reversed(open[bi])
             val b = if (bjLast) reversed(open[bj]) else open[bj]
             val joined = CenterLine(a.xy + b.xy, a.widths + b.widths)
+            springing.remove(open[bi]); springing.remove(open[bj])
             open.removeAt(bj); open.removeAt(bi); open.add(joined)
+            val na = a.xy.size / 2
+            val seg = longArrayOf(a.xy[2 * na - 2], a.xy[2 * na - 1], b.xy[0], b.xy[1])
+            val f = end(joined, false); val g = end(joined, true)
+            for ((l, m) in springing) for (k in 0..1) if (m[k] != null) {
+                val p = end(l, k == 1); val px = p[0].toDouble(); val py = p[1].toDouble()
+                if (pointSegUm(px, py, seg) <= s || Math.hypot(px - f[0], py - f[1]) <= s || Math.hypot(px - g[0], py - g[1]) <= s) m[k] = null
+            }
         }
         return closed + open
     }
 
     private fun centerLinesOfPiece(thin: List<Polygon>, minBeadUm: Long, minFeatureUm: Long, maxWidthUm: Long, minLengthFactor: Double, transitionUm: Long, outline: List<Polygon>,
-                                   interiorMinUm: Long): List<CenterLine> {
+                                   interiorMinUm: Long, keepWiderUm: Long, surface: List<Polygon>?): List<CenterLine> {
         val sample = maxOf(MIN_SAMPLE_UM, minFeatureUm / 2)
         val sk = plymeld.geom.Skeleton(thin, sample, maxOf(minFeatureUm, 2 * sample))
         // graph: node = circumcenter (exact doubles, shared by the edges of one triangle)
@@ -577,6 +924,35 @@ object Walls {
         fun atSurface(i: Int): Boolean = outline.isEmpty() || surfaceGrid?.within(nx[i], ny[i], nr[i] + sample) == true
         fun isThin(i: Int): Boolean = 2 * nr[i] < (if (atSurface(i)) minFeatureUm else interiorMinUm)
         val origLeaf = adj.filterValues { it.size == 1 }.keys.toHashSet()
+        // A fork is no corner void where its area reaches out past the line at its junction by more than [keepWiderUm]: left
+        // bare, that is a hole inside the walls (a strip's line ending in a head 1 mm across, both of the head's forks
+        // shorter than their width, left a pocket 0.34 mm wide in the head's point). The reach of a node: how far its disc
+        // lies beyond the junction's line end (its width there), no more than the disc's own width; a node also stands for
+        // the forks cut at it before ([heldBy]), so a trunk whose forks went is judged by what they reached too. Only between
+        // walls: a node at the model's surface reaches the outline, where what is bare is the outline's, not a hole (the forks
+        // round a loop's turn at a ridge's tip, kept, lay a line wider than the strip between the loop and the outline, over
+        // the loop). The model's surface: [surface] where the outline is one part's of several (where the part's edge meets
+        // another part, the spot is closed in by that part's walls: a hole all the same).
+        val modelGrid by lazy { if (surface == null) surfaceGrid else {
+            var x0 = Double.MAX_VALUE; var y0 = Double.MAX_VALUE; var x1 = -Double.MAX_VALUE; var y1 = -Double.MAX_VALUE
+            for (i in nx.indices) { x0 = minOf(x0, nx[i] - nr[i]); x1 = maxOf(x1, nx[i] + nr[i]); y0 = minOf(y0, ny[i] - nr[i]); y1 = maxOf(y1, ny[i] + nr[i]) }
+            val m = sample.toDouble()
+            val es = ArrayList<LongArray>()
+            for (p in surface) for (e in 0 until p.size) {
+                val ax = p.x(e); val ay = p.y(e); val bx = p.x((e + 1) % p.size); val by = p.y((e + 1) % p.size)
+                if (maxOf(ax, bx) < x0 - m || minOf(ax, bx) > x1 + m || maxOf(ay, by) < y0 - m || minOf(ay, by) > y1 + m) continue
+                es += longArrayOf(ax, ay, bx, by)
+            }
+            if (es.isEmpty()) null else EdgeGrid(es, maxOf(maxWidthUm, 4 * sample))
+        } }
+        fun atModelSurface(i: Int): Boolean = outline.isEmpty() || modelGrid?.within(nx[i], ny[i], nr[i] + sample) == true
+        val heldBy = HashMap<Int, MutableList<Int>>()
+        fun pokesOut(fromLeaf: List<Int>): Boolean {
+            if (keepWiderUm == Long.MAX_VALUE) return false
+            val j = fromLeaf.last(); val half = width(j) / 2
+            fun reach(i: Int) = if (atModelSurface(i)) 0.0 else minOf(2 * nr[i], Math.hypot(nx[i] - nx[j], ny[i] - ny[j]) + nr[i] - half)
+            return fromLeaf.any { i -> reach(i) > keepWiderUm || heldBy[i]?.any { reach(it) > keepWiderUm } == true }
+        }
         fun prune(eligible: (List<Int>) -> Boolean) {
             var pruned = true
             while (pruned) {
@@ -586,7 +962,7 @@ object Walls {
                 val cut = all.mapNotNull { c ->
                     val leafA = (degree[c.first()] ?: 0) == 1; val leafB = (degree[c.last()] ?: 0) == 1
                     val fromLeaf = if (leafA) c else c.reversed()                                    // the leaf end first
-                    fromLeaf.takeIf { leafA != leafB && length(c) < c.maxOf { width(it) } && eligible(fromLeaf) }
+                    fromLeaf.takeIf { leafA != leafB && length(c) < c.maxOf { width(it) } && eligible(fromLeaf) && !pokesOut(fromLeaf) }
                 }.groupBy { it.last() }.flatMap { (junction, cs) ->
                     // never every branch of a junction: the two longest of them stay, one line through it (a small Y-shaped
                     // area keeps a line; the longest alone left a hook into one corner of a wedge, its other faces bare)
@@ -607,7 +983,11 @@ object Walls {
                         if (left < inComp.maxOf { c -> c.maxOf { width(it) } }) cut.removeAll(cs.sortedBy { length(it) }.takeLast(2).toSet())
                     }
                 }
-                for (c in cut) { for (j in 1 until c.size) { adj[c[j - 1]]?.remove(c[j]); adj[c[j]]?.remove(c[j - 1]) }; pruned = true }
+                for (c in cut) {
+                    for (j in 1 until c.size) { adj[c[j - 1]]?.remove(c[j]); adj[c[j]]?.remove(c[j - 1]) }; pruned = true
+                    val held = heldBy.getOrPut(c.last()) { ArrayList() }
+                    for (i in c.dropLast(1)) { held.add(i); heldBy[i]?.let { held.addAll(it) } }
+                }
                 adj.entries.removeIf { it.value.isEmpty() }
             }
         }
@@ -677,6 +1057,10 @@ object Walls {
         // is the band, as wide as it is there, kept when at least as long as it is narrow (on a ridge lowest in its middle,
         // the leftover between a loop's sides, 0.3 to 0.6 mm wide over 0.5 to 0.9 mm each side of its thin middle, went
         // empty; on a test model's hull, a band 0.24 to 0.39 mm wide along 26 mm, cut where it dipped, lost every piece)
+        // Nor is an area wider somewhere than [keepWiderUm] (the narrowest place a line is laid in, and the slicing tolerance
+        // a side) a corner void: left empty it is a hole inside the walls. A web 1.6 mm wide between a hole and the side,
+        // where the next loops of both end, left 0.72 mm bare between the two outer loops over 1.4 mm: its line, 0.68 mm
+        // long, was dropped as short
         return chains().flatMap { split(it) }.filter { c ->
             if (c.size < 2) return@filter false
             val len = length(c)
@@ -685,10 +1069,11 @@ object Walls {
             if (closed) return@filter len >= c.maxOf { width(it) }
             val along by lazy { outline.isNotEmpty() &&
                 alongOutline(LongArray(2 * c.size) { k -> Math.round(if (k % 2 == 0) nx[c[k / 2]] else ny[c[k / 2]]) }, LongArray(c.size) { Math.round(width(c[it])) }, outline) }
+            val wide = c.any { 2 * nr[it] > keepWiderUm }
             // (a band's piece: kept when at least as long as it is narrow, not a dot)
-            if (bandPieces.any { it === c }) return@filter along || len >= c.minOf { width(it) }
-            if (len < minLengthFactor * c.minOf { width(it) } && !along) return@filter false
-            len >= 2 * c.maxOf { width(it) } || along
+            if (bandPieces.any { it === c }) return@filter along || wide || len >= c.minOf { width(it) }
+            if (len < minLengthFactor * c.minOf { width(it) } && !along && !wide) return@filter false
+            len >= 2 * c.maxOf { width(it) } || along || wide
         }.map { c ->
             CenterLine(LongArray(2 * c.size) { k -> Math.round(if (k % 2 == 0) nx[c[k / 2]] else ny[c[k / 2]]) },
                 LongArray(c.size) { Math.round(width(c[it])) })

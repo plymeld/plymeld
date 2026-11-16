@@ -144,6 +144,36 @@ section the release's version and date.
 
 ### Fixed
 
+- The pre-print check refuses a hole inside the walls: a spot of a layer no line covers, closed in by walls alone (not
+  reaching the outline, an infill or surface line, or the infill region), wider than the narrowest place a line is laid
+  in (`plan.layer.walls.feature.min` and the slicing tolerance a side), reading each line's width from its plastic and,
+  where fuzzy skin is on, its thickness wider a side. A lens laid as a loop and a line down its middle, its loop's turn
+  and its line's end 0.25 to 0.29 mm apart on layer after layer, passed.
+- Variable-width walls keep a short line between walls where its area is wider than that narrowest place: a web between
+  an opening and the outside, where the inner walls on both sides end, was left bare between its two outer walls (0.72 mm
+  over 1.4 mm on a web 1.6 mm wide; on a Benchy 83 layers had such a hole, now 1), its line dropped as too short; so were
+  the pockets where the inner walls part. The voids a round bead leaves in a sharp corner, narrower than that, stay empty.
+- Variable-width walls keep a thin area's fork into a corner where its area reaches out past the line's end by more than
+  that narrowest place: a strip's line ending in a head 1 mm across left its point bare (0.34 mm on a Benchy), and where
+  three strips meet between the lettering and the rim of a two-color plate the pruned forks left pockets 0.25 to 0.45 mm
+  wide. A part's edge where another part of the object lies beside it counts as between walls, not as the surface. A
+  third line from a junction starts where it reaches into the line the other two make by the infill's wall overlap,
+  instead of laying the junction twice; ends on one point join the straightest pair first; and a junction's third line no
+  longer joins another line's end across a gap (it ran back out and over that line's fork).
+- Two loops with a slit between them too narrow for a line share it: each is half the slit wider and a quarter of it
+  nearer, its other edge in place (the outer wall's on the outline), within `plan.layer.walls.line.width.max`. A web 1 mm
+  wide between a hole and the side left a slit 0.12 mm wide between its two outer walls on every layer. A gap that opens
+  onto the area the walls hand to infill (between a loop and a short line in that area's corner) is that area's corner,
+  not a slit: a loop widened into it narrowed a ridge's infill pocket below what infill is handed and left it bare.
+- On an object of several parts, a dot of one part's outer line (shorter than its width, beside another part) is left
+  out only on the object's surface; along a part's edge inside the object it is laid: between the lettering and the rim
+  of a two-color plate, the pocket where a stroke between letters met the rim was left bare, 0.25 to 0.45 mm wide, on 7
+  layers.
+- Planning runs each layer as a task of its own on the cores: the slowest layers of a run (an object's first layers)
+  ran one after another on one core. A three-object two-color plate plans in about 43 s instead of about 60 s,
+  the g-code unchanged; a few of the walls' and paths' measures skip what lies too far away to count.
+- A loop's seam is aligned only with the seams of the loops under it on the layer below, as `seam_scar` reads a jog: a new
+  island took the corner nearest another island's seam.
 - A part narrowing to a ridge a line or two wide (variable-width walls) is laid as one line where two walls do not fit,
   joined to the two walls it continues from, and as two walls where they do, along the whole stretch. Where the ridge's
   width hovered at the width two walls need (its outline a little uneven, as a sliced curved face is), the wall loop came

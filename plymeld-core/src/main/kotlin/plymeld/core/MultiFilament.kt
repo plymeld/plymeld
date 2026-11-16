@@ -125,7 +125,7 @@ object MultiFilament {
         val mids = order.map { u ->
             val st = unitSettings[u] ?: s
             val areas = splits.map { it.bySpool[u] ?: emptyList() }
-            val w = timed("walls") { Planner.walls(st, areas, layerTopsUm, wholeFirst = union[0], progress = progress) }
+            val w = timed("walls") { Planner.walls(st, areas, layerTopsUm, wholeFirst = union[0], progress = progress, whole = union) }
             // where this group's own parts carry on to the next layer: what stands on them there is not another part
             val mine = units.indices.filter { units[it] == u }
             val selfCover = if (!st.topUnderParts) null else timed("self cover") { Parallel.map(n) { i ->

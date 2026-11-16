@@ -986,3 +986,188 @@ island close by is no step on this wall.
 center lines' ends now count); 28's lines 48.2 and 247.0 (5,908 seams). Tests with controls in SeamScarTest (a loop over
 nothing, a line's ends, a line hiding a seam; each control run and seen to fail without the rule). A seam decision on an
 unlocked object may choose differently where its candidates' jogs were read from unrelated seams.
+
+## 30. The pre-print check refuses a hole inside the walls (2026-11-15)
+
+**Context.** The check's outline rules read the model's outline: a spot no line covers, closed in by the walls, passed.
+A lens laid as a loop and a line down its middle left a hole 0.25 to 0.29 mm wide between the loop's turn and the line's
+end on layer after layer, and the check found no problem.
+
+**Decision.** On each layer the check reads the uncovered spots on a 25 µm grid over the band the walls lie in (each line a
+bead of its width from its plastic). A spot is a hole when walls alone close it in: it reaches no point outside the
+cross-section (the outline's rules, a first layer's drawn-in edge), no infill or surface line (an infill's gaps and its
+corners against the walls are by design), not the edge of the band, and is narrower than two inner wall lines (what the walls hand to infill: a stretch of the infill region that no line of a sparse infill crosses on
+that layer). A hole wider than the narrowest place a line is laid in (plan.layer.walls.feature.min and the slicing
+tolerance a side) and two grid cells is refused, where it is. Where fuzzy skin is on, each wall line reads its thickness
+wider a side (its points move in and out by up to it). A layer laid with wave beads is left to the over-air rule.
+
+**Rejected.** Reading the planner's infill region to tell infill from walls: the check would trust what it checks. A floor
+of the line's width: a hole a line could not have filled is still bare plastic missing; the floor is the walls' own.
+
+**Consequences.** The old lens (the file that version wrote for the test model, kept as a test fixture) is refused at its
+top layers; a hand-written print with a stretch of a loop left out is refused where it is; fuzzy skin passes with its
+allowance and is refused without it (both on a hand-written print and on the planner's). Over the regression models and a
+real plate of three objects, as first run, every refusal read was a real hole, all present before walls by local width
+too: webs between an opening and the outside where both sets of inner loops end (decision 31), pockets inside an inner
+loop, the gap between an outer and an inner loop's turns at a sharp end; benchy 83 layers, the test plate 30, the real
+plate 104 (191 with the walls before decision 28). A stretch of a two-part ridge's sparse-infill region read as a hole
+until the infill-width rule.
+
+## 31. A short line between walls is kept where its area is wider than the narrowest place a line is laid in (2026-11-15)
+
+**Context.** The walls drop an open center line shorter than plan.layer.walls.length_factor.min times its width, and one
+shorter than twice its width as a "corner void", the void round beads leave in a sharp corner between loops. A web 1.6 mm
+wide between a hole and the block's side, where the inner loops of both end, left 0.72 mm bare between the two outer loops
+over 1.4 mm: its line, 0.68 mm long, was dropped as short; the V where the inner loops part left pockets the same way.
+The check of decision 30 refused them.
+
+**Decision.** A short open line (and a piece of a band cut by a thin dip) is kept where its area is wider somewhere than
+the narrowest place a line is laid in (feature.min and the slicing tolerance a side, the check's floor): a spot that wide
+left empty is a hole, not a corner void. Narrower voids stay empty as before.
+
+**Rejected.** Laying the web by local width as narrow islands are (decision 28): the larger change, to be done (open
+items below). Lowering length_factor.min: every short line everywhere, not the ones that leave holes.
+
+**Consequences.** Regression models: benchy 83 refused layers to 1, the test plate 30 to 0; the real plate 104 to 46, the
+rest small pockets (0.25 to 0.45 mm) where a center line's fork into a corner is pruned. More short lines: on the real
+plate 706 more retractions, 2.3 min longer. Open: the pruned forks' pockets; a slit narrower than the floor between two
+outer loops in a web just over two lines wide (0.12 to 0.14 mm on test webs of 1.0 and 1.6 mm), where a line is barred
+by the interior minimum; the narrow-island pocket at a ridge's end (ThinRidgeTest's dipped ridge, 0.30 mm).
+
+## 32. A seam is aligned only with the seams of what lies under its loop (2026-11-15)
+
+**Context.** Decision 29 made seam_scar read a loop's jog only from the paths under it, and kept the placement weighing a
+jog to every seam of the same wall on the layer below. A new island beside another object's column aligned its seam with
+that column's, a step the measure does not count and no surface shows.
+
+**Decision.** This replaces 29's last point. The placement (Seams.alignAll, and the first move of a planned column) gives
+each loop only the seams of the same wall's loops below that lie under it, by the measure's own test (SeamScar.isUnder).
+Nothing under it: the loop is placed as on a first layer (its sharpest corner, ties to the back; or least-visible).
+
+**Rejected.** Keeping every seam below as a weak pull: what the measure does not count, the placement should not chase.
+
+**Consequences.** Real plate (with 31): seam_scar 247.4 to 244.5 mm², jogs 328.8 to 325.5 mm, scarf seams 283 to 143
+(loops with nothing under them take a corner), predicted 152.8 to 152.3 min. Test in SeamsTest, with its control.
+
+## 33. A thin area's fork is pruned only where no hole is left; a third line from a junction gives way to the other two (2026-11-15)
+
+**Context.** The center lines of a thin area drop a dead-end fork shorter than its width: the fork into a corner, where a
+line would only add a start and a stop. Where the area is wide at the fork, pruning it left a hole the pre-print check
+(decision 30) refuses: on the real plate 45 pockets 0.25 to 0.45 mm wide where three thin strips meet between letters and
+the rim, in the repository's Benchy a strip's line ending in a head 1 mm across with its point bare (0.34 mm), and the
+pocket at a ridge's end in ThinRidgeTest (0.30 mm). Kept, a fork is a third line from a junction the other two run through,
+laid from the junction over the others' plastic; and joining ends across a gap then joined that branch to another fork's
+far end, laying it out and back.
+
+**Decision.**
+- A fork is kept where its area reaches out past the line at its junction by more than the narrowest place a line is laid
+  in (feature.min and the slicing tolerance a side, the check's floor): a node's reach is how far its disc lies beyond the
+  junction's line end, at most the disc's width; a junction stands for the forks pruned at it before. Only between walls:
+  at the model's surface what is bare is the outline's (kept there, the forks round a loop's turn at a ridge's tip laid a
+  line over the loop).
+- Ends on one point join straightest first; an end that springs from another line (on its center line, away from its
+  ends) joins nothing across a gap, and is cut back to reach into that line by the infill's wall overlap of its width past
+  bead contact, as an end against a wall does; a line within that reach throughout is dropped.
+
+**Rejected.** Lowering the prune length: every corner fork everywhere. Laying the third fork out and back from the
+junction: twice over its own length.
+
+**Consequences.** With 34, on a three-object two-color plate the check's hole refusals fell from 46 to 7 (the rest
+pockets 0.25 to 0.45 mm on the base object, open); planning took 61 s against 46 s before. Tests: JunctionPocketTest (a
+strip into a head, a triangle of three forks; controls: the exception off leaves the pockets, an end reaching in fully lays
+plastic twice), ThinRidgeTest's dipped ridge (its pocket at the narrow end, 0.30 mm, gone). The walls of one filament's
+areas read the object's whole cut (Planner.walls `whole`), and a narrow island's cached decision is keyed by it too.
+
+## 34. Two loops with a slit between them too narrow for a line share it (2026-11-15)
+
+**Context.** Between two loops (a hole's outer loop and the block's beside it, in a web just over two lines wide) the
+leftover narrower than the interior minimum gets no line, as an interior line there would overlap both walls by more than
+an infill line may. A web 1 mm wide left a slit 0.12 mm wide along 2 mm, layer after layer.
+
+**Decision.** Where a loop's band and another band (a loop's, or a center line's) leave such a slit between them, seen from
+both sides (along each line's normal), each of the two lines takes half of it: half the slit wider, a quarter nearer it,
+its other edge where it was (the outer loop's on the outline), within plan.layer.walls.line.width.max. A loop so widened
+carries its widths (laid as every loop is: seams, scarf over varying width). Not in a narrow island (its walls are judged
+against its beads as laid).
+
+**Rejected.** A line in the slit: wider than the slit, it overlaps both walls. One side alone (the nearest band): a loop's
+sharp inner corner and the next loop's round turn leave a void only one side sees; widened there, every corner of every
+block changed.
+
+**Consequences.** WallsByWidthTest's web 1.0: widest bare 0.120 to 0.020 mm; the block control unchanged byte for byte.
+Open: a pocket 0.13 mm wide where three lines meet at the end of a web 1.6 mm wide's center line (no slit: three sides).
+On the real plate, slits shared closed 4 of the 11 holes left without it and took about 6 s of the planning.
+
+## 35. The scarf seams decision 32 gave up are covered seams, point seams by decision 22 (2026-11-15)
+
+**Context.** Decision 32 put the fall in scarf seams (283 to 143 on the real plate) down to loops with nothing under them
+taking a corner. Counted per outer loop, with the alignment of 32 on and off: the loops that lost their scarf are small
+loops laid by width whose seam now lies where another part of the object covers it.
+
+**Decision.** No change: a covered seam is a point seam (decision 22), and the placement of 32 finds such hidden points.
+This corrects 32's consequence, not its decision.
+
+**Consequences.** Real plate, 32 off and on: scarf seams 284 to 143, seam_scar 247.6 to 244.6 mm², jogs 327.4 to 322.9
+mm, visible restarts 3115 to 3078, retractions 8790 to 8747, predicted 152.7 to 152.2 min.
+
+## 36. A dot of one part's outer line beside another part is left out only on the object's surface (2026-11-15)
+
+**Context.** On an object of several parts, the paths leave out an outer-wall speck shorter than its own width where
+another part lies within a width of it: on the object's surface such a dot, stopped and restarted every layer, made a
+column of blobs, and the part behind fills the outline there. The rule read the part's own outline, so it held along a
+part's edge inside the object too. On a three-object two-color plate, a stroke of the base's filament between two
+letters met the rim through a neck too narrow for its loop; the pocket between the rim's loop, the stroke's loop and the
+letters was laid by one short line, 0.44 mm long and up to 0.45 mm wide, which the rule left out: the pre-print check
+(decision 30) refused a hole there, 0.25 to 0.45 mm wide, on 7 layers.
+
+**Decision.** The speck is left out only where it runs along the whole object's outline (its surface), as
+Walls.alongOutline reads it; along a part's edge inside the object it is laid. The paths' layer cache reads the whole
+object's outline.
+
+**Rejected.** Leaving the rule out altogether: on the surface the dots return (on the real plate 80 more restarts,
+seam_scar 244.6 to 261.6 mm²).
+
+**Consequences.** Real plate: check refusals 7 to 0; seams 5916 to 5974, seam_scar 244.6 to 247.7 mm², visible restarts
+3078 to 3097, retractions 8747 to 8764, predicted 152.2 to 152.3 min. Test: WallsByWidthTest's finger of one part inside
+another (a neck 0.36 to 0.58 mm wide and 0.5 mm long, a layer each): with the rule as before, holes on 6 of 23 layers;
+control, its lines taken out, refused on all.
+
+## 37. A gap opening onto the area handed to infill is not a slit (2026-11-15)
+
+**Context.** Decision 34 widens two lines that leave a slit between them too narrow for a line. In ThinRidgeTest's ridge
+beside a second part, an inner loop round a triangle 0.80 mm across (the area its walls hand to infill, with a short line
+in its corner) was widened 0.02 mm toward that corner line: the triangle, left bare by the sparse infill as an infill gap,
+became 0.79 mm, narrower than the walls hand to infill (two inner lines), and the pre-print check read it as a hole
+inside the walls.
+
+**Decision.** A gap whose middle lies in a piece of what the loops' bands leave that holds some of the infill region is
+that region's corner, not a slit, and is not shared.
+
+**Rejected.** Changing the check's two-inner-lines limit: the area is the infill's by the walls' own rule; the loop was
+widened into it after that rule was read. A distance from the infill region: the gap here lay 0.6 mm from it, in the
+same leftover.
+
+**Consequences.** ThinRidgeTest passes; WallsByWidthTest's web 1.0 keeps its shared slit (0.020 mm), web 1.6 unchanged.
+Benchy and the test plate lay a few slits fewer shared (the regression's walls differ slightly from 34's).
+
+## 38. Each unit of parallel work is a task of its own (2026-11-15)
+
+**Context.** Decisions 28 to 35 took the planning of a three-object two-color plate from 46 s to about 60 s. Timed per
+layer, the walls of each part ran as long as their slowest stretch: an object's first five layers (0.5 to 3 s each,
+the rest well under 1 s) fell in one chunk of the parallel stream and ran one after another on one core.
+
+**Decision.** Parallel.map runs each index as a task of its own (the range split in halves down to one index), results
+in index order as before. And, the output unchanged byte for byte: joining center line ends keeps whether an end springs
+from another line from one join to the next (redone only near the join) and passes over lines far from the end; a
+travel's island is found among the islands whose box holds the point; a wall's overhang share measures only the edges of
+the layer below within half the bead, read once per layer; a thin piece's lines are kept from the walls' first build for
+their second; a slit's neighbours are read once per range of cells. No unit starts parallel work while it holds a lock
+other units wait on: with single-index tasks, the pre-print check's model cuts (a synchronized lazy that cut every layer
+in parallel, first read from inside a layer's task) stopped the pool, a worker joining the cuts' tasks having taken up a
+layer's task that waited on the lock; the cuts are now made before the layers' tasks, under no lock.
+
+**Rejected.** Ordering the layers by expected cost: a guess where splitting to single units needs none.
+
+**Consequences.** Real plate: planning 61.8 s (profiled) to 42 to 43.5 s (two runs), the g-code byte for byte the same;
+the per-index tasks alone took the walls of the three objects from 23.9 s to 16.9 s. Test: ParallelLockTest (the
+check of 2 to 200 layers of two parts finishes; control: with the cuts a synchronized lazy again, 16 layers hung).

@@ -62,8 +62,12 @@ object SeamScar {
         return if (poly.isCcw()) poly else Polygon(LongArray(xy.size) { k -> xy[(xy.size - 2 - (k / 2) * 2) + k % 2] })
     }
 
-    /** A path of the layer below as the jog reads it: its center line, its width, its seams (a loop's start; a line's two ends), its box. */
-    private class Under(val xy: LongArray, val closed: Boolean, val widthUm: Double, val seams: LongArray) {
+    /**
+     * A path of the layer below as the jog reads it: its center line, its width, its seams (a loop's start; a line's two ends),
+     * its box. The seam placement (Seams.alignAll) reads the same, so a seam is aligned only with what the measure would
+     * charge its jog from.
+     */
+    internal class Under(val xy: LongArray, val closed: Boolean, val widthUm: Double, val seams: LongArray) {
         /** An outer loop (counter-clockwise): what it encloses is printed, a loop above it lies on it. */
         private val outer: Polygon? = if (closed && Polygon(xy).isCcw()) Polygon(xy) else null
         /** Whether a point lies on what this loop encloses (an outer loop's inside). */
@@ -98,19 +102,31 @@ object SeamScar {
      */
     private fun jogFrom(p: ToolPath, below: List<Under>): Double? {
         val w = p.widthUm.toDouble()
-        val m = p.xy.size / 2
         var best: Double? = null
         for (u in below) {
-            val reach = w / 2 + u.widthUm / 2 + w
-            var under = false
-            for (i in 0 until m) if (u.on(p.xy[2 * i], p.xy[2 * i + 1]) || u.near(p.xy[2 * i].toDouble(), p.xy[2 * i + 1].toDouble(), reach)) { under = true; break }
-            if (!under) continue
+            if (!isUnder(p.xy, w, u)) continue
             for (k in 0 until u.seams.size / 2) {
                 val d = Math.hypot((p.xy[0] - u.seams[2 * k]) / 1000.0, (p.xy[1] - u.seams[2 * k + 1]) / 1000.0)
                 if (best == null || d < best) best = d
             }
         }
         return best
+    }
+
+    /**
+     * Whether the path [u] of the layer below lies under the loop [xy] (µm pairs) of width [wUm]: the loop lies on what [u]
+     * encloses (an outer loop's inside), or a point of it within the two half widths and a line of [u]'s center line (the
+     * beads overlap or come within a line of each other).
+     */
+    internal fun isUnder(xy: LongArray, wUm: Double, u: Under): Boolean {
+        val reach = wUm / 2 + u.widthUm / 2 + wUm
+        val m = xy.size / 2
+        // the boxes first: a loop whose box lies clear of [u]'s, grown by the reach, has no point on it or near it
+        var x0 = Long.MAX_VALUE; var y0 = Long.MAX_VALUE; var x1 = Long.MIN_VALUE; var y1 = Long.MIN_VALUE
+        for (i in 0 until m) { x0 = minOf(x0, xy[2 * i]); x1 = maxOf(x1, xy[2 * i]); y0 = minOf(y0, xy[2 * i + 1]); y1 = maxOf(y1, xy[2 * i + 1]) }
+        if (x1 < u.box[0] - reach || x0 > u.box[2] + reach || y1 < u.box[1] - reach || y0 > u.box[3] + reach) return false
+        for (i in 0 until m) if (u.on(xy[2 * i], xy[2 * i + 1]) || u.near(xy[2 * i].toDouble(), xy[2 * i + 1].toDouble(), reach)) return true
+        return false
     }
 
     /** The seam measure's shares (method.quality.seam.*): a scarf seam's blemish and a point seam's in a corner, each against a point seam on a smooth wall. */

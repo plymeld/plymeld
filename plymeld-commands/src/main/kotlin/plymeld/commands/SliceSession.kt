@@ -192,12 +192,18 @@ class SliceSession {
         fun featureMin(j: Int): Double = plymeld.model.SliceSettings.of(setup, plymeld.model.Context(j)).let { (it.minFeatureUm + 2 * it.resolutionUm) / 1000.0 }
         // how far object j's first layer is drawn in (hardware.plate.first_layer.squish), for the same rule
         fun firstInset(j: Int): Double = plymeld.model.SliceSettings.of(setup, plymeld.model.Context(j)).elephantFootUm / 1000.0
+        // object j's fuzzy skin's thickness where it is on (plan.technique.fuzzy_skin), for the hole rule: its walls move in and
+        // out by up to it
+        fun fuzz(j: Int): Double = plymeld.model.SliceSettings.of(setup, plymeld.model.Context(j)).let { if (it.fuzzySkin == "none") 0.0 else it.fuzzyThicknessUm / 1000.0 }
+        // the narrowest area object j's walls hand to infill (two inner wall lines), for the hole rule: an uncovered piece that
+        // wide is the infill region's
+        fun infillMin(j: Int): Double = 2 * plymeld.model.SliceSettings.of(setup, plymeld.model.Context(j)).innerWallWidthUm / 1000.0
         val plate = if (!several) null else {
             var at = 0
             val objs = plan.layout.placed.withIndex().map { (j, pl) ->
                 val tools = partTools.subList(at, at + pl.parts.size).also { at += pl.parts.size }
                 val (ps, ts) = if (curvedSpec(plan, setup, j) == null) cutParts(j, pl.parts, tools) else pl.parts to tools
-                plymeld.core.check.PlateCheck.Obj(pl.name, ps, ts, curvedSpec(plan, setup, j), cutOf(j), handOver(j), featureMin(j), firstInset(j), surfaceHandOver(j))
+                plymeld.core.check.PlateCheck.Obj(pl.name, ps, ts, curvedSpec(plan, setup, j), cutOf(j), handOver(j), featureMin(j), firstInset(j), surfaceHandOver(j), fuzz(j), infillMin(j))
             }
             if (sequential) plymeld.core.check.PlateCheck.oneAtATime(text, objs, zBase, Path.of("$output.check"), zaa)
             else plymeld.core.check.PlateCheck.together(text, objs, zBase, Path.of("$output.check"), zaa)
@@ -236,9 +242,9 @@ class SliceSession {
             else if (frames != null) frames.flatMapIndexed { i, fr ->
                 plymeld.core.check.ModelCheck.check(fr.text, fr.parts, zBase, imagesDir = Path.of("$output.check", fr.name.replace(' ', '_')).also { Files.createDirectories(it) },
                     surface = frameSurfaces!![i], partTools = fr.partIndex.map { partTools[it] }, zaa = if (fr.flat) zaa else null, progress = progress,
-                    handOverMm = handOver(0), featureMinMm = featureMin(0), firstLayerInsetMm = firstInset(0), surfaceHandOverMm = surfaceHandOver(0)).map { "${fr.name}: $it" } }
+                    handOverMm = handOver(0), featureMinMm = featureMin(0), firstLayerInsetMm = firstInset(0), surfaceHandOverMm = surfaceHandOver(0), fuzzMm = fuzz(0), infillMinMm = infillMin(0)).map { "${fr.name}: $it" } }
             else plymeld.core.check.ModelCheck.check(checkText, checkParts, zBase, imagesDir = Path.of("$output.check"), surface = surface, partTools = checkTools, zaa = zaa, progress = progress,
-                handOverMm = handOver(0), featureMinMm = featureMin(0), firstLayerInsetMm = firstInset(0), surfaceHandOverMm = surfaceHandOver(0)))
+                handOverMm = handOver(0), featureMinMm = featureMin(0), firstLayerInsetMm = firstInset(0), surfaceHandOverMm = surfaceHandOver(0), fuzzMm = fuzz(0), infillMinMm = infillMin(0)))
         plate?.let { echo("check: ${plan.layout.placed.size} objects, ${if (sequential) "one at a time: each object's run of layers" else "together: each object's lines, by the file's object markers,"} read against that object alone") }
         (plate?.curvedLayers ?: curved?.curvedLayers)?.takeIf { it > 0 }?.let { echo("check: $it curved layer(s) read in warped space (the check's own warp, from the model)") }
         val took = (System.nanoTime() - t1) / 1_000_000

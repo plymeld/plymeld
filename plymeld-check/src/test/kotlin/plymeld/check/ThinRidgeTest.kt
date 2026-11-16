@@ -136,7 +136,8 @@ class ThinRidgeTest : StringSpec({
     fun problems(w: Written, g: String = w.g, floorMm: Double = SliceSettings.of(w.setup).let { (it.minFeatureUm + 2 * it.resolutionUm) / 1000.0 }): List<String> {
         val zBase = w.plan.parts.minOf { it.bounds()[2] }
         val sf = ModelCheck.Surface(w.plan.parts, zBase, g)
-        return GcodeCheck.check(g, Expectations.forSetup(w.setup, sf::at)) + ModelCheck.check(g, w.plan.parts, zBase, surface = sf, featureMinMm = floorMm)
+        return GcodeCheck.check(g, Expectations.forSetup(w.setup, sf::at)) + ModelCheck.check(g, w.plan.parts, zBase, surface = sf, featureMinMm = floorMm,
+            infillMinMm = 2 * SliceSettings.of(w.setup).innerWallWidthUm / 1000.0)
     }
 
     /** [w]'s moves, read with the filament's diameter (the file states none) so each line's width comes from its plastic. */

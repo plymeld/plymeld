@@ -135,6 +135,45 @@ object Beads {
 
     /** A step of the walk along a rib in giving way (µm): a geometric resolution, plymeld's choice. */
     private const val GIVE_WAY_STEP_UM = 5.0
+
+    /**
+     * Where the ray from (px, py) along the unit (dx, dy) first lies within [r] of segment a-b (0 where it starts within;
+     * infinite where it never does): the earliest entry into the segment's two end discs and the band along it.
+     */
+    internal fun rayCapsule(px: Double, py: Double, dx: Double, dy: Double, ax: Double, ay: Double, bx: Double, by: Double, r: Double): Double {
+        if (r <= 0) return Double.POSITIVE_INFINITY
+        var best = Double.POSITIVE_INFINITY
+        fun disc(cx: Double, cy: Double) {
+            val qx = px - cx; val qy = py - cy
+            val c = qx * qx + qy * qy - r * r
+            if (c <= 0) { best = 0.0; return }
+            val b = dx * qx + dy * qy
+            val disc = b * b - c
+            if (disc < 0) return
+            val t = -b - Math.sqrt(disc)
+            if (t >= 0 && t < best) best = t
+        }
+        disc(ax, ay)
+        if (best == 0.0) return 0.0
+        val sx = bx - ax; val sy = by - ay; val len = Math.sqrt(sx * sx + sy * sy)
+        if (len > 0) {
+            disc(bx, by)
+            if (best == 0.0) return 0.0
+            val ux = sx / len; val uy = sy / len
+            // across the band: |(P + tD - A) . n| <= r; along it: 0 <= (P + tD - A) . u <= len
+            val s0 = (px - ax) * -uy + (py - ay) * ux; val ds = dx * -uy + dy * ux
+            val a0 = (px - ax) * ux + (py - ay) * uy; val da = dx * ux + dy * uy
+            var lo = Double.NEGATIVE_INFINITY; var hi = Double.POSITIVE_INFINITY
+            fun within(v0: Double, dv: Double, min: Double, max: Double) {
+                if (Math.abs(dv) < 1e-12) { if (v0 < min || v0 > max) { lo = 1.0; hi = 0.0 }; return }
+                val t1 = (min - v0) / dv; val t2 = (max - v0) / dv
+                lo = maxOf(lo, minOf(t1, t2)); hi = minOf(hi, maxOf(t1, t2))
+            }
+            within(s0, ds, -r, r); within(a0, da, 0.0, len)
+            if (lo <= hi && hi >= 0) best = minOf(best, maxOf(lo, 0.0))
+        }
+        return best
+    }
     /**
      * A dead-end branch of the axis is a corner when its width falls at least this fast along it (the half-width lost per
      * length: the sine of half the outline's angle there; 0.6 is about 74 deg, a square's corner 0.71, a lens's tip about
@@ -148,11 +187,75 @@ object Beads {
      */
     private const val MIN_STRETCH_TRANSITIONS = 1.0
     /** The beads of one narrow island ([island]: its outer polygon and its holes, µm), as center lines (a closed one ends where it starts). */
-    fun lay(island: List<Polygon>, p: Params): List<CenterLine> {
+    fun lay(island: List<Polygon>, p: Params): List<CenterLine> = Lay(island, p).lay()
+
+    /** A node's beads across it (corners: their junction's), the same from both sides: centers and widths from one side. */
+    private class NodeBeads(val c: DoubleArray, val w: DoubleArray)
+    /** A run of a loop's ribs along a ring: its piece, the ribs it starts and ends on, the nodes before and after it. */
+    private class Run(val pc: Piece, val startNode: Int, val startSample: Int, val prevNode: Int, val endNode: Int, val endSample: Int, val nextNode: Int)
+    /** A join two open ends may make: ends [a] and [b], [d] apart. */
+    private class Cand(val a: Int, val b: Int, val d: Double)
+
+    /**
+     * One island's construction, step by step ([lay] runs them in order). Each step is a method of its own, so each is
+     * compiled to machine code (the virtual machine leaves a method larger than 8000 bytes of bytecode interpreted).
+     */
+    private class Lay(val island: List<Polygon>, val p: Params) {
         val rule = p.rule
-        // 1. the outline's samples, ring by ring, each ring with the island on its left
+        // the outline's samples (µm), each ring's range of them
+        var sx = LongArray(0); var sy = LongArray(0)
+        val rings = ArrayList<IntRange>()
+        lateinit var dt: Delaunay
+        lateinit var triOf: ArrayList<Int>
+        // the nodes: count, center, radius, neighbors (3 a node, -1: none)
+        var nn = 0
+        var cx = DoubleArray(0); var cy = DoubleArray(0); var r = DoubleArray(0); var adj = IntArray(0)
+        var corner = BooleanArray(0); var source = IntArray(0)
+        var n = IntArray(0)
+        lateinit var beads: Array<NodeBeads>
+        var levels = 0
+        var vNode = BooleanArray(0)
+        var zoneDist = DoubleArray(0)
+        val pieces = ArrayList<Piece>()
+        // the loops' turns (x0 y0 x1 y1 width), where a middle line meeting a loop's turn is shortened before anything gives way
+        val turns = ArrayList<DoubleArray>()
+        fun dist(u: Int, v: Int) = Math.hypot(cx[u] - cx[v], cy[u] - cy[v])
+
+        fun lay(): List<CenterLine> {
+            if (!samples() || !nodes()) return emptyList()
+            corners(); counts(); smoothCounts(); shortInnermost()
+            for (u in 0 until nn) if (corner[u]) n[u] = n[source[u]]
+            beads = Array(nn) { u ->
+                val wd = 2 * r[if (corner[u]) source[u] else u]
+                val bw = rule.widths(n[u], wd)
+                NodeBeads(rule.centers(bw, wd), bw)
+            }
+            // the levels: loop k (from the outside, 0 the outer loop) runs wherever a place holds 2k + 2 lines or more; where it
+            // holds 2k + 1, its middle line lies there (a center line along the axis); where fewer, neither. So every pair of
+            // lines across a place belongs to a loop, closed wherever the place is that wide, turning back where it narrows
+            levels = (n.maxOrNull() ?: 1).let { (it + 1) / 2 }
+            tips(); zones(); loops(); middles()
+            // the middle lines meeting a loop's turn are shortened first, as the turns lie before anything gives way: a middle
+            // line between two turns close together (an area narrowing fast, three lines across for a short stretch between
+            // four and one) is gone before the loops give way to it
+            run { val out = trimEnds(pieces, turns); pieces.clear(); pieces.addAll(out) }
+            giveWay()
+            val kept = cut()
+            // the middle lines' ends meeting the loops, again, as the loops lie after giving way
+            run {
+                val segs = ArrayList<DoubleArray>()
+                for (pc in kept) if (pc.loop) { val m = pc.size
+                    for (i in 0 until (if (pc.closed) m else m - 1)) { val j = (i + 1) % m
+                        segs.add(doubleArrayOf(pc.xs[i], pc.ys[i], pc.xs[j], pc.ys[j], (pc.ws[i] + pc.ws[j]) / 2)) } }
+                val out = trimEnds(kept, segs); kept.clear(); kept.addAll(out)
+            }
+            return joins(kept)
+        }
+
+        /** 1. The outline's samples, ring by ring, each ring with the island on its left; false: none. */
+        fun samples(): Boolean {
         val sx = ArrayList<Long>(); val sy = ArrayList<Long>()
-        val ringOf = ArrayList<Int>(); val rings = ArrayList<IntRange>()
+        val ringOf = ArrayList<Int>()
         for (poly in island) {
             if (poly.size < 3) continue
             val start = sx.size
@@ -171,12 +274,19 @@ object Beads {
             if (sx.size - start >= 3) rings.add(start until sx.size)
             else while (sx.size > start) { sx.removeAt(sx.size - 1); sy.removeAt(sy.size - 1); ringOf.removeAt(ringOf.size - 1) }
         }
-        if (rings.isEmpty()) return emptyList()
-        val dt = Delaunay(sx.toLongArray(), sy.toLongArray())
+        if (rings.isEmpty()) return false
+        this.sx = sx.toLongArray(); this.sy = sy.toLongArray()
+        return true
+        }
+
+        /** The nodes of the outline's medial axis: triangles of its samples whose circumcenter lies inside; false: none. */
+        fun nodes(): Boolean {
+        dt = Delaunay(sx, sy)
         val inside = Skeleton.Inside(island)
         // the nodes: triangles whose circumcenter lies inside
         val nodeOf = IntArray(dt.triangleCount) { -1 }
         val cxL = ArrayList<Double>(); val cyL = ArrayList<Double>(); val rL = ArrayList<Double>(); val triOf = ArrayList<Int>()
+        this.triOf = triOf
         for (t in 0 until dt.triangleCount) {
             if (!dt.isAlive(t) || dt.isSuper(t)) continue
             val a = dt.v(t, 0); val b = dt.v(t, 1); val c = dt.v(t, 2)
@@ -189,14 +299,16 @@ object Beads {
             if (!inside.contains(ax + ux, ay + uy)) continue
             nodeOf[t] = cxL.size; cxL.add(ax + ux); cyL.add(ay + uy); rL.add(Math.hypot(ux, uy)); triOf.add(t)
         }
-        val nn = cxL.size
-        if (nn == 0) return emptyList()
-        val cx = cxL.toDoubleArray(); val cy = cyL.toDoubleArray(); val r = rL.toDoubleArray()
-        val adj = IntArray(3 * nn) { k -> dt.nb(triOf[k / 3], k % 3).let { o -> if (o < 0) -1 else nodeOf[o] } }
-        fun dist(u: Int, v: Int) = Math.hypot(cx[u] - cx[v], cy[u] - cy[v])
+        nn = cxL.size
+        if (nn == 0) return false
+        cx = cxL.toDoubleArray(); cy = cyL.toDoubleArray(); r = rL.toDoubleArray()
+        adj = IntArray(3 * nn) { k -> dt.nb(triOf[k / 3], k % 3).let { o -> if (o < 0) -1 else nodeOf[o] } }
+        return true
+        }
 
-        // 3. corners: dead-end branches shorter than the width where they join, peeled round by round
-        val corner = BooleanArray(nn); val source = IntArray(nn) { it }
+        /** 3. Corners: dead-end branches shorter than the width where they join, peeled round by round. */
+        fun corners() {
+        corner = BooleanArray(nn); source = IntArray(nn) { it }
         fun degree(u: Int) = (0 until 3).count { val v = adj[3 * u + it]; v >= 0 && !corner[v] }
         var changed = true; var rounds = 0
         while (changed && rounds++ < 16) {
@@ -226,9 +338,11 @@ object Beads {
             }
         }
         for (u in 0 until nn) { var s = source[u]; var g = 0; while (corner[s] && s != source[s] && g++ < nn) s = source[s]; source[u] = s }
+        }
 
-        // the count at each central node: dead band of the tolerance, filled from the decided neighbors
-        val n = IntArray(nn)
+        /** The count at each central node: dead band of the tolerance, filled from the decided neighbors. */
+        fun counts() {
+        n = IntArray(nn)
         val decided = BooleanArray(nn)
         for (u in 0 until nn) if (!corner[u]) {
             val w = 2 * r[u]
@@ -246,7 +360,9 @@ object Beads {
                     n[v] = n[u].coerceIn(rule.count(w - p.toleranceUm), rule.count(w + p.toleranceUm)); decided[v] = true; queue.add(v) }
             }
         }
-        // stretches with a count of their own shorter than the transition length take the count of their longest neighbor
+        }
+
+        /** The stretches of one count (corners left out): each node's stretch, and each stretch's nodes. */
         fun components(): Pair<IntArray, List<List<Int>>> {
             val comp = IntArray(nn) { -1 }; val list = ArrayList<List<Int>>()
             for (s in 0 until nn) if (!corner[s] && comp[s] < 0) {
@@ -262,7 +378,12 @@ object Beads {
             for (u in members) for (i in 0 until 3) { val v = adj[3 * u + i]; if (v > u && comp[v] == id) l += dist(u, v) }
             return l
         }
-        // in rounds, shortest first; a stretch beside one changed in this round waits for the next (its neighbors' lengths changed)
+        /**
+         * Stretches with a count of their own shorter than the transition length take the count of their longest neighbor:
+         * in rounds, shortest first; a stretch beside one changed in this round waits for the next (its neighbors' lengths
+         * changed).
+         */
+        fun smoothCounts() {
         run {
             var rounds = 0
             while (rounds++ < 4 * nn) {
@@ -287,6 +408,9 @@ object Beads {
                 if (!any) break
             }
         }
+        }
+
+        fun shortInnermost() {
         // an innermost line too short to be a line (a stretch of three lines or more with fewer lines all round it, shorter
         // than [Params.minLengthFactor] of its innermost line's width: a middle line that short is a dot, an inner loop that
         // short a ring round nothing) takes the count below where those lines fit: the lines round it widen to fill it,
@@ -307,21 +431,11 @@ object Beads {
                 }
             }
         }
-        for (u in 0 until nn) if (corner[u]) n[u] = n[source[u]]
-
-        /** A node's beads across it (corners: their junction's), the same from both sides: centers and widths from one side. */
-        class NodeBeads(val c: DoubleArray, val w: DoubleArray)
-        val beads = Array(nn) { u ->
-            val wd = 2 * r[if (corner[u]) source[u] else u]
-            val bw = rule.widths(n[u], wd)
-            NodeBeads(rule.centers(bw, wd), bw)
         }
-        // the levels: loop k (from the outside, 0 the outer loop) runs wherever a place holds 2k + 2 lines or more; where it
-        // holds 2k + 1, its middle line lies there (a center line along the axis); where fewer, neither. So every pair of
-        // lines across a place belongs to a loop, closed wherever the place is that wide, turning back where it narrows
-        val levels = (n.maxOrNull() ?: 1).let { (it + 1) / 2 }
+
         /** The width level [k]'s middle line takes at a node holding 2k + 1 lines (the place's width for the outer level). */
         fun middleWidth(u: Int, k: Int) = if (k == 0) 2 * r[u] else beads[u].w[k]
+        fun tips() {
         // a tip a loop runs into: a part where level k has its middle line (2k + 1 lines across) hanging off the loop at one
         // mouth, no longer than twice its middle's width at the mouth, where two lines of level k at the narrowest width
         // overlap, and where narrower than the narrowest line the line laid out and back is laid twice, by no more in all than
@@ -329,7 +443,7 @@ object Beads {
         // its two sides at the narrowest width (no narrower), until the place left is one narrowest line wide, then out and
         // back along the axis to where it is the thinnest feature wide (a lens's tip: a separate line there was shorter than
         // it is wide, dropped beside another part, and its start laid as much twice over the loop's turn)
-        val vNode = BooleanArray(nn)
+        vNode = BooleanArray(nn)
         run {
             val seen = BooleanArray(nn); val inComp = BooleanArray(nn); val d = DoubleArray(nn)
             for (s0 in 0 until nn) {
@@ -361,9 +475,11 @@ object Beads {
                 for (u in comp) inComp[u] = false
             }
         }
+        }
         /** Whether loop [k] runs over node [u]. */
         fun loopAt(u: Int, k: Int) = n[u] >= 2 * k + 2 || (vNode[u] && n[u] / 2 == k)
 
+        fun zones() {
         // 4. changes of count: each central node's distance along the axis from where its count rose (within its stretch), and
         // the count below. A middle line coming in where the count rises from even to odd (two lines to three: the outer
         // loop's two sides part and the middle starts between them) is new there, and the beads beside it give way to it. A
@@ -371,7 +487,7 @@ object Beads {
         // a sliver: a place narrower than the narrowest line holding one line at most (a hair-thin strip off the island's
         // side, a tip): no count rises from it
         val sliver = BooleanArray(nn) { !corner[it] && 2 * r[it] < rule.minUm && n[it] <= 1 }
-        val zoneDist = DoubleArray(nn) { Double.POSITIVE_INFINITY }
+        zoneDist = DoubleArray(nn) { Double.POSITIVE_INFINITY }
         run {
             val pq = java.util.PriorityQueue<Pair<Double, Int>>(compareBy { it.first })
             for (u in 0 until nn) if (!corner[u] && n[u] % 2 == 1 && n[u] >= 3) for (i in 0 until 3) { val v = adj[3 * u + i]
@@ -385,6 +501,7 @@ object Beads {
                     val nd = d + dist(u, v)
                     if (nd < zoneDist[v]) { zoneDist[v] = nd; pq.add(nd to v) } }
             }
+        }
         }
         // the middle line on a node: its width (NaN: none), 1 if new
         fun middle(u: Int): DoubleArray {
@@ -425,9 +542,9 @@ object Beads {
         // sliver); the loop turns there, carrying on into the run that begins across the same mouth: the run starting on the
         // same node's rib to the other end of the triangle edge the narrow part hangs from. So each loop is one path built from
         // the outline, closed wherever the place is wide enough for it, whatever the count does inside it
+        fun loops() {
         val nodesAt = HashMap<Int, ArrayList<Int>>()
         for (u in 0 until nn) { val t = triOf[u]; for (i in 0 until 3) nodesAt.getOrPut(dt.v(t, i)) { ArrayList() }.add(u) }
-        val pieces = ArrayList<Piece>()
         val ringRibs = ArrayList<Pair<IntArray, IntArray>>()
         for (ring in rings) {
             val m = ring.last - ring.first + 1
@@ -442,10 +559,12 @@ object Beads {
             }
             if (ribNode.isNotEmpty()) ringRibs.add(ribNode.toIntArray() to ribSample.toIntArray())
         }
-        // the loops' turns (x0 y0 x1 y1 width), where a middle line meeting a loop's turn is shortened before anything gives way
-        val turns = ArrayList<DoubleArray>()
-        class Run(val pc: Piece, val startNode: Int, val startSample: Int, val prevNode: Int, val endNode: Int, val endSample: Int, val nextNode: Int)
-        for (level in 0 until levels) {
+        for (level in 0 until levels) loopsOf(level, ringRibs)
+        }
+
+        /** Loop [level], traced along each ring's ribs [ringRibs] (each rib's node and sample, in order round the ring). */
+        fun loopsOf(level: Int, ringRibs: List<Pair<IntArray, IntArray>>) {
+        run {
             val runs = ArrayList<Run>()
             for ((ribNode, ribSample) in ringRibs) {
                 val q = ribNode.size
@@ -535,7 +654,10 @@ object Beads {
             for (k in runs.indices) if (!taken[k] && !inChain[k]) chain(k).let { if (it.size > 0) pieces.add(it) }
             for (k in runs.indices) if (!inChain[k]) chain(k).let { if (it.size > 0) pieces.add(it) }
         }
-        // the middle beads, along the axis
+        }
+
+        /** The middle beads, along the axis. */
+        fun middles() {
         run {
             val mids = Array(nn) { middle(it) }
             val mid = DoubleArray(nn) { mids[it][0] }
@@ -567,6 +689,7 @@ object Beads {
             }
             for (u in 0 until nn) if (has[u]) for (i in 0 until 3) { val v = adj[3 * u + i]; if (linked(u, v) && key(u, v) !in used) walk(u, v) }
         }
+        }
         /**
          * [list] with each middle line's ends shortened where they meet the line segments [segs] (x0 y0 x1 y1 width): a center
          * line's end meeting a loop (a tip's, a neck's or a sliver's line where the loop turns, an inner middle line where a
@@ -576,17 +699,30 @@ object Beads {
          * of it; one shortened to nothing is dropped.
          */
         fun trimEnds(list: List<Piece>, segs: List<DoubleArray>): List<Piece> {
-            if (segs.isEmpty()) return ArrayList(list)
+            if (segs.isEmpty() || list.none { !it.loop && !it.closed && ((it.midStart && !it.cutStart) || (it.midEnd && !it.cutEnd)) }) return ArrayList(list)
             val f = rule.flankUm
+            // the segments by cell, each in every cell its box widened by half its width touches; a point looks in the cells
+            // within half its own width
+            val cellUm = 200.0
+            val grid = HashMap<Long, ArrayList<DoubleArray>>()
+            fun key(i: Long, j: Long) = (i shl 32) xor (j and 0xffffffffL)
+            for (g in segs) { val rr = g[4] / 2 + 1.0
+                for (i in Math.floor((minOf(g[0], g[2]) - rr) / cellUm).toLong()..Math.floor((maxOf(g[0], g[2]) + rr) / cellUm).toLong())
+                    for (j in Math.floor((minOf(g[1], g[3]) - rr) / cellUm).toLong()..Math.floor((maxOf(g[1], g[3]) + rr) / cellUm).toLong())
+                        grid.getOrPut(key(i, j)) { ArrayList() }.add(g) }
             fun clear(pc: Piece, i: Int): Boolean {
                 val x = pc.xs[i]; val y = pc.ys[i]; val w = pc.ws[i]
-                for (g in segs) {
-                    val need = w / 2 + g[4] / 2 - f - p.endOverlap * w
-                    if (x < minOf(g[0], g[2]) - need || x > maxOf(g[0], g[2]) + need || y < minOf(g[1], g[3]) - need || y > maxOf(g[1], g[3]) + need) continue
-                    val dx = g[2] - g[0]; val dy = g[3] - g[1]; val l2 = dx * dx + dy * dy
-                    val t = if (l2 == 0.0) 0.0 else (((x - g[0]) * dx + (y - g[1]) * dy) / l2).coerceIn(0.0, 1.0)
-                    if (Math.hypot(x - g[0] - t * dx, y - g[1] - t * dy) < need) return false
-                }
+                val rq = w / 2 + 1.0
+                for (ci in Math.floor((x - rq) / cellUm).toLong()..Math.floor((x + rq) / cellUm).toLong())
+                    for (cj in Math.floor((y - rq) / cellUm).toLong()..Math.floor((y + rq) / cellUm).toLong())
+                        for (g in grid[key(ci, cj)] ?: continue) {
+                            val need = w / 2 + g[4] / 2 - f - p.endOverlap * w
+                            if (need <= 0 || x < minOf(g[0], g[2]) - need || x > maxOf(g[0], g[2]) + need || y < minOf(g[1], g[3]) - need || y > maxOf(g[1], g[3]) + need) continue
+                            val dx = g[2] - g[0]; val dy = g[3] - g[1]; val l2 = dx * dx + dy * dy
+                            val t = if (l2 == 0.0) 0.0 else (((x - g[0]) * dx + (y - g[1]) * dy) / l2).coerceIn(0.0, 1.0)
+                            val ex = x - g[0] - t * dx; val ey = y - g[1] - t * dy
+                            if (ex * ex + ey * ey < need * need) return false
+                        }
                 return true
             }
             val out = ArrayList<Piece>()
@@ -606,11 +742,6 @@ object Beads {
             }
             return out
         }
-        // the middle lines meeting a loop's turn are shortened first, as the turns lie before anything gives way: a middle line
-        // between two turns close together (an area narrowing fast, three lines across for a short stretch between four and
-        // one) is gone before the loops give way to it
-
-        run { val out = trimEnds(pieces, turns); pieces.clear(); pieces.addAll(out) }
         // every other bead gives way to the beads coming in at a change of count, along its ribs (a node's ribs to the two
         // sides of an area meet the outline at different places along it where the sides are not parallel, a lens: a new
         // bead on one side starts beside nodes that did not change; and its round start reaches back along it): where a new
@@ -618,6 +749,7 @@ object Beads {
         // point's reach along a rib, that side of the bead stops at it, keeping the usual overlap, its other side where it
         // was. A middle bead (on a node) walks each of the node's ribs from the node outward, a side bead its own rib from
         // its middle toward the node.
+        fun giveWay() {
         run {
             val f = rule.flankUm
             // what is given way to: the new beads' plastic (each narrowed by half the flank, the usual overlap of two beads in
@@ -625,6 +757,17 @@ object Beads {
             // close behind the turn of the loop outside it: it gives way to it)
             val segs = ArrayList<DoubleArray>()   // x0 y0 x1 y1, the half-width (narrowed), the piece, the loop's level (-1: a new bead)
             val turnReach = 2 * rule.maxUm + rule.minUm
+            // the turns' ends by cell of [turnReach], for "is a turn's end within reach"
+            val turnCells = HashMap<Long, ArrayList<DoubleArray>>()
+            fun turnKey(ci: Long, cj: Long) = (ci shl 32) xor (cj and 0xffffffffL)
+            fun cellOf(v: Double) = Math.floor(v / turnReach).toLong()
+            for (t in turns) for (e in 0..1) turnCells.getOrPut(turnKey(cellOf(t[2 * e]), cellOf(t[2 * e + 1]))) { ArrayList() }.add(doubleArrayOf(t[2 * e], t[2 * e + 1]))
+            fun nearTurn(x: Double, y: Double): Boolean {
+                val ci = cellOf(x); val cj = cellOf(y)
+                for (di in -1L..1L) for (dj in -1L..1L) for (e in turnCells[turnKey(ci + di, cj + dj)] ?: continue)
+                    if (Math.hypot(e[0] - x, e[1] - y) < turnReach) return true
+                return false
+            }
             for ((pi, pc) in pieces.withIndex()) {
                 val m = pc.size
                 if (pc.newBead) {
@@ -634,7 +777,7 @@ object Beads {
                 } else if (pc.loop && levels > 1) for (i in 0 until (if (pc.closed) m else m - 1)) { val j = (i + 1) % m
                     // only near a turn: elsewhere loops lie side by side in contact by construction
                     val mx = (pc.xs[i] + pc.xs[j]) / 2; val my = (pc.ys[i] + pc.ys[j]) / 2
-                    if (turns.none { t -> Math.hypot(t[0] - mx, t[1] - my) < turnReach || Math.hypot(t[2] - mx, t[3] - my) < turnReach }) continue
+                    if (!nearTurn(mx, my)) continue
                     segs.add(doubleArrayOf(pc.xs[i], pc.ys[i], pc.xs[j], pc.ys[j], (pc.ws[i] + pc.ws[j]) / 4 - f / 2, pi.toDouble(), pc.wall.toDouble())) }
             }
             if (segs.isEmpty()) return@run
@@ -647,22 +790,22 @@ object Beads {
                     for (j in Math.floor((minOf(g[1], g[3]) - rr) / cell).toLong()..Math.floor((maxOf(g[1], g[3]) + rr) / cell).toLong())
                         grid.getOrPut(key(i, j)) { ArrayList() }.add(k)
             }
-            /** Whether (x, y) lies in plastic piece [self] gives way to: a new bead's, or a loop's outside level [level] (-1: none). */
-            fun covered(x: Double, y: Double, self: Int, level: Int): Boolean {
-                for (k in grid[key(Math.floor(x / cell).toLong(), Math.floor(y / cell).toLong())] ?: return false) {
-                    val g = segs[k]
-                    if (g[5].toInt() == self || (g[6] >= 0 && g[6] >= level)) continue
-                    val dx = g[2] - g[0]; val dy = g[3] - g[1]; val l2 = dx * dx + dy * dy
-                    val t = if (l2 == 0.0) 0.0 else (((x - g[0]) * dx + (y - g[1]) * dy) / l2).coerceIn(0.0, 1.0)
-                    if (Math.hypot(x - g[0] - t * dx, y - g[1] - t * dy) <= g[4]) return true
-                }
-                return false
-            }
-            /** How far from (x, y) along (dx, dy) such plastic starts, up to [limit] (NaN: not within it). */
+            /**
+             * How far from (x, y) along the unit (dx, dy) plastic piece [self] gives way to starts (a new bead's, or a loop's
+             * outside level [level], -1: none), below [limit] (NaN: not within it).
+             */
             fun reachTo(x: Double, y: Double, dx: Double, dy: Double, limit: Double, self: Int, level: Int): Double {
-                var t = 0.0
-                while (t < limit) { if (covered(x + dx * t, y + dy * t, self, level)) return t; t += GIVE_WAY_STEP_UM }
-                return Double.NaN
+                var best = Double.POSITIVE_INFINITY
+                val ex = x + dx * limit; val ey = y + dy * limit
+                for (ci in Math.floor(minOf(x, ex) / cell).toLong()..Math.floor(maxOf(x, ex) / cell).toLong())
+                    for (cj in Math.floor(minOf(y, ey) / cell).toLong()..Math.floor(maxOf(y, ey) / cell).toLong())
+                        for (k in grid[key(ci, cj)] ?: continue) {
+                            val g = segs[k]
+                            if (g[5].toInt() == self || (g[6] >= 0 && g[6] >= level)) continue
+                            val t = rayCapsule(x, y, dx, dy, g[0], g[1], g[2], g[3], g[4])
+                            if (t < best) best = t
+                        }
+                return if (best < limit) best else Double.NaN
             }
             fun box(sel: (DoubleArray) -> Boolean): DoubleArray? { val s = segs.filter(sel); if (s.isEmpty()) return null
                 return doubleArrayOf(s.minOf { minOf(it[0], it[2]) - it[4] }, s.minOf { minOf(it[1], it[3]) - it[4] }, s.maxOf { maxOf(it[0], it[2]) + it[4] }, s.maxOf { maxOf(it[1], it[3]) + it[4] }) }
@@ -720,8 +863,12 @@ object Beads {
                 }
             }
         }
-        // where a bead gave way entirely (narrower than half the narrowest line) it is not laid: the piece is cut there, its
-        // ends at the cut never joined again (across the new bead)
+        }
+        /**
+         * The pieces as laid: where a bead gave way entirely (narrower than half the narrowest line) it is not laid: the piece
+         * is cut there, its ends at the cut never joined again (across the new bead).
+         */
+        fun cut(): ArrayList<Piece> {
         val kept = ArrayList<Piece>()
         for (pc in pieces) {
             if (pc.loop && pc.wall == 0) { kept.add(pc); continue }
@@ -744,15 +891,11 @@ object Beads {
             }
             if (cur != null) { if (pc.closed) cur.cutEnd = true; kept.add(cur) }
         }
-        // the middle lines' ends meeting the loops, again, as the loops lie after giving way
-        run {
-            val segs = ArrayList<DoubleArray>()
-            for (pc in kept) if (pc.loop) { val m = pc.size
-                for (i in 0 until (if (pc.closed) m else m - 1)) { val j = (i + 1) % m
-                    segs.add(doubleArrayOf(pc.xs[i], pc.ys[i], pc.xs[j], pc.ys[j], (pc.ws[i] + pc.ws[j]) / 2)) } }
-            val out = trimEnds(kept, segs); kept.clear(); kept.addAll(out)
+        return kept
         }
-        // 6. joining ends, closest first
+
+        /** 6. Open pieces' ends joined, closest first; the beads as center lines. */
+        fun joins(kept: List<Piece>): List<CenterLine> {
         val joinUm = 2.0 * p.sampleUm + 2 * MIDDLE_EPS_UM
         val first = kept.filter { !it.closed && it.size >= 1 }
         val done = kept.filter { it.closed }.toMutableList()
@@ -772,7 +915,6 @@ object Beads {
         val grid = HashMap<Long, ArrayList<Int>>()
         fun cellKey(i: Long, j: Long) = (i shl 32) xor (j and 0xffffffffL)
         for (e in 0 until ne) if (!eCut[e]) grid.getOrPut(cellKey(Math.floor(ex[e] / reach).toLong(), Math.floor(ey[e] / reach).toLong())) { ArrayList() }.add(e)
-        class Cand(val a: Int, val b: Int, val d: Double)
         val cands = ArrayList<Cand>()
         for (a in 0 until ne) {
             if (eCut[a]) continue
@@ -839,5 +981,7 @@ object Beads {
                 LongArray(pc.size) { Math.round(pc.ws[it]) }, wall = pc.wall))
         }
         return out
+        }
     }
 }
+

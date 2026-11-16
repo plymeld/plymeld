@@ -43,7 +43,11 @@ object PlateCheck {
               /** How far its first layer's outline is drawn in ([ModelCheck.check]'s firstLayerInsetMm). */
               val firstLayerInsetMm: Double = 0.0,
               /** How thin a sliver along its outer surface its config hands to the neighbor ([ModelCheck.check]'s surfaceHandOverMm); 0 = none. */
-              val surfaceHandOverMm: Double = 0.0)
+              val surfaceHandOverMm: Double = 0.0,
+              /** Its fuzzy skin's thickness where on ([ModelCheck.check]'s fuzzMm); 0 = off. */
+              val fuzzMm: Double = 0.0,
+              /** The narrowest area its walls hand to infill ([ModelCheck.check]'s infillMinMm). */
+              val infillMinMm: Double = Double.MAX_VALUE)
     /** [surfaces]: each run's (each frame's) model surface, for GcodeCheck's travel rule ([ModelCheck.Surfaces]). */
     class Result(val text: String, val parts: List<TriangleSoup>, val problems: List<String>, val curvedLayers: Int, val surfaces: List<ModelCheck.Surface> = emptyList())
 
@@ -184,7 +188,7 @@ object PlateCheck {
             val sf = ModelCheck.Surface(fr.parts, zBase, planar, zaaMinMm = z?.minMm, cut = o.cut).also { surfaces += it }
             val where = if (fr.name.isEmpty()) "'${o.name}'" else "'${o.name}' ${fr.name}"
             problems += ModelCheck.check(planar, fr.parts, zBase, imagesDir = if (fr.name.isEmpty()) dir else dir?.resolve(fr.name.replace(' ', '_'))?.also { java.nio.file.Files.createDirectories(it) },
-                surface = sf, partTools = o.partTools?.let { t -> fr.partIndex.map { t[it] } }, zaa = z, handOverMm = o.handOverMm, featureMinMm = o.featureMinMm, firstLayerInsetMm = o.firstLayerInsetMm, surfaceHandOverMm = o.surfaceHandOverMm).map { "$where: $it" }
+                surface = sf, partTools = o.partTools?.let { t -> fr.partIndex.map { t[it] } }, zaa = z, handOverMm = o.handOverMm, featureMinMm = o.featureMinMm, firstLayerInsetMm = o.firstLayerInsetMm, surfaceHandOverMm = o.surfaceHandOverMm, fuzzMm = o.fuzzMm, infillMinMm = o.infillMinMm).map { "$where: $it" }
         }
         return curved
     }
