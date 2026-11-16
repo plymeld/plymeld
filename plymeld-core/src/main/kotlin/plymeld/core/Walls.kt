@@ -87,7 +87,9 @@ object Walls {
                  */
                 surface: List<Polygon>? = null,
                 /** False: a narrow island whose beads are not taken keeps its walls with their slits unshared (a test's control). */
-                keptWallsShared: Boolean = true): LayerWalls {
+                keptWallsShared: Boolean = true,
+                /** False: an island laid by its beads gives up what the walls hand to infill only by each piece's first point (a test's control). */
+                innerTakenByArea: Boolean = true): LayerWalls {
         val so = spacing(outerWidthUm, layerHeightUm)
         val si = spacing(innerWidthUm, layerHeightUm)
         // each loop's fit region (where its bead fits: its strict pieces, each an outer polygon and its holes) and its looser fit
@@ -245,7 +247,24 @@ object Walls {
         // (each kept loop with its widths, where a slit is shared)
         val kept = shared.walls.mapIndexed { k, level -> level.indices.filter { !inTaken(level[it].x(0), level[it].y(0)) }.map { level[it] to shared.widthsOf(k, it) } }
             .dropLastWhile { it.isEmpty() }
-        val inner = shared.inner.filter { !inTaken(it.x(0), it.y(0)) }
+        // what the walls hand to infill in an island laid by its beads is the beads': kept only within the other islands, by
+        // area, not by a piece's first point alone. Where no loop of the walls is laid in such an island (its loop's fit
+        // shorter than the transition length, a center line in its place), the walls hand most of the island to infill, a
+        // piece whose first point, a mitred tip, can lie a few hundredths past the island's sharp corner, so read as outside
+        // it: a bridge or solid infill was then laid across the island's own beads (a small tooth along an outline)
+        val inner0 = shared.inner.filter { !inTaken(it.x(0), it.y(0)) }
+        val takenSet = taken.map { it.first }.toHashSet()
+        val restPolys = islands.filter { it.first !in takenSet }.flatMap { (o, hs) -> listOf(o) + hs }
+        val takenBoxes = taken.map { it.first.bounds() }
+        fun nearTaken(p: Polygon) = p.bounds().let { b -> takenBoxes.any { t -> b[0] <= t[2] && b[2] >= t[0] && b[1] <= t[3] && b[3] >= t[1] } }
+        var cut = false
+        val pieces = if (!innerTakenByArea || inner0.none { it.isCcw() && nearTaken(it) }) emptyList() else plymeld.geom.Polygons.group(inner0).flatMap { (o, hs) ->
+            val piece = listOf(o) + hs
+            if (!nearTaken(o)) piece else (if (restPolys.isEmpty()) emptyList() else Booleans.intersection(piece, restPolys)).let { left ->
+                if (Math.abs(left.sumOf { it.signedAreaMm2() } - piece.sumOf { it.signedAreaMm2() }) < 1e-6) piece else { cut = true; left } }
+        }
+        // unchanged (the usual case): the pieces as they were, in their order
+        val inner = if (cut) pieces else inner0
         val center = shared.center.filter { c -> val m = c.xy.size / 4 * 2; !inTaken(c.xy[m], c.xy[m + 1]) }
         // the beads' closed lines are loops of the walls, at their place from the outside, so they are laid as every loop is
         // (seams, scarf, order, travel); a loop at its level's set width throughout keeps no widths of its own; the open

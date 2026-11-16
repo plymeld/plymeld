@@ -1453,3 +1453,49 @@ floor until the planner's overlaps pass: they are 0.25 mm and wider, as wide as 
 - a concentric solid ring laid over an inner wall along a side;
 - two parts' fills over each other on a two-part model (not yet read);
 - a curved island's rising rim: its outer wall over its inner wall.
+
+## 49. An island laid by its beads hands nothing to infill; a line's move whose plastic rounds to nothing is merged (2026-11-16)
+
+Amends 28 and 48.
+
+**Context.** Decision 48 listed teeth along an outline laid as outer loops of their own over the main outer loop among
+the planner's causes of plastic laid twice: on a real three-object plate, 40 of the 92 spots read "outer wall over outer
+wall" (0.25 to 0.62 mm wide) and 14 "bridge over outer wall" or "internal solid over outer wall", all at small teeth of
+one filament, about 2 by 1 mm, hanging off another filament's edge. Read path by path, neither was a loop over a loop:
+- Each tooth is an island too narrow for the set walls, laid by its beads (decision 28): one loop. Where the walls of 26
+  laid no loop in it (its loop's fit shorter than the transition length, a center line in its place), they handed most of
+  the tooth to infill, and that piece was taken back only when its first point lay inside the tooth. Its first point is a
+  mitred tip, a few hundredths of a millimetre past the tooth's sharp apex: the piece stayed, and a bridge (the tooth's
+  first layers hang over air; its overshoot past the outline reads as over air on every layer) or solid infill was laid
+  across the tooth's own loop.
+- The tooth's loop is scarfed. Its closing pass ends in segments a few microns long at a sliver of the line's width, whose
+  plastic the file's E (5 decimals) rounds to 0: written as `G1 X.. Y.. E0`. The pre-print check, like any reader, takes
+  a move without plastic for a travel: the closing pass broke there, and its last stretch, a path of its own, was read at
+  the line's full width (a path's widest plastic per mm is its stated width) over the loop's start.
+
+**Decision.**
+- What the walls hand to infill in an island laid by its beads is the beads': it is kept only within the islands not so
+  laid, by area (Walls.arachne), not by a piece's first point. A piece that loses nothing is kept as it was.
+- A move inside a line whose plastic rounds to nothing in the file is not written where its point lies within the
+  slicing tolerance (`method.slicing.tolerance`: the path is known no closer) of the straight move that replaces it and
+  the next; its plastic goes with the next move (KlipperWriter). A point farther off is kept however little plastic its
+  move carries (an ironing line's step to the next line: merged, the next line would run askew), and a line's last move
+  is always written. Of the real plate's 212 `E0` moves, 81 are left: at a line's end, or off the straight move.
+
+**Rejected.** Reading an `E0` move inside a line as part of the line in the check: the check would read the file
+otherwise than the printer and every other reader do, and the file would still say a travel there. Carrying every
+move's rounding into the next (the written E summing to the exact plastic over a path): moves of a few microns still
+round to nothing, and every E in every file would move by a digit. Testing a piece's membership by a point inside it
+rather than by area: the piece also pokes past the outline at the tip, which the area rule takes off too. Merging only
+moves shorter than the slicing tolerance: two closing passes on the plate still broke, at moves of 7 to 14 µm.
+
+**Consequences.** The real plate: 92 spots, 23.251 mm², on 73 layers to 38 spots, 9.921 mm², on 25 layers; what is left
+is wall junctions in narrow webs on its base object (36 spots), one pair of internal solid lines, and one short inner
+line beside a long one. The catalog's new model, small teeth under a second part (WALLS rig, with and without scarf
+seams), reads no spot; taken out by first point it read 33 spots, 6.5 mm², bridge over outer wall, on 19 of the teeth's
+20 layers (BeadIslandInfillTest, with a control on each tooth's walls). ZeroPlasticMoveTest writes a scarf-like closing
+pass and reads it back: no `E0` move inside the line and its plastic kept, and nothing laid twice; control, the merged
+moves written as `E0`: outer wall over outer wall, 0.4 mm wide. Elsewhere in the catalog only the domed top's ironed row
+moves: its ironing read as 3 paths, now 1 (19.74 to 19.75 mm long: the merged moves now count as laid).
+Still open from 48: two fills sharing an edge, wall junctions in narrow webs, a concentric solid ring on an inner wall,
+two parts' fills over each other, a curved island's rising rim.

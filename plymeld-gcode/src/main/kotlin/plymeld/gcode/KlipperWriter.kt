@@ -955,6 +955,9 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                     continue
                 }
                 var walked = 0.0
+                // the path's last vertex (where the nozzle is, unless a move was merged into the next: below), and the plastic of
+                // merged moves not yet written
+                var vx = x; var vy = y; var vz = z; var carry = 0.0
                 for (k in 1..count) {
                     val idx = k % m
                     val share = p.overhangShare?.get(k - 1)
@@ -973,14 +976,14 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                     if (speedK != null) { val fk = f(Math.min(speedK, segCap)); if (fk != curF) { out.write("G1 F$fk\n"); curF = fk } }
                     p.accelMax?.let { am -> whole(minOf(accelBase, am[k - 1].takeIf { !it.isNaN() } ?: Double.POSITIVE_INFINITY), "an acceleration").let { a -> if (a != accelWritten) { out.write(dialect.accel(a)); accelWritten = a } } }
                     val nx = p.xy[2 * idx] / 1000.0; val ny = p.xy[2 * idx + 1] / 1000.0
-                    val len = Math.hypot(nx - x, ny - y)
+                    val len = Math.hypot(nx - vx, ny - vy)
                     // One rule: the filament for a move is its whole length, in X, Y, and Z, times its bead's
                     // cross-section. Over air the bead is a strand, its full cross-section: a bridge line, a tack (its rise most of
                     // all), a wall segment wholly over air. On what is printed below, the bead fills a
                     // layer measured vertically, which on a slope θ is h cos θ thick at right angles to its surface: its
                     // cross-section that much thinner (the plastic for the slab, h times the area under the line seen from above).
-                    val nz = p.zs?.let { it[idx] / 1000.0 } ?: z
-                    val dz = if (z.isNaN()) 0.0 else nz - z
+                    val nz = p.zs?.let { it[idx] / 1000.0 } ?: vz
+                    val dz = if (vz.isNaN()) 0.0 else nz - vz
                     val length = Math.hypot(len, dz)
                     val strand = p.feature == "Bridge" || p.feature == "Bridge tack" || (share != null && share >= 1000)
                     // 1, or cos θ on a supported slope; nothing for a move straight up or down (a step of a curved layer's surface,
@@ -988,7 +991,25 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                     val section = if (len == 0.0) 0.0 else if (strand || length == 0.0) 1.0 else len / length
                     val eSeg = length * section * (segE?.get(k - 1) ?: ePerMm)
                     if (!ownEnds) {
-                        if (len > 0 || nz != z) out.write("G1 X${n(nx)} Y${n(ny)}" + (if (nz != z) " Z${n(nz)}" else "") + " E${e(eSeg)}\n")
+                        // a move inside the line whose plastic the file's E rounds to nothing (a scarf seam's closing pass where
+                        // its flow runs out over a narrow loop's short segments) is merged into the next where its point lies
+                        // within the slicing tolerance (method.slicing.tolerance: the path is known no closer) of the straight
+                        // move that replaces the two: written, "E0" reads as a move without plastic, the line broken in two
+                        // there for a reader (the pre-print check read the closing pass's last stretch as a line of its own, at
+                        // the line's full width, over the loop's start); its plastic goes with the next move. A point farther
+                        // off is kept (an ironing line's step to the next line, its plastic a share of a line's: merged, the
+                        // next line would run askew). The line's last move is always written.
+                        val eAll = eSeg + carry
+                        if (len > 0 || nz != vz) {
+                            if (k < count && eAll > 0 && e(eAll) == "0" && run {
+                                    val j = (k + 1) % m
+                                    offChord(nx, ny, x, y, p.xy[2 * j] / 1000.0, p.xy[2 * j + 1] / 1000.0) <= s.resolutionUm / 1000.0
+                                }) carry = eAll
+                            else {
+                                out.write("G1 X${n(nx)} Y${n(ny)}" + (if (nz != z) " Z${n(nz)}" else "") + " E${e(eAll)}\n")
+                                carry = 0.0; x = nx; y = ny; z = nz
+                            }
+                        }
                     } else {
                         // the restore's share over this segment (the part of it within the first returnOverMm), and coasting from cut
                         val back = if (returnOverMm > 0) returnOnPath * (Math.min(walked + len, returnOverMm) - Math.min(walked, returnOverMm)) / returnOverMm else 0.0
@@ -1006,8 +1027,9 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                             }
                         }
                         walked += len
+                        x = nx; y = ny; z = nz
                     }
-                    x = nx; y = ny; z = nz
+                    vx = nx; vy = ny; vz = nz
                 }
                 lastPath = p
             }
@@ -1362,4 +1384,11 @@ private fun laidMm(p: Extrude): Double {
     val m = p.xy.size / 2; var sum = 0.0
     for (k in 0 until (if (p.closed) m else m - 1)) { val j = (k + 1) % m; sum += Math.hypot((p.xy[2 * j] - p.xy[2 * k]).toDouble(), (p.xy[2 * j + 1] - p.xy[2 * k + 1]).toDouble()) }
     return sum / 1000.0
+}
+
+/** How far (px, py) lies from the segment (ax, ay)-(bx, by) (mm): from its nearest point on it. */
+private fun offChord(px: Double, py: Double, ax: Double, ay: Double, bx: Double, by: Double): Double {
+    val dx = bx - ax; val dy = by - ay; val l2 = dx * dx + dy * dy
+    val t = if (l2 == 0.0) 0.0 else (((px - ax) * dx + (py - ay) * dy) / l2).coerceIn(0.0, 1.0)
+    return Math.hypot(px - (ax + t * dx), py - (ay + t * dy))
 }

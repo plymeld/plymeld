@@ -1299,7 +1299,8 @@ object Planner {
             // infill beside it), then reach on by [grow] (infill_wall_overlap of the line), as every interior line's (hatch).
             // Clipped on the region's edge itself, every line end and every linking run lay half a line over the walls and
             // the infill beside it (the pre-print check's laid-twice rule: on the internal bridge layer of nearly every model of
-            // the test catalog, and a bridge over air laid across a tooth's own wall loop)
+            // the test catalog). A bridge laid across a small tooth's own beads was another cause: the walls handed the tooth to
+            // infill (Walls.arachne, an island laid by its beads)
             fun bridgeEach(region: List<Polygon>, below: List<Polygon>, bw: Long, h: Long, out: MutableList<ToolPath>, grow: Long,
                            feature: Feature = Feature.BRIDGE,
                            families: List<Bridges.Family>? = null) {

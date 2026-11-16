@@ -8,7 +8,7 @@ models in `test-models/`, and test resources.
 The catalog ([Catalog.kt](../../plymeld-check/src/test/kotlin/plymeld/check/catalog/Catalog.kt)) is one list of small
 models built in code, each with a stable name and a line saying what it is for: one technique, or one known weakness
 (a lens growing from one line to two, a web between a hole and the side, a thin ridge, a sliver of one filament on
-another's face, an inlay on a leaning face, seams on a cylinder and a post, an overhang ladder, bridges, sloped and
+another's face, an inlay on a leaning face, small teeth hanging off a second part's edge, seams on a cylinder and a post, an overhang ladder, bridges, sloped and
 domed tops, a small pillar, holes and pins). Each is sliced with a rig (the machine and plan values over the slicing
 tests' setup) under a few rows of settings that matter to it, the first always the rig as it is.
 

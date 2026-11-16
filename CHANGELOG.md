@@ -153,6 +153,16 @@ section the release's version and date.
 
 ### Fixed
 
+- A small area laid by its local width (one too narrow anywhere for the set walls, such as a tooth along an outline) could
+  also get a bridge or solid infill across its own lines: where the walls laid no loop of theirs in it, they handed most of
+  it to infill, and that piece was taken back only when its first corner lay inside the area (a mitred tip of it lay a few
+  hundredths of a millimetre past the area's sharp corner). The area now hands nothing to infill. On a real three-object
+  plate, 14 spots of plastic laid twice (a bridge or solid infill over an outer wall, up to 0.51 mm wide) are gone.
+- A move inside a line whose plastic rounds to nothing in the file is now merged into the next move instead of written
+  as `E0`, where its point lies within the slicing tolerance of the straight move that replaces the two: a reader takes a
+  move without plastic for a travel, and the line broke in two there. A scarf seam's closing pass over a small loop, so broken, read to the pre-print check as a line of its own at
+  the line's full width over the loop's start (40 spots of plastic laid twice on a real plate where nothing lay twice);
+  ironing lines broken the same way now read as one line.
 - A bridge's lines, over air or over sparse infill, ended with their middle on the edge of the area they fill: every line
   end and every run linking two lines along that edge lay half a line over the walls and the infill beside it. They now
   end where their bead touches the wall's and reach on by `plan.layer.infill.wall_overlap`, as every other interior

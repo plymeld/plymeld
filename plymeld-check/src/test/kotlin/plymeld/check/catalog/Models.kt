@@ -290,6 +290,24 @@ object Models {
 
     /** A small two-color piece: two halves 6 by 10 mm, 3 mm tall, side by side (A at the left, B at the right): a tool change on every layer. */
     val twoColorPiece: List<TriangleSoup> by lazy { listOf(box(CX - 6, CY - 5, 0.0, CX, CY + 5, 3.0), box(CX, CY - 5, 0.0, CX + 6, CY + 5, 3.0)) }
+    /**
+     * A tooth's outline (mm): its apex [d] below the edge y = [CY] at x [cx], its base [b] wide along that edge, its right side
+     * bulging out by [bulge] at its middle (four points on a half sine): a triangle about two lines across, with no corner a
+     * loop of the set walls fits round.
+     */
+    fun tooth(cx: Double, b: Double, d: Double, bulge: Double): List<DoubleArray> {
+        val nl = Math.hypot(d, b / 2)
+        return listOf(doubleArrayOf(cx, CY - d)) + (1..4).map { k -> val t = k / 5.0; val f = bulge * Math.sin(Math.PI * t)
+            doubleArrayOf(cx + t * b / 2 + f * d / nl, CY - d + t * d - f * (b / 2) / nl) } + listOf(doubleArrayOf(cx + b / 2, CY), doubleArrayOf(cx - b / 2, CY))
+    }
+    /** The teeth's outlines: three teeth 1.7 to 2 mm wide, 1 to 1.1 mm deep, 4 mm apart. */
+    val TEETH = listOf(tooth(CX - 4, 1.8, 1.0, 0.2), tooth(CX, 1.7, 1.0, 0.2), tooth(CX + 4, 2.0, 1.1, 0.15))
+    /**
+     * Teeth along a second part's edge: A, three small teeth (the [TEETH]) hanging off the front of B from z 1 to 2.6 mm, over
+     * air below; B, a band 14 by 4 mm, 2.6 mm tall, on the bed. Each tooth is an island laid by its beads (too narrow for
+     * the set walls) that the walls hand to infill nearly whole (no loop of theirs fits round it).
+     */
+    val teethUnderBand: List<TriangleSoup> by lazy { listOf(join(*TEETH.map { prism(it, 1.0, 2.6) }.toTypedArray()), box(CX - 7, CY, 0.0, CX + 7, CY + 4, 2.6)) }
     /** A pillar 3 mm across, 12 mm tall: a small island, its layers short. */
     val smallPillar by lazy { Shapes.cylinder(CX, CY, 1.5, 0.0, 12.0, n = 64) }
     /** The holes' and pins' diameters (mm). */

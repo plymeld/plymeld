@@ -94,6 +94,8 @@ object Catalog {
             Slicing.TWO_TOOLS, { Models.inlay }, rows = listOf(BASE, SUPPORT)),
         Entry("two-color piece", "two halves of two filaments side by side: a tool change and a purge on every layer", Slicing.TWO_TOOLS,
             { Models.twoColorPiece }, rows = listOf(BASE, Row("purge into infill", listOf("plan.mechanism.purge.into" to "infill")))),
+        Entry("teeth under a second part", "small teeth of one filament hanging off another's edge over air: islands laid by their beads, nothing bridged or filled over them",
+            Slicing.WALLS, { Models.teethUnderBand }, rows = listOf(BASE, SEAM_ROWS[2])),
         // seams
         Entry("smooth cylinder", "a cylinder: no corner to hide a seam in", Slicing.ONE_TOOL, { listOf(Models.smoothCylinder) }, rows = SEAM_ROWS),
         Entry("cornered post", "a square post: four corners to hide a seam in", Slicing.ONE_TOOL, { listOf(Models.corneredPost) }, rows = SEAM_ROWS),
