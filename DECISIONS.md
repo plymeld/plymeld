@@ -1351,3 +1351,38 @@ or more from 106 segments to none), the web gets its line; on the whole model fi
 141, retractions 335 to 328. No other model of the catalog moves, the regression cases write the same files, and a
 real three-object plate keeps its retractions and predicted time. The pre-print check did not refuse the lines laid
 over the infill (plastic laid twice is not among its rules): open.
+
+## 46. An island that keeps its walls shares their slits, a loop no wider than its own facing stretch allows (2026-11-16)
+
+Amends 34.
+
+**Context.** Decision 34 left the slits of a narrow island (decision 28: the set walls fit nowhere all in it) unshared,
+its walls being judged against its beads as laid. Where the beads were not taken, the island kept those walls with
+their slits: on a three-object two-color plate, one layer of a strip 1.8 mm wide, its inner wall's two sides 0.52 mm
+apart, left 0.09 mm bare between them. Sharing those slits too, the catalog's two blobs joined by a neck (walls kept on
+four layers) laid more twice than the slits it closed: in a lens-shaped inner loop the two sides converge toward its
+ends, a side's normal there meets the other side at a slant, and a bead widened by the gap seen along it reached over
+that side.
+
+**Decision.**
+- The slits are shared after the narrow islands are decided, in every island but those laid by their beads. The
+  islands' beads are still judged against their walls unshared.
+- A loop takes no more of a slit than its own stretch facing it is away, measured straight: the nearest point of the
+  loop's edges more than its line's width away along it, turned more than a right angle from the edge read, ahead on the
+  slit's side.
+
+**Rejected.** Limiting the share by the straight distance to every line ahead: a slit between two loops beside a center
+line's end is shared less (tried with another change at once; on the web 1 mm wide the widest bare spot went from 0.020
+to 0.110 mm). Limiting it by the distance to the line the normal hits: the converging stretch is the loop's own, within
+the stretch the normal skips (the two blobs laid as much twice as without a limit).
+
+**Consequences.** On the plate that layer's slit: 0.09 mm to 0.011 mm bare. The two blobs: uncovered 0.681 to 0.664
+mm², laid twice 0.983 to 0.984 mm² over its read layers. Elsewhere the catalog moves by a few hundredths of a
+millimetre of line on five models (finger in a second part, inlay, four ridges), where the limit trims a share. Test:
+SlitSharingTest (the planner's cut of the two blobs on a layer that keeps its walls: bare inside the lens 10,650 to 4,375
+µm², laid twice unchanged; controls: the walls unshared leave 10,650 µm²; without the limit, the bare area went to 0 and
+6,300 µm² more was laid twice).
+Open from 34: a pocket with three sides (WallsByWidthTest's web 1.6 mm, up to 0.14 mm where its middle line turns
+into the corner) is not shared: a ray from the hole's loop through the pocket's middle leaves through its mouth to the
+wider area beyond, and where a ray does meet the line's turn, the line seen back along its last segment's normal touches
+the hole's loop.

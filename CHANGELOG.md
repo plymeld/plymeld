@@ -178,6 +178,11 @@ section the release's version and date.
   wide between a hole and the side left a slit 0.12 mm wide between its two outer walls on every layer. A gap that opens
   onto the area the walls hand to infill (between a loop and a short line in that area's corner) is that area's corner,
   not a slit: a loop widened into it narrowed a ridge's infill pocket below what infill is handed and left it bare.
+- An area too narrow anywhere for all its walls that keeps its walls (where its lines laid by width would leave it no
+  better covered) now shares the slits between those walls too: on a two-color plate, a strip 1.8 mm wide whose inner
+  wall's two sides lay 0.09 mm apart was left bare along that slit on one layer. A loop takes no more of a slit than its
+  own stretch across the slit is away, measured straight: where a lens-shaped loop's two sides converge, a side widened
+  by the gap seen along its normal reached over the other side.
 - On an object of several parts, a dot of one part's outer line (shorter than its width, beside another part) is left
   out only on the object's surface; along a part's edge inside the object it is laid: between the lettering and the rim
   of a two-color plate, the pocket where a stroke between letters met the rim was left bare, 0.25 to 0.45 mm wide, on 7

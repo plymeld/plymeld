@@ -85,7 +85,9 @@ object Walls {
                  * edge meets another part, a spot left bare is between walls, not on the surface (centerLines' forks). Null:
                  * [outline] is the surface.
                  */
-                surface: List<Polygon>? = null): LayerWalls {
+                surface: List<Polygon>? = null,
+                /** False: a narrow island whose beads are not taken keeps its walls with their slits unshared (a test's control). */
+                keptWallsShared: Boolean = true): LayerWalls {
         val so = spacing(outerWidthUm, layerHeightUm)
         val si = spacing(innerWidthUm, layerHeightUm)
         // each loop's fit region (where its bead fits: its strict pieces, each an outer polygon and its holes) and its looser fit
@@ -198,17 +200,15 @@ object Walls {
         val (laid0, left0) = if (orphans.isEmpty()) firstBuilt else build(orphans)
         // a narrow island, where the set walls nowhere all fit (the innermost loop has no fit region in it), is laid by bead
         // count from its local width instead (Beads); every other island keeps what was laid above, the same object, its
-        // slits between loops shared by the loops beside them (shareSlits: a narrow island's walls are judged against its
-        // beads as laid above, and keep them so where the beads are not taken)
+        // slits between loops shared by the loops beside them (shareSlits, after the narrow islands are decided: a narrow
+        // island's beads are judged against its walls as laid above, unshared)
         val interiorMin = minBeadUm - 2 * maxOf(innerWidthUm - si, Math.round(endOverlap * minBeadUm))
         if (loops <= 0) return shareSlits(outline, laid0, left0, outerWidthUm, innerWidthUm, so, si, interiorMin, maxBeadUm, toleranceUm, sample) { _, _ -> false }
         val last = fits.getOrNull(loops - 1)
         val islands = plymeld.geom.Polygons.group(outline)
         fun inIsland(o: Polygon, hs: List<Polygon>, x: Long, y: Long) = plymeld.geom.Polygons.contains(o, x, y) && hs.none { plymeld.geom.Polygons.contains(it, x, y) }
         val narrow = islands.filter { (o, hs) -> last == null || last.strict.none { piece -> inIsland(o, hs, piece[0].x(0), piece[0].y(0)) } }
-        val shared = shareSlits(outline, laid0, left0, outerWidthUm, innerWidthUm, so, si, interiorMin, maxBeadUm, toleranceUm, sample) { x, y ->
-            narrow.any { (o, hs) -> inIsland(o, hs, x, y) } }
-        if (narrow.isEmpty()) return shared
+        if (narrow.isEmpty()) return shareSlits(outline, laid0, left0, outerWidthUm, innerWidthUm, so, si, interiorMin, maxBeadUm, toleranceUm, sample) { _, _ -> false }
         val laid = laid0
         val islandBeads = HashMap<Polygon, List<CenterLine>>()
         val params = Beads.Params(Beads.Rule(outerWidthUm.toDouble(), innerWidthUm.toDouble(), loops, layerHeightUm * (1 - Math.PI / 4),
@@ -236,8 +236,12 @@ object Walls {
             if (got.isNotEmpty()) islandBeads[o] = got[0]
             got.isNotEmpty()
         }
-        if (taken.isEmpty()) return shared
         fun inTaken(x: Long, y: Long) = taken.any { (o, hs) -> inIsland(o, hs, x, y) }
+        // the slits between loops shared everywhere but in the islands laid by their beads (a narrow island whose beads were
+        // not taken keeps its walls, judged unshared above, and shares their slits as every other island does)
+        val shared = shareSlits(outline, laid0, left0, outerWidthUm, innerWidthUm, so, si, interiorMin, maxBeadUm, toleranceUm, sample) { x, y ->
+            if (!keptWallsShared) narrow.any { (o, hs) -> inIsland(o, hs, x, y) } else taken.isNotEmpty() && inTaken(x, y) }
+        if (taken.isEmpty()) return shared
         // (each kept loop with its widths, where a slit is shared)
         val kept = shared.walls.mapIndexed { k, level -> level.indices.filter { !inTaken(level[it].x(0), level[it].y(0)) }.map { level[it] to shared.widthsOf(k, it) } }
             .dropLastWhile { it.isEmpty() }
@@ -309,7 +313,9 @@ object Walls {
      * at a point of a loop: the distance to the nearest other loop on that side, less the two loops' bands (half of each
      * one's spacing, [outerSpacingUm] for the outer loops, [innerSpacingUm] else): the leftover between them, which gets a
      * center line where it is at least [interiorMinUm] wide. A gap in a piece of [leftover] (what the loops' bands leave)
-     * that holds some of the infill region is that region's corner, not a slit. Read every [stepUm] along a loop's edges near another loop;
+     * that holds some of the infill region is that region's corner, not a slit. A loop takes no more of a slit than its own
+     * stretch facing it across the slit is away, measured straight (a lens-shaped loop's two sides converge toward its ends,
+     * where the normal meets the other side at a slant). Read every [stepUm] along a loop's edges near another loop;
      * a loop unchanged anywhere (within [toleranceUm]) is the same polygon, with no widths.
      */
     private fun shareSlits(outline: List<Polygon>, laid: LayerWalls, leftover: List<Polygon>, outerWidthUm: Long, innerWidthUm: Long, outerSpacingUm: Long, innerSpacingUm: Long,
@@ -444,8 +450,25 @@ object Walls {
                         if (!(g > toleranceUm && g < interiorMinUm)) return 0.0
                         if (!inModel(px + sx * (s / 2 + g / 2) * nx, py + sx * (s / 2 + g / 2) * ny)) return 0.0
                         if (inInfill(px + sx * (s / 2 + g / 2) * nx, py + sx * (s / 2 + g / 2) * ny)) return 0.0
-                        val back = backGap(edges[hit[1].toInt()], px + sx * hit[0] * nx, py + sx * hit[0] * ny, px, py)
-                        return if (back > toleranceUm) minOf(g, back) else 0.0
+                        val o = edges[hit[1].toInt()]
+                        val back = backGap(o, px + sx * hit[0] * nx, py + sx * hit[0] * ny, px, py)
+                        if (back <= toleranceUm) return 0.0
+                        // the loop's own other side, measured straight: where its two sides converge (toward a lens's tip) the
+                        // part of it nearer than the slit is within [ownGap] of this point along the loop, which the rays pass
+                        // over; a bead widened by the slit seen along the normal there reached over that side
+                        var d = Double.POSITIVE_INFINITY
+                        for (i in cand) { val e = edges[i]
+                            if (e.k != k || e.li != li || ownNear(e, k, li, arc, w)) continue
+                            val ax = e.ax.toDouble(); val ay = e.ay.toDouble(); val ex = e.bx - ax; val ey = e.by - ay; val l2 = ex * ex + ey * ey
+                            // only a stretch facing this one (its side turned more than a right angle from this edge's)
+                            if (-ey * nx + ex * ny >= 0) continue
+                            val u = if (l2 == 0.0) 0.0 else (((px - ax) * ex + (py - ay) * ey) / l2).coerceIn(0.0, 1.0)
+                            val qx = ax + u * ex - px; val qy = ay + u * ey - py
+                            if (qx * sx * nx + qy * sx * ny <= 0) continue
+                            d = minOf(d, Math.hypot(qx, qy) - e.sp / 2 - s / 2)
+                        }
+                        val share = minOf(g, back, d)
+                        return if (share > toleranceUm) share else 0.0
                     }
                     val gl = slit(left, 1.0); val gr = slit(right, -1.0)
                     val mx = px + nx * (gl - gr) / 4; val my = py + ny * (gl - gr) / 4
