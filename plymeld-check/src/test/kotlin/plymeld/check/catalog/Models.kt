@@ -308,6 +308,49 @@ object Models {
      * the set walls) that the walls hand to infill nearly whole (no loop of theirs fits round it).
      */
     val teethUnderBand: List<TriangleSoup> by lazy { listOf(join(*TEETH.map { prism(it, 1.0, 2.6) }.toTypedArray()), box(CX - 7, CY, 0.0, CX + 7, CY + 4, 2.6)) }
+    /**
+     * Slivers ending inside a second part's area: B, an inlay 8 by 6 mm (its front on the object's front), 1.2 mm tall, in a
+     * pocket of A, a block 14 by 8 mm. Along the pocket's back edge, left to right:
+     *  - B's tongues reaching 1.2 mm into A, each in a slot of A 5 µm wider a side (parts that meet a few microns apart, as
+     *    parts sliced one by one do): straight ones 0.10 and 0.13 mm wide, and wedges 0.13 mm wide at the base narrowing to
+     *    nothing over 1.2 mm and over 0.4 mm. Each is narrower than the narrowest place a line is laid in, so it goes over
+     *    to A ([TONGUES]);
+     *  - A's spikes reaching into B, a wedge [SPIKES] wide at the base and long: too short and blunt to go over to B (their
+     *    thin tips are crumbs), so B's area has a narrow notch at each.
+     * The widths and lengths are the test's (Claude's choice, around a real plate's: a sliver 0.12 to 0.2 mm wide, a notch
+     * 0.18 mm wide and 0.2 mm deep).
+     */
+    val sliverTips: List<TriangleSoup> by lazy {
+        val y0 = CY + 2; val g = 0.005
+        val a = ArrayList<DoubleArray>(); val b = ArrayList<DoubleArray>()
+        a += doubleArrayOf(CX - 7, CY - 4); a += doubleArrayOf(CX - 4, CY - 4); a += doubleArrayOf(CX - 4, y0)
+        // A's pocket edge, left to right (A above it), and the same features of B's edge, collected to be laid right to left
+        val bTop = ArrayList<List<DoubleArray>>()
+        for (t in TONGUES) {
+            val hw = t.width / 2
+            if (t.wedge) {
+                a += doubleArrayOf(t.x - hw - g, y0); a += doubleArrayOf(t.x, y0 + t.length + g); a += doubleArrayOf(t.x + hw + g, y0)
+                bTop += listOf(doubleArrayOf(t.x + hw, y0), doubleArrayOf(t.x, y0 + t.length), doubleArrayOf(t.x - hw, y0))
+            } else {
+                a += doubleArrayOf(t.x - hw - g, y0); a += doubleArrayOf(t.x - hw - g, y0 + t.length + g)
+                a += doubleArrayOf(t.x + hw + g, y0 + t.length + g); a += doubleArrayOf(t.x + hw + g, y0)
+                bTop += listOf(doubleArrayOf(t.x + hw, y0), doubleArrayOf(t.x + hw, y0 + t.length), doubleArrayOf(t.x - hw, y0 + t.length), doubleArrayOf(t.x - hw, y0))
+            }
+        }
+        for (s in SPIKES) { a += doubleArrayOf(s.x - s.width / 2, y0); a += doubleArrayOf(s.x, y0 - s.length); a += doubleArrayOf(s.x + s.width / 2, y0) }
+        a += doubleArrayOf(CX + 4, y0); a += doubleArrayOf(CX + 4, CY - 4); a += doubleArrayOf(CX + 7, CY - 4)
+        a += doubleArrayOf(CX + 7, CY + 4); a += doubleArrayOf(CX - 7, CY + 4)
+        b += doubleArrayOf(CX - 4, CY - 4); b += doubleArrayOf(CX + 4, CY - 4); b += doubleArrayOf(CX + 4, y0)
+        for (f in bTop.reversed()) b += f
+        b += doubleArrayOf(CX - 4, y0)
+        listOf(prism(a, 0.0, 1.2), prism(b, 0.0, 1.2))
+    }
+    /** A tongue of B into A ([sliverTips]): its middle's x, its width at the base, its length (mm), straight or a wedge. */
+    class Tongue(val x: Double, val width: Double, val length: Double, val wedge: Boolean)
+    /** A spike of A into B ([sliverTips]): its middle's x, its width at the base, its length (mm). */
+    class Spike(val x: Double, val width: Double, val length: Double)
+    val TONGUES = listOf(Tongue(CX - 3.2, 0.10, 1.2, false), Tongue(CX - 2.2, 0.13, 1.2, false), Tongue(CX - 1.2, 0.13, 1.2, true), Tongue(CX - 0.2, 0.13, 0.4, true))
+    val SPIKES = listOf(Spike(CX + 0.8, 0.18, 0.2), Spike(CX + 1.8, 0.25, 0.3), Spike(CX + 2.8, 0.3, 0.35), Spike(CX + 3.5, 0.18, 0.3))
     /** A pillar 3 mm across, 12 mm tall: a small island, its layers short. */
     val smallPillar by lazy { Shapes.cylinder(CX, CY, 1.5, 0.0, 12.0, n = 64) }
     /** The holes' and pins' diameters (mm). */

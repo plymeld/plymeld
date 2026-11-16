@@ -144,9 +144,18 @@ object ModelCheck {
         // each layer's problems and its laid-twice reading, returned by its own task (nothing shared between the tasks)
         val per = plymeld.core.Parallel.map(layers.size, progress.Counter("model check", layers.size)) { k ->
             val lo = layerProblems(sf, k, tol, imagesDir, zaa, featureMinMm, if (k == 0) firstLayerInsetMm else 0.0, fuzzMm, infillMinMm, slicingTolMm, endOverlap)
-            (lo.problems + airProblems(sf, k, tol, imagesDir) + toolProblems(sf, k, tol + handOverMm, partTools) + surfaceToolProblems(sf, k, tol + surfaceHandOverMm, partTools)) to lo.twice }
-        return Result(per.flatMap { it.first }.take(maxProblems),
-            DoubledCheck.Summary(per.indices.mapNotNull { k -> per[k].second.takeIf { it.spots.isNotEmpty() || it.capped }?.let { DoubledCheck.Layer(layers[k].z, "", it) } }))
+            LayerOut(lo.problems + airProblems(sf, k, tol, imagesDir) + toolProblems(sf, k, tol + handOverMm, partTools) + surfaceToolProblems(sf, k, tol + surfaceHandOverMm, partTools),
+                lo.twice, lo.picture) }
+        // the layers' pictures, one at a time once every layer is read: drawn by the layers' own tasks, a picture each
+        // (an image of about 4 MB, its line list and its PNG encoding) on every core at once took a 512 MB test JVM to its
+        // limit where a slice holds a spot laid twice on dozens of layers
+        if (imagesDir != null) for (k in per.indices) { val p = per[k].picture ?: continue
+            val file = imagesDir.resolve("z%07.3f.png".format(Locale.ROOT, layers[k].z))
+            val lines = layers[k].segs.map { doubleArrayOf(it.x0, it.y0, it.x1, it.y1, it.w, if (it.wall) 1.0 else 0.0) }
+            if (p.uncoveredIs == null) ModelCheckPlot.write(file, p.title, sf.wallLoops(k), lines, p.outPts, p.uncPts, p.cx, p.cy)
+            else ModelCheckPlot.write(file, p.title, sf.wallLoops(k), lines, p.outPts, p.uncPts, p.cx, p.cy, uncoveredIs = p.uncoveredIs) }
+        return Result(per.flatMap { it.problems }.take(maxProblems),
+            DoubledCheck.Summary(per.indices.mapNotNull { k -> per[k].twice.takeIf { it.spots.isNotEmpty() || it.capped }?.let { DoubledCheck.Layer(layers[k].z, "", it) } }))
     }
 
     /** The unlaid area over air a waved layer may leave (mm2): a few sampling cells, so a corner's rounding is not one. */
@@ -333,7 +342,10 @@ object ModelCheck {
     private const val SURFACE_RUN_MM = 1.0
 
     /** One layer's problems and its laid-twice reading ([DoubledCheck]). */
-    private class LayerOut(val problems: List<String>, val twice: DoubledCheck.Reading)
+    private class LayerOut(val problems: List<String>, val twice: DoubledCheck.Reading, val picture: Picture? = null)
+    /** A layer's picture, drawn after the layers are read ([checkAll]): its title, the points marked, where it is centered. */
+    private class Picture(val title: String, val outPts: List<DoubleArray>, val uncPts: List<DoubleArray>, val cx: Double, val cy: Double,
+                          val uncoveredIs: String?)
 
     /** One layer's problems and laid-twice reading (and its picture, when [imagesDir] is given). */
     private fun layerProblems(sf: Surface, k: Int, tol: Double, imagesDir: java.nio.file.Path?, zaa: ZaaRule?, featureMinMm: Double, insetMm: Double,
@@ -471,12 +483,10 @@ object ModelCheck {
             if (twiceWords != null && DoubledCheck.REFUSES) out += "layer at z ${f(layer.z, 3)}: $twiceWords"
             if (imagesDir != null && (badOutside || badOutline || badBare || badHole || twiceWords != null)) {
                 val (cx, cy) = if (badOutline) ux to uy else if (badBare) bare.x to bare.y else if (badHole) hole.x to hole.y else if (twiceWords != null) twice[0].x to twice[0].y else wx to wy
-                val file = imagesDir.resolve("z%07.3f.png".format(Locale.ROOT, layer.z))
-                val lines = model.map { doubleArrayOf(it.x0, it.y0, it.x1, it.y1, it.w, if (it.wall) 1.0 else 0.0) }
                 // a layer with nothing refused, drawn for its spots laid twice: titled and marked as that
-                if (out.isEmpty()) ModelCheckPlot.write(file, "layer at z ${f(layer.z, 3)}: $twiceWords", loops, lines, outPts, uncPts, cx, cy,
-                    uncoveredIs = "the widest spot laid twice")
-                else ModelCheckPlot.write(file, "layer at z ${f(layer.z, 3)}: ${out.last().substringAfter(": ")}", loops, lines, outPts, uncPts, cx, cy)
+                val picture = if (out.isEmpty()) Picture("layer at z ${f(layer.z, 3)}: $twiceWords", outPts, uncPts, cx, cy, "the widest spot laid twice")
+                    else Picture("layer at z ${f(layer.z, 3)}: ${out.last().substringAfter(": ")}", outPts, uncPts, cx, cy, null)
+                return LayerOut(out, reading, picture)
             }
         }
         return LayerOut(out, reading)

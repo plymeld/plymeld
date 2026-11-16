@@ -153,6 +153,11 @@ section the release's version and date.
 
 ### Fixed
 
+- On an object of several filaments, a sliver of one filament too thin for a line that goes over to the filament around
+  it now takes the gap between them along. Parts meet a few microns apart, and that gap was left as a crack in the
+  neighbor's area, a hole of its own or one opening onto its edge, which the neighbor's walls looped round: three or four
+  lines over each other at the crack's end. On a real three-object plate, plastic laid twice falls from 38 spots
+  (9.9 mm²) to 29 (4.8 mm²).
 - A small area laid by its local width (one too narrow anywhere for the set walls, such as a tooth along an outline) could
   also get a bridge or solid infill across its own lines: where the walls laid no loop of theirs in it, they handed most of
   it to infill, and that piece was taken back only when its first corner lay inside the area (a mitred tip of it lay a few

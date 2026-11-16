@@ -47,7 +47,9 @@ object FilamentAreas {
      * filament of a key of [spools] (a settings group's spool), as [handOverSlivers] takes it.
      */
     fun split(partLoops: List<List<Polygon>>, spools: List<String>, precedence: List<Int>, minWidthUm: Long = 0,
-              keepOnSurface: Boolean = false, filamentOf: (String) -> String = { it }): Split {
+              keepOnSurface: Boolean = false,
+              /** A sliver handed over takes the gap between it and its neighbor along ([handOverSlivers]); false: not (a test's control). */
+              bridgeGap: Boolean = true, filamentOf: (String) -> String = { it }): Split {
         require(partLoops.size == spools.size) { "${partLoops.size} parts but ${spools.size} spools" }
         require(precedence.sorted() == partLoops.indices.toList()) { "precedence must name every part once: $precedence" }
         val own = partLoops.map { Booleans.normalize(it) }
@@ -62,14 +64,15 @@ object FilamentAreas {
         // a spool's pieces from several parts touch or not; one normalized set per spool
         val bySpool = LinkedHashMap<String, List<Polygon>>()
         for (sp in spools.distinct()) pieces[sp]?.let { bySpool[sp] = if (it.size > 1) Booleans.normalize(it) else it }
-        return Split(if (minWidthUm > 0) handOverSlivers(bySpool, minWidthUm, if (keepOnSurface) taken else null, filamentOf) else bySpool,
+        return Split(if (minWidthUm > 0) handOverSlivers(bySpool, minWidthUm, if (keepOnSurface) taken else null, filamentOf, bridgeGap) else bySpool,
             own.sumOf { area(it) } - area(taken))
     }
 
     /**
      * An area too thin for its filament's walls to lay a line in ([minWidthUm] across: it vanishes when
      * shrunk by half that and grown back), where it touches another filament's area, goes to that
-     * neighbor (the one it shares the most border with). Printed in its own filament it would print as
+     * neighbor (the one it shares the most border with), with the gap between them ([withGap]; [bridgeGap] false: without,
+     * a test's control). Printed in its own filament it would print as
      * nothing, and the model there would be missing (seen on a multi-color model over 0.7 mm of height: a 0.32 mm tongue
      * of one part under another's edge left a strip 2.8 mm long unprinted, found by the g-code read-back
      * check); the neighbor's walls now run along the true outline. Thin pieces with no
@@ -84,7 +87,7 @@ object FilamentAreas {
      * group's spool): a sliver beside another group of its own filament goes over wherever it lies, the same color either way.
      */
     fun handOverSlivers(bySpool: Map<String, List<Polygon>>, minWidthUm: Long, objectArea: List<Polygon>? = null,
-                        filamentOf: (String) -> String = { it }): Map<String, List<Polygon>> {
+                        filamentOf: (String) -> String = { it }, bridgeGap: Boolean = true): Map<String, List<Polygon>> {
         if (bySpool.size < 2) return bySpool
         val r = minWidthUm / 2
         val out = LinkedHashMap(bySpool)
@@ -114,10 +117,37 @@ object FilamentAreas {
                 if (kept.isNotEmpty() && area(give) < minArea) continue
                 val dest = if (kept.isEmpty()) to else neighbor(give, sp) ?: continue
                 out[sp] = Booleans.difference(out.getValue(sp), give)
-                out[dest] = Booleans.union(out.getValue(dest), give)
+                val merged = Booleans.union(out.getValue(dest), give)
+                out[dest] = if (bridgeGap) withGap(merged, give, out.filterKeys { it != dest }.values.flatten()) else merged
             }
         }
         return out
+    }
+
+    /**
+     * [merged] (a neighbor's area with a sliver [give] handed to it) with the gaps between the sliver and the area it joined
+     * closed: a gap narrower than twice [TOUCH_UM] within twice that of the sliver, where no [others] area lies. The sliver
+     * counted as touching its neighbor across such a gap ([neighbor]), and the gap (the parts sliced one by one meet a few
+     * microns apart) went over with it; left out, it was a crack in the neighbor's own area, a few microns wide and a few
+     * tenths of a millimetre long, a hole of its own or opening onto the neighbor's edge, and the neighbor's walls laid a
+     * loop round it, three or four lines over each other at its end (a two-color plate's lettering: up to 0.8 mm² laid twice
+     * at one crack).
+     */
+    private fun withGap(merged: List<Polygon>, give: List<Polygon>, others: List<Polygon>): List<Polygon> {
+        var x0 = Long.MAX_VALUE; var y0 = Long.MAX_VALUE; var x1 = Long.MIN_VALUE; var y1 = Long.MIN_VALUE
+        for (p in give) { val b = p.bounds(); x0 = minOf(x0, b[0]); y0 = minOf(y0, b[1]); x1 = maxOf(x1, b[2]); y1 = maxOf(y1, b[3]) }
+        // the neighbor round the sliver, in a box far enough out that the box's own sides do not reach the closing near it
+        val m = 4 * TOUCH_UM
+        val box = listOf(Polygon(longArrayOf(x0 - m, y0 - m, x1 + m, y0 - m, x1 + m, y1 + m, x0 - m, y1 + m)))
+        val crop = Booleans.intersection(merged, box)
+        if (crop.isEmpty()) return merged
+        val closed = Offset.offset(Offset.offset(crop, TOUCH_UM, Offset.Join.ROUND), -TOUCH_UM, Offset.Join.ROUND)
+        var fill = Booleans.difference(Booleans.intersection(closed, Offset.offset(give, 2 * TOUCH_UM, Offset.Join.ROUND)), merged)
+        if (fill.isEmpty()) return merged
+        val near = plymeld.geom.Polygons.group(others).filter { (o, _) -> val c = o.bounds()
+            c[2] >= x0 - m && c[0] <= x1 + m && c[3] >= y0 - m && c[1] <= y1 + m }.flatMap { (o, hs) -> listOf(o) + hs }
+        if (near.isNotEmpty()) fill = Booleans.difference(fill, near)
+        return if (fill.isEmpty() || area(fill) <= 0) merged else Booleans.union(merged, fill)
     }
 
     /**

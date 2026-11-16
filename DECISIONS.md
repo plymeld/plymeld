@@ -1499,3 +1499,42 @@ moves written as `E0`: outer wall over outer wall, 0.4 mm wide. Elsewhere in the
 moves: its ironing read as 3 paths, now 1 (19.74 to 19.75 mm long: the merged moves now count as laid).
 Still open from 48: two fills sharing an edge, wall junctions in narrow webs, a concentric solid ring on an inner wall,
 two parts' fills over each other, a curved island's rising rim.
+
+## 50. A sliver handed over takes the gap to its neighbor along (2026-11-16)
+
+Amends 27.
+
+**Context.** On a real three-object two-color plate the laid-twice measure (decision 48) read 38 spots, 9.9 mm², on its
+base object, where lines of one filament converge at the tip of a thin sliver of the other. Read spot by spot, with the
+planner's areas per filament dumped at those layers, one cause was the largest: a tongue of one part too thin for a line,
+inside the other filament's area, goes over to that neighbor (decision 27), and the parts meet a few microns apart
+(sliced one by one), so the gap between the tongue and its slot went to no one. In the neighbor's area it was a crack 5 to
+10 µm wide and a few tenths of a millimetre long, a hole of its own or opening onto the neighbor's edge, and the
+neighbor's walls looped round it: its outer loop ran up the crack and back, its inner loops on both sides met at the
+crack's end, three or four lines over each other (up to 0.8 mm² at one crack).
+
+**Decision.** A sliver handed over takes the gap between it and the area it joins along: the places within twice the
+touching distance of the sliver (the distance at which it counts as touching that area, 20 µm) that a closing by that
+distance fills, where no other area lies (FilamentAreas.handOverSlivers).
+
+**Rejected.** Closing each filament's whole area by the slice's closing radius (`method.slicing.close_gaps`) where no
+other area lies: where the closings met another area's edge at a corner they left spurs a few microns long in the
+outline, the walls' mitred offsets spiked out of them, and the plate read 116 spots, 43 mm²; with only the gaps no other
+area touches, the cracks opening onto an edge stayed. Cutting each wall loop to its inset of the outline less the slicing
+tolerance, for the next cause below: it took the plate to 28 spots, 4.0 mm², but in the catalog's two blobs and a neck it
+left a spot 0.134 mm wide bare at the neck (the walls' tests allow 0.105) and failed the slit-sharing test.
+
+**Consequences.** On the plate, 38 spots, 9.921 mm², on 25 layers to 29, 4.833 mm², on 22 layers: 11 spots gone (the
+cracks), 2 new (an inner wall over an outer wall at z 6.52, and an internal solid line over sparse infill at z 10.84). The
+catalog's new model, slivers ending inside a second part (tongues 0.10 and 0.13 mm wide, straight and wedged, 5 µm from
+their slots, and blunt spikes the other way), is held by SliverTipTest: no slot left to no area (control, the tongue
+handed over alone: 0.002 to 0.013 mm² a slot); sliced, it reads 24 spots, 20.7 mm², on 13 layers, none along a tongue
+(the spikes' case below, not read further there). Elsewhere in the catalog two models move: the buried fin 0.1 mm thick
+(handed over, now with its gap) by a few hundredths of a millimetre of line; the exposed wedge handed to its neighbor
+lays one outer loop fewer on a layer (the sliver now joins it with no gap), and that loop's seam jogs 18.8 mm (seam scar
+1.41 to 3.13 mm²).
+Still open on the plate, the 29: a blunt spike of one filament into the other's area leaves a narrow notch, and the
+walls (decision 26), growing a loop back from its fit by a mitred offset, run it across the notch's tip, in places
+0.04 mm outside the area, over the loop inside it (9 spots); wall junctions in narrow webs between letters (inner loops
+of two pieces of an inset meeting at a neck, 11, and two outer loops at a V between letters, 3); small inner loops of a
+letter (2); two outer loops of one letter crossing (1); fills (2); one short inner line beside a long one.

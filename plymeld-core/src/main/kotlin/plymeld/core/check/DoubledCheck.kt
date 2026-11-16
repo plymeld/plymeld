@@ -53,7 +53,7 @@ object DoubledCheck {
      * (false): the slice's "laid twice" line ([Summary.words]), the layer's picture beside the check's others, the test
      * catalog's baseline. It reports: the planner itself still lays plastic twice in places on ordinary models (two fills
      * sharing an edge, wall junctions in narrow webs, a concentric solid ring on an inner wall, among others: DECISIONS 48
-     * and 49), and a slicer that refuses a plain model is no
+     * to 50), and a slicer that refuses a plain model is no
      * use. Flip it to true when the test catalog, the regression cases (tools/regress.sh) and the slow suite's models all
      * read zero spots; DoubledCheckTest holds the setting's effect either way. Not a user setting.
      */

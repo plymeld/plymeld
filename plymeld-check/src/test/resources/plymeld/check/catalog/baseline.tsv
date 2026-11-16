@@ -126,23 +126,23 @@ bridges	base	time_s	211.5
 buried fin 0.1 mm	base	check.problems	0
 buried fin 0.1 mm	base	feature.Bottom surface.length_mm	296.58
 buried fin 0.1 mm	base	feature.Bottom surface.paths	2
-buried fin 0.1 mm	base	feature.Inner wall.length_mm	1605.32
+buried fin 0.1 mm	base	feature.Inner wall.length_mm	1605.29
 buried fin 0.1 mm	base	feature.Inner wall.paths	46
 buried fin 0.1 mm	base	feature.Internal Bridge.length_mm	377.35
 buried fin 0.1 mm	base	feature.Internal Bridge.paths	2
-buried fin 0.1 mm	base	feature.Internal solid infill.length_mm	4666.44
+buried fin 0.1 mm	base	feature.Internal solid infill.length_mm	4666.45
 buried fin 0.1 mm	base	feature.Internal solid infill.paths	26
-buried fin 0.1 mm	base	feature.Outer wall.length_mm	1759.63
+buried fin 0.1 mm	base	feature.Outer wall.length_mm	1759.60
 buried fin 0.1 mm	base	feature.Outer wall.paths	46
 buried fin 0.1 mm	base	feature.Prime tower.length_mm	15097.28
 buried fin 0.1 mm	base	feature.Prime tower.paths	47
-buried fin 0.1 mm	base	feature.Sparse infill.length_mm	343.19
+buried fin 0.1 mm	base	feature.Sparse infill.length_mm	343.17
 buried fin 0.1 mm	base	feature.Sparse infill.paths	10
 buried fin 0.1 mm	base	feature.Top surface.length_mm	527.41
 buried fin 0.1 mm	base	feature.Top surface.paths	2
 buried fin 0.1 mm	base	filament.T0_mm	164.79
 buried fin 0.1 mm	base	filament.T1_mm	188.99
-buried fin 0.1 mm	base	filament_mm	353.79
+buried fin 0.1 mm	base	filament_mm	353.78
 buried fin 0.1 mm	base	laid_twice.area_mm2	0.000
 buried fin 0.1 mm	base	laid_twice.layers	0
 buried fin 0.1 mm	base	laid_twice.spots	0
@@ -160,7 +160,7 @@ buried fin 0.1 mm	base	strings.unretracted_over_air_mm	0.46
 buried fin 0.1 mm	base	strings.unretracted_shown_mm	1.43
 buried fin 0.1 mm	base	strings.unretracted_travels	83
 buried fin 0.1 mm	base	strings.visible_restarts	3
-buried fin 0.1 mm	base	time_s	261.0
+buried fin 0.1 mm	base	time_s	260.6
 buried fin 0.5 mm	base	check.problems	0
 buried fin 0.5 mm	base	feature.Bottom surface.length_mm	296.58
 buried fin 0.5 mm	base	feature.Bottom surface.paths	2
@@ -471,41 +471,41 @@ exposed wedge	base	time_s	322.4
 exposed wedge	sliver at the surface to its neighbor	check.problems	0
 exposed wedge	sliver at the surface to its neighbor	feature.Bottom surface.length_mm	325.25
 exposed wedge	sliver at the surface to its neighbor	feature.Bottom surface.paths	1
-exposed wedge	sliver at the surface to its neighbor	feature.Inner wall.length_mm	2017.85
+exposed wedge	sliver at the surface to its neighbor	feature.Inner wall.length_mm	2018.20
 exposed wedge	sliver at the surface to its neighbor	feature.Inner wall.paths	43
 exposed wedge	sliver at the surface to its neighbor	feature.Internal Bridge.length_mm	383.31
 exposed wedge	sliver at the surface to its neighbor	feature.Internal Bridge.paths	1
 exposed wedge	sliver at the surface to its neighbor	feature.Internal solid infill.length_mm	4871.33
 exposed wedge	sliver at the surface to its neighbor	feature.Internal solid infill.paths	13
-exposed wedge	sliver at the surface to its neighbor	feature.Outer wall.length_mm	2348.77
-exposed wedge	sliver at the surface to its neighbor	feature.Outer wall.paths	54
+exposed wedge	sliver at the surface to its neighbor	feature.Outer wall.length_mm	2346.73
+exposed wedge	sliver at the surface to its neighbor	feature.Outer wall.paths	53
 exposed wedge	sliver at the surface to its neighbor	feature.Prime tower.length_mm	12819.44
 exposed wedge	sliver at the surface to its neighbor	feature.Prime tower.paths	48
-exposed wedge	sliver at the surface to its neighbor	feature.Sparse infill.length_mm	670.68
+exposed wedge	sliver at the surface to its neighbor	feature.Sparse infill.length_mm	670.80
 exposed wedge	sliver at the surface to its neighbor	feature.Sparse infill.paths	16
 exposed wedge	sliver at the surface to its neighbor	feature.Top surface.length_mm	506.20
 exposed wedge	sliver at the surface to its neighbor	feature.Top surface.paths	1
 exposed wedge	sliver at the surface to its neighbor	filament.T0_mm	82.13
-exposed wedge	sliver at the surface to its neighbor	filament.T1_mm	287.85
-exposed wedge	sliver at the surface to its neighbor	filament_mm	369.98
+exposed wedge	sliver at the surface to its neighbor	filament.T1_mm	287.84
+exposed wedge	sliver at the surface to its neighbor	filament_mm	369.97
 exposed wedge	sliver at the surface to its neighbor	laid_twice.area_mm2	0.000
 exposed wedge	sliver at the surface to its neighbor	laid_twice.layers	0
 exposed wedge	sliver at the surface to its neighbor	laid_twice.spots	0
 exposed wedge	sliver at the surface to its neighbor	laid_twice.widest_mm	0.000
-exposed wedge	sliver at the surface to its neighbor	seams.count	59
-exposed wedge	sliver at the surface to its neighbor	seams.jog_mm	0.000
-exposed wedge	sliver at the surface to its neighbor	seams.point	59
-exposed wedge	sliver at the surface to its neighbor	seams.scar_mm2	1.410
+exposed wedge	sliver at the surface to its neighbor	seams.count	57
+exposed wedge	sliver at the surface to its neighbor	seams.jog_mm	18.822
+exposed wedge	sliver at the surface to its neighbor	seams.point	57
+exposed wedge	sliver at the surface to its neighbor	seams.scar_mm2	3.130
 exposed wedge	sliver at the surface to its neighbor	seams.scarf	0
-exposed wedge	sliver at the surface to its neighbor	strings.restart_starved_mm	60.00
-exposed wedge	sliver at the surface to its neighbor	strings.retractions	102
-exposed wedge	sliver at the surface to its neighbor	strings.travel_mm	7107.17
+exposed wedge	sliver at the surface to its neighbor	strings.restart_starved_mm	55.00
+exposed wedge	sliver at the surface to its neighbor	strings.retractions	105
+exposed wedge	sliver at the surface to its neighbor	strings.travel_mm	6941.42
 exposed wedge	sliver at the surface to its neighbor	strings.unretracted_across_tops_mm	0.00
 exposed wedge	sliver at the surface to its neighbor	strings.unretracted_over_air_mm	0.45
 exposed wedge	sliver at the surface to its neighbor	strings.unretracted_shown_mm	0.45
-exposed wedge	sliver at the surface to its neighbor	strings.unretracted_travels	74
-exposed wedge	sliver at the surface to its neighbor	strings.visible_restarts	12
-exposed wedge	sliver at the surface to its neighbor	time_s	322.1
+exposed wedge	sliver at the surface to its neighbor	strings.unretracted_travels	70
+exposed wedge	sliver at the surface to its neighbor	strings.visible_restarts	11
+exposed wedge	sliver at the surface to its neighbor	time_s	322.2
 finger inside a second part	base	check.problems	0
 finger inside a second part	base	feature.Bottom surface.length_mm	28.46
 finger inside a second part	base	feature.Bottom surface.paths	3
@@ -1280,6 +1280,40 @@ ring	base	walls.shortest_path_mm	14.128
 ring	base	walls.uncovered_mm2	0.9145
 ring	base	walls.uncovered_wider_than_floor_mm2	0.0000
 ring	base	walls.uncovered_widest_mm	0.020
+sliver tips inside a second part	base	check.problems	0
+sliver tips inside a second part	base	feature.Bottom surface.length_mm	39.75
+sliver tips inside a second part	base	feature.Bottom surface.paths	1
+sliver tips inside a second part	base	feature.Inner wall.length_mm	1831.29
+sliver tips inside a second part	base	feature.Inner wall.paths	131
+sliver tips inside a second part	base	feature.Internal solid infill.length_mm	557.62
+sliver tips inside a second part	base	feature.Internal solid infill.paths	11
+sliver tips inside a second part	base	feature.Outer wall.length_mm	1049.36
+sliver tips inside a second part	base	feature.Outer wall.paths	39
+sliver tips inside a second part	base	feature.Prime tower.length_mm	8417.42
+sliver tips inside a second part	base	feature.Prime tower.paths	27
+sliver tips inside a second part	base	feature.Top surface.length_mm	74.77
+sliver tips inside a second part	base	feature.Top surface.paths	1
+sliver tips inside a second part	base	filament.T0_mm	81.32
+sliver tips inside a second part	base	filament.T1_mm	99.77
+sliver tips inside a second part	base	filament_mm	181.09
+sliver tips inside a second part	base	laid_twice.area_mm2	20.652
+sliver tips inside a second part	base	laid_twice.layers	13
+sliver tips inside a second part	base	laid_twice.spots	24
+sliver tips inside a second part	base	laid_twice.widest_mm	0.492
+sliver tips inside a second part	base	seams.count	52
+sliver tips inside a second part	base	seams.jog_mm	0.000
+sliver tips inside a second part	base	seams.point	52
+sliver tips inside a second part	base	seams.scar_mm2	0.677
+sliver tips inside a second part	base	seams.scarf	0
+sliver tips inside a second part	base	strings.restart_starved_mm	75.00
+sliver tips inside a second part	base	strings.retractions	80
+sliver tips inside a second part	base	strings.travel_mm	2775.48
+sliver tips inside a second part	base	strings.unretracted_across_tops_mm	0.00
+sliver tips inside a second part	base	strings.unretracted_over_air_mm	0.46
+sliver tips inside a second part	base	strings.unretracted_shown_mm	0.46
+sliver tips inside a second part	base	strings.unretracted_travels	129
+sliver tips inside a second part	base	strings.visible_restarts	15
+sliver tips inside a second part	base	time_s	158.2
 sloped top	base	check.problems	0
 sloped top	base	feature.Bottom surface.length_mm	317.17
 sloped top	base	feature.Bottom surface.paths	1
