@@ -1296,3 +1296,29 @@ the accepted diff says what moved. The baseline is measured one model after anot
 pool, as a test JVM's first slices, a few models' files were seen to change from run to run (an open finding, printed
 by the test). A JDK whose math functions round differently in the last place could move a slice; the baseline would
 show that too.
+
+## 44. Slices side by side read exactly as one after another; a thread-safety test runs its code interpreted (2026-11-16)
+
+**Context.** Decision 43's open finding: the catalog's models sliced side by side as a JVM's first work changed other
+models' files in a third to a half of the runs (a two-color piece with no walls along an outline, a wedge with nothing
+printed on 18 layers), from before decision 38's tasks too. The mesh slicer, one object for the whole process, wrote
+each cut triangle's crossing point to one buffer of its own and read it back: two threads slicing at once overwrote
+each other's points. Once compiled, the JIT kept the point in registers and the fault vanished, so it showed only
+while the code ran interpreted, mostly in a process's first slices.
+
+**Decision.** A function plymeld runs on several threads keeps its working buffers per call, never on an object or a
+companion; a cache shared by slices is keyed by everything its result depends on, a model by a number never reused
+(not its identity hash code). `CatalogTest` asserts that every unit sliced side by side on the parallel pool as the
+JVM's first work reads exactly as one after another. A test of code run on several threads at once also runs it in a
+JVM of its own with that code kept interpreted (`-XX:CompileCommand=exclude`), where a shared buffer shows on every
+run instead of now and then: `SlicerThreadsTest`.
+
+**Rejected.** Slicing the catalog's units one after another only: it hid a fault that slices in one process (the
+window, a plate's objects, the parallel work of one slice and its check) can meet. A lock around the slicer: the
+buffer has no reason to be shared. Running the whole test JVM interpreted: minutes for what one class needs.
+
+**Consequences.** The side-by-side pass is an assertion (the catalog's units read the same in 6 cold runs of 6, where
+2 of 6 differed with the shared buffer); the slicer test's control counted 5743 to 5755 wrong layers of 5760 in each
+of 6 runs. Also fixed by the same reading: the support survey's base areas were cached by the model's identity hash
+code; a printer connection's HTTP clients sat in an unsynchronized map; the planner kept a figure of every plan's
+dropped slivers on its shared object, which nothing read (removed).

@@ -319,6 +319,14 @@ object Overhangs {
     private val baseCache = object : LinkedHashMap<String, Double>(256, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Double>?) = size > 20_000
     }
+    /**
+     * A number per soup, never given to another while the process runs: [baseCache]'s keys name the model by it. Not its
+     * identity hash code: two soups alive at once may share one, and a soup no longer used may leave its code to a new
+     * one, whose regions would then read the other model's areas (two slices in one process, a pose search's candidates).
+     */
+    private val soupIds = java.util.WeakHashMap<TriangleSoup, Long>()
+    private var nextSoupId = 0L
+    private fun soupId(p: TriangleSoup): Long = synchronized(soupIds) { soupIds.getOrPut(p) { nextSoupId++ } }
 
     /**
      * The support interface's bottom: the model's cross-section just under the surface a region's column stands
@@ -331,7 +339,8 @@ object Overhangs {
 
     fun baseAreas(p: TriangleSoup, b: DoubleArray, regions: List<Pair<Coordination.Volume.Region, Double?>>, poseLabel: String): DoubleArray {
         val out = DoubleArray(regions.size)
-        val keys = regions.map { (r, so) -> so?.let { "${System.identityHashCode(p)}|$poseLabel|${r.words}|${Math.round(it * 1e4)}" } }
+        val id = soupId(p)
+        val keys = regions.map { (r, so) -> so?.let { "$id|$poseLabel|${r.words}|${Math.round(it * 1e4)}" } }
         val todo = ArrayList<Int>()
         synchronized(baseCache) { for (i in regions.indices) { val k = keys[i] ?: continue; val c = baseCache[k]; if (c != null) out[i] = c else todo += i } }
         if (todo.isEmpty()) return out

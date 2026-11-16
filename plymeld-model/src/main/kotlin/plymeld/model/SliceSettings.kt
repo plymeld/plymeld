@@ -590,7 +590,9 @@ class SliceSettings private constructor(r: (String) -> Any, opt: (String) -> Any
 
         /**
          * [block]'s result and the ids of the settings read in it on this thread (a cached computation keeps them, to read them
-         * again when its result is reused). The ids add to an enclosing [reading]'s.
+         * again when its result is reused). The ids add to an enclosing [reading]'s. Reads on other threads are not seen, and a
+         * thread waiting on parallel work may run other work meanwhile, its reads then counted here: so [block] starts no
+         * parallel work (LayerCache's per-layer computations do not).
          */
         fun <T> reading(block: () -> T): Pair<T, Set<String>> {
             val outer = capture.get()

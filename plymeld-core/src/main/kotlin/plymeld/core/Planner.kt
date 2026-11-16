@@ -237,10 +237,6 @@ object Planner {
     /** Surfaces printed as a sweep (monotonic surfaces): chains break at splits, blocks go in sweep order. */
     private val monotonic = setOf(Feature.TOP, Feature.BOTTOM, Feature.IRONING)
 
-    /** Area removed as unprintable slivers by the last plan() call, mm² (so it is never silent). */
-    var droppedSliverMm2 = 0.0
-        private set
-
     /** Stage output: outlines after elephant-foot compensation, and each layer's walls. */
     class WallsOut(val effOutlines: List<List<Polygon>>, val walls: List<LayerWalls>)
 
@@ -483,7 +479,6 @@ object Planner {
         val allEff = whole?.w?.effOutlines ?: effOutlines
         val allSparse: List<List<Polygon>> = if (whole == null) regions.map { it.sparse } else requireNotNull(whole.sparse) { "the whole object's printed sparse infill is needed" }
         val out = ArrayList<LayerPlanOut>(n)
-        droppedSliverMm2 = 0.0
         // the support switch is a lock: on = everywhere (and every downward face of a locked
         // box), off = nowhere, unset = the plan's spots: the chosen boxes, and the locked ones; never in a blocked box (a
         // region's support = "never"); tree support, the one style
@@ -1476,7 +1471,6 @@ object Planner {
                 Built(b.paths.filter { p -> groups.none { (o, hs) -> Polygons.contains(o, p.xy[0], p.xy[1]) && hs.none { Polygons.contains(it, p.xy[0], p.xy[1]) } } }, b.dropped)
             }
         }
-        droppedSliverMm2 = built.sumOf { it.dropped }
         for (i in 0 until n) {
             // the layer's print order from its built paths and where the head is (LayerCache): a layer under an unchanged one
             // starts where it did, so the whole stack below a change comes back as it was

@@ -36,8 +36,11 @@ suite. Then accept the baseline (below) and read the new lines.
 **Reading a failure.** The message lists every measure that moved, old -> new, by model and row; a measure not in the
 baseline; and a baseline line no model measures any more. Every measure is exact: the slice is deterministic, so any
 move is a change of the slice. Explain each move as a side effect of the change or as intended before accepting it.
-The test also slices every unit side by side on the parallel pool first and prints the units that read otherwise
-than one after another: some have, now and then, an open finding its comment describes.
+The test also slices every unit side by side on the parallel pool first, as the JVM's first work, and fails for any
+unit that reads otherwise than one after another: a slice that reads another's working state. Such a fault may show
+only while the code still runs interpreted (the JIT compiler can keep a shared buffer's values in registers), so it
+comes and goes from run to run; the code at fault gets a test of its own that does not depend on luck
+(`SlicerThreadsTest` runs the mesh slicer's threads in a JVM of their own with its code kept interpreted).
 
 **Accepting a change.** Run
 

@@ -91,13 +91,14 @@ object Slicer {
         val active = IntArrayList()
         var next = 0
         val segs = LongArrayList()
+        val p = LongArray(2)
         for (li in zs.indices) {
             val z = zs[li]
             while (next < n && zmin[order[next]] < z) { active.add(order[next]); next++ }
             // drop triangles entirely below the plane (zmax < z means no vertex >= z)
             active.retain { zmax[it] >= z }
             segs.clear()
-            for (k in 0 until active.size) cutTriangle(v, active[k] * 9, z, segs)
+            for (k in 0 until active.size) cutTriangle(v, active[k] * 9, z, segs, p)
             layers.add(stitch(zsMm[li], segs))
         }
         return layers
@@ -108,12 +109,17 @@ object Slicer {
         val v = snap(soup)
         val z = Units.mm(zMm)
         val out = LongArrayList()
-        for (t in 0 until soup.count) cutTriangle(v, t * 9, z, out)
+        val p = LongArray(2)
+        for (t in 0 until soup.count) cutTriangle(v, t * 9, z, out, p)
         return out.toArray()
     }
 
-    /** Emits the crossing segment (x0 y0 x1 y1) of triangle at `b` with plane `z`, if any. */
-    private fun cutTriangle(v: LongArray, b: Int, z: Long, out: LongArrayList) {
+    /**
+     * Emits the crossing segment (x0 y0 x1 y1) of triangle at `b` with plane `z`, if any. [p]: the caller's own working
+     * pair for [crossing] (one per call of [slice], never shared: slices run on many threads at once, and a buffer this
+     * object held was overwritten by another thread between a crossing's write and its read, cutting layers wrong).
+     */
+    private fun cutTriangle(v: LongArray, b: Int, z: Long, out: LongArrayList, p: LongArray) {
         val z0 = v[b + 2]; val z1 = v[b + 5]; val z2 = v[b + 8]
         val a0 = z0 >= z; val a1 = z1 >= z; val a2 = z2 >= z
         if (a0 == a1 && a1 == a2) return
@@ -121,7 +127,6 @@ object Slicer {
         // an above->below crossing is its START (solid on the left; see cube check in tests).
         var sx = 0L; var sy = 0L; var ex = 0L; var ey = 0L
         var haveS = false; var haveE = false
-        val p = scratch
         for (e in 0 until 3) {
             val i = b + e * 3
             val j = b + ((e + 1) % 3) * 3
@@ -133,9 +138,6 @@ object Slicer {
         }
         if (haveS && haveE) { out.add(sx); out.add(sy); out.add(ex); out.add(ey) }
     }
-
-    // Scratch output of crossing(); slice() is single-threaded per Slicer instance.
-    private val scratch = LongArray(2)
 
     /**
      * Intersection of edge (i, j) with plane z, into out[0..1]. Endpoints are ordered

@@ -18,8 +18,8 @@ import plymeld.check.catalog.Catalog.Row
  * only as its entry names (a finding not yet fixed).
  *
  * Controls: a setting changed on one model moves its measures and the comparison reports them; a baseline with a value
- * altered, a line missing and a stray line is reported for each. Determinism: two models measured again in this JVM, and
- * side by side with every other unit on the parallel pool, read exactly as in the run.
+ * altered, a line missing and a stray line is reported for each. Determinism: every unit measured side by side on the
+ * parallel pool as the JVM's first slices, and two models measured again in this JVM, read exactly as in the run.
  */
 class CatalogTest : StringSpec({
     val units: List<Pair<Entry, Row>> = Catalog.entries.flatMap { e -> e.rows.map { e to it } }
@@ -27,9 +27,9 @@ class CatalogTest : StringSpec({
 
     /**
      * Every unit measured once for this JVM, one after another, each with the layer cache emptied first (as a `slice` run
-     * starts): (entry, row) -> measured, what the baseline holds. Each slice runs on the parallel pool itself; the units are
-     * not run side by side for the baseline, since a slice's file was seen to change when other slices ran beside it (the
-     * determinism test below, which reads [pooled]).
+     * starts): (entry, row) -> measured, what the baseline holds. Each slice runs on the parallel pool itself. Before them,
+     * every unit side by side on the pool as this JVM's first slices ([pooled]), which the determinism test below holds to
+     * the same measures.
      */
     var measured: Map<Pair<String, String>, CatalogMeasures.Measured>? = null
     /** Every unit measured side by side on the parallel pool (units of the parallel work), before [run]'s: this JVM's first slices. */
@@ -134,15 +134,14 @@ class CatalogTest : StringSpec({
      * The same models, settings and code write the same file: two models (a walls case on one tool, and two parts on two
      * tools) measured again in this JVM, the layer cache kept from the run (so their layers come from it), read exactly as
      * in the run; and every unit measured side by side on the parallel pool as this JVM's first slices (before the run, the
-     * layer cache emptied), the two models among them, read as in the run.
+     * layer cache emptied) reads exactly as one after another, every measure of every unit.
      *
-     * A finding not yet fixed: side by side on the pool as a JVM's first slices, other units' files were seen to change, in
-     * 4 of 9 such runs (the two-color piece, under either row, refused for an outline with no wall along part A's front,
-     * 21 mm on one layer or on many; once also the exposed wedge with its sliver handed to its neighbor printing nothing of the model
-     * on 18 layers), while one after another every unit read the same in every run, and side by side after them too. The
-     * units that moved are printed here (not asserted: it comes and goes); the two models asserted have not moved.
+     * Side by side as a JVM's first work is where a slice once read another's working state: the mesh slicer's crossing
+     * point, one buffer shared by every thread, overwritten between its write and its read while the code still ran
+     * interpreted (the two-color piece refused for an outline with no wall, the exposed wedge printing nothing on 18
+     * layers, in 4 runs of 9, and 2 of 6 in a second count). SlicerThreadsTest holds the slicer itself to it.
      */
-    "determinism: two models read the same measured again in this JVM and side by side on the parallel pool" {
+    "determinism: every unit reads the same side by side on the parallel pool as one after another, and two measured again in this JVM" {
         val names = listOf("blob", "speck beside a part")
         for (name in names) {
             val e = Catalog.byName(name)
@@ -150,12 +149,12 @@ class CatalogTest : StringSpec({
             withClue("$name: measured again in this JVM") { again shouldBe run().getValue(name to BASE.name).values }
             (again.size > 10) shouldBe true
         }
+        pooled.size shouldBe units.size
         val moved = units.indices.filter { pooled[it].values != run().getValue(units[it].first.name to units[it].second.name).values }
-        println("side by side on the pool: ${moved.size} of ${units.size} units read otherwise than one after another" +
-            moved.joinToString("") { i -> val (e, r) = units[i]
-                "\n" + Baseline.compare(keyed(e, r, run().getValue(e.name to r.name)), keyed(e, r, pooled[i])).report().lines().drop(1).take(12).joinToString("\n") })
-        for (name in names) withClue("$name: side by side on the pool") {
-            pooled[units.indexOfFirst { it.first.name == name && it.second === BASE }].values shouldBe run().getValue(name to BASE.name).values
+        val report = moved.joinToString("\n") { i -> val (e, r) = units[i]
+            Baseline.compare(keyed(e, r, run().getValue(e.name to r.name)), keyed(e, r, pooled[i])).report().lines().drop(1).take(12).joinToString("\n") }
+        withClue("side by side on the pool: ${moved.size} of ${units.size} units read otherwise than one after another (one after another -> side by side)\n$report") {
+            moved.shouldBeEmpty()
         }
     }
 })

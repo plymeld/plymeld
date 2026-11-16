@@ -144,6 +144,11 @@ section the release's version and date.
 
 ### Fixed
 
+- A model could now and then be cut wrong where the mesh was sliced on several threads at once (a slice's own parallel
+  work, the pre-print check's, or several slices in one process, as in the window): every thread wrote each cut
+  triangle's crossing point to one shared place, and another thread could overwrite it before it was read, leaving a
+  layer's outline missing pieces (walls absent along an outline, or a layer with nothing of the model on it). It
+  showed mostly in a process's first work, while the slicer's code still runs interpreted. Each cut now keeps its own.
 - The pre-print check refuses a hole inside the walls: a spot of a layer no line covers, closed in by walls alone (not
   reaching the outline, an infill or surface line, or the infill region), wider than the narrowest place a line is laid
   in (`plan.layer.walls.feature.min` and the slicing tolerance a side), reading each line's width from its plastic (on
