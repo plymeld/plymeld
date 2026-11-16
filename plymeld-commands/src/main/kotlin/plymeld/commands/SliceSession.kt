@@ -150,6 +150,11 @@ class SliceSession {
 
     fun check(w: Written, echo: (String) -> Unit, progress: Progress = Progress.NONE): Checked {
         val (pr, plan, setup, output, text, partTools) = w
+        return check(pr, plan, setup, output, text, partTools, echo, progress)
+    }
+
+    /** As [check] of a [Written], from its parts: [text] the g-code of [plan] (its pictures beside [output]). */
+    fun check(pr: Product, plan: Plan, setup: Setup, output: Path, text: String, partTools: List<Int>, echo: (String) -> Unit, progress: Progress = Progress.NONE): Checked {
         val t1 = System.nanoTime()
         progress.at("check: reading the model", 0, 0)
         val zBase = plan.parts.minOf { it.bounds()[2] }
@@ -215,8 +220,9 @@ class SliceSession {
         val checkTools = lone?.second ?: partTools
         // several lifted bridges in a lone object: each frame (what stands on the bed, each bridge) read against its own parts
         val frames = curved?.frames
-        val frameSurfaces = frames?.map { plymeld.core.check.ModelCheck.Surface(it.parts, zBase, it.text, zaaMinMm = if (it.flat) zaa?.minMm else null, clip = it.clip) }
-        val surface = if (frames == null) plymeld.core.check.ModelCheck.Surface(checkParts, zBase, checkText, zaaMinMm = zaa?.minMm, cut = if (several) null else cutOf(0)) else null
+        val frameSurfaces = frames?.map { plymeld.core.check.ModelCheck.Surface(it.parts, zBase, it.text, zaaMinMm = if (it.flat) zaa?.minMm else null, clip = it.clip, thickness = it.thickness) }
+        val surface = if (frames == null) plymeld.core.check.ModelCheck.Surface(checkParts, zBase, checkText, zaaMinMm = zaa?.minMm, cut = if (several) null else cutOf(0),
+            thickness = if (plate == null) curved?.thickness else null) else null
         val onSurface: (Double, Double, Double, Double) -> Boolean = when {
             plate != null -> plymeld.core.check.ModelCheck.Surfaces(plate.surfaces)::at
             frameSurfaces != null -> plymeld.core.check.ModelCheck.Surfaces(frameSurfaces)::at

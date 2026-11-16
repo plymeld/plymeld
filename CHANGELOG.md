@@ -146,9 +146,10 @@ section the release's version and date.
 
 - The pre-print check refuses a hole inside the walls: a spot of a layer no line covers, closed in by walls alone (not
   reaching the outline, an infill or surface line, or the infill region), wider than the narrowest place a line is laid
-  in (`plan.layer.walls.feature.min` and the slicing tolerance a side), reading each line's width from its plastic and,
-  where fuzzy skin is on, its thickness wider a side. A lens laid as a loop and a line down its middle, its loop's turn
-  and its line's end 0.25 to 0.29 mm apart on layer after layer, passed.
+  in (`plan.layer.walls.feature.min` and the slicing tolerance a side), reading each line's width from its plastic (on
+  a curved layer, whose thickness varies along it, on its own thickness where the line lies) and, where fuzzy skin is
+  on, its thickness wider a side. A lens laid as a loop and a line down its middle, its loop's turn and its line's end
+  0.25 to 0.29 mm apart on layer after layer, passed.
 - Variable-width walls keep a short line between walls where its area is wider than that narrowest place: a web between
   an opening and the outside, where the inner walls on both sides end, was left bare between its two outer walls (0.72 mm
   over 1.4 mm on a web 1.6 mm wide; on a Benchy 83 layers had such a hole, now 1), its line dropped as too short; so were

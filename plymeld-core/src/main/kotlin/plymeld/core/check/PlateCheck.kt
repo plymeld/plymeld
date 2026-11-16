@@ -170,6 +170,7 @@ object PlateCheck {
                            writeBack: (List<String>) -> Unit): Int {
         var runText = text.joinToString("\n")
         var frames: List<CurvedCheck.Frame>? = null
+        var thickness: ModelCheck.Thickness? = null
         var curved = 0
         if (o.curved != null) {
             val rd = CurvedCheck.read(runText, o.parts, zBase, o.curved, lineOffset = lineOffset, headText = headText)
@@ -178,14 +179,15 @@ object PlateCheck {
             runText = rd.text
             checkParts[k] = rd.parts
             frames = rd.frames
+            thickness = rd.thickness
             writeBack(runText.lines())
         }
         val dir = imagesDir?.resolve(o.name.replace(Regex("[^A-Za-z0-9._-]"), "_"))?.also { java.nio.file.Files.createDirectories(it) }
         // several lifted bridges: each frame (what stands on the bed, each bridge) against its own parts
-        for (fr in frames ?: listOf(CurvedCheck.Frame("", runText, checkParts[k].indices.toList(), checkParts[k]))) {
+        for (fr in frames ?: listOf(CurvedCheck.Frame("", runText, checkParts[k].indices.toList(), checkParts[k], thickness = thickness))) {
             val z = if (fr.flat) zaa else null
             val planar = pre + (if (headText == null) fr.text else withoutEmptyLayers(fr.text))
-            val sf = ModelCheck.Surface(fr.parts, zBase, planar, zaaMinMm = z?.minMm, cut = o.cut).also { surfaces += it }
+            val sf = ModelCheck.Surface(fr.parts, zBase, planar, zaaMinMm = z?.minMm, cut = o.cut, thickness = fr.thickness).also { surfaces += it }
             val where = if (fr.name.isEmpty()) "'${o.name}'" else "'${o.name}' ${fr.name}"
             problems += ModelCheck.check(planar, fr.parts, zBase, imagesDir = if (fr.name.isEmpty()) dir else dir?.resolve(fr.name.replace(' ', '_'))?.also { java.nio.file.Files.createDirectories(it) },
                 surface = sf, partTools = o.partTools?.let { t -> fr.partIndex.map { t[it] } }, zaa = z, handOverMm = o.handOverMm, featureMinMm = o.featureMinMm, firstLayerInsetMm = o.firstLayerInsetMm, surfaceHandOverMm = o.surfaceHandOverMm, fuzzMm = o.fuzzMm, infillMinMm = o.infillMinMm).map { "$where: $it" }

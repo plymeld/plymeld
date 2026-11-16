@@ -7,8 +7,6 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import plymeld.config.ConfigStack
-import plymeld.core.check.Expectations
-import plymeld.core.check.GcodeCheck
 import plymeld.core.check.ModelCheck
 import java.nio.file.Files
 import java.nio.file.Path
@@ -85,22 +83,14 @@ class ToolAssignmentTest : StringSpec({
         }
         return out
     }
-    /** The pre-print check of [g] as `plymeld slice` runs it, with the config's own reading of the part tools. */
+    /**
+     * The pre-print check of [g] as `plymeld slice` runs it (SliceSession.check: each object's settings for the model's
+     * rules, a plate's objects each against its own), with the config's own reading of the part tools.
+     */
     fun problems(d: Path, cfs: List<String>, models: List<Path>, g: String): List<String> {
         val pr = Product(ConfigStack.load(cfs, emptyList(), d), models, null) { }
         val plan = pr.decide()
-        val partTools = pr.partTools(plan)
-        val zBase = plan.parts.minOf { it.bounds()[2] }
-        if (plan.layout.placed.size > 1) {
-            // a plate printed together: each object's lines against that object (PlateCheck), as the slice does
-            var at = 0
-            val objs = plan.layout.placed.map { pl -> plymeld.core.check.PlateCheck.Obj(pl.name, pl.parts, partTools.subList(at, at + pl.parts.size).also { at += pl.parts.size }) }
-            val r = plymeld.core.check.PlateCheck.together(g, objs, zBase)
-            return GcodeCheck.check(g, Expectations.forSetup(pr.result.setup, ModelCheck.Surfaces(r.surfaces)::at, partTools.toSet(), partTools.toSet())) + r.problems
-        }
-        val surface = ModelCheck.Surface(plan.parts, zBase, g)
-        return GcodeCheck.check(g, Expectations.forSetup(pr.result.setup, surface::at, partTools.toSet(), partTools.toSet())) +
-            ModelCheck.check(g, plan.parts, zBase, surface = surface, partTools = partTools)
+        return SliceSession().check(pr, plan, pr.result.setup, d.resolve("check.gcode"), g, pr.partTools(plan), { }).problems
     }
     /** [g] with every T number [a] written as [b] (the T commands and the T words of M104 / M109), comments left as they are. */
     fun renumber(g: String, a: Int, b: Int) = g.lines().joinToString("\n") { l ->

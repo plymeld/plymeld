@@ -51,7 +51,9 @@ object CurvedCheck {
      * bridges, also [frames]: no one warped space holds them all (a bridge's lifted layers stand where the support above its
      * ends is printed later), so the model's own check reads each frame on its own.
      */
-    class Read(val text: String, val parts: List<TriangleSoup>, val problems: List<String>, val curvedLayers: Int, val frames: List<Frame>? = null)
+    class Read(val text: String, val parts: List<TriangleSoup>, val problems: List<String>, val curvedLayers: Int, val frames: List<Frame>? = null,
+               /** Each curved layer of [text]'s real thickness along it, for the model's check (ModelCheck.Surface's thickness); null: none curved. */
+               val thickness: ModelCheck.Thickness? = null)
     /**
      * One frame of several lifted bridges: the g-code's layers read in it ([text], the start template and those layers, in
      * warped space), and the parts there (by their index in the object's parts): what stands on the bed, flat, or one
@@ -61,7 +63,9 @@ object CurvedCheck {
                 /** Its layers are flat, as printed (what stands on the bed; the whole object when there are no frames): Z anti-aliasing applies there. */
                 val flat: Boolean = true,
                 /** The part of each cut of [parts] its layers are judged against (ModelCheck.Surface's clip); null: all of it. */
-                val clip: ((Double, List<plymeld.geom.Polygon>) -> List<plymeld.geom.Polygon>)? = null)
+                val clip: ((Double, List<plymeld.geom.Polygon>) -> List<plymeld.geom.Polygon>)? = null,
+                /** Its curved layers' real thickness along them (ModelCheck.Surface's thickness); null: its layers flat. */
+                val thickness: ModelCheck.Thickness? = null)
 
     /**
      * How far a printed line's end may sit off its layer's surface (mm): the writer gives Z in whole µm, so half a µm
@@ -482,6 +486,12 @@ object CurvedCheck {
         }
         val groupOf = IntArray(parts.size) { i -> if (banded) groups.indexOfFirst { i in it } else 0 }
         val warpedParts = parts.mapIndexed { i, p -> if (follows == Follows.LIFT && !bridge[i]) p else warps[groupOf[i]].warpSoup(p) }
+        // a curved layer's real thickness along it (by its warped height in the text; [fr]: that frame's layers, null: every
+        // curved layer): the model's check reads its lines' widths from their plastic per mm, which goes with it
+        fun thickness(fr: Int?): ModelCheck.Thickness {
+            val byZ = HashMap<Long, Int>(); for (k in 0 until layers) if (curved(k) && (fr == null || frame(k) == fr)) byZ[lzUm[k]] = k
+            return ModelCheck.Thickness { z, x, y -> byZ[Math.round(z * 1000)]?.let { k -> u(k, x, y, lz(k)) - u(k, x, y, below(k)) } ?: Double.NaN }
+        }
         // several lifted bridges: each frame's layers on their own, with the start template, and its parts
         val frames = if (!banded) null else {
             val ol = out.toString().lines()
@@ -491,10 +501,11 @@ object CurvedCheck {
                 for (i in 0 until marks.first()) sb.append(ol[i]).append('\n')
                 for ((j, m) in marks.withIndex()) if (frame(j) == fr) for (i in m until (if (j + 1 < marks.size) marks[j + 1] else ol.size)) sb.append(ol[i]).append('\n')
                 val idx = if (fr < 0) parts.indices.filter { !bridge[it] } else groups[fr]
-                Frame(if (fr < 0) "supports" else "bridge ${fr + 1}", sb.toString(), idx, idx.map { warpedParts[it] }, flat = fr < 0)
+                Frame(if (fr < 0) "supports" else "bridge ${fr + 1}", sb.toString(), idx, idx.map { warpedParts[it] }, flat = fr < 0,
+                    thickness = if (fr < 0) null else thickness(fr))
             }
         }
-        return Read(out.toString(), warpedParts, problems, curvedCount, frames)
+        return Read(out.toString(), warpedParts, problems, curvedCount, frames, thickness(null))
     }
 
     /**
@@ -708,8 +719,13 @@ object CurvedCheck {
         val frames = listOf(Frame("flat layers", frameText(-1), parts.indices.toList(), parts, flat = true, clip = flatClip)) +
             islands.indices.map { fr ->
                 val isl = islands[fr]
+                // each of its layers' real thickness along it (by its warped height): its lines' widths are read from their
+                // plastic per mm, which goes with it (an island's layer is thinner in one place than another: the Benchy's bow,
+                // 0.13 to 0.2 mm along one loop)
+                val byZ = HashMap<Long, Int>(); for (k in 0 until layers) if (frame(k) == fr && curved(k)) byZ[lzUm[k]] = k
                 Frame("island '${isl.key}'", frameText(fr), parts.indices.toList(), parts.map { warps[fr].warpSoup(it) }, flat = false,
-                    clip = { _, loops -> loops.filter { isl.holds(it) } })
+                    clip = { _, loops -> loops.filter { isl.holds(it) } },
+                    thickness = { z, x, y -> byZ[Math.round(z * 1000)]?.let { k -> u(k, x, y, lz(k)) - u(k, x, y, below(k)) } ?: Double.NaN })
             }
         return Read(out.toString(), parts, problems, curvedCount, frames)
     }

@@ -1222,3 +1222,48 @@ coverage unchanged by the self-check's measure. On the three-object plate, outer
 step shorter than the line 967 to 746, moves shorter than the tolerance 10,567 to 10,252 (most of what is left lies
 outside the narrow islands, not read here; a tip's run-in turns back by design). Test: WallsByWidthTest (no such spike
 on the wedge; control: the old layer's line is counted).
+
+## 41. The pre-print check reads a curved layer's line widths on the layer's own thickness where they lie (2026-11-16)
+
+**Context.** The check reads each line's width along it from its plastic per mm: the path's widest is its stated
+width, the rest scaled by their plastic on one layer height (decision 30's hole rule and decision 27's surface rule read
+these widths). A curved layer, read flat in warped space, is not one height: the Benchy's bow island is 0.13 to 0.20 mm
+thick along one loop, and the planner lays its walls 0.44 mm wide there with less plastic where the layer is thinner.
+Read on one height, those walls were 0.32 mm wide where it was thin, and the hole rule refused slits 0.29 to 0.32 mm
+wide between them on three island layers.
+
+**Decision.** The curved check hands the model's check each curved layer's real thickness at a point (from its own
+warp: the layer's surface less the surface it is laid on, as its thickness rule reads it), for the island frames, the
+band's layers, and the lifted bridges' frames. A segment's cross-section is its plastic per mm times one factor, t (w -
+t (1 - pi/4)) on its own thickness t; the factor makes the path's widest bead its stated width. On one thickness
+throughout it is the reading as before.
+
+**Rejected.** Leaving the hole rule out of curved layers: the rule reads them, and a wall left out of an island layer is
+a hole there as anywhere. Rewriting the warped g-code's E to one thickness: the g-code rules read the same text, and
+its flow is what prints.
+
+**Consequences.** CurvedIslandBenchyTest reads back clean again; its control, a stretch of an inner wall 3 mm long left
+out of an island layer, is a hole. CurvedBeadTest: a wall on a layer 0.2 mm thick along half and 0.1 mm along the other
+reads 0.44 mm all along; control: on the stated height, the thin half reads under 0.3 mm.
+
+## 42. The hole rule's grid is a byte a cell over the layer's own extent (2026-11-16)
+
+**Context.** Decision 38 made every layer of the pre-print check a task of its own, so each core reads a layer at once.
+The hole rule (decision 30) kept four arrays a cell (7 KB a tile of 32 x 32 cells) in a map of tiles with boxed keys,
+and every cell of every uncovered piece in boxed lists, an infill region's piece most of the band. On a model of two
+parts the band is most of the cross-section (the walls between the parts lie far inside the outline): on the dual
+Benchy up to 3,400 tiles a layer. On 18 cores the check alone no longer fit beside the plan in a 384 MB heap (it had),
+and in a 512 MB test JVM it ran with dozens of full collections or out of memory.
+
+**Decision.** A cell is a byte of flags; the tiles are an array over the layer's outline and the band's depth round it,
+made where the band is; a piece's cells are kept (in a primitive stack) only while it may be a hole, cleared once it
+opens onto the outline, an infill line or the band's edge. The band's depth is read for each wall end within the depth
+found so far first. The holes found are the same; of two equally wide, the first in row order is named.
+
+**Rejected.** Fewer layers at once for the check: the rule's memory is what grew. A larger test heap: the tests' 512 MB
+is the limit that catches this.
+
+**Consequences.** The check alone of the dual Benchy (18 cores), its model rules' time and the heap's collections: at
+512 MB, 2.1 s and 82 (before: 4.0 s and 344; the version before the hole rule: 1.4 s and 69); at 352 MB, 3.1 s and 407
+(before: out of memory at 384 MB; the version before the hole rule: 2.2 s and 315). The rule's allocations on that
+model fell from about 2.5 GB to under 0.2 GB of the check's 7.5 GB.

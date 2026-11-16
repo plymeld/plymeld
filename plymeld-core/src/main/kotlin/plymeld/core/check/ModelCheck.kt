@@ -50,8 +50,16 @@ object ModelCheck {
     private const val ABOVE = "Wave overhang, layer above"
 
     /**
+     * A layer whose thickness varies along it (a curved layer read flat in warped space, CurvedCheck): its real thickness
+     * (mm) at a point, given the layer's height as the text states it; NaN where the text's own layer height holds (a flat
+     * layer). Its lines' plastic per mm goes as the thickness where they are, not as their width alone ([layers]).
+     */
+    fun interface Thickness { fun at(layerZ: Double, x: Double, y: Double): Double }
+
+    /**
      * A printed segment: [w], its path's width as the file states it (`;WIDTH`, a variable-width line's widest); [bead], this
-     * segment's own width from its plastic ([layers]: its share of the path's widest extrusion per mm).
+     * segment's own width from its plastic ([layers]: its share of the path's widest extrusion per mm, on the layer's
+     * thickness where it lies).
      */
     internal class Seg(val x0: Double, val y0: Double, val x1: Double, val y1: Double, val w: Double, val wall: Boolean, val tool: Int = 0,
                        val z0: Double = Double.NaN, val z1: Double = Double.NaN, val wave: Boolean = false,
@@ -575,7 +583,9 @@ object ModelCheck {
                    * x1, y0, y1 and its top's z, mm, in the g-code's frame). Each cut is judged inside it only (nothing above
                    * its top), and its outline along the box's sides is the cut, where no wall is asked for ([onCut]).
                    */
-                  val cut: DoubleArray? = null) {
+                  val cut: DoubleArray? = null,
+                  /** A curved layer's real thickness along it (CurvedCheck's Read and Frame), for its lines' beads ([layers]); null: every layer flat. */
+                  thickness: Thickness? = null) {
         /** Whether an outline point lies on the open section's cut (within [tolMm] of a side of the box). */
         fun onCut(x: Double, y: Double, tolMm: Double): Boolean = cut != null &&
             (Math.abs(x - cut[0]) <= tolMm || Math.abs(x - cut[1]) <= tolMm || Math.abs(y - cut[2]) <= tolMm || Math.abs(y - cut[3]) <= tolMm)
@@ -584,7 +594,7 @@ object ModelCheck {
         /** [loops], the model cut at [z] mm, inside the open section's box (as they are with none; none above its top). */
         private fun inCut(z: Double, loops: List<Polygon>): List<Polygon> = if (cutRect == null || loops.isEmpty()) loops
             else if (z > cut!![4] + 1e-6) emptyList() else plymeld.geom.Booleans.intersection(loops, cutRect)
-        internal val layerLines: List<LayerLines> = layers(text)
+        internal val layerLines: List<LayerLines> = layers(text, thickness)
         private val cutZ = DoubleArray(layerLines.size) { k -> layerLines[k].z - layerLines[k].h / 2 + zBaseMm }
         private val sections = if (layerLines.isEmpty()) emptyList() else
             parts.map { p -> Slicer.slice(p, cutZ).let { ls -> if (clip == null && cutRect == null) ls else ls.mapIndexed { k, l ->
@@ -650,21 +660,43 @@ object ModelCheck {
             list.filter { it.has(layerZ) }.let { s -> s.isEmpty() || s.any { it.at(x, y, layerZ, h) } }
     }
 
-    internal fun layers(text: String): List<LayerLines> {
+    /**
+     * The model's lines, layer by layer. [thickness]: where a layer's thickness varies along it (a curved layer), its real
+     * thickness at each segment's middle; null: each layer as thick as its stated height everywhere.
+     */
+    internal fun layers(text: String, thickness: Thickness? = null): List<LayerLines> {
         val out = ArrayList<LayerLines>()
         var segs = ArrayList<Seg>(); var z = Double.NaN; var h = 0.2; var started = false
         // the lines laid in this layer's block for the layer above (ABOVE): carried into the next layer's
         var above = ArrayList<Seg>()
         var x = Double.NaN; var y = Double.NaN; var zc = Double.NaN; var w = 0.4; var feature = ""; var tool = 0
         // the segments of the path being read, each with its plastic per mm: a path's widest (its stated width) sets the
-        // scale for the rest (Seg.bead): the bead's cross-section, h (w - h (1 - pi/4)), goes as the plastic per mm
+        // scale for the rest (Seg.bead): the bead's cross-section, t (w - t (1 - pi/4)) on a layer t thick, goes as the
+        // plastic per mm
         val path = ArrayList<Pair<Seg, Double>>()
         fun endPath() {
             if (path.isEmpty()) return
             // the widest from segments long enough that the file's rounding of E does not set it
-            val top = (path.filter { (s, _) -> Math.hypot(s.x1 - s.x0, s.y1 - s.y0) >= 0.05 }.takeIf { it.isNotEmpty() } ?: path).maxOf { it.second }
-            val flank = h * (1 - Math.PI / 4)
-            if (top > 0) for ((s, rate) in path) s.bead = flank + (s.w - flank) * minOf(1.0, rate / top)
+            val long = path.filter { (s, _) -> Math.hypot(s.x1 - s.x0, s.y1 - s.y0) >= 0.05 }.takeIf { it.isNotEmpty() } ?: path
+            val ts = if (thickness == null || z.isNaN()) null else DoubleArray(path.size) { i -> val s = path[i].first
+                thickness.at(z, (s.x0 + s.x1) / 2, (s.y0 + s.y1) / 2).let { t -> if (t.isNaN() || t <= 0) h else t } }
+            if (ts == null) {
+                val top = long.maxOf { it.second }
+                val flank = h * (1 - Math.PI / 4)
+                if (top > 0) for ((s, rate) in path) s.bead = flank + (s.w - flank) * minOf(1.0, rate / top)
+            } else {
+                // a layer whose thickness varies along the path (a curved layer): a segment's cross-section, c times its plastic
+                // per mm, is t (bead - t (1 - pi/4)) on its own thickness t; c makes the path's widest bead its stated width
+                // (on one thickness throughout, the reading above). A thinner stretch lays less plastic per mm at the same
+                // width: read on the layer's stated height, a curved island's walls 0.44 mm wide read 0.32 mm where the layer
+                // is two thirds as thick as where it is thickest
+                val longOnly = long !== path
+                var c = Double.MAX_VALUE
+                for ((i, p) in path.withIndex()) { val (s, rate) = p
+                    if (rate > 0 && (!longOnly || Math.hypot(s.x1 - s.x0, s.y1 - s.y0) >= 0.05)) c = minOf(c, (s.w - ts[i] * (1 - Math.PI / 4)) * ts[i] / rate) }
+                if (c < Double.MAX_VALUE) for ((i, p) in path.withIndex()) { val (s, rate) = p; val t = ts[i]
+                    s.bead = minOf(s.w, c * rate / t + t * (1 - Math.PI / 4)) }
+            }
             path.clear()
         }
         fun flush() { endPath(); if (started && !z.isNaN()) out += LayerLines(z, h, segs); segs = above; above = ArrayList() }
