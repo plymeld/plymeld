@@ -3,23 +3,13 @@ package plymeld.check
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
-import plymeld.core.Job
+import plymeld.check.catalog.Models
+import plymeld.check.catalog.Models.Ridge
+import plymeld.check.catalog.Slicing
+import plymeld.check.catalog.Slicing.Written
 import plymeld.core.Walls
-import plymeld.core.check.Expectations
-import plymeld.core.check.GcodeCheck
-import plymeld.core.check.ModelCheck
-import plymeld.core.decide.FlatLayers
-import plymeld.core.decide.ObjectOrder
-import plymeld.core.decide.Plan
-import plymeld.core.decide.Pose
 import plymeld.mesh.TriangleSoup
-import plymeld.model.Entity
-import plymeld.model.ObjectSetup
-import plymeld.model.PartSetup
-import plymeld.model.Setup
 import plymeld.model.SliceSettings
-import plymeld.model.Values
-import plymeld.model.withObjectSetups
 import java.util.Locale
 
 /**
@@ -61,84 +51,15 @@ import java.util.Locale
  * a floor near nothing.
  */
 class ThinRidgeTest : StringSpec({
-    /** The model (mm); [rise]: the apex's rise over the ridge's length; [wobble]: the faces moved in and out by this much. */
-    class Ridge(val rise: Double, val wobble: Double = 0.0, val stations: Int = 201, val dip: Double = 0.0, val chamfer: Double = 0.1) {
-        val radius = 40.0; val length = 10.0; val ox = 60.0; val oy = 105.0
-        val zb = 1.0
-        val steep = Math.toRadians(62.5); val shallow = Math.toRadians(27.5)
-        val apex0 = 1.0
-        /** The block's half width: 3 mm, or wider where the ridge's foot is (its shallow face's foot half a millimetre in). */
-        val half = maxOf(3.0, (apex0 + rise + dip) / Math.tan(shallow) + 0.5)
-        /** The apex's height over the block: rising [rise] along the ridge, and [dip] higher at its ends than at its middle (a parabola). */
-        fun apex(s: Double) = apex0 + rise * s / length + dip * Math.pow((s - length / 2) / (length / 2), 2.0)
-        fun shift(s: Double) = wobble * Math.sin(s * 2 * Math.PI / 0.37)
-        fun center(s: Double) = doubleArrayOf(ox + radius * Math.sin(s / radius), oy + radius - radius * Math.cos(s / radius))
-        fun normal(s: Double) = doubleArrayOf(-Math.sin(s / radius), Math.cos(s / radius))
-        /** The ridge's cross-section at [s] and height [z] above the bed: its two faces along the normal, null above it. */
-        fun across(s: Double, z: Double): DoubleArray? {
-            val up = zb + apex(s) - z
-            if (z < zb || up < chamfer) return null
-            return doubleArrayOf(-up / Math.tan(shallow) - shift(s), up / Math.tan(steep) + shift(s))
-        }
-        /** A sweep along the arc of [profile] (n, z), counter-clockwise, its caps triangulated as [cap] (index triples, counter-clockwise). */
-        fun sweep(profile: (Double) -> List<DoubleArray>, cap: List<Int>): TriangleSoup {
-            val tris = ArrayList<DoubleArray>()
-            val rows = (0 until stations).map { k -> val s = length * k / (stations - 1); val c = center(s); val nv = normal(s)
-                profile(s).map { p -> doubleArrayOf(c[0] + p[0] * nv[0], c[1] + p[0] * nv[1], p[1]) } }
-            val m = rows[0].size
-            for (k in 0 until stations - 1) for (i in 0 until m) {
-                val j = (i + 1) % m
-                val a0 = rows[k][i]; val b0 = rows[k][j]; val a1 = rows[k + 1][i]; val b1 = rows[k + 1][j]
-                tris += a0 + b0 + b1; tris += a0 + b1 + a1
-            }
-            for (t in cap.indices step 3) {
-                val e = rows.last(); tris += e[cap[t]] + e[cap[t + 1]] + e[cap[t + 2]]
-                val f = rows.first(); tris += f[cap[t]] + f[cap[t + 2]] + f[cap[t + 1]]
-            }
-            return TriangleSoup(FloatArray(tris.size * 9) { tris[it / 9][it % 9].toFloat() }, tris.size)
-        }
-        /** The block and its ridge. */
-        val part by lazy { sweep({ s -> val a = apex(s); val top = zb + a - chamfer; val w = shift(s)
-            listOf(doubleArrayOf(-half, 0.0), doubleArrayOf(half, 0.0), doubleArrayOf(half, zb), doubleArrayOf(a / Math.tan(steep) + w, zb),
-                doubleArrayOf(chamfer / Math.tan(steep) + w, top), doubleArrayOf(-chamfer / Math.tan(shallow) - w, top), doubleArrayOf(-a / Math.tan(shallow) - w, zb), doubleArrayOf(-half, zb)) },
-            listOf(0, 1, 2, 0, 2, 3, 0, 3, 6, 0, 6, 7, 3, 4, 5, 3, 5, 6)) }
-        /** A second part on the block against the ridge's shallow face, up to its chamfer. */
-        val against by lazy { sweep({ s -> val a = apex(s); val top = zb + a - chamfer; val w = shift(s)
-            listOf(doubleArrayOf(-half, zb), doubleArrayOf(-a / Math.tan(shallow) - w, zb), doubleArrayOf(-chamfer / Math.tan(shallow) - w, top), doubleArrayOf(-half, top)) }, listOf(0, 1, 2, 0, 2, 3)) }
-    }
-    val flat = Ridge(0.03); val wobbly = Ridge(0.03, 0.01); val steep = Ridge(0.16); val dipped = Ridge(0.0, dip = 1.5)
-    /** The steep ridge with its top cut off 5 um down, not 0.1 mm: on each layer its crest narrows to nothing over millimetres. */
-    val pointed = Ridge(0.16, chamfer = 0.005)
+    // the ridges (the catalog's: Models.Ridge)
+    val flat = Models.flatRidge; val wobbly = Models.wobblyRidge; val steep = Models.steepRidge; val dipped = Models.dippedRidge
+    val pointed = Models.pointedRidge
 
-    class Written(val g: String, val plan: Plan, val setup: Setup)
-    /** [parts] as one object written through Job (two parts: the second on a second tool), 0.08 mm layers, [extra] over the test setup. */
-    fun write(parts: List<TriangleSoup>, vararg extra: Pair<String, Any>): Written {
-        val two = parts.size == 2
-        val common = arrayOf<Pair<String, Any>>("plan.technique.flat.layer.height" to "0.08 mm", "plan.layer.walls.outer.line.width" to "0.4 mm",
-            "plan.layer.walls.inner.line.width" to "0.4 mm", "hardware.machine.tm.firmware.arcs" to false, *extra)
-        val base = if (!two) testSetup(*common, models = listOf(plymeld.config.ModelObject("o", listOf("A"), listOf(1), "o.3mf")))
-            else testSetup(
-            "hardware.machine.tm.model" to "flashforge-c5", "hardware.machine.tm.build.x" to "256 mm", "hardware.machine.tm.build.y" to "256 mm",
-            "hardware.machine.tm.build.z" to "256 mm", "hardware.machine.tm.gcode.start" to "M83\nT{initial_tool}\nM109 S{first_layer_nozzle_temperature} T{initial_tool}",
-            "hardware.machine.tm.firmware.exclude_object" to false,
-            "hardware.tool.t2.machine" to "tm", "hardware.tool.t2.index" to 2L, "hardware.tool.t2.bore" to "0.4 mm",
-            "hardware.tool.t2.layer.height.min" to "0.08 mm", "hardware.tool.t2.layer.height.max" to "0.28 mm",
-            "hardware.machine.tm.loadout.tool.t2.filament" to "test-pla-2",
-            "plan.mechanism.purge.tower.x" to "165 mm", "plan.mechanism.purge.tower.y" to "150 mm", *common,
-            models = listOf(plymeld.config.ModelObject("o", listOf("A", "B"), listOf(1, 2), "o.3mf")))
-        val setup = if (!two) base else base.withObjectSetups(listOf(ObjectSetup("o", base.objects[0].intent, "spool 1", Values(Entity.INTENT, "object overrides"), listOf(
-            PartSetup("A", "spool 1", Values(Entity.INTENT, "A")), PartSetup("B", "spool 2", Values(Entity.INTENT, "B"))))))
-        val plan = Plan.makeFor(listOf("o" to parts), setup, Plan.Companion.Overrides(pose = Pose.asGiven(), order = ObjectOrder.TOGETHER,
-            flatHeights = FlatLayers.Heights.ONE, objects = listOf(Plan.Companion.ObjectLocks(layerHeightMm = 0.08))))
-        return Written(java.io.StringWriter().also { Job(plan.layout, setup, "test").write(it) }.toString(), plan, setup)
-    }
-    /** The pre-print check as `slice` runs it on a lone object (GcodeCheck, ModelCheck). */
-    fun problems(w: Written, g: String = w.g, floorMm: Double = SliceSettings.of(w.setup).let { (it.minFeatureUm + 2 * it.resolutionUm) / 1000.0 }): List<String> {
-        val zBase = w.plan.parts.minOf { it.bounds()[2] }
-        val sf = ModelCheck.Surface(w.plan.parts, zBase, g)
-        return GcodeCheck.check(g, Expectations.forSetup(w.setup, sf::at)) + ModelCheck.check(g, w.plan.parts, zBase, surface = sf, featureMinMm = floorMm,
-            infillMinMm = 2 * SliceSettings.of(w.setup).innerWallWidthUm / 1000.0)
-    }
+    /** [parts] as one object written through Job (two parts: the second on a second tool), 0.08 mm layers, 0.4 mm lines. */
+    fun write(parts: List<TriangleSoup>) = Slicing.write(parts, if (parts.size == 2) Slicing.RIDGE_TWO else Slicing.RIDGE)
+    /** The pre-print check on a lone object (Slicing.problems), judged against the walls' floor [floorMm]. */
+    fun problems(w: Written, g: String = w.g, floorMm: Double = SliceSettings.of(w.setup).let { (it.minFeatureUm + 2 * it.resolutionUm) / 1000.0 }) =
+        Slicing.problems(w, g, floorMm)
 
     /** [w]'s moves, read with the filament's diameter (the file states none) so each line's width comes from its plastic. */
     fun toolpath(w: Written): TechniqueRender.Toolpath {

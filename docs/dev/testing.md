@@ -1,0 +1,48 @@
+# Testing notes
+
+Notes for working on plymeld's tests. Every test reads only what is in the repository: models built in code, the
+models in `test-models/`, and test resources.
+
+## The catalog of small models
+
+The catalog ([Catalog.kt](../../plymeld-check/src/test/kotlin/plymeld/check/catalog/Catalog.kt)) is one list of small
+models built in code, each with a stable name and a line saying what it is for: one technique, or one known weakness
+(a lens growing from one line to two, a web between a hole and the side, a thin ridge, a sliver of one filament on
+another's face, an inlay on a leaning face, seams on a cylinder and a post, an overhang ladder, bridges, sloped and
+domed tops, a small pillar, holes and pins). Each is sliced with a rig (the machine and plan values over the slicing
+tests' setup) under a few rows of settings that matter to it, the first always the rig as it is.
+
+It is for catching side effects during development, not for judging a printer. `CatalogTest` slices every model
+under every row, one after another, and measures each file: the pre-print check as `slice` runs it; for the walls cases,
+the uncovered area, plastic outside, plastic laid twice, paths and the shift between layers; the seam scar, seams,
+scarf seams and jogs; unretracted travel over open air and across tops, visible restarts, retractions; filament and
+predicted time; and the paths and length of every feature type. Planning time is not among them (it varies from run
+to run). The measures are compared with the recorded baseline,
+[baseline.tsv](../../plymeld-check/src/test/resources/plymeld/check/catalog/baseline.tsv): one line per model, row
+and measure, sorted, so a change to it reads as a plain diff.
+
+The models' own limits stay with their techniques' tests (`WallsByWidthTest`, `ThinRidgeTest`, `ExposedSliverTest`,
+`SpeckNearPartTest`), which build their models from the catalog. `CatalogTest` holds the pre-print check alone: every
+model passes it under every row, or is refused only as its entry names. A named refusal is a finding not yet fixed;
+the test turns red when it goes, and the entry is updated with the fix.
+
+**Adding a model.** Build it in
+[Models.kt](../../plymeld-check/src/test/kotlin/plymeld/check/catalog/Models.kt) (synthetic, in code, never a user's
+model; [Shapes.kt](../../plymeld-check/src/test/kotlin/plymeld/check/catalog/Shapes.kt) has prisms, lofts, tubes,
+blocks with holes, and slabs for a solid described by its section at each height). Add an entry to `Catalog.entries`
+with its name, what it is for, its rig, and only the rows that matter to it: each row is one more slice in the fast
+suite. Then accept the baseline (below) and read the new lines.
+
+**Reading a failure.** The message lists every measure that moved, old -> new, by model and row; a measure not in the
+baseline; and a baseline line no model measures any more. Every measure is exact: the slice is deterministic, so any
+move is a change of the slice. Explain each move as a side effect of the change or as intended before accepting it.
+The test also slices every unit side by side on the parallel pool first and prints the units that read otherwise
+than one after another: some have, now and then, an open finding its comment describes.
+
+**Accepting a change.** Run
+
+```
+./gradlew :plymeld-check:test --tests 'plymeld.check.catalog.CatalogTest' -Pplymeld.refreshCatalogBaseline
+```
+
+which writes the run as the new baseline, then read the file's diff and commit it with the change that moved it.

@@ -38,6 +38,9 @@ tasks.withType<Test>().configureEach {
     // Review pictures (plymeld vs another slicer) go to build/renders/, never into the repo; -Pplymeld.refreshRenders
     // rewrites the committed ones in docs/renders/ instead (plymeld-check's ReviewRenders.kt).
     if (project.hasProperty("plymeld.refreshRenders")) systemProperty("plymeld.refreshRenders", "true")
+    // The catalog's recorded measures (plymeld-check's catalog/Baseline.kt) are compared with each run; with
+    // -Pplymeld.refreshCatalogBaseline the run is written as the new baseline instead, to be read in the commit's diff.
+    if (project.hasProperty("plymeld.refreshCatalogBaseline")) systemProperty("plymeld.refreshCatalogBaseline", "true")
     outputs.dir(project.layout.buildDirectory.dir("renders"))
     // A test JVM's home is under build/, and so are plymeld's own folders (PLYMELD_HOME, UserDirs: the search log, a line
     // per technique decision read later for how often the search short-circuits in real use, and the window's files), so

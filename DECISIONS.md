@@ -1267,3 +1267,32 @@ is the limit that catches this.
 512 MB, 2.1 s and 82 (before: 4.0 s and 344; the version before the hole rule: 1.4 s and 69); at 352 MB, 3.1 s and 407
 (before: out of memory at 384 MB; the version before the hole rule: 2.2 s and 315). The rule's allocations on that
 model fell from about 2.5 GB to under 0.2 GB of the check's 7.5 GB.
+
+## 43. One catalog of small models, held to their own limits and to a recorded baseline of every measure (2026-11-16)
+
+**Context.** Each technique's test models were built inside its own test, and each test read only what its technique
+is about. A change to the walls moved retractions, seam counts and planning time on other models, and nothing showed
+it until a real plate was sliced.
+
+**Decision.** The slicing tests' small models live in one catalog (plymeld-check's tests, `catalog/`), each with a
+stable name, what it is for, the rig it is sliced with and a few rows of settings that matter to it; the technique
+tests build their models from it. `CatalogTest` slices every model under every row and records every measure a side
+effect could move (the pre-print check, the walls' coverage for the walls cases, the seam scar, stringing and
+restarts, retractions, filament, predicted time, and each feature type's paths and length) in a committed text file,
+one line per model, row and measure. A run that differs from it fails, listing each measure old -> new; the baseline
+changes only through `-Pplymeld.refreshCatalogBaseline`, so the change shows in the commit's diff. Every measure is
+exact: the slice is deterministic. Absolute limits stay where they are known, in the technique tests; the catalog
+itself asserts only the pre-print check, with a model's known refusal named in its entry so the test turns red when
+it is fixed.
+
+**Rejected.** Comparing the files byte for byte (as the regression cases do): every change to a file would fail with
+nothing said about what moved or how much, and a reviewer would read g-code diffs. Tolerances on the measures: a
+deterministic slice needs none, and a tolerance would hide the small moves that are the side effects looked for.
+Recording planning time: it varies from run to run on a shared machine; its own test holds it. Absolute limits for
+every measure of every model: most have no known right value; the baseline makes their movement visible instead.
+
+**Consequences.** Every change that moves a model's slice fails the catalog until it is explained and accepted, and
+the accepted diff says what moved. The baseline is measured one model after another: side by side on the parallel
+pool, as a test JVM's first slices, a few models' files were seen to change from run to run (an open finding, printed
+by the test). A JDK whose math functions round differently in the last place could move a slice; the baseline would
+show that too.

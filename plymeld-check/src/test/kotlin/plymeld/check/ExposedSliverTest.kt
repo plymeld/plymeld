@@ -5,21 +5,13 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.doubles.shouldBeGreaterThan
 import io.kotest.matchers.doubles.shouldBeLessThan
 import io.kotest.matchers.shouldBe
-import plymeld.core.Job
+import plymeld.check.catalog.Catalog
+import plymeld.check.catalog.Models
+import plymeld.check.catalog.Slicing
+import plymeld.check.catalog.Slicing.Written
 import plymeld.core.check.ModelCheck
-import plymeld.core.decide.FlatLayers
-import plymeld.core.decide.ObjectOrder
-import plymeld.core.decide.Plan
-import plymeld.core.decide.Pose
-import plymeld.gcode.KlipperWriter
 import plymeld.mesh.TriangleSoup
-import plymeld.model.Entity
-import plymeld.model.ObjectSetup
-import plymeld.model.PartSetup
-import plymeld.model.Setup
 import plymeld.model.SliceSettings
-import plymeld.model.Values
-import plymeld.model.withObjectSetups
 
 /**
  * A sliver of one filament on the object's surface beside another filament (plan.layer.sliver.at_surface): two parts on two
@@ -48,45 +40,14 @@ import plymeld.model.withObjectSetups
  *    line's middle passes it).
  */
 class ExposedSliverTest : StringSpec({
-    val cot62 = 1 / Math.tan(Math.toRadians(62.5)); val cot55 = 1 / Math.tan(Math.toRadians(55.0))
-    val x0 = 40.0; val z0 = 1.49; val top = 3.0
-    /** The white's front face at height [z]. */
-    fun white(z: Double) = x0 + z * cot62
-    /** The gray wedge's front at height [z] (above [z0]). */
-    fun gray(z: Double) = white(z0) - (z - z0) * cot55
+    // the catalog's exposed wedge (Models.exposedWedge) and its frame
+    val z0 = Models.WEDGE_Z0; val top = Models.WEDGE_TOP
+    fun white(z: Double) = Models.wedgeWhite(z)
+    fun gray(z: Double) = Models.wedgeGray(z)
+    val wedgeParts = Models.exposedWedge
 
-    /** A prism along Y from [y0] to [y1] (mm) of the X-Z [profile] (convex, counter-clockwise seen from -Y), every face outward. */
-    fun prism(profile: List<Pair<Double, Double>>, y0: Double = 100.0, y1: Double = 110.0): TriangleSoup {
-        val tris = ArrayList<DoubleArray>()
-        fun at(i: Int, y: Double) = doubleArrayOf(profile[i].first, y, profile[i].second)
-        val n = profile.size
-        for (i in 1 until n - 1) { tris += at(0, y0) + at(i, y0) + at(i + 1, y0); tris += at(0, y1) + at(i + 1, y1) + at(i, y1) }
-        for (i in 0 until n) { val j = (i + 1) % n; tris += at(i, y0) + at(j, y1) + at(j, y0); tris += at(i, y0) + at(i, y1) + at(j, y1) }
-        return TriangleSoup(FloatArray(tris.size * 9) { tris[it / 9][it % 9].toFloat() }, tris.size)
-    }
-    val wedgeParts = listOf(
-        prism(listOf(white(z0) to z0, white(top) to top, gray(top) to top)),                    // A: the gray wedge
-        prism(listOf(x0 to 0.0, 60.0 to 0.0, 60.0 to top, white(top) to top)))                 // B: the white block
-
-    class Written(val g: String, val plan: Plan, val setup: Setup)
-    /** One object of [parts] (spools: A, and C when given, filament 1; B filament 2) written through Job, [extra] over the test setup. */
-    fun write(parts: List<TriangleSoup>, vararg extra: Pair<String, Any>): Written {
-        val names = listOf("A", "B", "C").take(parts.size)
-        val base = testSetup(
-            "hardware.machine.tm.model" to "flashforge-c5", "hardware.machine.tm.build.x" to "256 mm", "hardware.machine.tm.build.y" to "256 mm",
-            "hardware.machine.tm.build.z" to "256 mm", "hardware.machine.tm.gcode.start" to "M83\nT{initial_tool}\nM109 S{first_layer_nozzle_temperature} T{initial_tool}",
-            "hardware.machine.tm.firmware.exclude_object" to false, "hardware.machine.tm.firmware.arcs" to false,
-            "hardware.tool.t2.machine" to "tm", "hardware.tool.t2.index" to 2L, "hardware.tool.t2.bore" to "0.4 mm",
-            "hardware.tool.t2.layer.height.min" to "0.08 mm", "hardware.tool.t2.layer.height.max" to "0.28 mm",
-            "hardware.machine.tm.loadout.tool.t2.filament" to "test-pla-2",
-            "plan.mechanism.purge.tower.x" to "165 mm", "plan.mechanism.purge.tower.y" to "150 mm", "plan.support.enabled" to false, "plan.technique.flat.layer.height" to "0.08 mm", *extra,
-            models = listOf(plymeld.config.ModelObject("o", names, names.map { if (it == "B") 2 else 1 }, "o.3mf")))
-        val setup = base.withObjectSetups(listOf(ObjectSetup("o", base.objects[0].intent, "spool 1", Values(Entity.INTENT, "object overrides"),
-            names.map { PartSetup(it, if (it == "B") "spool 2" else "spool 1", Values(Entity.INTENT, it)) })))
-        val plan = Plan.makeFor(listOf("o" to parts), setup, Plan.Companion.Overrides(pose = Pose.asGiven(), order = ObjectOrder.TOGETHER,
-            flatHeights = FlatLayers.Heights.ONE, objects = listOf(Plan.Companion.ObjectLocks(layerHeightMm = 0.08))))
-        return Written(java.io.StringWriter().also { Job(plan.layout, setup, "test").write(it) }.toString(), plan, setup)
-    }
+    /** One object of [parts] (spools: A, and C when given, filament 1; B filament 2) written through Job, [extra] over the test setup ([Slicing.SLIVER]). */
+    fun write(parts: List<TriangleSoup>, vararg extra: Pair<String, Any>): Written = Slicing.write(parts, Slicing.SLIVER, *extra)
 
     /** A printed segment of the model: its layer (top, thickness), its tool, its ends, its width from its plastic. */
     class Line(val layerZ: Double, val layerH: Double, val tool: String, val x0: Double, val y0: Double, val x1: Double, val y1: Double, val w: Double) {
@@ -236,9 +197,8 @@ class ExposedSliverTest : StringSpec({
     }
 
     "a buried sliver still goes to its neighbor; control: a fin wide enough for a line stays its own" {
-        /** A white block, a gray block beside it, and a gray fin [t] mm thick in the white against the gray, inside the object. */
-        fun buried(t: Double) = write(listOf(testBox(50f, 100f, 0f, 60f, 110f, 2f), testBox(40f, 100f, 0f, 50f, 110f, 2f),
-            testBox((50 - t).toFloat(), 102f, 0.4f, 50f, 108f, 1.6f)), "job.part_overlap" to "lower_filament")
+        /** A white block, a gray block beside it, and a gray fin [t] mm thick in the white against the gray, inside the object (the catalog's buried fin). */
+        fun buried(t: Double) = Catalog.write(Catalog.byName("buried fin $t mm"))
         /** On the fin's layers, how far the white's lines reach toward the gray block (their back edge at the cut), the least. */
         fun reach(w: Written) = crossings(w).filter { it.mid in 0.5..1.5 && it.tool == "T1" }.groupBy { it.layerZ }.values.minOf { cs -> cs.maxOf { it.back } }
         val thin = reach(buried(0.1)); val wide = reach(buried(0.5))

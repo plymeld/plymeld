@@ -5,7 +5,6 @@ import io.kotest.matchers.shouldBe
 import plymeld.core.Feature
 import plymeld.core.MultiFilament
 import plymeld.core.ToolPath
-import plymeld.geom.Polygon
 import plymeld.model.SliceSettings
 
 /**
@@ -25,10 +24,11 @@ import plymeld.model.SliceSettings
  * described anything plymeld lays.)
  */
 class SpeckNearPartTest : StringSpec({
-    // the base 40 x 10 mm, its front face at y 0; the triangle's tip 0.1 mm behind the face, its base 5 mm back and 10 mm wide
-    val base = Polygon(longArrayOf(0, 0, 40_000, 0, 40_000, 10_000, 0, 10_000))
-    val tri = Polygon(longArrayOf(15_000, 5_000, 20_000, 100, 25_000, 5_000))
-    val triHole = Polygon(longArrayOf(15_000, 5_000, 25_000, 5_000, 20_000, 100))
+    // the base 40 x 10 mm, its front face at y 0; the triangle's tip 0.1 mm behind the face, its base 5 mm back and 10 mm
+    // wide (the catalog's speck beside a part, as outlines)
+    val base = plymeld.check.catalog.Models.speckBase
+    val tri = plymeld.check.catalog.Models.speckTriangle
+    val triHole = plymeld.check.catalog.Models.speckTriangleHole
     val n = 12
     val tops = LongArray(n) { 200L * (it + 1) }
     val s = SliceSettings.of(testSetup())
