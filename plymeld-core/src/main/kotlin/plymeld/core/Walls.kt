@@ -967,7 +967,7 @@ object Walls {
     }
 
     /**
-     * [c] with every vertex dropped that both of its bead EDGES can spare, so neither edge moves more
+     * [c0] with every vertex dropped that both of its bead EDGES can spare, so neither edge moves more
      * than [tolUm] (the `resolution` setting): each move is extended as far as every vertex it spans
      * stays within [tolUm] of its chord AND within 2 x [tolUm] of the ONE width the move is extruded
      * at (the writer's mean of its ends). Greedy, not Douglas-Peucker: on a width taper the vertex
@@ -976,10 +976,71 @@ object Walls {
      * a move merged tapers into single moves (Benchy shell gaps 9.0 -> 10.1 mm2). The skeleton is
      * sampled every few tens of microns, and a constant-width line came out as 50 um segments with
      * 1-7 um slivers between them - thousands of moves a second for the motion planner, for nothing.
+     * Before that, runs of vertices closer together than [tolUm] are made one ([merged]): where the
+     * width steps between them, the width rule alone kept every one.
      */
-    fun simplified(c: CenterLine, tolUm: Long): CenterLine {
+    /**
+     * [c] with each run of neighboring vertices lying within [tolUm] of one another made one vertex: a move shorter than
+     * the slicing tolerance says nothing about where the line runs (the outline it was built from is known no closer), and
+     * the printer is sent a move of a few microns for nothing. The vertex lies halfway between the run's first and last,
+     * or on a closed line's first (and last) vertex where the run holds it (it keeps its place: where the line starts and
+     * ends, and where a seam may have been chosen), so no vertex moves as far as [tolUm]. An open line's end and the run
+     * beside it are left as they are (where open lines meet, which ends join reads the way each runs out at its end,
+     * joinEnds; moving them turned a junction's choice and laid two lines over each other). The merged vertex's width is the one
+     * that keeps the plastic of the moves on either side (each move is extruded at the mean of its ends' widths), within the
+     * run's widths. Such runs are what a line built from an outline's samples makes: a narrow island's loop takes a point
+     * on each rib of a sample (Beads), the ribs of one sample a few microns apart, each point with its own node's width, so
+     * the width steps between them and no simplification by width could drop one.
+     */
+    internal fun merged(c: CenterLine, tolUm: Long): CenterLine {
         val n = c.xy.size / 2
         if (n <= 2 || tolUm <= 0) return c
+        val tol2 = tolUm.toDouble() * tolUm
+        fun d2(a: Int, b: Int): Double { val dx = (c.xy[2 * a] - c.xy[2 * b]).toDouble(); val dy = (c.xy[2 * a + 1] - c.xy[2 * b + 1]).toDouble(); return dx * dx + dy * dy }
+        val closed = c.xy[0] == c.xy[2 * n - 2] && c.xy[1] == c.xy[2 * n - 1]
+        if ((0 until n - 1).none { d2(it, it + 1) < tol2 }) return c
+        val ox = ArrayList<Double>(n); val oy = ArrayList<Double>(n); val ow = ArrayList<Double>(n)
+        fun x(i: Int) = c.xy[2 * i].toDouble()
+        fun y(i: Int) = c.xy[2 * i + 1].toDouble()
+        fun w(i: Int) = c.widths[i].toDouble()
+        fun add(px: Double, py: Double, pw: Double) { ox.add(px); oy.add(py); ow.add(pw) }
+        var i = 0
+        while (i < n) {
+            // the run from i: vertices each within the tolerance of every other in it
+            var j = i
+            while (j + 1 <= n - 1 && (i..j).all { d2(it, j + 1) < tol2 }) j++
+            // an open line's end keeps the vertices beside it: where open lines meet, which ends join reads the way each runs
+            // out at its end (joinEnds)
+            if (j == i || (i == 0 && j == n - 1) || (!closed && (i == 0 || j == n - 1))) { for (q in i..j) add(x(q), y(q), w(q)); i = j + 1; continue }
+            // the vertex keeps the place of a closed line's first (and last) vertex; else it lies halfway between the run's ends
+            val fixed = when { i == 0 -> 0; j == n - 1 -> n - 1; else -> -1 }
+            val mx = if (fixed >= 0) x(fixed) else (x(i) + x(j)) / 2; val my = if (fixed >= 0) y(fixed) else (y(i) + y(j)) / 2
+            // the plastic of the moves from the vertex before the run to the vertex after it, kept
+            var plastic = 0.0; var before = 0.0; var after = 0.0; var zw = 0.0; var kw = 0.0
+            for (q in i until j) plastic += Math.hypot(x(q + 1) - x(q), y(q + 1) - y(q)) * (w(q) + w(q + 1)) / 2
+            if (ox.isNotEmpty()) {
+                val zx = ox.last(); val zy = oy.last(); zw = ow.last()
+                plastic += Math.hypot(x(i) - zx, y(i) - zy) * (zw + w(i)) / 2; before = Math.hypot(mx - zx, my - zy)
+            }
+            if (j < n - 1) {
+                val k = j + 1; kw = w(k)
+                plastic += Math.hypot(x(k) - x(j), y(k) - y(j)) * (w(j) + kw) / 2; after = Math.hypot(x(k) - mx, y(k) - my)
+            }
+            var lo = Double.MAX_VALUE; var hi = -Double.MAX_VALUE
+            for (q in i..j) { lo = minOf(lo, w(q)); hi = maxOf(hi, w(q)) }
+            val mw = if (before + after > 0) ((2 * plastic - before * zw - after * kw) / (before + after)).coerceIn(lo, hi) else (lo + hi) / 2
+            add(mx, my, mw)
+            i = j + 1
+        }
+        return CenterLine(LongArray(2 * ox.size) { if (it % 2 == 0) Math.round(ox[it / 2]) else Math.round(oy[it / 2]) },
+            LongArray(ow.size) { Math.round(ow[it]) }, c.reachUm, c.wall)
+    }
+
+    fun simplified(c0: CenterLine, tolUm: Long, /** false: no [merged] first (a test's control) */ merge: Boolean = true): CenterLine {
+        if (c0.xy.size / 2 <= 2 || tolUm <= 0) return c0
+        val c = if (merge) merged(c0, tolUm) else c0
+        val n = c.xy.size / 2
+        if (n <= 2) return c
         // Half the tolerance: the outline this line was derived from is already simplified to [tolUm],
         // and the full [tolUm] again opened cracks at bead contact (Benchy z 24 bow: shell gap volume
         // 0.165 -> 0.231 mm3).

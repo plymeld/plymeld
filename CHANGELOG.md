@@ -156,6 +156,15 @@ section the release's version and date.
 
 ### Fixed
 
+- Far fewer moves of a few microns in the walls of narrow areas. An area too narrow for its walls is laid by its local
+  width, its lines built from points on the outline's samples, two or three points to a sample a few microns apart, each
+  with a width of its own; the lines kept them all, so the printer was sent thousands of moves shorter than the slicing
+  tolerance (`method.slicing.tolerance`) carrying steps in width. Points closer together than the tolerance are now one,
+  its width keeping the plastic of the moves on either side; an open line's ends are left as they were. On a real
+  three-object plate, moves shorter than the tolerance went from 10,311 to 1,160 (outer wall 8,345 to 803), with the
+  plastic laid twice unchanged. The catalog of test models records the moves shorter than the tolerance and the outer
+  wall's sharp turns beside a short move, and holds the outer wall of its models of straight sides and true arcs to
+  none of either.
 - Walls no longer run across the tip of a sharp notch in an area, or end against each other at a narrow neck. A loop's
   place is found by shrinking the area's outline; at a notch sharper than 60 degrees that shrink cut the corner short,
   keeping ground nearer the tip than the line fits, and the loop ran across the notch over the loop inside it. It now

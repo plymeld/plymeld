@@ -17,15 +17,20 @@ under every row, one after another, and measures each file: the pre-print check 
 measure as `slice` reports it (the spots, their area, the layers holding one, the widest); for the walls cases,
 the uncovered area, plastic outside, plastic laid twice, paths and the shift between layers; the seam scar, seams,
 scarf seams and jogs; unretracted travel over open air and across tops, visible restarts, retractions; filament and
-predicted time; and the paths and length of every feature type. Planning time is not among them (it varies from run
+predicted time; the paths and length of every feature type; and the jagged lines: extruding moves shorter than the
+slicing tolerance (all, and the outer wall's) and the outer wall's kinks (a turn of more than 150 degrees beside a move
+shorter than the outer line's width). Planning time is not among them (it varies from run
 to run). The measures are compared with the recorded baseline,
 [baseline.tsv](../../plymeld-check/src/test/resources/plymeld/check/catalog/baseline.tsv): one line per model, row
 and measure, sorted, so a change to it reads as a plain diff.
 
 The models' own limits stay with their techniques' tests (`WallsByWidthTest`, `ThinRidgeTest`, `ExposedSliverTest`,
-`SpeckNearPartTest`), which build their models from the catalog. `CatalogTest` holds the pre-print check alone: every
+`SpeckNearPartTest`), which build their models from the catalog. `CatalogTest` holds the pre-print check: every
 model passes it under every row, or is refused only as its entry names. A named refusal is a finding not yet fixed;
-the test turns red when it goes, and the entry is updated with the fix.
+the test turns red when it goes, and the entry is updated with the fix. It also holds the outer wall of the models made
+of straight sides and true arcs (the block, posts, cylinder, holes, pins, fins, decks, slopes, dome, pillar and the
+two-color piece) to no move shorter than the slicing tolerance and no kink; the narrow islands laid by their beads (a
+tip's line runs in and turns back by design) and the other features are held by the baseline.
 
 **Adding a model.** Build it in
 [Models.kt](../../plymeld-check/src/test/kotlin/plymeld/check/catalog/Models.kt) (synthetic, in code, never a user's

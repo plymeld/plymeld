@@ -23,7 +23,9 @@ import java.util.Locale
  *    across tops; visible restarts and the length printed starved after them; retractions; travel);
  *  - `filament_mm`, `filament.T<n>_mm`, `time_s`: Predict on the file, as `slice` predicts it;
  *  - `feature.<type>.paths`, `feature.<type>.length_mm`: per feature type, how many paths (consecutive extruding moves of one
- *    feature, tool and layer, each starting where the last ended) and their length (TechniqueRender's moves).
+ *    feature, tool and layer, each starting where the last ended) and their length (TechniqueRender's moves);
+ *  - `lines.*` ([jagged]): extruding moves shorter than the slicing tolerance, all and the outer wall's, and the outer wall's
+ *    kinks (a turn of more than 150 deg beside a move shorter than the outer line's width).
  * Planning time is not recorded: it varies from run to run (NarrowIslandTimeTest holds it).
  */
 object CatalogMeasures {
@@ -88,6 +90,35 @@ object CatalogMeasures {
             length.merge(name, m.length, Double::plus)
         }
         for ((name, n) in paths) { out["feature.$name.paths"] = n.toString(); out["feature.$name.length_mm"] = f(length.getValue(name), 2) }
+        val j = jagged(ms, s.resolutionUm / 1000.0, s.outerWallWidthUm / 1000.0)
+        out["lines.tiny_moves"] = j.tiny.toString(); out["lines.tiny_moves.outer_wall"] = j.tinyOuter.toString(); out["lines.outer_kinks"] = j.kinks.toString()
         return Measured(out, problems)
     }
+
+    /** [jagged]'s counts: moves shorter than the tolerance (all, the outer wall's) and the outer wall's kinks. */
+    class Jagged(val tiny: Int, val tinyOuter: Int, val kinks: Int)
+
+    /**
+     * The jagged lines of a file's extruding moves [ms] (arcs written as lines): the moves shorter than [tolMm] (the slicing
+     * tolerance: a move that short says nothing about where the line runs, and the printer is sent it for nothing), and the
+     * outer wall's kinks: a vertex where the line turns by more than 150 deg beside a move shorter than [widthMm] (the outer
+     * line's width), a spike or a step back the surface shows. A vertex is where one move ends and the next of the same
+     * path (feature, tool and layer) starts.
+     */
+    fun jagged(ms: List<TechniqueRender.Move>, tolMm: Double, widthMm: Double): Jagged {
+        var tiny = 0; var tinyOuter = 0; var kinks = 0
+        val cosLimit = Math.cos(Math.toRadians(150.0))
+        for (k in ms.indices) {
+            val m = ms[k]
+            if (m.length < tolMm) { tiny++; if (m.feature == OUTER) tinyOuter++ }
+            if (k == 0 || m.feature != OUTER) continue
+            val p = ms[k - 1]
+            if (p.feature != m.feature || p.tool != m.tool || p.layer != m.layer || Math.hypot(p.x1 - m.x0, p.y1 - m.y0) > 1e-6) continue
+            if (p.length == 0.0 || m.length == 0.0 || minOf(p.length, m.length) >= widthMm) continue
+            val c = ((p.x1 - p.x0) * (m.x1 - m.x0) + (p.y1 - p.y0) * (m.y1 - m.y0)) / (p.length * m.length)
+            if (c < cosLimit) kinks++
+        }
+        return Jagged(tiny, tinyOuter, kinks)
+    }
+    private const val OUTER = "Outer wall"
 }

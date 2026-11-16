@@ -4,6 +4,7 @@ import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
+import plymeld.check.TechniqueRender
 import plymeld.check.catalog.Baseline.Key
 import plymeld.check.catalog.Catalog.BASE
 import plymeld.check.catalog.Catalog.Entry
@@ -14,8 +15,9 @@ import plymeld.check.catalog.Catalog.Row
  * on the parallel pool), measured (CatalogMeasures), and compared with the recorded baseline (Baseline): any measure that moved, any
  * measure not recorded and any recorded one no longer measured fails the test, the failure listing each, old -> new, by
  * model and row, and how to accept them. The absolute limits a model has are its technique's own tests' (WallsByWidthTest,
- * ThinRidgeTest, ExposedSliverTest, SpeckNearPartTest); here the pre-print check alone: each model passes it, or is refused
- * only as its entry names (a finding not yet fixed).
+ * ThinRidgeTest, ExposedSliverTest, SpeckNearPartTest); here the pre-print check: each model passes it, or is refused
+ * only as its entry names (a finding not yet fixed); and the outer wall of the models of straight sides and true arcs: no
+ * move shorter than the slicing tolerance and no kink.
  *
  * Controls: a setting changed on one model moves its measures and the comparison reports them; a baseline with a value
  * altered, a line missing and a stray line is reported for each. Determinism: every unit measured side by side on the
@@ -89,6 +91,42 @@ class CatalogTest : StringSpec({
             println("the catalog's baseline: ${now.size} measures" + (if (diff.empty) ", all as recorded" else "\n" + diff.report()))
             withClue(diff.report()) { diff.empty shouldBe true }
         }
+    }
+
+    /*
+     * A model whose outline is straight sides and true arcs (a block, posts, a cylinder, round holes and pins, fins, decks,
+     * slopes, a dome) gives its outer wall no move shorter than the slicing tolerance and no kink: the outline is simplified
+     * to the tolerance and its walls are its offsets, nothing in them turns back. The narrow islands laid by their beads
+     * (decision 28: a tip's line runs in and back by design), two parts' meeting and the infill's links along an outline are
+     * held by the baseline only.
+     */
+    "the outer wall of a model of straight sides and true arcs: no move shorter than the tolerance, no kink" {
+        val plain = listOf("block", "smooth cylinder", "cornered post", "overhang ladder", "bridges", "sloped top", "domed top", "small pillar",
+            "holes", "pins", "two-color piece")
+        val wrong = ArrayList<String>()
+        for ((e, row) in units) if (e.name in plain) {
+            val v = run().getValue(e.name to row.name).values
+            for (k in listOf("lines.tiny_moves.outer_wall", "lines.outer_kinks")) if (v.getValue(k) != "0") wrong += "${e.name} / ${row.name}: $k ${v.getValue(k)}"
+        }
+        plain.all { n -> Catalog.entries.any { it.name == n } } shouldBe true
+        withClue(wrong.joinToString("\n")) { wrong.shouldBeEmpty() }
+    }
+
+    /*
+     * The jagged-line measures count what they say: an outer wall square, 10 mm a side, reads none; with a move of 5 um
+     * inserted along a side, one move shorter than the tolerance; with a spike 0.11 mm out and back along another side, one
+     * kink (the spike's tip turns 180 deg; where it leaves and rejoins the side, 63 and 117 deg).
+     */
+    "control: a move shorter than the tolerance and a kink inserted in a square's outer wall are each counted" {
+        fun square(extraAfterFirst: String = "", extraOnTop: String = "") = TechniqueRender.read(
+            "M83\n;LAYER_CHANGE\n;Z:0.2\n;TYPE:Outer wall\nG1 X0 Y0 F600\nG1 X10 Y0 E0.5\n$extraAfterFirst" +
+                "G1 X10 Y10 E0.5\nG1 X5 Y10 E0.25\n${extraOnTop}G1 X0 Y10 E0.25\nG1 X0 Y0 E0.5\n").moves
+        val plain = CatalogMeasures.jagged(square(), 0.0125, 0.44)
+        val tiny = CatalogMeasures.jagged(square(extraAfterFirst = "G1 X10.005 Y0 E0.0003\n"), 0.0125, 0.44)
+        val spike = CatalogMeasures.jagged(square(extraOnTop = "G1 X5.05 Y10.1 E0.006\nG1 X5 Y10 E0.006\n"), 0.0125, 0.44)
+        listOf(plain.tiny, plain.tinyOuter, plain.kinks) shouldBe listOf(0, 0, 0)
+        listOf(tiny.tiny, tiny.tinyOuter, tiny.kinks) shouldBe listOf(1, 1, 0)
+        listOf(spike.tiny, spike.tinyOuter, spike.kinks) shouldBe listOf(0, 0, 1)
     }
 
     /*

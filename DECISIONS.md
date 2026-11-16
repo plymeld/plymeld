@@ -1640,3 +1640,45 @@ cuts: one inner loop, its sides a spacing apart; control, the necks not joined: 
 Still open on the plate: a loop crossing a web between two letter pockets twice, not a neck the mitre cut (the exact
 and mitred shrinks agree there); outer loops at a V between letters; small inner loops of a letter; two outer loops of
 one letter crossing; two fills sharing an edge; one internal solid line over another.
+
+## 53. A line's points closer together than the slicing tolerance are one, its width keeping the plastic (2026-11-16)
+
+**Context.** On a real three-object plate, 10,311 extruding moves were shorter than `method.slicing.tolerance` (12.5 µm
+there), 8,345 of them on the outer wall, and 741 outer-wall vertices turned by more than 150 degrees beside a move
+shorter than the outer line. Read move by move: 99.6 % of the outer wall's short moves lay in lines whose plastic per
+millimetre varies, the lines of narrow islands laid by their beads (decision 28), none in an arc and none at an arc's
+join. Such a line takes a point on every rib of an outline sample, at its bead's distance from the outline: a sample
+touches two or three triangles, so the loop had two or three points to a sample a few microns apart, every 50 to 80 µm,
+each with its own node's width (steps of 20 to 90 µm in width between them). Walls.simplified drops a point only where
+the width stays within the tolerance, so it kept every one. The sharp turns were mostly the designed run-in of a tip
+(out along the axis and back), and some steps back and forth across the track where a place is two to three lines wide.
+
+**Decision.** Before simplifying a line by its edges, each run of neighboring points within the slicing tolerance of
+one another is made one point (Walls.merged): halfway between the run's ends, or on a closed line's first vertex where
+the run holds it (it keeps its place); its width is the one that keeps the plastic of the moves on either side (each
+move is extruded at the mean of its ends' widths), within the run's widths. An open line's end and the points beside
+it are left as they are. The fix is in the walls stage (the lines' points), not in the writer: no point moves as far as
+the tolerance, the outline being known no closer.
+
+**Rejected.** Moving an open line's end too: where open lines meet at a junction, which ends join reads the way each
+runs out at its end (joinEnds), and on the plate a junction chose otherwise and laid two outer lines over each other
+(a spot of 0.27 mm²). Turning a closed line to start elsewhere for the merge, its first vertex moved: its scarf seam's
+closing pass got a move with no plastic in a step back across the track that decision 49's merge cannot take (off the
+straight move), read as a line over the loop's start (0.26 mm²). Keeping the loop's points in order along the outline
+(the fewest left out so that each lies no farther back than the one before): the steps back went, but plastic laid
+twice on the plate rose from 10 spots and 1.20 mm² to 13 and 1.73, and the tips' turns sharpened. A filter in the writer:
+the cause is the line's points.
+
+**Consequences.** The plate: moves shorter than the tolerance 10,311 to 1,160 (outer wall 8,345 to 803, inner 1,931
+to 322), plastic laid twice the same (10 spots, 1.199 mm², 9 layers), the check passes. The outer wall's sharp turns
+beside a short move, counted vertex by vertex, 741 to 2,678: a tip's turn back that was spread over moves of a few
+microns now lies on one vertex; counted with every move shorter than the tolerance joined to the next first, 2,775 to
+2,971. Planning time unchanged within the runs' spread (three runs each, in turn: 49.1, 49.0, 45.5 s before; 51.2,
+42.7, 49.0 s after); the file 3 % smaller (438,866 to 422,952 lines). What is left: the steps back and forth in narrow places two to three lines wide (their cause in the beads'
+ribs is not fixed), an open line's last move, the infill's links along a round outline (a link starting a few microns
+from the outline's vertex: 307 on the catalog's holes), and outline jogs of a few microns where two parts meet. The
+catalog records, per model and row, the moves shorter than the tolerance (all and the outer wall's) and the outer
+wall's kinks, and holds the outer wall of its models of straight sides and true arcs to none of either; a hand-written
+square with a short move and a spike inserted is counted (control). Test: CenterLineSimplifyTest (a narrow island's rib
+pairs, open and closed: no move shorter than the tolerance, no point moved as far, the plastic within half a micron of
+width; control: without the merge the moves of 5 µm stay).
