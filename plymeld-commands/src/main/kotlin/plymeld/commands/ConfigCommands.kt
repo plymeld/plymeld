@@ -103,8 +103,9 @@ class SliceCommand : ModelConfigCommand("slice") {
     override fun help(context: com.github.ajalt.clikt.core.Context) = "Slice models (-m) to g-code with config files (-cf) and values (-cv)."
 
     override fun run() {
-        // the work is SliceSession's (the window runs the same two halves, the check in the background)
-        val session = SliceSession()
+        // the work is SliceSession's (the window runs the same two halves, the check in the background); one slice, so the
+        // slicers are let go once the file is written, not held through the check
+        val session = SliceSession(keepSlicers = false)
         val w = session.write(from?.let(::fromGcode) ?: product(), output, ::echo)
         explainOut(w.plan)
         session.check(w, ::echo).refusal?.let { error(it) }

@@ -18,10 +18,14 @@ import java.nio.file.Path
  * A session kept across runs keeps each object's slicer (its cached stages: incremental re-slicing) while the plate is the same: the
  * same meshes, placed the same, with the same technique plan and pauses. Then a run after a change re-runs only the stages
  * whose settings changed (a speed: the g-code alone). A changed mesh, pose, or technique plan starts the slicer afresh.
+ * [keepSlicers] false: a session that slices once (the `slice` command) lets the slicers go as soon as the file is
+ * written, so their stages (every layer's outlines, walls, and paths) are not held through the check beside its own.
  */
-class SliceSession {
+class SliceSession(private val keepSlicers: Boolean = true) {
     private class Kept(val signature: String, val inc: IncrementalSlicer?, val job: plymeld.core.Job?)
     private var kept: Kept? = null
+    /** Whether the session holds the objects' slicers from its last [write] (for the next run's unchanged stages). */
+    internal fun holdsSlicers(): Boolean = kept != null
 
     /** What [write] produced, for [check]. */
     class Written(val pr: Product, val plan: Plan, val setup: Setup, val output: Path, val text: String, val partTools: List<Int>, val prediction: Predict.Prediction,
@@ -120,16 +124,18 @@ class SliceSession {
             inc.retractionDecision?.let { echo("decided ${it.step}: ${if (it.overridden) "(locked) " else ""}${it.why}") }
         }
         echo("${pr.plate.size} object(s): ${(System.nanoTime() - t0) / 1_000_000} ms -> $output" + (if (reused) " (the slicer kept from the last run: unchanged stages skipped)" else ""))
+        if (!keepSlicers) kept = null
         progress.check()
         progress.at("prediction", 0, 0)
         val changeS = (plymeld.model.Resolver.resolveOrNull(setup, "hardware.machine.tool_change.time")?.value as Number?)?.toDouble()
         val s = plymeld.model.SliceSettings.of(setup)
-        val prediction = Predict.gcode(Files.readString(output), s.machineDescription, changeS, Predict.limits(s)).withSeamScar(seamScar).withStrings(strings)
+        val written = Files.readString(output)
+        val prediction = Predict.gcode(written, s.machineDescription, changeS, Predict.limits(s)).withSeamScar(seamScar).withStrings(strings)
         // which tool prints each part: the config's loadout, read on its own (not the setup the slice was made from)
         val partTools = pr.partTools(plan)
         // the machine's preview pictures (hardware.machine.gcode.pictures) and its own file header (the Creator 5's screen), from the
         // finished file and its prediction
-        val pictured = withPictures(Files.readString(output), plan.parts, partTools, setup, s, echo)
+        val pictured = withPictures(written, plan.parts, partTools, setup, s, echo)
         // what the file was made from (version, models, config, plan), at its end, for anyone reproducing it (SourceBlock)
         val text = SourceBlock.append(withMachineHeader(pictured, pr.config, setup, s, prediction), PlymeldVersion.value, pr.usedStack, pr.modelPaths, pr.planFile(plan), pr.config.machine, pr.usedKeys)
         Files.writeString(output, text)

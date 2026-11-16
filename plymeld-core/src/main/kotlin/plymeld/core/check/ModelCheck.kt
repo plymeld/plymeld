@@ -145,7 +145,7 @@ object ModelCheck {
         val per = plymeld.core.Parallel.map(layers.size, progress.Counter("model check", layers.size)) { k ->
             val lo = layerProblems(sf, k, tol, imagesDir, zaa, featureMinMm, if (k == 0) firstLayerInsetMm else 0.0, fuzzMm, infillMinMm, slicingTolMm, endOverlap)
             LayerOut(lo.problems + airProblems(sf, k, tol, imagesDir) + toolProblems(sf, k, tol + handOverMm, partTools) + surfaceToolProblems(sf, k, tol + surfaceHandOverMm, partTools),
-                lo.twice, lo.picture) }
+                lo.twice, lo.picture).also { sf.release(k) } }
         // the layers' pictures, one at a time once every layer is read: drawn by the layers' own tasks, a picture each
         // (an image of about 4 MB, its line list and its PNG encoding) on every core at once took a 512 MB test JVM to its
         // limit where a slice holds a spot laid twice on dozens of layers
@@ -175,7 +175,7 @@ object ModelCheck {
         if (waves.isEmpty() || layer.z - layer.h < 1e-6) return emptyList()
         // the pieces of the area over air the beads were laid for: those with a wave bead in them (a narrow hole closing
         // within the layer, walled as still open, is over air by the cut at the middle but no wave's)
-        fun gridOf(ps: List<Polygon>) = Grid(ps.flatMap { p -> (0 until p.size).map { i -> doubleArrayOf(p.x(i) / 1000.0, p.y(i) / 1000.0, p.x((i + 1) % p.size) / 1000.0, p.y((i + 1) % p.size) / 1000.0) } })
+        fun gridOf(ps: List<Polygon>) = Grid.ofLoops(ps)
         val air = plymeld.geom.Polygons.group(plymeld.geom.Booleans.difference(sf.loops(k), sf.below(k))).map { (o, hs) -> listOf(o) + hs }
             .filter { piece -> val g = gridOf(piece); waves.any { g.inside((it.x0 + it.x1) / 2, (it.y0 + it.y1) / 2) } }.flatten()
         if (air.isEmpty()) return emptyList()
@@ -397,7 +397,7 @@ object ModelCheck {
                 // half a line from it is in a part narrower than a line (a sliver, a feature's tip): nothing could wall it
                 val centerGrid by lazy {   // only on layers with an outline point no wall is near (the offset is the slow part)
                     val centers = plymeld.geom.Offset.offset(outline, -Math.round(w * 500))
-                    Grid(centers.flatMap { p -> (0 until p.size).map { i -> doubleArrayOf(p.x(i) / 1000.0, p.y(i) / 1000.0, p.x((i + 1) % p.size) / 1000.0, p.y((i + 1) % p.size) / 1000.0) } })
+                    Grid.ofLoops(centers)
                 }
                 var uncovered = 0.0; var run = 0.0; var longest = 0.0; var ux = 0.0; var uy = 0.0
                 val pts = ArrayList<DoubleArray>()
@@ -514,7 +514,7 @@ object ModelCheck {
         // where a disc of [floor] can have its center: the cross-section (drawn in by [inset]) shrunk by half of it
         val centers by lazy {
             val c = plymeld.geom.Offset.offset(loops, -Math.round((floor / 2 + inset) * 1000))
-            Grid(c.flatMap { p -> (0 until p.size).map { i -> doubleArrayOf(p.x(i) / 1000.0, p.y(i) / 1000.0, p.x((i + 1) % p.size) / 1000.0, p.y((i + 1) % p.size) / 1000.0) } })
+            Grid.ofLoops(c)
         }
         val step = w / 4; val reach = w / 2 + tol
         var longest = 0.0; var lx = 0.0; var ly = 0.0
@@ -696,7 +696,14 @@ object ModelCheck {
         // each part's own cross-section (the tool rule), made when first asked for; layers are judged in parallel, one per thread
         private val partGrids = Array(sections.size) { arrayOfNulls<Grid>(layerLines.size) }
         internal fun partGrid(p: Int, k: Int): Grid = partGrids[p][k] ?: gridOf(sections[p][k].loops).also { partGrids[p][k] = it }
-        private fun gridOf(loops: List<Polygon>) = Grid(loops.flatMap { p -> (0 until p.size).map { i -> doubleArrayOf(p.x(i) / 1000.0, p.y(i) / 1000.0, p.x((i + 1) % p.size) / 1000.0, p.y((i + 1) % p.size) / 1000.0) } })
+        /**
+         * Layer [k]'s grids and its cut below let go, once its rules have read it ([checkAll]): made again if asked for
+         * (the travel rule after a plate's model check), so a check holds only the layers it is reading, not every one.
+         */
+        internal fun release(k: Int) { grids[k] = null; for (g in partGrids) g[k] = null; belows[k] = null }
+        /** How many of the layers' grids and cuts below are held now (the outline's, each part's, the cut below; [release]). */
+        internal fun held(): Int = grids.count { it != null } + partGrids.sumOf { g -> g.count { it != null } } + belows.count { it != null }
+        private fun gridOf(loops: List<Polygon>) = Grid.ofLoops(loops)
         /** A layer this g-code does not have counts every point as on the surface (the stricter reading). */
         fun at(x: Double, y: Double, layerZ: Double, h: Double): Boolean {
             val k = byZ[Math.round(layerZ * 1000)] ?: return true
@@ -833,35 +840,99 @@ object ModelCheck {
     private const val ARC_CHORD_MM = 0.5
 
     /**
-     * Segments (x0, y0, x1, y1, mm) bucketed on a 1 mm grid: the nearest one to a point within a radius,
-     * and inside / outside of closed loops by crossings of a ray along +x (rows by y).
+     * Segments (x0, y0, x1, y1, mm; [s] holds four numbers a segment) bucketed on a 1 mm grid: the nearest one to a point
+     * within a radius, and inside / outside of closed loops by crossings of a ray along +x (rows by y).
+     * Flat: the cells and rows are sorted primitive arrays, each one's segment indices a run of one array. The check keeps
+     * a grid of every layer's outline and of each part's while it runs; held as maps of boxed indices and an array a
+     * segment, they took about 70 MB of a 512 MB test heap on a 262k-triangle model.
      */
-    internal class Grid(private val segs: List<DoubleArray>) {
+    internal class Grid(private val s: DoubleArray) {
+        constructor(segs: List<DoubleArray>) : this(DoubleArray(4 * segs.size).also { a -> for ((i, q) in segs.withIndex()) System.arraycopy(q, 0, a, 4 * i, 4) })
         private val cell = 1.0
-        private val cells = HashMap<Long, MutableList<Int>>()
-        private val rows = HashMap<Int, MutableList<Int>>()
-        private fun key(cx: Int, cy: Int) = (cx.toLong() shl 32) or (cy.toLong() and 0xffffffffL)
+        // the cells' and rows' extent, in cells; a cell's id is its place in the extent, row by row
+        private var lx = 0; private var ly = 0; private var hy = -1; private var w = 1
+        // the cells holding a segment by id, ascending; cell k's segments are cellSegs[cellAt[k] until cellAt[k + 1]]
+        private val cellIds: IntArray; private val cellAt: IntArray; private val cellSegs: IntArray
+        // the same by row (y cell less [ly])
+        private val rowIds: IntArray; private val rowAt: IntArray; private val rowSegs: IntArray
         init {
-            for ((i, s) in segs.withIndex()) {
-                val x0 = Math.floor(minOf(s[0], s[2]) / cell).toInt(); val x1 = Math.floor(maxOf(s[0], s[2]) / cell).toInt()
-                val y0 = Math.floor(minOf(s[1], s[3]) / cell).toInt(); val y1 = Math.floor(maxOf(s[1], s[3]) / cell).toInt()
-                for (cx in x0..x1) for (cy in y0..y1) cells.getOrPut(key(cx, cy)) { ArrayList() } += i
-                for (cy in y0..y1) rows.getOrPut(cy) { ArrayList() } += i
+            val n = s.size / 4
+            var hx = Int.MIN_VALUE; lx = Int.MAX_VALUE; ly = Int.MAX_VALUE; hy = Int.MIN_VALUE
+            var ce = 0L; var re = 0L
+            for (i in 0 until n) {
+                val x0 = cellOf(minOf(s[4 * i], s[4 * i + 2])); val x1 = cellOf(maxOf(s[4 * i], s[4 * i + 2]))
+                val y0 = cellOf(minOf(s[4 * i + 1], s[4 * i + 3])); val y1 = cellOf(maxOf(s[4 * i + 1], s[4 * i + 3]))
+                lx = minOf(lx, x0); hx = maxOf(hx, x1); ly = minOf(ly, y0); hy = maxOf(hy, y1)
+                ce += (x1 - x0 + 1).toLong() * (y1 - y0 + 1); re += y1 - y0 + 1
             }
+            if (n == 0) { lx = 0; ly = 0; hy = -1; w = 1 } else w = hx - lx + 1
+            require(n == 0 || (hy - ly + 1).toLong() * w < Int.MAX_VALUE && ce < Int.MAX_VALUE) { "a grid of ${w} x ${hy - ly + 1} cells and $ce entries is too large" }
+            // each (cell, segment) and (row, segment) as one long, the id high and the segment low, sorted: grouped by id
+            val ck = LongArray(ce.toInt()); val rk = LongArray(re.toInt())
+            var c = 0; var r = 0
+            for (i in 0 until n) {
+                val x0 = cellOf(minOf(s[4 * i], s[4 * i + 2])); val x1 = cellOf(maxOf(s[4 * i], s[4 * i + 2]))
+                val y0 = cellOf(minOf(s[4 * i + 1], s[4 * i + 3])); val y1 = cellOf(maxOf(s[4 * i + 1], s[4 * i + 3]))
+                for (cx in x0..x1) for (cy in y0..y1) ck[c++] = (((cy - ly).toLong() * w + (cx - lx)) shl 32) or i.toLong()
+                for (cy in y0..y1) rk[r++] = ((cy - ly).toLong() shl 32) or i.toLong()
+            }
+            ck.sort(); rk.sort()
+            fun groups(k: LongArray): Triple<IntArray, IntArray, IntArray> {
+                var g = 0
+                for (j in k.indices) if (j == 0 || (k[j] ushr 32) != (k[j - 1] ushr 32)) g++
+                val ids = IntArray(g); val at = IntArray(g + 1); val segs = IntArray(k.size)
+                g = 0
+                for (j in k.indices) {
+                    if (j == 0 || (k[j] ushr 32) != (k[j - 1] ushr 32)) { ids[g] = (k[j] ushr 32).toInt(); at[g] = j; g++ }
+                    segs[j] = (k[j] and 0xffffffffL).toInt()
+                }
+                at[g] = k.size
+                return Triple(ids, at, segs)
+            }
+            val (ci, ca, cs) = groups(ck); cellIds = ci; cellAt = ca; cellSegs = cs
+            val (ri, ra, rs) = groups(rk); rowIds = ri; rowAt = ra; rowSegs = rs
         }
+        private fun cellOf(v: Double) = Math.floor(v / cell).toInt()
+        /** The first index of [ids] whose value is at least [v]. */
+        private fun lowerBound(ids: IntArray, v: Int): Int { var a = 0; var b = ids.size; while (a < b) { val m = (a + b) ushr 1; if (ids[m] < v) a = m + 1 else b = m }; return a }
         fun nearest(px: Double, py: Double, r: Double): Double {
             var best = Double.MAX_VALUE
-            val rc = Math.ceil(r / cell).toInt(); val cx = Math.floor(px / cell).toInt(); val cy = Math.floor(py / cell).toInt()
-            for (gx in cx - rc..cx + rc) for (gy in cy - rc..cy + rc) cells[key(gx, gy)]?.forEach { i -> val s = segs[i]; best = minOf(best, pointSeg(px, py, s[0], s[1], s[2], s[3])) }
+            val rc = Math.ceil(r / cell).toInt(); val cx = cellOf(px); val cy = cellOf(py)
+            val gx0 = maxOf(cx - rc, lx); val gx1 = minOf(cx + rc, lx + w - 1)
+            if (gx0 > gx1) return best
+            for (gy in maxOf(cy - rc, ly)..minOf(cy + rc, hy)) {
+                val base = (gy - ly) * w
+                var k = lowerBound(cellIds, base + gx0 - lx)
+                val last = base + gx1 - lx
+                while (k < cellIds.size && cellIds[k] <= last) {
+                    for (j in cellAt[k] until cellAt[k + 1]) { val q = 4 * cellSegs[j]; best = minOf(best, pointSeg(px, py, s[q], s[q + 1], s[q + 2], s[q + 3])) }
+                    k++
+                }
+            }
             return best
         }
         fun inside(px: Double, py: Double): Boolean {
             var c = false
-            rows[Math.floor(py / cell).toInt()]?.forEach { i ->
-                val s = segs[i]
-                if ((s[1] > py) != (s[3] > py) && px < (s[2] - s[0]) * (py - s[1]) / (s[3] - s[1]) + s[0]) c = !c
+            val row = cellOf(py)
+            if (row < ly || row > hy) return false
+            val k = lowerBound(rowIds, row - ly)
+            if (k >= rowIds.size || rowIds[k] != row - ly) return false
+            for (j in rowAt[k] until rowAt[k + 1]) {
+                val q = 4 * rowSegs[j]
+                if ((s[q + 1] > py) != (s[q + 3] > py) && px < (s[q + 2] - s[q]) * (py - s[q + 1]) / (s[q + 3] - s[q + 1]) + s[q]) c = !c
             }
             return c
+        }
+
+        companion object {
+            /** The edges of [loops] (µm), each loop closed, as a grid in mm. */
+            fun ofLoops(loops: List<Polygon>): Grid {
+                val a = DoubleArray(4 * loops.sumOf { it.size }); var at = 0
+                for (p in loops) for (i in 0 until p.size) {
+                    a[at++] = p.x(i) / 1000.0; a[at++] = p.y(i) / 1000.0; a[at++] = p.x((i + 1) % p.size) / 1000.0; a[at++] = p.y((i + 1) % p.size) / 1000.0
+                }
+                return Grid(a)
+            }
         }
     }
 

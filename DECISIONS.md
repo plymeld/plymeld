@@ -1538,3 +1538,44 @@ walls (decision 26), growing a loop back from its fit by a mitred offset, run it
 0.04 mm outside the area, over the loop inside it (9 spots); wall junctions in narrow webs between letters (inner loops
 of two pieces of an inset meeting at a neck, 11, and two outer loops at a V between letters, 3); small inner loops of a
 letter (2); two outer loops of one letter crossing (1); fills (2); one short inner line beside a long one.
+
+## 51. What a slice no longer needs is let go: the check streams its file, keeps its grids flat, and holds a layer only while reading it (2026-11-16)
+
+**Context.** A test slicing and checking a two-part model of 262k triangles in the tests' 512 MB heap
+(`ToolAssignmentTest`) ran past its time limit on CI, ran out of memory locally once in four runs, and took 213 s here
+with 45 full collections and 5,776 young ones; the most the heap held after a full collection was 410 MB. Read in heap
+histograms and dumps, what was held and need not be:
+- `slice` kept its slicer (every stage: each layer's outlines, walls and paths) through the pre-print check, for a next
+  run it never makes (a session kept across runs is the window's);
+- the check's g-code rule held the whole file as a list of line strings (tens of MB) beside the model rules' own;
+- the model rules kept a look-up grid of every layer's outline and of each part's for the whole check, as maps of boxed
+  indices and an array a segment (about 70 MB on this model);
+- the test itself held the file as lines across its next check, renumbered the whole file three times for its control,
+  and decided the job again (planning its walls and paths) for each of its two checks.
+
+**Decision.** The readers stream and each structure lives as long as its step: `slice` lets its slicers go once the file
+is written (SliceSession's `keepSlicers`; the window keeps them, for its re-slicing); the g-code rule reads the file in
+passes over its lines (GcodeCheck), never as a list; the check's grid is flat (sorted primitive arrays of cells, rows
+and segment indices: ModelCheck.Grid) and a layer's grids and its cut below are let go once its rules have read it
+(made again where asked for later). The file written is byte for byte the same. The test (not the product) holds one
+whole file at a time, swaps the tools in one pass, and slices with SliceSession's two halves, as `slice` does, with the
+job decided once for the file and both checks; its other cases keep the command's own parsing.
+
+**Rejected.** A larger test heap or time limit: 512 MB is the limit that finds this, and the time limit was passed by
+waste. Pictures of laid-twice spots only on request: they are drawn one at a time (one image's memory, about 1 s on this
+model) and decision 48 gives them with the line; not the cause. One merged copy of a several-part object shared by the
+steps that merge it: tried, and the heap dump during planning held as many copies as before (the steps merge different
+lists: the parts as read, and as placed). A shared bound over all the soup caches (five, each an eighth of the heap):
+their contents are what the planner reuses; left for a measure of what each saves in time.
+
+**Consequences.** The test's case, here (18 cores): 213 s to 85 s, full collections 45 to 9, young 5,776 to 1,575, the
+most held after a full collection 410 to 241 MB (under half the heap); its two checks take about 5 s each with no full
+collection. `CurvedIslandBenchyTest`: 49 s to 43 s, full collections 11 to 6, the most held after one 386 to 353 MB
+(both at its last check; a heap dump there held a curved frame's refined copy of the model, 70 MB, and about 20 of the
+check's picture images, 4 MB each, still reachable after they were written: open). `plymeld slice` of the dual model
+alone at 512 MB: 79 s for 81, the heap after its full collections before the check 194 to 271 MB for 277 to 290, the
+check's young collections 92 to 42, the file the same byte for byte. What the planning holds is the rest, about 220 to
+270 MB after a full collection: the mesh as read and as placed, the slicer's prepared forms of the parts and of the
+whole (about 45 MB), the overhang survey's footprints (about 20 MB), and each layer's stages. Held by tests: `CheckMemoryTest` (a grid under 64 bytes a segment retained, 49 measured, the boxed
+form 94; a layer's grids let go after the model check) and `SliceSessionSlicersTest` (`slice`'s session holds no slicer
+after writing; the window's holds and reuses them).

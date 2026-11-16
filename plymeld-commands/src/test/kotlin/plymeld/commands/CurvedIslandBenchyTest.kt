@@ -28,38 +28,43 @@ class CurvedIslandBenchyTest : StringSpec({
         Files.writeString(d.resolve("place.toml"), "[plan]\nplacement = \"center\"\n")
         Files.writeString(d.resolve("isl.toml"), "[plan.object.\"3DBenchy.stl\"]\nisland.bow.x = \"59.38 mm\"\nisland.bow.y = \"15.63 mm\"\n")
         val pr = Product(ConfigStack.load(listOf("hw.toml", "place.toml", "isl.toml"), emptyList(), d), listOf(root.resolve("test-models/3DBenchy.stl")), null) { }
-        val session = SliceSession()
+        // one slice: the slicer is let go once the file is written (keepSlicers), not held through the three checks below
+        val session = SliceSession(keepSlicers = false)
         val w = session.write(pr, d.resolve("benchy.gcode"), { })
         val mark = plymeld.program.LayerStart.ISLAND_MARK
-        val marked = w.text.lines().count { it.startsWith(mark) }
+        // the file read line by line (lineSequence), never held as a list of its lines beside the check's own
+        val marked = w.text.lineSequence().count { it.startsWith(mark) }
         println("island layers: $marked")
         marked shouldBeGreaterThan 10
         fun problems(text: String) = session.check(SliceSession.Written(w.pr, w.plan, w.setup, w.output, text, w.partTools, w.prediction, w.reused), { }).problems
         val clean = problems(w.text)
         withClue(clean.joinToString("\n")) { clean.shouldBeEmpty() }
-        val unmarked = problems(w.text.lines().filterNot { it.startsWith(mark) }.joinToString("\n"))
+        val unmarked = problems(w.text.lineSequence().filterNot { it.startsWith(mark) }.joinToString("\n"))
         withClue(unmarked.take(5).joinToString("\n")) { unmarked.isNotEmpty() shouldBe true }
         // control for the hole rule on a curved layer (a layer thinner in one place than another: its lines' widths read from
         // their plastic on the layer's own thickness there): a stretch of an inner wall left out, 3 mm along, on the island's
-        // middle layer, is a hole inside the walls
-        val lines = w.text.lines().toMutableList()
-        val islandLayers = lines.indices.filter { lines[it].startsWith(mark) }
-        var at = islandLayers[islandLayers.size / 2]; var inner = false; var skip = 5; var cutMm = 0.0; var x = Double.NaN; var y = Double.NaN
-        fun word(l: String, c: Char) = Regex(" $c(-?[0-9.]+)").find(l)?.groupValues?.get(1)?.toDouble()
-        while (cutMm < 3.0 && !lines[at].startsWith("; CHANGE_LAYER")) {
-            val l = lines[at]
-            if (l.startsWith("; FEATURE:")) inner = l.endsWith("Inner wall")
-            if (l.startsWith("G1 ")) {
-                val nx = word(l, 'X') ?: x; val ny = word(l, 'Y') ?: y
-                if (inner && (word(l, 'E') ?: 0.0) > 0 && !x.isNaN() && (nx != x || ny != y)) {
-                    if (skip > 0) skip-- else { cutMm += Math.hypot(nx - x, ny - y); lines[at] = l.replace(Regex(" E[0-9.]+"), "") }
+        // middle layer, is a hole inside the walls. The edited lines are let go (this function returns) before the check
+        fun holedText(): String {
+            val lines = w.text.lines().toMutableList()
+            val islandLayers = lines.indices.filter { lines[it].startsWith(mark) }
+            var at = islandLayers[islandLayers.size / 2]; var inner = false; var skip = 5; var cutMm = 0.0; var x = Double.NaN; var y = Double.NaN
+            fun word(l: String, c: Char) = Regex(" $c(-?[0-9.]+)").find(l)?.groupValues?.get(1)?.toDouble()
+            while (cutMm < 3.0 && !lines[at].startsWith("; CHANGE_LAYER")) {
+                val l = lines[at]
+                if (l.startsWith("; FEATURE:")) inner = l.endsWith("Inner wall")
+                if (l.startsWith("G1 ")) {
+                    val nx = word(l, 'X') ?: x; val ny = word(l, 'Y') ?: y
+                    if (inner && (word(l, 'E') ?: 0.0) > 0 && !x.isNaN() && (nx != x || ny != y)) {
+                        if (skip > 0) skip-- else { cutMm += Math.hypot(nx - x, ny - y); lines[at] = l.replace(Regex(" E[0-9.]+"), "") }
+                    }
+                    x = nx; y = ny
                 }
-                x = nx; y = ny
+                at++
             }
-            at++
+            cutMm shouldBeGreaterThan 3.0
+            return lines.joinToString("\n")
         }
-        cutMm shouldBeGreaterThan 3.0
-        val holed = problems(lines.joinToString("\n"))
+        val holed = problems(holedText())
         withClue(holed.take(5).joinToString("\n")) { holed.any { "island 'bow'" in it && "a hole inside the walls" in it } shouldBe true }
     }
 })

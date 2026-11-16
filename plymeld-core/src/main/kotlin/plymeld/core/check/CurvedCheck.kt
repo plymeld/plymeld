@@ -766,7 +766,7 @@ object CurvedCheck {
             for ((j, z) in zs.withIndex()) {
                 val held = cuts[j].filter { isl.holds(it) }
                 if (held.isEmpty()) continue
-                val next = ModelCheck.Grid(above[j].flatMap { lp -> (0 until lp.size).map { i -> doubleArrayOf(lp.x(i) / 1000.0, lp.y(i) / 1000.0, lp.x((i + 1) % lp.size) / 1000.0, lp.y((i + 1) % lp.size) / 1000.0) } })
+                val next = ModelCheck.Grid.ofLoops(above[j])
                 var missMm = 0.0; var at: DoubleArray? = null; var layerAt = -1
                 for (lp in held) for (i in 0 until lp.size) {
                     val ax = lp.x(i) / 1000.0; val ay = lp.y(i) / 1000.0; val bx = lp.x((i + 1) % lp.size) / 1000.0; val by = lp.y((i + 1) % lp.size) / 1000.0

@@ -111,18 +111,27 @@ object GcodeCheck {
     fun check(text: String, e: Expect): List<String> {
         val out = ArrayList<String>()
         fun bad(line: Int, s: String) { if (out.size < 40) out += "line $line: $s" }
-        val lines = text.lines()
-        val firstLayer = lines.indexOfFirst { isLayer(it) }
+        // the file is read line by line as it streams, in passes, never held as a list of its lines (a large print's lines
+        // as strings took tens of MB beside the model check's own, in a heap near its limit). The first pass: where the
+        // layers start and where the last line printed is, and the lines before the one (the start template's region) and
+        // after the other (the end template's). The last line printed: a path's last segment may carry E0, its share of
+        // filament rounded to nothing in the file's steps (a scarf's closing pass ending a micron on), and is still part of
+        // that line, not a move after it
+        var firstLayer = -1; var lastExtrusion = -1
+        val head = ArrayList<String>(); val tail = ArrayList<String>()
+        for ((i, l) in text.lineSequence().withIndex()) {
+            if (firstLayer < 0) { if (isLayer(l)) firstLayer = i else head += l }
+            if (isExtrusion(l, orZero = true)) { lastExtrusion = i; tail.clear() } else tail += l
+        }
         if (firstLayer < 0) return listOf("no layer markers: not a layered print")
-        // the last line printed: a path's last segment may carry E0, its share of filament rounded to nothing in the file's
-        // steps (a scarf's closing pass ending a micron on), and is still part of that line, not a move after it
-        val lastExtrusion = lines.indices.last { isExtrusion(lines[it], orZero = true) }
+        if (lastExtrusion < 0) throw NoSuchElementException("no line printed in the g-code")
 
         // start template: its own lines (no placeholders) in order before the first layer
-        inOrder(e.startTemplate, lines.subList(0, firstLayer))?.let { bad(1, "start template line '$it' missing or out of order before the first layer") }
-        inOrder(e.endTemplate, lines.subList(lastExtrusion + 1, lines.size))?.let { bad(lastExtrusion + 2, "end template line '$it' missing or out of order after the last line printed") }
-        for ((i, l) in lines.withIndex()) { if (PLACEHOLDER.containsMatchIn(l.substringBefore(';'))) bad(i + 1, "placeholder left in a command: '${l.trim()}'") }
-        unreadable(lines).forEach { (ln, s) -> bad(ln, s) }
+        inOrder(e.startTemplate, head)?.let { bad(1, "start template line '$it' missing or out of order before the first layer") }
+        inOrder(e.endTemplate, tail)?.let { bad(lastExtrusion + 2, "end template line '$it' missing or out of order after the last line printed") }
+        head.clear(); tail.clear()
+        for ((i, l) in text.lineSequence().withIndex()) { if (PLACEHOLDER.containsMatchIn(l.substringBefore(';'))) bad(i + 1, "placeholder left in a command: '${l.trim()}'") }
+        unreadable(text.lineSequence()).forEach { (ln, s) -> bad(ln, s) }
 
         var x = Double.NaN; var y = Double.NaN; var z = Double.NaN; var f = 0.0
         var layerZ = Double.NaN; var maxLayerZ = 0.0; var layerH = 0.2
@@ -144,7 +153,7 @@ object GcodeCheck {
         var cell: String? = null
         var lowStanding = Double.NaN    // the lowest standing cell's height met on this layer so far ([Expect.standing])
         var relativeE = false; var absoluteReported = false
-        for ((i, raw) in lines.withIndex()) {
+        for ((i, raw) in text.lineSequence().withIndex()) {
             val ln = i + 1
             val l = raw.trim()
             if (isLayer(l)) { printed.clear(); layerIndex++; lowStanding = Double.NaN; continue }
@@ -296,7 +305,7 @@ object GcodeCheck {
         e.partTools?.filter { (printedBy[it] ?: 0) == 0 }?.forEach { t ->
             bad(firstLayer + 1, "T$t (tool ${t + 1}) prints nothing, though the config's loadout assigns it a part; lines printed by ${printedBy.keys.sorted().joinToString { "T$it" }.ifEmpty { "no tool" }}")
         }
-        headerProblems(lines, netE).forEach { (ln, s) -> bad(ln, s) }
+        headerProblems(text.lineSequence(), netE).forEach { (ln, s) -> bad(ln, s) }
         return out
     }
 
@@ -307,14 +316,14 @@ object GcodeCheck {
      * F0), a temperature, fan, or wait below 0, an acceleration of 0 or below, and NaN or Infinity where a comment holds a
      * number (a broken estimate). The source block at the file's end (the config it was made from, as text) is not read.
      */
-    fun unreadable(lines: List<String>): List<Pair<Int, String>> = plymeld.gcode.BadNumbers.scan(lines.asSequence(), comments = true)
+    fun unreadable(lines: Sequence<String>): List<Pair<Int, String>> = plymeld.gcode.BadNumbers.scan(lines, comments = true)
 
     /**
      * A filament-use header (the Creator 5's: `; filament used [mm] = a, b, ...` and `; <filament id="n" ... used_m="x" />`,
      * values rounded to 0.01) against [netE], what each filament's lines push (id n, the n-th value: T(n-1)'s lines, or the
      * lines of a tool after a `; FILAMENT_SWAP` to n). No header: nothing.
      */
-    private fun headerProblems(lines: List<String>, netE: Map<Int, Double>): List<Pair<Int, String>> {
+    private fun headerProblems(lines: Sequence<String>, netE: Map<Int, Double>): List<Pair<Int, String>> {
         val out = ArrayList<Pair<Int, String>>()
         fun body(t: Int) = netE[t] ?: 0.0
         val half = 0.005 + 1e-9                     // half the header's last digit
