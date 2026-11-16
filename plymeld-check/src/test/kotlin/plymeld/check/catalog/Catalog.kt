@@ -42,9 +42,6 @@ object Catalog {
     /** The seam models' rows: the rig's back seam, the least visible seam, scarf seams. */
     private val SEAM_ROWS = listOf(BASE, Row("least visible seam", listOf("plan.seam" to "least_visible")), Row("scarf seams", listOf("plan.technique.scarf_seam.enabled" to true)))
 
-    /** The inlay's known refusal (a finding not yet fixed): the hole the pre-print check finds on the plate's first layer. */
-    private const val INLAY_HOLE = "layer at z 0.600: a hole inside the walls"
-
     private fun walls(name: String, purpose: String, parts: () -> List<TriangleSoup>, read: WallRead = WallRead(0.25, 1.0)) =
         Entry(name, purpose, Slicing.WALLS, parts, walls = read)
     private fun webWindow(web: Double) = WallRead(0.25, 1.0, window = WallCoverage.Window(CX - 1.2, CY - 3.0 - web - 0.1, CX + 1.2, CY - 2.7))
@@ -94,10 +91,7 @@ object Catalog {
         Entry("speck beside a part", "one part's edge 0.1 mm in front of another part's tip: no dot, no line in the other's place", Slicing.TWO_TOOLS,
             { Models.speckBeside }),
         Entry("inlay on a leaning face", "a second filament inlaid flush in a leaning face, and an opening with walls turned from the face's normal down to a buried plate of it",
-            Slicing.TWO_TOOLS, { Models.inlay }, rows = listOf(BASE, SUPPORT),
-            // a finding: on the buried plate's first layer, the first filament's web between the block's side and the plate's
-            // end (1.5 mm wide) is left with a hole 0.65 mm wide no line covers
-            expect = listOf(BASE, SUPPORT).associate { it.name to listOf(INLAY_HOLE) }),
+            Slicing.TWO_TOOLS, { Models.inlay }, rows = listOf(BASE, SUPPORT)),
         Entry("two-color piece", "two halves of two filaments side by side: a tool change and a purge on every layer", Slicing.TWO_TOOLS,
             { Models.twoColorPiece }, rows = listOf(BASE, Row("purge into infill", listOf("plan.mechanism.purge.into" to "infill")))),
         // seams

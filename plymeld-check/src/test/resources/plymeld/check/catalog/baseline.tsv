@@ -523,53 +523,51 @@ holes	base	strings.unretracted_shown_mm	5.52
 holes	base	strings.unretracted_travels	215
 holes	base	strings.visible_restarts	30
 holes	base	time_s	191.5
-inlay on a leaning face	base	check.problem.1	layer at z 0.600: a hole inside the walls 0.65 mm wide (0.548 mm2, at 92.74, 98.71), where the model holds a line: no line laid there
-inlay on a leaning face	base	check.problems	1
+inlay on a leaning face	base	check.problems	0
 inlay on a leaning face	base	feature.Bottom surface.length_mm	221.65
 inlay on a leaning face	base	feature.Bottom surface.paths	1
-inlay on a leaning face	base	feature.Inner wall.length_mm	3128.17
-inlay on a leaning face	base	feature.Inner wall.paths	211
+inlay on a leaning face	base	feature.Inner wall.length_mm	3064.74
+inlay on a leaning face	base	feature.Inner wall.paths	206
 inlay on a leaning face	base	feature.Internal Bridge.length_mm	193.37
 inlay on a leaning face	base	feature.Internal Bridge.paths	3
 inlay on a leaning face	base	feature.Internal solid infill.length_mm	690.10
 inlay on a leaning face	base	feature.Internal solid infill.paths	12
-inlay on a leaning face	base	feature.Outer wall.length_mm	4297.56
-inlay on a leaning face	base	feature.Outer wall.paths	140
+inlay on a leaning face	base	feature.Outer wall.length_mm	4293.49
+inlay on a leaning face	base	feature.Outer wall.paths	133
 inlay on a leaning face	base	feature.Prime tower.length_mm	10187.18
 inlay on a leaning face	base	feature.Prime tower.paths	72
 inlay on a leaning face	base	feature.Sparse infill.length_mm	2040.89
 inlay on a leaning face	base	feature.Sparse infill.paths	95
 inlay on a leaning face	base	feature.Top surface.length_mm	224.61
 inlay on a leaning face	base	feature.Top surface.paths	1
-inlay on a leaning face	base	filament.T0_mm	478.67
+inlay on a leaning face	base	filament.T0_mm	473.91
 inlay on a leaning face	base	filament.T1_mm	180.81
-inlay on a leaning face	base	filament_mm	659.48
-inlay on a leaning face	base	seams.count	155
+inlay on a leaning face	base	filament_mm	654.72
+inlay on a leaning face	base	seams.count	141
 inlay on a leaning face	base	seams.jog_mm	5.702
-inlay on a leaning face	base	seams.point	155
-inlay on a leaning face	base	seams.scar_mm2	11.536
+inlay on a leaning face	base	seams.point	141
+inlay on a leaning face	base	seams.scar_mm2	2.580
 inlay on a leaning face	base	seams.scarf	0
-inlay on a leaning face	base	strings.restart_starved_mm	355.00
-inlay on a leaning face	base	strings.retractions	335
-inlay on a leaning face	base	strings.travel_mm	8582.17
+inlay on a leaning face	base	strings.restart_starved_mm	335.00
+inlay on a leaning face	base	strings.retractions	328
+inlay on a leaning face	base	strings.travel_mm	8542.86
 inlay on a leaning face	base	strings.unretracted_across_tops_mm	0.00
 inlay on a leaning face	base	strings.unretracted_over_air_mm	0.45
 inlay on a leaning face	base	strings.unretracted_shown_mm	0.45
-inlay on a leaning face	base	strings.unretracted_travels	199
-inlay on a leaning face	base	strings.visible_restarts	71
-inlay on a leaning face	base	time_s	446.5
-inlay on a leaning face	support	check.problem.1	layer at z 0.600: a hole inside the walls 0.65 mm wide (0.548 mm2, at 92.74, 98.71), where the model holds a line: no line laid there
-inlay on a leaning face	support	check.problems	1
+inlay on a leaning face	base	strings.unretracted_travels	194
+inlay on a leaning face	base	strings.visible_restarts	67
+inlay on a leaning face	base	time_s	444.6
+inlay on a leaning face	support	check.problems	0
 inlay on a leaning face	support	feature.Bottom surface.length_mm	221.65
 inlay on a leaning face	support	feature.Bottom surface.paths	1
-inlay on a leaning face	support	feature.Inner wall.length_mm	3128.17
-inlay on a leaning face	support	feature.Inner wall.paths	211
+inlay on a leaning face	support	feature.Inner wall.length_mm	3064.74
+inlay on a leaning face	support	feature.Inner wall.paths	206
 inlay on a leaning face	support	feature.Internal Bridge.length_mm	193.37
 inlay on a leaning face	support	feature.Internal Bridge.paths	3
 inlay on a leaning face	support	feature.Internal solid infill.length_mm	690.10
 inlay on a leaning face	support	feature.Internal solid infill.paths	12
-inlay on a leaning face	support	feature.Outer wall.length_mm	4297.56
-inlay on a leaning face	support	feature.Outer wall.paths	140
+inlay on a leaning face	support	feature.Outer wall.length_mm	4293.49
+inlay on a leaning face	support	feature.Outer wall.paths	133
 inlay on a leaning face	support	feature.Prime tower.length_mm	10187.18
 inlay on a leaning face	support	feature.Prime tower.paths	72
 inlay on a leaning face	support	feature.Sparse infill.length_mm	2040.89
@@ -580,23 +578,23 @@ inlay on a leaning face	support	feature.Support.length_mm	14.84
 inlay on a leaning face	support	feature.Support.paths	10
 inlay on a leaning face	support	feature.Top surface.length_mm	224.61
 inlay on a leaning face	support	feature.Top surface.paths	1
-inlay on a leaning face	support	filament.T0_mm	479.26
+inlay on a leaning face	support	filament.T0_mm	474.50
 inlay on a leaning face	support	filament.T1_mm	181.35
-inlay on a leaning face	support	filament_mm	660.61
-inlay on a leaning face	support	seams.count	155
+inlay on a leaning face	support	filament_mm	655.85
+inlay on a leaning face	support	seams.count	141
 inlay on a leaning face	support	seams.jog_mm	5.702
-inlay on a leaning face	support	seams.point	155
-inlay on a leaning face	support	seams.scar_mm2	11.536
+inlay on a leaning face	support	seams.point	141
+inlay on a leaning face	support	seams.scar_mm2	2.580
 inlay on a leaning face	support	seams.scarf	0
-inlay on a leaning face	support	strings.restart_starved_mm	385.00
-inlay on a leaning face	support	strings.retractions	357
-inlay on a leaning face	support	strings.travel_mm	8691.62
+inlay on a leaning face	support	strings.restart_starved_mm	365.00
+inlay on a leaning face	support	strings.retractions	350
+inlay on a leaning face	support	strings.travel_mm	8652.31
 inlay on a leaning face	support	strings.unretracted_across_tops_mm	0.00
 inlay on a leaning face	support	strings.unretracted_over_air_mm	0.45
 inlay on a leaning face	support	strings.unretracted_shown_mm	0.45
-inlay on a leaning face	support	strings.unretracted_travels	195
-inlay on a leaning face	support	strings.visible_restarts	77
-inlay on a leaning face	support	time_s	450.4
+inlay on a leaning face	support	strings.unretracted_travels	190
+inlay on a leaning face	support	strings.visible_restarts	73
+inlay on a leaning face	support	time_s	448.5
 lens alone	base	check.problems	0
 lens alone	base	feature.Brim.length_mm	206.04
 lens alone	base	feature.Brim.paths	10

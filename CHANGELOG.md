@@ -144,6 +144,13 @@ section the release's version and date.
 
 ### Fixed
 
+- A hole of an area was sometimes read as another area's: a hole whose first corner touched a smaller area beside it (a
+  sliver a micron wide, as the space between two walls' lines can leave) was given to that area, and the area that does
+  hold it was taken to have none. Variable-width walls then laid lines up to 0.9 mm wide along the middle of that whole
+  area, over the infill, and none where they were needed: on a block with a plate of a second filament buried in it,
+  63 mm of such lines on one layer, and the web 1.5 mm wide between the block's side and the plate's end left bare
+  (0.65 mm wide; the pre-print check refused it). A hole now goes to the smallest area that holds it, judged at its first
+  corner not on that area's edge.
 - A model could now and then be cut wrong where the mesh was sliced on several threads at once (a slice's own parallel
   work, the pre-print check's, or several slices in one process, as in the window): every thread wrote each cut
   triangle's crossing point to one shared place, and another thread could overwrite it before it was read, leaving a

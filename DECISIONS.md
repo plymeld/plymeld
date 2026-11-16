@@ -1322,3 +1322,32 @@ buffer has no reason to be shared. Running the whole test JVM interpreted: minut
 of 6 runs. Also fixed by the same reading: the support survey's base areas were cached by the model's identity hash
 code; a printer connection's HTTP clients sat in an unsynchronized map; the planner kept a figure of every plan's
 dropped slivers on its shared object, which nothing read (removed).
+
+## 45. A hole belongs to the smallest outer that holds it, read off that outer's boundary (2026-11-16)
+
+**Context.** The catalog's inlay on a leaning face (decision 43) was refused on its buried plate's first layer: a hole
+0.65 mm wide in the first filament's web, 1.5 mm wide, between the block's side and the plate's end. The walls laid
+there an outer line on each side; the inner lines, with no room for two, turned back at both ends of the web; the
+0.65 mm between them got no line. A block with a slot of the same size, its outline exactly square, did get one. The
+difference was in the leftover the walls' bands leave: on the model's slightly slanted side the bands of the outer and
+inner lines missed each other by a few microns, and the leftover was a hairline ring round the block, with the web's
+pocket on it, plus a sliver a micron tall along the slot. Polygons.group gave each hole to the smallest outer
+containing its first vertex, a point on an outer's boundary counting as inside; the ring's hole started at a corner of
+the slot's sliver, so it went to the sliver. The ring was read as a solid area 15 by 8 mm with no hole, and its center
+lines (up to 0.9 mm wide, 63 mm of them on that layer) were laid along its middle, over the infill; the sliver with the
+ring's hole as its own was a region whose skeleton held nothing in the pocket.
+
+**Decision.** A hole goes to the smallest outer at least as large as it that holds it, judged at the hole's first
+vertex that is not on that outer's boundary (inside or outside, exactly); a hole lying wholly on the boundary is that
+outer's. Polygons.contains is unchanged: a point on the boundary still counts as inside.
+
+**Rejected.** Cleaning the walls' leftover of slivers thinner than a micron or two before its pieces are grouped: it
+would hide this case and leave the rule wrong for every other caller (the boolean results of the whole planner are
+grouped by it). Testing the hole's centroid: a hole's centroid can lie outside it, and in an outer's other hole.
+
+**Consequences.** The inlay passes the pre-print check under both its rows. Only its plate's first layer changes: the
+inner and outer wall lines over the block's infill go (inner wall 137.6 to 74.1 mm on that layer, its lines 0.8 mm wide
+or more from 106 segments to none), the web gets its line; on the whole model filament 659.5 to 654.7 mm, seams 155 to
+141, retractions 335 to 328. No other model of the catalog moves, the regression cases write the same files, and a
+real three-object plate keeps its retractions and predicted time. The pre-print check did not refuse the lines laid
+over the infill (plastic laid twice is not among its rules): open.
