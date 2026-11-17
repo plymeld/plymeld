@@ -7,7 +7,7 @@ models in `test-models/`, and test resources.
 
 The catalog ([Catalog.kt](../../plymeld-check/src/test/kotlin/plymeld/check/catalog/Catalog.kt)) is one list of small
 models built in code, each with a stable name and a line saying what it is for: one technique, or one known weakness
-(a lens growing from one line to two, a web between a hole and the side, a thin ridge, a sliver of one filament on
+(a lens growing from one line to two, a stroke about as wide as two lines become three, a web between a hole and the side, a thin ridge, a sliver of one filament on
 another's face, an inlay on a leaning face, small teeth hanging off a second part's edge, slivers of one filament ending inside another's area, seams on a cylinder and a post, an overhang ladder, bridges, sloped and
 domed tops, a stepped top whose fills of several kinds share edges, a small pillar, holes and pins). Each is sliced with a rig (the machine and plan values over the slicing
 tests' setup) under a few rows of settings that matter to it, the first always the rig as it is.
@@ -18,8 +18,10 @@ measure as `slice` reports it (the spots, their area, the layers holding one, th
 the uncovered area, plastic outside, plastic laid twice, paths and the shift between layers; the seam scar, seams,
 scarf seams and jogs; unretracted travel over open air and across tops, visible restarts, retractions; filament and
 predicted time; the paths and length of every feature type; and the jagged lines: extruding moves shorter than the
-slicing tolerance (all, and the outer wall's) and the outer wall's kinks (a turn of more than 150 degrees beside a move
-shorter than the outer line's width). Planning time is not among them (it varies from run
+slicing tolerance (all, and the outer wall's), the outer wall's kinks (a turn of more than 150 degrees beside a move
+shorter than the outer line's width), and of those its zigzags (the line's direction over a line width before the kink
+and after it within 120 degrees: it goes on the way it came, where a tip's run-in goes back where it came from). Planning
+time is not among them (it varies from run
 to run). The measures are compared with the recorded baseline,
 [baseline.tsv](../../plymeld-check/src/test/resources/plymeld/check/catalog/baseline.tsv): one line per model, row
 and measure, sorted, so a change to it reads as a plain diff.
@@ -29,8 +31,10 @@ The models' own limits stay with their techniques' tests (`WallsByWidthTest`, `T
 model passes it under every row, or is refused only as its entry names. A named refusal is a finding not yet fixed;
 the test turns red when it goes, and the entry is updated with the fix. It also holds the outer wall of the models made
 of straight sides and true arcs (the block, posts, cylinder, holes, pins, fins, decks, slopes, dome, pillar and the
-two-color piece) to no move shorter than the slicing tolerance and no kink; the narrow islands laid by their beads (a
-tip's line runs in and turns back by design) and the other features are held by the baseline.
+two-color piece) to no move shorter than the slicing tolerance and no kink, and the outer wall of the models of narrow
+islands laid by their beads (the lenses, wedge, strip, ring, blob, letter E, pointed blob, bent stroke and teeth) to no
+zigzag (a tip's line runs in and turns back by design, so their kinks are held by the baseline, as are the other
+features).
 
 **Adding a model.** Build it in
 [Models.kt](../../plymeld-check/src/test/kotlin/plymeld/check/catalog/Models.kt) (synthetic, in code, never a user's

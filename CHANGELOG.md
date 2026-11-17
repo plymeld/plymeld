@@ -159,6 +159,15 @@ section the release's version and date.
 
 ### Fixed
 
+- A narrow island's outer line no longer zigzags where a place about two to three lines wide gets a middle line. Where
+  its count rises from two lines to three, the outer loop steps toward the outline within a few points, and it moves
+  aside for the middle line's round start; each point moved across the line as read from its neighbors, which on that
+  step points along the line, so the step's points moved along it and the line went back and forth over itself, a
+  fraction of a millimeter, roughening its edge (letter strokes about that wide showed it). The outer loop now moves
+  across the outline at every point, the points where it stops short of a corner too. Where an inner line moves aside
+  entirely at a single point, it is no longer cut into two ends lying over each other: the line goes on across. On a
+  three-object plate, outer-line zigzags 342 to 53 (a tip's designed run-in and back counted apart), plastic laid twice
+  9 spots and 1.116 mm² to 9 and 1.107, and 53 more narrow islands laid by their width instead of keeping their walls.
 - Two fills sharing an edge no longer lay their edges over each other. Every fill of a layer (internal solid, sparse
   infill, a bridge, a top) placed its lines against each edge of its area as against a wall: where two of them met, both
   did, and their line ends and linking runs lay over each other along the edge, 0.25 to 0.38 mm wide. Now one fill owns

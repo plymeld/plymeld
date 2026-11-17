@@ -16,8 +16,9 @@ import plymeld.check.catalog.Catalog.Row
  * measure not recorded and any recorded one no longer measured fails the test, the failure listing each, old -> new, by
  * model and row, and how to accept them. The absolute limits a model has are its technique's own tests' (WallsByWidthTest,
  * ThinRidgeTest, ExposedSliverTest, SpeckNearPartTest); here the pre-print check: each model passes it, or is refused
- * only as its entry names (a finding not yet fixed); and the outer wall of the models of straight sides and true arcs: no
- * move shorter than the slicing tolerance and no kink.
+ * only as its entry names (a finding not yet fixed); the outer wall of the models of straight sides and true arcs: no
+ * move shorter than the slicing tolerance and no kink; and the outer wall of the models of narrow islands laid by their
+ * beads: no zigzag (a kink where the line goes on the way it came, not a tip's run-in).
  *
  * Controls: a setting changed on one model moves its measures and the comparison reports them; a baseline with a value
  * altered, a line missing and a stray line is reported for each. Determinism: every unit measured side by side on the
@@ -113,20 +114,44 @@ class CatalogTest : StringSpec({
     }
 
     /*
+     * A narrow island laid by its beads (decision 28) turns its outer line back only where it runs into a tip and out: no
+     * kink where the line goes on the way it came (a zigzag), on the models of narrow islands alone. Their outer loop gives
+     * way across the outline where a middle line starts (the bent stroke, the wedge and the lenses change from two lines to
+     * three). The two blobs and a neck (an area narrowing fast from four lines to one), the dipped ridges, the finger in a
+     * second part and the exposed wedge still have some, held by the baseline.
+     */
+    "the outer wall of a narrow island laid by its beads: no zigzag" {
+        val narrow = listOf("lens beside a second part", "lens alone", "wedge", "strip", "ring", "blob", "letter E", "deep lens", "pointed blob",
+            "bent stroke", "teeth under a second part")
+        val wrong = ArrayList<String>()
+        for ((e, row) in units) if (e.name in narrow) {
+            val v = run().getValue(e.name to row.name).values
+            if (v.getValue("lines.outer_zigzags") != "0") wrong += "${e.name} / ${row.name}: lines.outer_zigzags ${v.getValue("lines.outer_zigzags")}"
+        }
+        narrow.all { n -> Catalog.entries.any { it.name == n } } shouldBe true
+        withClue(wrong.joinToString("\n")) { wrong.shouldBeEmpty() }
+    }
+
+    /*
      * The jagged-line measures count what they say: an outer wall square, 10 mm a side, reads none; with a move of 5 um
      * inserted along a side, one move shorter than the tolerance; with a spike 0.11 mm out and back along another side, one
-     * kink (the spike's tip turns 180 deg; where it leaves and rejoins the side, 63 and 117 deg).
+     * kink (the spike's tip turns 180 deg; where it leaves and rejoins the side, 63 and 117 deg), a zigzag (the side goes on
+     * the way it came); with a run 0.5 mm in from that side and 0.5 mm back out over itself (as a loop runs into a narrow
+     * island's tip and out), one kink (where it turns back, beside the 0.3 mm move) and no zigzag (it goes back where it came
+     * from).
      */
-    "control: a move shorter than the tolerance and a kink inserted in a square's outer wall are each counted" {
+    "control: a move shorter than the tolerance, a kink, a zigzag and a run-in inserted in a square's outer wall are each counted" {
         fun square(extraAfterFirst: String = "", extraOnTop: String = "") = TechniqueRender.read(
             "M83\n;LAYER_CHANGE\n;Z:0.2\n;TYPE:Outer wall\nG1 X0 Y0 F600\nG1 X10 Y0 E0.5\n$extraAfterFirst" +
                 "G1 X10 Y10 E0.5\nG1 X5 Y10 E0.25\n${extraOnTop}G1 X0 Y10 E0.25\nG1 X0 Y0 E0.5\n").moves
         val plain = CatalogMeasures.jagged(square(), 0.0125, 0.44)
         val tiny = CatalogMeasures.jagged(square(extraAfterFirst = "G1 X10.005 Y0 E0.0003\n"), 0.0125, 0.44)
         val spike = CatalogMeasures.jagged(square(extraOnTop = "G1 X5.05 Y10.1 E0.006\nG1 X5 Y10 E0.006\n"), 0.0125, 0.44)
-        listOf(plain.tiny, plain.tinyOuter, plain.kinks) shouldBe listOf(0, 0, 0)
-        listOf(tiny.tiny, tiny.tinyOuter, tiny.kinks) shouldBe listOf(1, 1, 0)
-        listOf(spike.tiny, spike.tinyOuter, spike.kinks) shouldBe listOf(0, 0, 1)
+        val runIn = CatalogMeasures.jagged(square(extraOnTop = "G1 X5 Y9.5 E0.025\nG1 X5 Y9.8 E0.015\nG1 X5 Y10 E0.01\n"), 0.0125, 0.44)
+        listOf(plain.tiny, plain.tinyOuter, plain.kinks, plain.zigzags) shouldBe listOf(0, 0, 0, 0)
+        listOf(tiny.tiny, tiny.tinyOuter, tiny.kinks, tiny.zigzags) shouldBe listOf(1, 1, 0, 0)
+        listOf(spike.tiny, spike.tinyOuter, spike.kinks, spike.zigzags) shouldBe listOf(0, 0, 1, 1)
+        listOf(runIn.tiny, runIn.tinyOuter, runIn.kinks, runIn.zigzags) shouldBe listOf(0, 0, 1, 0)
     }
 
     /*

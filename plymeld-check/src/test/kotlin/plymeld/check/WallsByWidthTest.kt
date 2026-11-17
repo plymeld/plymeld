@@ -22,8 +22,8 @@ import java.util.Locale
  * the first layer is not read (it is drawn in).
  *
  * The models (mm): the lens beside a second part and the lens alone, the wedge, the stepped strip, the ring, the blob, two
- * blobs and a neck, the letter E, the deep lens, the pointed blob, the block, the webs between a hole and the side, the
- * finger of one part inside another ([Models] describes each).
+ * blobs and a neck, the letter E, the deep lens, the pointed blob, the bent stroke, the block, the webs between a hole and
+ * the side, the finger of one part inside another ([Models] describes each).
  */
 class WallsByWidthTest : StringSpec({
     val cx = Models.CX; val cy = Models.CY
@@ -39,7 +39,7 @@ class WallsByWidthTest : StringSpec({
         w to Slicing.wallReading(name, w, e.walls!!, maps = true)
     }
     val names = listOf("lens beside a second part", "lens alone", "wedge", "strip", "ring", "blob", "two blobs and a neck", "letter E",
-        "deep lens", "pointed blob", "block")
+        "deep lens", "pointed blob", "bent stroke", "block")
 
     /*
      * Fuzzy skin moves the outer wall's points in and out by up to its thickness, opening gaps between it and the next loop;
@@ -182,6 +182,30 @@ class WallsByWidthTest : StringSpec({
         val before = ";TYPE:Outer wall\nG1 X104.772 Y100.759\nG1 X100.867 Y100.368 E0.05493\nG1 X100.834 Y100.302 E0.00118\nG1 X100.791 Y100.337 E0.00091\n" +
             "G1 X100.804 Y100.355 E0.00032\nG1 X100.73 Y100.304 E0.00142\nG1 X100.714 Y100.279 E0.00054\nG1 X98.095 Y100.149 E0.03797\n"
         (spikes(before) >= 1) shouldBe true
+    }
+
+    /*
+     * Where a place's count rises from two lines to three, the outer loop's points step across the track within one outline
+     * sample's ribs (from half the place to half the outer line's width from the outline), and the loop gives way to the
+     * middle line's round start there. Each point moved along the way across from its neighbors, which on that step runs
+     * along the track: the points before the step moved toward the outline, the step's points along it, and the outer line
+     * went down, back up the step and down again, laying plastic over itself (two such zigzags on the bent stroke's layer at
+     * z 0.28). Now the outer loop moves across the outline at every point. Counted by the catalog's measure: a kink (a turn
+     * of more than 150 degrees beside a move shorter than the outer line's width) where the line goes on the way it came.
+     * Control: the outer line as that layer had it before is counted.
+     */
+    "no zigzag on an outer line where a middle line starts (the bent stroke)" {
+        val e = Catalog.byName("bent stroke")
+        val s = SliceSettings.of(model(e.name).first.setup)
+        fun zigzags(g: String) = plymeld.check.catalog.CatalogMeasures.jagged(TechniqueRender.read(g).moves, s.resolutionUm / 1000.0, s.outerWallWidthUm / 1000.0).zigzags
+        val now = zigzags(model(e.name).first.g)
+        println("bent stroke: $now outer-line zigzags")
+        now shouldBe 0
+        val before = "M83\n;LAYER_CHANGE\n;Z:0.28\n;TYPE:Outer wall\nG1 X100.081 Y102.294\nG1 X100.194 Y102.286 E0.00218\nG1 X100.207 Y102.25 E0.00069\n" +
+            "G1 X100.221 Y102.237 E0.00031\nG1 X100.235 Y102.227 E0.00027\nG1 X100.247 Y102.217 E0.00024\nG1 X100.26 Y102.211 E0.00021\n" +
+            "G1 X100.282 Y102.259 E0.00086\nG1 X100.283 Y102.239 E0.00035\nG1 X100.284 Y102.219 E0.00032\nG1 X100.285 Y102.2 E0.00028\n" +
+            "G1 X100.637 Y102.125 E0.00506\nG1 X100.996 Y101.982 E0.00543\n"
+        (zigzags(before) >= 1) shouldBe true
     }
 
     "the growing lens changes from one line to two once, both sides of the change covered" {

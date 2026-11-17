@@ -25,7 +25,8 @@ import java.util.Locale
  *  - `feature.<type>.paths`, `feature.<type>.length_mm`: per feature type, how many paths (consecutive extruding moves of one
  *    feature, tool and layer, each starting where the last ended) and their length (TechniqueRender's moves);
  *  - `lines.*` ([jagged]): extruding moves shorter than the slicing tolerance, all and the outer wall's, and the outer wall's
- *    kinks (a turn of more than 150 deg beside a move shorter than the outer line's width).
+ *    kinks (a turn of more than 150 deg beside a move shorter than the outer line's width), and of those the zigzags (the
+ *    line goes on the way it came, not back out of a tip).
  * Planning time is not recorded: it varies from run to run (NarrowIslandTimeTest holds it).
  */
 object CatalogMeasures {
@@ -92,33 +93,55 @@ object CatalogMeasures {
         for ((name, n) in paths) { out["feature.$name.paths"] = n.toString(); out["feature.$name.length_mm"] = f(length.getValue(name), 2) }
         val j = jagged(ms, s.resolutionUm / 1000.0, s.outerWallWidthUm / 1000.0)
         out["lines.tiny_moves"] = j.tiny.toString(); out["lines.tiny_moves.outer_wall"] = j.tinyOuter.toString(); out["lines.outer_kinks"] = j.kinks.toString()
+        out["lines.outer_zigzags"] = j.zigzags.toString()
         return Measured(out, problems)
     }
 
-    /** [jagged]'s counts: moves shorter than the tolerance (all, the outer wall's) and the outer wall's kinks. */
-    class Jagged(val tiny: Int, val tinyOuter: Int, val kinks: Int)
+    /** [jagged]'s counts: moves shorter than the tolerance (all, the outer wall's), the outer wall's kinks, and of those the zigzags. */
+    class Jagged(val tiny: Int, val tinyOuter: Int, val kinks: Int, val zigzags: Int)
 
     /**
      * The jagged lines of a file's extruding moves [ms] (arcs written as lines): the moves shorter than [tolMm] (the slicing
      * tolerance: a move that short says nothing about where the line runs, and the printer is sent it for nothing), and the
      * outer wall's kinks: a vertex where the line turns by more than 150 deg beside a move shorter than [widthMm] (the outer
      * line's width), a spike or a step back the surface shows. A vertex is where one move ends and the next of the same
-     * path (feature, tool and layer) starts.
+     * path (feature, tool and layer) starts. A kink is a zigzag where the line goes on the way it came: its direction over
+     * [widthMm] of its length before the vertex (from the point that far back to the vertex) and after it (from the vertex to
+     * the point that far on), each cut short at the path's end, differ by 120 deg or less. Otherwise the line goes back where
+     * it came from: a narrow island's tip, which its loop runs into and out of by design (decision 28), turns so.
      */
     fun jagged(ms: List<TechniqueRender.Move>, tolMm: Double, widthMm: Double): Jagged {
-        var tiny = 0; var tinyOuter = 0; var kinks = 0
+        var tiny = 0; var tinyOuter = 0; var kinks = 0; var zigzags = 0
         val cosLimit = Math.cos(Math.toRadians(150.0))
+        val cosBack = Math.cos(Math.toRadians(120.0))
+        fun joined(k: Int): Boolean = k > 0 && ms[k - 1].let { p -> val m = ms[k]
+            p.feature == m.feature && p.tool == m.tool && p.layer == m.layer && Math.hypot(p.x1 - m.x0, p.y1 - m.y0) <= 1e-6 }
+        // the point [d] mm back from the start of move [k] (back) or on from it (not back), along its path
+        fun along(k: Int, d: Double, back: Boolean): DoubleArray {
+            var left = d; var j = if (back) k - 1 else k
+            while (true) {
+                val q = ms[j]
+                if (q.length >= left) { val f = left / q.length
+                    return if (back) doubleArrayOf(q.x1 + (q.x0 - q.x1) * f, q.y1 + (q.y0 - q.y1) * f) else doubleArrayOf(q.x0 + (q.x1 - q.x0) * f, q.y0 + (q.y1 - q.y0) * f) }
+                left -= q.length
+                if (back) { if (!joined(j)) return doubleArrayOf(q.x0, q.y0); j-- } else { if (j + 1 >= ms.size || !joined(j + 1)) return doubleArrayOf(q.x1, q.y1); j++ }
+            }
+        }
         for (k in ms.indices) {
             val m = ms[k]
             if (m.length < tolMm) { tiny++; if (m.feature == OUTER) tinyOuter++ }
-            if (k == 0 || m.feature != OUTER) continue
+            if (k == 0 || m.feature != OUTER || !joined(k)) continue
             val p = ms[k - 1]
-            if (p.feature != m.feature || p.tool != m.tool || p.layer != m.layer || Math.hypot(p.x1 - m.x0, p.y1 - m.y0) > 1e-6) continue
             if (p.length == 0.0 || m.length == 0.0 || minOf(p.length, m.length) >= widthMm) continue
             val c = ((p.x1 - p.x0) * (m.x1 - m.x0) + (p.y1 - p.y0) * (m.y1 - m.y0)) / (p.length * m.length)
-            if (c < cosLimit) kinks++
+            if (c >= cosLimit) continue
+            kinks++
+            val b = along(k, widthMm, true); val a = along(k, widthMm, false)
+            val bx = m.x0 - b[0]; val by = m.y0 - b[1]; val ax = a[0] - m.x0; val ay = a[1] - m.y0
+            val lb = Math.hypot(bx, by); val la = Math.hypot(ax, ay)
+            if (lb > 0 && la > 0 && (bx * ax + by * ay) / (lb * la) >= cosBack) zigzags++
         }
-        return Jagged(tiny, tinyOuter, kinks)
+        return Jagged(tiny, tinyOuter, kinks, zigzags)
     }
     private const val OUTER = "Outer wall"
 }

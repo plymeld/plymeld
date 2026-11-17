@@ -55,6 +55,13 @@ object Models {
     /** A blob 2.6 x 1.8 mm narrowing to points at its ends (two parabolas): wider than three lines in its middle. */
     val pointedBlob by lazy { prism((0 until 60).map { k -> val t = -1 + 2.0 * k / 60; doubleArrayOf(CX + 1.3 * t, CY - 0.9 * (1 - t * t)) } +
         (0 until 60).map { k -> val t = 1 - 2.0 * k / 60; doubleArrayOf(CX + 1.3 * t, CY + 0.9 * (1 - t * t)) }, 0.0, 1.0) }
+    /**
+     * A stroke 1.17 mm wide bent round three quarters of a circle (2 mm inside radius), 0.4 mm tall: about as wide as the
+     * rig's two lines become three (computed for 0.44 mm lines on 0.08 mm layers: 1.171 mm): a middle line starts and ends
+     * along it.
+     */
+    val bentStroke by lazy { prism((0..120).map { k -> val a = 1.5 * Math.PI * k / 120; doubleArrayOf(CX + 3.17 * Math.cos(a), CY + 3.17 * Math.sin(a)) } +
+        (0..120).map { k -> val a = 1.5 * Math.PI * (120 - k) / 120; doubleArrayOf(CX + 2.0 * Math.cos(a), CY + 2.0 * Math.sin(a)) }, 0.0, 0.4) }
 
     /**
      * A block 12 by 10.6 mm with a round hole 6 mm across whose edge comes within [webMm] of the block's front: a web between

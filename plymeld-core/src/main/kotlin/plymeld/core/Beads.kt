@@ -34,8 +34,9 @@ import plymeld.geom.Skeleton
  *  5. Where 2k + 1 beads fit, loop k's middle bead runs along the axis, over nodes of its own count only. Its ends meeting
  *     a loop stop where they reach into the loop's line as an interior line's end reaches into the walls ([Params.endOverlap]).
  *     Where the count rises from even to odd the middle bead is new within the transition length: it starts with its round
- *     end and the beads beside it give way to it across their own track (the outer loop on its inner side only, no
- *     narrower than the narrowest line, never cut); a loop inside another gives way to the one outside it near their turns.
+ *     end and the beads beside it give way to it across their own track (the outer loop across the outline, on its inner
+ *     side only, no narrower than the narrowest line, never cut); a loop inside another gives way to the one outside it near
+ *     their turns. A cut where a bead gave way entirely is not made where its two ends would lie within half a line.
  *  6. Open pieces' ends (a middle bead's at a junction of the axis) are joined closest first within a short reach.
  */
 object Beads {
@@ -103,7 +104,7 @@ object Beads {
         var cutStart = false; var cutEnd = false
         /** It is (part of) the outer loop: it gives way to a new bead no narrower than the narrowest line, and is never cut. */
         var loop = false
-        /** Each point's node and outline sample (a middle bead's point: -1; a point of no rib, a corner's end: node -1). */
+        /** Each point's node and outline sample (a middle bead's point: -1; a point of no rib: node -1, a corner's end the sample of the rib beside it). */
         val node = ArrayList<Int>(); val sample = ArrayList<Int>()
         /** Each point's bead is new (comes in at a change of count). */
         val newPt = ArrayList<Boolean>()
@@ -612,7 +613,11 @@ object Beads {
                     val u = ribNode[i]; val s = ribSample[i]; val b = ob[i]!!; val f = b[0] / r[u]
                     return doubleArrayOf(sx[s] + (cx[u] - sx[s]) * f, sy[s] + (cy[u] - sy[s]) * f, b[1])
                 }
-                /** The loop's points on [count] ribs from [from] (round the ring), a corner's end where the bead stops short of a corner. */
+                /**
+                 * The loop's points on [count] ribs from [from] (round the ring), a corner's end where the bead stops short of a
+                 * corner. A corner's end lies on no rib (node -1) but takes the outline sample of the rib beside it: the loop
+                 * gives way across the outline there as at its other points (giveWay).
+                 */
                 fun trace(from: Int, count: Int, cyclic: Boolean): Piece {
                     val pc = Piece(wall = level).also { it.loop = true }
                     for (step in 0 until count) {
@@ -620,9 +625,9 @@ object Beads {
                         val hasBefore = step > 0 || cyclic
                         val b = ob[i]; val bb = ob[before]
                         if (b != null) {
-                            if (hasBefore && bb == null && isLoop[before]) cornerEnd(ribNode[i], ribNode[before], b[0])?.let { e -> pc.add(e[0], e[1], b[1]) }
+                            if (hasBefore && bb == null && isLoop[before]) cornerEnd(ribNode[i], ribNode[before], b[0])?.let { e -> pc.add(e[0], e[1], b[1], s = ribSample[i]) }
                             val pt = point(i); pc.add(pt[0], pt[1], pt[2], ribNode[i], ribSample[i], level > 0 && vNode[ribNode[i]] && zoneDist[ribNode[i]] <= p.transitionUm)
-                        } else if (hasBefore && bb != null) cornerEnd(ribNode[before], ribNode[i], bb[0])?.let { e -> pc.add(e[0], e[1], bb[1]) }
+                        } else if (hasBefore && bb != null) cornerEnd(ribNode[before], ribNode[i], bb[0])?.let { e -> pc.add(e[0], e[1], bb[1], s = ribSample[before]) }
                     }
                     return pc
                 }
@@ -791,6 +796,7 @@ object Beads {
         fun giveWay() {
         run {
             val f = rule.flankUm
+            val ringOf = arrayOfNulls<IntRange>(sx.size).also { a -> for (ring in rings) for (s in ring) a[s] = ring }.requireNoNulls()
             // what is given way to: the new beads' plastic (each narrowed by half the flank, the usual overlap of two beads in
             // contact), and, for a loop inside another, the loops outside it (where an area narrows fast, a loop's turn lies
             // close behind the turn of the loop outside it: it gives way to it)
@@ -866,14 +872,26 @@ object Beads {
                 // nothing to give way to near any of its points: as it is
                 if ((0 until pc.size).none { i -> val ci = Math.floor(pc.xs[i] / cell).toLong(); val cj = Math.floor(pc.ys[i] / cell).toLong()
                         (-3L..3L).any { di -> (-3L..3L).any { dj -> grid.has(ci + di, cj + dj) } } }) continue
-                // across the track at points a few steps apart (each part of it gives way, not only where its ribs are), the
-                // way across from the track as it runs over a sample's length (not from point to point: a middle bead's nodes
-                // come in pairs at one place)
+                // across the track at points a few steps apart (each part of it gives way, not only where its ribs are). The
+                // outer loop's way across is the outline's at the point's sample (from the sample before to the one after): it
+                // runs along the outline, and where its place's count rises from two lines to three its points step across the
+                // track within one sample's ribs (from half the place to half the outer line's width from the outline), so
+                // the way from point to point there runs along the track: those points moved along it, not across, and the
+                // line went back and forth over itself. Another line's way across is from the points beside it (more than
+                // a micron away: a middle bead's nodes come in pairs at one place); an inner loop gives way on both sides to
+                // the loop outside it, which its own track follows where the outline's does not (a tip, a corner)
                 pc.resample(4 * GIVE_WAY_STEP_UM)
                 val middle = pc.midStart && pc.midEnd
                 val m = pc.size
                 val nx = DoubleArray(m); val ny = DoubleArray(m)
                 for (i in 0 until m) {
+                    val s = pc.sample[i]
+                    if (pc.loop && pc.wall == 0 && s >= 0) {
+                        val ring = ringOf[s]; val q = ring.last - ring.first + 1
+                        val sa = ring.first + (s - ring.first - 1 + q) % q; val sb = ring.first + (s - ring.first + 1) % q
+                        val dx = (sx[sb] - sx[sa]).toDouble(); val dy = (sy[sb] - sy[sa]).toDouble(); val l = Math.hypot(dx, dy)
+                        if (l > 0) { nx[i] = -dy / l; ny[i] = dx / l; continue }
+                    }
                     var a = i; var b = i
                     while (a > 0 && Math.hypot(pc.xs[i] - pc.xs[a], pc.ys[i] - pc.ys[a]) < 1.0) a--
                     while (b < m - 1 && Math.hypot(pc.xs[b] - pc.xs[i], pc.ys[b] - pc.ys[i]) < 1.0) b++
@@ -929,7 +947,11 @@ object Beads {
         }
         /**
          * The pieces as laid: where a bead gave way entirely (narrower than half the narrowest line) it is not laid: the piece
-         * is cut there, its ends at the cut never joined again (across the new bead).
+         * is cut there, its ends at the cut never joined again (across the new bead). A cut whose two ends would lie within
+         * half the narrower one's width of each other is not made: each end's round reaches over the other end, the two lay
+         * each other's plastic twice and cover the gap anyway, so the points given way are left out and the line goes on
+         * across. (An inner loop's single point on a spur of the axis, a node whose triangle has all three corners on one
+         * side, can lie on the loop outside it and give way entirely between neighbors that give way nothing.)
          */
         fun cut(): ArrayList<Piece> {
         val kept = ArrayList<Piece>()
@@ -938,6 +960,30 @@ object Beads {
             val keep = BooleanArray(pc.size) { pc.ws[it] >= rule.minUm / 2 }
             if (keep.all { it }) { kept.add(pc); continue }
             if (keep.none { it }) continue
+            // the runs of points given way whose kept neighbors lie within half a line of each other: left out, not cut
+            val skip = BooleanArray(pc.size)
+            run {
+                val m = pc.size
+                var i = 0
+                while (i < m) {
+                    if (keep[i] || (i > 0 && !keep[i - 1]) || (i == 0 && pc.closed && !keep[m - 1])) { i++; continue }
+                    // a run of points given way starting at i: its kept neighbors
+                    var j = i; var len = 0
+                    while (len < m && !keep[(j + m) % m]) { j++; len++ }
+                    val a = i - 1; val b = j
+                    if ((pc.closed || (a >= 0 && b < m)) && len < m) {
+                        val ia = (a + m) % m; val ib = b % m
+                        if (Math.hypot(pc.xs[ia] - pc.xs[ib], pc.ys[ia] - pc.ys[ib]) <= minOf(pc.ws[ia], pc.ws[ib]) / 2)
+                            for (k in i until j) { skip[k % m] = true }
+                    }
+                    i = j
+                }
+            }
+            if (skip.any { it }) {
+                pc.keepOnly(BooleanArray(pc.size) { !skip[it] })
+                for (k in 0 until pc.size) keep[k] = pc.ws[k] >= rule.minUm / 2
+                if ((0 until pc.size).all { keep[it] }) { kept.add(pc); continue }
+            }
             // an open piece's ends given way are only shortened (still its ends: a middle bead's end still joins at a junction)
             val first = if (pc.closed) 0 else (0 until pc.size).first { keep[it] }
             val last = if (pc.closed) pc.size - 1 else (0 until pc.size).last { keep[it] }

@@ -1,5 +1,49 @@
 # The catalog's recorded measures (CatalogTest): model, row, measure, value; sorted. Written by
 # ./gradlew :plymeld-check:test --tests 'plymeld.check.catalog.CatalogTest' -Pplymeld.refreshCatalogBaseline
+bent stroke	base	check.problems	0
+bent stroke	base	feature.Brim.length_mm	222.52
+bent stroke	base	feature.Brim.paths	10
+bent stroke	base	feature.Inner wall.length_mm	15.94
+bent stroke	base	feature.Inner wall.paths	4
+bent stroke	base	feature.Outer wall.length_mm	73.88
+bent stroke	base	feature.Outer wall.paths	3
+bent stroke	base	feature.Prime line.length_mm	30.00
+bent stroke	base	feature.Prime line.paths	1
+bent stroke	base	filament.T0_mm	10.85
+bent stroke	base	filament_mm	10.85
+bent stroke	base	laid_twice.area_mm2	0.000
+bent stroke	base	laid_twice.layers	0
+bent stroke	base	laid_twice.spots	0
+bent stroke	base	laid_twice.widest_mm	0.000
+bent stroke	base	lines.outer_kinks	0
+bent stroke	base	lines.outer_zigzags	0
+bent stroke	base	lines.tiny_moves	1
+bent stroke	base	lines.tiny_moves.outer_wall	0
+bent stroke	base	seams.count	3
+bent stroke	base	seams.jog_mm	0.000
+bent stroke	base	seams.point	3
+bent stroke	base	seams.scar_mm2	0.165
+bent stroke	base	seams.scarf	0
+bent stroke	base	strings.restart_starved_mm	10.00
+bent stroke	base	strings.retractions	6
+bent stroke	base	strings.travel_mm	35.06
+bent stroke	base	strings.unretracted_across_tops_mm	0.00
+bent stroke	base	strings.unretracted_over_air_mm	8.83
+bent stroke	base	strings.unretracted_shown_mm	8.83
+bent stroke	base	strings.unretracted_travels	11
+bent stroke	base	strings.visible_restarts	2
+bent stroke	base	time_s	16.4
+bent stroke	base	walls.doubled_mm2	0.0367
+bent stroke	base	walls.largest_shift_mm	0.291
+bent stroke	base	walls.layers	2
+bent stroke	base	walls.outside_farthest_mm	0.018
+bent stroke	base	walls.outside_mm2	0.1234
+bent stroke	base	walls.paths	6
+bent stroke	base	walls.shortest_move_mm	0.016
+bent stroke	base	walls.shortest_path_mm	0.821
+bent stroke	base	walls.uncovered_mm2	0.2504
+bent stroke	base	walls.uncovered_wider_than_floor_mm2	0.0000
+bent stroke	base	walls.uncovered_widest_mm	0.090
 blob	base	check.problems	0
 blob	base	feature.Brim.length_mm	175.26
 blob	base	feature.Brim.paths	10
@@ -14,6 +58,7 @@ blob	base	laid_twice.layers	0
 blob	base	laid_twice.spots	0
 blob	base	laid_twice.widest_mm	0.000
 blob	base	lines.outer_kinks	1
+blob	base	lines.outer_zigzags	0
 blob	base	lines.tiny_moves	3
 blob	base	lines.tiny_moves.outer_wall	2
 blob	base	seams.count	11
@@ -63,6 +108,7 @@ block	base	laid_twice.layers	0
 block	base	laid_twice.spots	0
 block	base	laid_twice.widest_mm	0.000
 block	base	lines.outer_kinks	0
+block	base	lines.outer_zigzags	0
 block	base	lines.tiny_moves	6
 block	base	lines.tiny_moves.outer_wall	0
 block	base	seams.count	11
@@ -116,6 +162,7 @@ bridges	base	laid_twice.layers	0
 bridges	base	laid_twice.spots	0
 bridges	base	laid_twice.widest_mm	0.000
 bridges	base	lines.outer_kinks	0
+bridges	base	lines.outer_zigzags	0
 bridges	base	lines.tiny_moves	7
 bridges	base	lines.tiny_moves.outer_wall	0
 bridges	base	seams.count	135
@@ -157,6 +204,7 @@ buried fin 0.1 mm	base	laid_twice.layers	0
 buried fin 0.1 mm	base	laid_twice.spots	0
 buried fin 0.1 mm	base	laid_twice.widest_mm	0.000
 buried fin 0.1 mm	base	lines.outer_kinks	0
+buried fin 0.1 mm	base	lines.outer_zigzags	0
 buried fin 0.1 mm	base	lines.tiny_moves	38
 buried fin 0.1 mm	base	lines.tiny_moves.outer_wall	14
 buried fin 0.1 mm	base	seams.count	46
@@ -198,6 +246,7 @@ buried fin 0.5 mm	base	laid_twice.layers	0
 buried fin 0.5 mm	base	laid_twice.spots	0
 buried fin 0.5 mm	base	laid_twice.widest_mm	0.000
 buried fin 0.5 mm	base	lines.outer_kinks	0
+buried fin 0.5 mm	base	lines.outer_zigzags	0
 buried fin 0.5 mm	base	lines.tiny_moves	1
 buried fin 0.5 mm	base	lines.tiny_moves.outer_wall	0
 buried fin 0.5 mm	base	seams.count	76
@@ -240,6 +289,7 @@ cornered post	base	laid_twice.layers	0
 cornered post	base	laid_twice.spots	0
 cornered post	base	laid_twice.widest_mm	0.000
 cornered post	base	lines.outer_kinks	0
+cornered post	base	lines.outer_zigzags	0
 cornered post	base	lines.tiny_moves	1
 cornered post	base	lines.tiny_moves.outer_wall	0
 cornered post	base	seams.count	40
@@ -282,6 +332,7 @@ cornered post	least visible seam	laid_twice.layers	0
 cornered post	least visible seam	laid_twice.spots	0
 cornered post	least visible seam	laid_twice.widest_mm	0.000
 cornered post	least visible seam	lines.outer_kinks	0
+cornered post	least visible seam	lines.outer_zigzags	0
 cornered post	least visible seam	lines.tiny_moves	1
 cornered post	least visible seam	lines.tiny_moves.outer_wall	0
 cornered post	least visible seam	seams.count	40
@@ -324,6 +375,7 @@ cornered post	scarf seams	laid_twice.layers	0
 cornered post	scarf seams	laid_twice.spots	0
 cornered post	scarf seams	laid_twice.widest_mm	0.000
 cornered post	scarf seams	lines.outer_kinks	0
+cornered post	scarf seams	lines.outer_zigzags	0
 cornered post	scarf seams	lines.tiny_moves	1
 cornered post	scarf seams	lines.tiny_moves.outer_wall	0
 cornered post	scarf seams	seams.count	40
@@ -354,6 +406,7 @@ deep lens	base	laid_twice.layers	0
 deep lens	base	laid_twice.spots	0
 deep lens	base	laid_twice.widest_mm	0.000
 deep lens	base	lines.outer_kinks	20
+deep lens	base	lines.outer_zigzags	0
 deep lens	base	lines.tiny_moves	15
 deep lens	base	lines.tiny_moves.outer_wall	1
 deep lens	base	seams.count	11
@@ -405,6 +458,7 @@ domed top	base	laid_twice.layers	0
 domed top	base	laid_twice.spots	0
 domed top	base	laid_twice.widest_mm	0.000
 domed top	base	lines.outer_kinks	0
+domed top	base	lines.outer_zigzags	0
 domed top	base	lines.tiny_moves	43
 domed top	base	lines.tiny_moves.outer_wall	0
 domed top	base	seams.count	30
@@ -447,6 +501,7 @@ domed top	flat tops ironed	laid_twice.layers	0
 domed top	flat tops ironed	laid_twice.spots	0
 domed top	flat tops ironed	laid_twice.widest_mm	0.000
 domed top	flat tops ironed	lines.outer_kinks	0
+domed top	flat tops ironed	lines.outer_zigzags	0
 domed top	flat tops ironed	lines.tiny_moves	43
 domed top	flat tops ironed	lines.tiny_moves.outer_wall	0
 domed top	flat tops ironed	seams.count	30
@@ -488,6 +543,7 @@ exposed wedge	base	laid_twice.layers	0
 exposed wedge	base	laid_twice.spots	0
 exposed wedge	base	laid_twice.widest_mm	0.000
 exposed wedge	base	lines.outer_kinks	1
+exposed wedge	base	lines.outer_zigzags	1
 exposed wedge	base	lines.tiny_moves	2
 exposed wedge	base	lines.tiny_moves.outer_wall	0
 exposed wedge	base	seams.count	59
@@ -529,6 +585,7 @@ exposed wedge	sliver at the surface to its neighbor	laid_twice.layers	0
 exposed wedge	sliver at the surface to its neighbor	laid_twice.spots	0
 exposed wedge	sliver at the surface to its neighbor	laid_twice.widest_mm	0.000
 exposed wedge	sliver at the surface to its neighbor	lines.outer_kinks	1
+exposed wedge	sliver at the surface to its neighbor	lines.outer_zigzags	1
 exposed wedge	sliver at the surface to its neighbor	lines.tiny_moves	2
 exposed wedge	sliver at the surface to its neighbor	lines.tiny_moves.outer_wall	0
 exposed wedge	sliver at the surface to its neighbor	seams.count	57
@@ -570,6 +627,7 @@ finger inside a second part	base	laid_twice.layers	0
 finger inside a second part	base	laid_twice.spots	0
 finger inside a second part	base	laid_twice.widest_mm	0.000
 finger inside a second part	base	lines.outer_kinks	15
+finger inside a second part	base	lines.outer_zigzags	15
 finger inside a second part	base	lines.tiny_moves	6
 finger inside a second part	base	lines.tiny_moves.outer_wall	4
 finger inside a second part	base	seams.count	212
@@ -612,6 +670,7 @@ holes	base	laid_twice.layers	0
 holes	base	laid_twice.spots	0
 holes	base	laid_twice.widest_mm	0.000
 holes	base	lines.outer_kinks	0
+holes	base	lines.outer_zigzags	0
 holes	base	lines.tiny_moves	295
 holes	base	lines.tiny_moves.outer_wall	0
 holes	base	seams.count	75
@@ -653,6 +712,7 @@ inlay on a leaning face	base	laid_twice.layers	0
 inlay on a leaning face	base	laid_twice.spots	0
 inlay on a leaning face	base	laid_twice.widest_mm	0.000
 inlay on a leaning face	base	lines.outer_kinks	0
+inlay on a leaning face	base	lines.outer_zigzags	0
 inlay on a leaning face	base	lines.tiny_moves	24
 inlay on a leaning face	base	lines.tiny_moves.outer_wall	1
 inlay on a leaning face	base	seams.count	141
@@ -698,6 +758,7 @@ inlay on a leaning face	support	laid_twice.layers	0
 inlay on a leaning face	support	laid_twice.spots	0
 inlay on a leaning face	support	laid_twice.widest_mm	0.000
 inlay on a leaning face	support	lines.outer_kinks	0
+inlay on a leaning face	support	lines.outer_zigzags	0
 inlay on a leaning face	support	lines.tiny_moves	25
 inlay on a leaning face	support	lines.tiny_moves.outer_wall	1
 inlay on a leaning face	support	seams.count	141
@@ -730,6 +791,7 @@ lens alone	base	laid_twice.layers	0
 lens alone	base	laid_twice.spots	0
 lens alone	base	laid_twice.widest_mm	0.000
 lens alone	base	lines.outer_kinks	17
+lens alone	base	lines.outer_zigzags	0
 lens alone	base	lines.tiny_moves	4
 lens alone	base	lines.tiny_moves.outer_wall	4
 lens alone	base	seams.count	16
@@ -778,6 +840,7 @@ lens beside a second part	base	laid_twice.layers	0
 lens beside a second part	base	laid_twice.spots	0
 lens beside a second part	base	laid_twice.widest_mm	0.000
 lens beside a second part	base	lines.outer_kinks	19
+lens beside a second part	base	lines.outer_zigzags	0
 lens beside a second part	base	lines.tiny_moves	5
 lens beside a second part	base	lines.tiny_moves.outer_wall	4
 lens beside a second part	base	seams.count	30
@@ -819,6 +882,7 @@ letter E	base	laid_twice.layers	0
 letter E	base	laid_twice.spots	0
 letter E	base	laid_twice.widest_mm	0.000
 letter E	base	lines.outer_kinks	0
+letter E	base	lines.outer_zigzags	0
 letter E	base	lines.tiny_moves	7
 letter E	base	lines.tiny_moves.outer_wall	0
 letter E	base	seams.count	11
@@ -872,6 +936,7 @@ overhang ladder	base	laid_twice.layers	0
 overhang ladder	base	laid_twice.spots	0
 overhang ladder	base	laid_twice.widest_mm	0.000
 overhang ladder	base	lines.outer_kinks	0
+overhang ladder	base	lines.outer_zigzags	0
 overhang ladder	base	lines.tiny_moves	1
 overhang ladder	base	lines.tiny_moves.outer_wall	0
 overhang ladder	base	seams.count	65
@@ -918,6 +983,7 @@ overhang ladder	support	laid_twice.layers	0
 overhang ladder	support	laid_twice.spots	0
 overhang ladder	support	laid_twice.widest_mm	0.000
 overhang ladder	support	lines.outer_kinks	0
+overhang ladder	support	lines.outer_zigzags	0
 overhang ladder	support	lines.tiny_moves	2
 overhang ladder	support	lines.tiny_moves.outer_wall	0
 overhang ladder	support	seams.count	65
@@ -960,6 +1026,7 @@ pins	base	laid_twice.layers	0
 pins	base	laid_twice.spots	0
 pins	base	laid_twice.widest_mm	0.000
 pins	base	lines.outer_kinks	0
+pins	base	lines.outer_zigzags	0
 pins	base	lines.tiny_moves	5
 pins	base	lines.tiny_moves.outer_wall	0
 pins	base	seams.count	85
@@ -992,6 +1059,7 @@ pointed blob	base	laid_twice.layers	0
 pointed blob	base	laid_twice.spots	0
 pointed blob	base	laid_twice.widest_mm	0.000
 pointed blob	base	lines.outer_kinks	0
+pointed blob	base	lines.outer_zigzags	0
 pointed blob	base	lines.tiny_moves	19
 pointed blob	base	lines.tiny_moves.outer_wall	0
 pointed blob	base	seams.count	11
@@ -1024,11 +1092,11 @@ ridge, dipped	base	feature.Bottom surface.length_mm	157.54
 ridge, dipped	base	feature.Bottom surface.paths	1
 ridge, dipped	base	feature.Brim.length_mm	198.29
 ridge, dipped	base	feature.Brim.paths	10
-ridge, dipped	base	feature.Inner wall.length_mm	706.05
+ridge, dipped	base	feature.Inner wall.length_mm	706.20
 ridge, dipped	base	feature.Inner wall.paths	140
 ridge, dipped	base	feature.Internal solid infill.length_mm	1860.55
 ridge, dipped	base	feature.Internal solid infill.paths	33
-ridge, dipped	base	feature.Outer wall.length_mm	946.11
+ridge, dipped	base	feature.Outer wall.length_mm	945.57
 ridge, dipped	base	feature.Outer wall.paths	108
 ridge, dipped	base	feature.Prime line.length_mm	30.00
 ridge, dipped	base	feature.Prime line.paths	1
@@ -1036,13 +1104,14 @@ ridge, dipped	base	feature.Sparse infill.length_mm	53.59
 ridge, dipped	base	feature.Sparse infill.paths	20
 ridge, dipped	base	feature.Top surface.length_mm	180.95
 ridge, dipped	base	feature.Top surface.paths	3
-ridge, dipped	base	filament.T0_mm	63.01
-ridge, dipped	base	filament_mm	63.01
+ridge, dipped	base	filament.T0_mm	63.00
+ridge, dipped	base	filament_mm	63.00
 ridge, dipped	base	laid_twice.area_mm2	0.000
 ridge, dipped	base	laid_twice.layers	0
 ridge, dipped	base	laid_twice.spots	0
 ridge, dipped	base	laid_twice.widest_mm	0.000
-ridge, dipped	base	lines.outer_kinks	33
+ridge, dipped	base	lines.outer_kinks	31
+ridge, dipped	base	lines.outer_zigzags	5
 ridge, dipped	base	lines.tiny_moves	50
 ridge, dipped	base	lines.tiny_moves.outer_wall	12
 ridge, dipped	base	seams.count	164
@@ -1052,54 +1121,55 @@ ridge, dipped	base	seams.scar_mm2	9.859
 ridge, dipped	base	seams.scarf	0
 ridge, dipped	base	strings.restart_starved_mm	225.00
 ridge, dipped	base	strings.retractions	107
-ridge, dipped	base	strings.travel_mm	964.51
+ridge, dipped	base	strings.travel_mm	964.50
 ridge, dipped	base	strings.unretracted_across_tops_mm	0.00
 ridge, dipped	base	strings.unretracted_over_air_mm	5.04
 ridge, dipped	base	strings.unretracted_shown_mm	5.04
 ridge, dipped	base	strings.unretracted_travels	208
 ridge, dipped	base	strings.visible_restarts	45
-ridge, dipped	base	time_s	295.2
+ridge, dipped	base	time_s	295.1
 ridge, dipped, beside a second part	base	check.problems	0
 ridge, dipped, beside a second part	base	feature.Bottom surface.length_mm	157.53
 ridge, dipped, beside a second part	base	feature.Bottom surface.paths	1
-ridge, dipped, beside a second part	base	feature.Inner wall.length_mm	1169.84
-ridge, dipped, beside a second part	base	feature.Inner wall.paths	224
+ridge, dipped, beside a second part	base	feature.Inner wall.length_mm	1172.87
+ridge, dipped, beside a second part	base	feature.Inner wall.paths	225
 ridge, dipped, beside a second part	base	feature.Internal Bridge.length_mm	27.12
 ridge, dipped, beside a second part	base	feature.Internal Bridge.paths	5
 ridge, dipped, beside a second part	base	feature.Internal solid infill.length_mm	1964.25
 ridge, dipped, beside a second part	base	feature.Internal solid infill.paths	39
-ridge, dipped, beside a second part	base	feature.Outer wall.length_mm	1608.04
-ridge, dipped, beside a second part	base	feature.Outer wall.paths	167
+ridge, dipped, beside a second part	base	feature.Outer wall.length_mm	1608.25
+ridge, dipped, beside a second part	base	feature.Outer wall.paths	166
 ridge, dipped, beside a second part	base	feature.Prime tower.length_mm	20100.38
 ridge, dipped, beside a second part	base	feature.Prime tower.paths	66
 ridge, dipped, beside a second part	base	feature.Sparse infill.length_mm	178.96
 ridge, dipped, beside a second part	base	feature.Sparse infill.paths	35
 ridge, dipped, beside a second part	base	feature.Top surface.length_mm	125.48
 ridge, dipped, beside a second part	base	feature.Top surface.paths	3
-ridge, dipped, beside a second part	base	filament.T0_mm	209.14
+ridge, dipped, beside a second part	base	filament.T0_mm	209.13
 ridge, dipped, beside a second part	base	filament.T1_mm	148.02
 ridge, dipped, beside a second part	base	filament_mm	357.16
 ridge, dipped, beside a second part	base	laid_twice.area_mm2	0.000
 ridge, dipped, beside a second part	base	laid_twice.layers	0
 ridge, dipped, beside a second part	base	laid_twice.spots	0
 ridge, dipped, beside a second part	base	laid_twice.widest_mm	0.000
-ridge, dipped, beside a second part	base	lines.outer_kinks	45
-ridge, dipped, beside a second part	base	lines.tiny_moves	77
-ridge, dipped, beside a second part	base	lines.tiny_moves.outer_wall	19
-ridge, dipped, beside a second part	base	seams.count	241
+ridge, dipped, beside a second part	base	lines.outer_kinks	41
+ridge, dipped, beside a second part	base	lines.outer_zigzags	6
+ridge, dipped, beside a second part	base	lines.tiny_moves	78
+ridge, dipped, beside a second part	base	lines.tiny_moves.outer_wall	20
+ridge, dipped, beside a second part	base	seams.count	239
 ridge, dipped, beside a second part	base	seams.jog_mm	16.436
-ridge, dipped, beside a second part	base	seams.point	241
-ridge, dipped, beside a second part	base	seams.scar_mm2	11.022
+ridge, dipped, beside a second part	base	seams.point	239
+ridge, dipped, beside a second part	base	seams.scar_mm2	10.844
 ridge, dipped, beside a second part	base	seams.scarf	0
-ridge, dipped, beside a second part	base	strings.restart_starved_mm	325.00
-ridge, dipped, beside a second part	base	strings.retractions	248
-ridge, dipped, beside a second part	base	strings.travel_mm	9453.54
+ridge, dipped, beside a second part	base	strings.restart_starved_mm	320.00
+ridge, dipped, beside a second part	base	strings.retractions	247
+ridge, dipped, beside a second part	base	strings.travel_mm	9451.64
 ridge, dipped, beside a second part	base	strings.unretracted_across_tops_mm	1.20
 ridge, dipped, beside a second part	base	strings.unretracted_over_air_mm	0.60
 ridge, dipped, beside a second part	base	strings.unretracted_shown_mm	1.80
-ridge, dipped, beside a second part	base	strings.unretracted_travels	291
-ridge, dipped, beside a second part	base	strings.visible_restarts	65
-ridge, dipped, beside a second part	base	time_s	406.1
+ridge, dipped, beside a second part	base	strings.unretracted_travels	292
+ridge, dipped, beside a second part	base	strings.visible_restarts	64
+ridge, dipped, beside a second part	base	time_s	406.0
 ridge, flat	base	check.problems	0
 ridge, flat	base	feature.Bottom surface.length_mm	74.74
 ridge, flat	base	feature.Bottom surface.paths	1
@@ -1122,6 +1192,7 @@ ridge, flat	base	laid_twice.layers	0
 ridge, flat	base	laid_twice.spots	0
 ridge, flat	base	laid_twice.widest_mm	0.000
 ridge, flat	base	lines.outer_kinks	0
+ridge, flat	base	lines.outer_zigzags	0
 ridge, flat	base	lines.tiny_moves	17
 ridge, flat	base	lines.tiny_moves.outer_wall	0
 ridge, flat	base	seams.count	23
@@ -1161,6 +1232,7 @@ ridge, flat, beside a second part	base	laid_twice.layers	0
 ridge, flat, beside a second part	base	laid_twice.spots	0
 ridge, flat, beside a second part	base	laid_twice.widest_mm	0.000
 ridge, flat, beside a second part	base	lines.outer_kinks	0
+ridge, flat, beside a second part	base	lines.outer_zigzags	0
 ridge, flat, beside a second part	base	lines.tiny_moves	2
 ridge, flat, beside a second part	base	lines.tiny_moves.outer_wall	0
 ridge, flat, beside a second part	base	seams.count	34
@@ -1182,11 +1254,11 @@ ridge, pointed	base	feature.Bottom surface.length_mm	74.74
 ridge, pointed	base	feature.Bottom surface.paths	1
 ridge, pointed	base	feature.Brim.length_mm	196.31
 ridge, pointed	base	feature.Brim.paths	10
-ridge, pointed	base	feature.Inner wall.length_mm	462.07
+ridge, pointed	base	feature.Inner wall.length_mm	462.19
 ridge, pointed	base	feature.Inner wall.paths	27
 ridge, pointed	base	feature.Internal solid infill.length_mm	949.33
 ridge, pointed	base	feature.Internal solid infill.paths	18
-ridge, pointed	base	feature.Outer wall.length_mm	583.40
+ridge, pointed	base	feature.Outer wall.length_mm	583.10
 ridge, pointed	base	feature.Outer wall.paths	26
 ridge, pointed	base	feature.Prime line.length_mm	30.00
 ridge, pointed	base	feature.Prime line.paths	1
@@ -1194,15 +1266,16 @@ ridge, pointed	base	feature.Sparse infill.length_mm	19.32
 ridge, pointed	base	feature.Sparse infill.paths	2
 ridge, pointed	base	feature.Top surface.length_mm	65.66
 ridge, pointed	base	feature.Top surface.paths	2
-ridge, pointed	base	filament.T0_mm	38.90
-ridge, pointed	base	filament_mm	38.90
+ridge, pointed	base	filament.T0_mm	38.89
+ridge, pointed	base	filament_mm	38.89
 ridge, pointed	base	laid_twice.area_mm2	0.000
 ridge, pointed	base	laid_twice.layers	0
 ridge, pointed	base	laid_twice.spots	0
 ridge, pointed	base	laid_twice.widest_mm	0.000
-ridge, pointed	base	lines.outer_kinks	1
-ridge, pointed	base	lines.tiny_moves	18
-ridge, pointed	base	lines.tiny_moves.outer_wall	1
+ridge, pointed	base	lines.outer_kinks	0
+ridge, pointed	base	lines.outer_zigzags	0
+ridge, pointed	base	lines.tiny_moves	17
+ridge, pointed	base	lines.tiny_moves.outer_wall	0
 ridge, pointed	base	seams.count	30
 ridge, pointed	base	seams.jog_mm	2.416
 ridge, pointed	base	seams.point	30
@@ -1210,23 +1283,23 @@ ridge, pointed	base	seams.scar_mm2	0.909
 ridge, pointed	base	seams.scarf	0
 ridge, pointed	base	strings.restart_starved_mm	25.00
 ridge, pointed	base	strings.retractions	41
-ridge, pointed	base	strings.travel_mm	252.89
+ridge, pointed	base	strings.travel_mm	253.00
 ridge, pointed	base	strings.unretracted_across_tops_mm	0.00
 ridge, pointed	base	strings.unretracted_over_air_mm	4.62
 ridge, pointed	base	strings.unretracted_shown_mm	4.62
 ridge, pointed	base	strings.unretracted_travels	45
 ridge, pointed	base	strings.visible_restarts	5
-ridge, pointed	base	time_s	164.0
+ridge, pointed	base	time_s	163.9
 ridge, steep	base	check.problems	0
 ridge, steep	base	feature.Bottom surface.length_mm	74.74
 ridge, steep	base	feature.Bottom surface.paths	1
 ridge, steep	base	feature.Brim.length_mm	196.31
 ridge, steep	base	feature.Brim.paths	10
-ridge, steep	base	feature.Inner wall.length_mm	461.77
+ridge, steep	base	feature.Inner wall.length_mm	461.87
 ridge, steep	base	feature.Inner wall.paths	27
 ridge, steep	base	feature.Internal solid infill.length_mm	949.39
 ridge, steep	base	feature.Internal solid infill.paths	18
-ridge, steep	base	feature.Outer wall.length_mm	578.56
+ridge, steep	base	feature.Outer wall.length_mm	578.28
 ridge, steep	base	feature.Outer wall.paths	25
 ridge, steep	base	feature.Prime line.length_mm	30.00
 ridge, steep	base	feature.Prime line.paths	1
@@ -1241,6 +1314,7 @@ ridge, steep	base	laid_twice.layers	0
 ridge, steep	base	laid_twice.spots	0
 ridge, steep	base	laid_twice.widest_mm	0.000
 ridge, steep	base	lines.outer_kinks	0
+ridge, steep	base	lines.outer_zigzags	0
 ridge, steep	base	lines.tiny_moves	12
 ridge, steep	base	lines.tiny_moves.outer_wall	0
 ridge, steep	base	seams.count	28
@@ -1250,7 +1324,7 @@ ridge, steep	base	seams.scar_mm2	0.727
 ridge, steep	base	seams.scarf	0
 ridge, steep	base	strings.restart_starved_mm	30.00
 ridge, steep	base	strings.retractions	42
-ridge, steep	base	strings.travel_mm	256.83
+ridge, steep	base	strings.travel_mm	256.92
 ridge, steep	base	strings.unretracted_across_tops_mm	0.00
 ridge, steep	base	strings.unretracted_over_air_mm	4.55
 ridge, steep	base	strings.unretracted_shown_mm	4.55
@@ -1279,6 +1353,7 @@ ridge, wobbly	base	laid_twice.layers	0
 ridge, wobbly	base	laid_twice.spots	0
 ridge, wobbly	base	laid_twice.widest_mm	0.000
 ridge, wobbly	base	lines.outer_kinks	0
+ridge, wobbly	base	lines.outer_zigzags	0
 ridge, wobbly	base	lines.tiny_moves	20
 ridge, wobbly	base	lines.tiny_moves.outer_wall	0
 ridge, wobbly	base	seams.count	23
@@ -1318,6 +1393,7 @@ ridge, wobbly, beside a second part	base	laid_twice.layers	0
 ridge, wobbly, beside a second part	base	laid_twice.spots	0
 ridge, wobbly, beside a second part	base	laid_twice.widest_mm	0.000
 ridge, wobbly, beside a second part	base	lines.outer_kinks	0
+ridge, wobbly, beside a second part	base	lines.outer_zigzags	0
 ridge, wobbly, beside a second part	base	lines.tiny_moves	46
 ridge, wobbly, beside a second part	base	lines.tiny_moves.outer_wall	11
 ridge, wobbly, beside a second part	base	seams.count	34
@@ -1348,6 +1424,7 @@ ring	base	laid_twice.layers	0
 ring	base	laid_twice.spots	0
 ring	base	laid_twice.widest_mm	0.000
 ring	base	lines.outer_kinks	0
+ring	base	lines.outer_zigzags	0
 ring	base	lines.tiny_moves	2
 ring	base	lines.tiny_moves.outer_wall	0
 ring	base	seams.count	22
@@ -1396,6 +1473,7 @@ sliver tips inside a second part	base	laid_twice.layers	0
 sliver tips inside a second part	base	laid_twice.spots	0
 sliver tips inside a second part	base	laid_twice.widest_mm	0.000
 sliver tips inside a second part	base	lines.outer_kinks	0
+sliver tips inside a second part	base	lines.outer_zigzags	0
 sliver tips inside a second part	base	lines.tiny_moves	14
 sliver tips inside a second part	base	lines.tiny_moves.outer_wall	0
 sliver tips inside a second part	base	seams.count	78
@@ -1436,6 +1514,7 @@ sloped top	base	laid_twice.layers	0
 sloped top	base	laid_twice.spots	0
 sloped top	base	laid_twice.widest_mm	0.000
 sloped top	base	lines.outer_kinks	0
+sloped top	base	lines.outer_zigzags	0
 sloped top	base	lines.tiny_moves	6
 sloped top	base	lines.tiny_moves.outer_wall	0
 sloped top	base	seams.count	36
@@ -1476,6 +1555,7 @@ small pillar	base	laid_twice.layers	0
 small pillar	base	laid_twice.spots	0
 small pillar	base	laid_twice.widest_mm	0.000
 small pillar	base	lines.outer_kinks	0
+small pillar	base	lines.outer_zigzags	0
 small pillar	base	lines.tiny_moves	5
 small pillar	base	lines.tiny_moves.outer_wall	0
 small pillar	base	seams.count	60
@@ -1516,6 +1596,7 @@ small pillar	no slowdown	laid_twice.layers	0
 small pillar	no slowdown	laid_twice.spots	0
 small pillar	no slowdown	laid_twice.widest_mm	0.000
 small pillar	no slowdown	lines.outer_kinks	0
+small pillar	no slowdown	lines.outer_zigzags	0
 small pillar	no slowdown	lines.tiny_moves	5
 small pillar	no slowdown	lines.tiny_moves.outer_wall	0
 small pillar	no slowdown	seams.count	60
@@ -1558,6 +1639,7 @@ smooth cylinder	base	laid_twice.layers	0
 smooth cylinder	base	laid_twice.spots	0
 smooth cylinder	base	laid_twice.widest_mm	0.000
 smooth cylinder	base	lines.outer_kinks	0
+smooth cylinder	base	lines.outer_zigzags	0
 smooth cylinder	base	lines.tiny_moves	15
 smooth cylinder	base	lines.tiny_moves.outer_wall	0
 smooth cylinder	base	seams.count	40
@@ -1600,6 +1682,7 @@ smooth cylinder	least visible seam	laid_twice.layers	0
 smooth cylinder	least visible seam	laid_twice.spots	0
 smooth cylinder	least visible seam	laid_twice.widest_mm	0.000
 smooth cylinder	least visible seam	lines.outer_kinks	0
+smooth cylinder	least visible seam	lines.outer_zigzags	0
 smooth cylinder	least visible seam	lines.tiny_moves	15
 smooth cylinder	least visible seam	lines.tiny_moves.outer_wall	0
 smooth cylinder	least visible seam	seams.count	40
@@ -1642,6 +1725,7 @@ smooth cylinder	scarf seams	laid_twice.layers	0
 smooth cylinder	scarf seams	laid_twice.spots	0
 smooth cylinder	scarf seams	laid_twice.widest_mm	0.000
 smooth cylinder	scarf seams	lines.outer_kinks	0
+smooth cylinder	scarf seams	lines.outer_zigzags	0
 smooth cylinder	scarf seams	lines.tiny_moves	15
 smooth cylinder	scarf seams	lines.tiny_moves.outer_wall	0
 smooth cylinder	scarf seams	seams.count	40
@@ -1683,6 +1767,7 @@ speck beside a part	base	laid_twice.layers	0
 speck beside a part	base	laid_twice.spots	0
 speck beside a part	base	laid_twice.widest_mm	0.000
 speck beside a part	base	lines.outer_kinks	0
+speck beside a part	base	lines.outer_zigzags	0
 speck beside a part	base	lines.tiny_moves	14
 speck beside a part	base	lines.tiny_moves.outer_wall	11
 speck beside a part	base	seams.count	120
@@ -1725,6 +1810,7 @@ stepped top	base	laid_twice.layers	0
 stepped top	base	laid_twice.spots	0
 stepped top	base	laid_twice.widest_mm	0.000
 stepped top	base	lines.outer_kinks	0
+stepped top	base	lines.outer_zigzags	0
 stepped top	base	lines.tiny_moves	3
 stepped top	base	lines.tiny_moves.outer_wall	0
 stepped top	base	seams.count	25
@@ -1746,18 +1832,19 @@ strip	base	feature.Brim.length_mm	293.12
 strip	base	feature.Brim.paths	10
 strip	base	feature.Inner wall.length_mm	258.30
 strip	base	feature.Inner wall.paths	32
-strip	base	feature.Outer wall.length_mm	585.18
+strip	base	feature.Outer wall.length_mm	584.54
 strip	base	feature.Outer wall.paths	22
 strip	base	feature.Prime line.length_mm	30.00
 strip	base	feature.Prime line.paths	1
-strip	base	filament.T0_mm	24.46
-strip	base	filament_mm	24.46
+strip	base	filament.T0_mm	24.44
+strip	base	filament_mm	24.44
 strip	base	laid_twice.area_mm2	0.000
 strip	base	laid_twice.layers	0
 strip	base	laid_twice.spots	0
 strip	base	laid_twice.widest_mm	0.000
 strip	base	lines.outer_kinks	0
-strip	base	lines.tiny_moves	0
+strip	base	lines.outer_zigzags	0
+strip	base	lines.tiny_moves	2
 strip	base	lines.tiny_moves.outer_wall	0
 strip	base	seams.count	33
 strip	base	seams.jog_mm	0.000
@@ -1766,22 +1853,22 @@ strip	base	seams.scar_mm2	5.777
 strip	base	seams.scarf	0
 strip	base	strings.restart_starved_mm	105.00
 strip	base	strings.retractions	38
-strip	base	strings.travel_mm	408.39
+strip	base	strings.travel_mm	408.41
 strip	base	strings.unretracted_across_tops_mm	0.00
-strip	base	strings.unretracted_over_air_mm	9.42
-strip	base	strings.unretracted_shown_mm	9.42
+strip	base	strings.unretracted_over_air_mm	9.43
+strip	base	strings.unretracted_shown_mm	9.43
 strip	base	strings.unretracted_travels	26
 strip	base	strings.visible_restarts	21
-strip	base	time_s	81.1
+strip	base	time_s	80.9
 strip	base	walls.doubled_mm2	0.5913
 strip	base	walls.largest_shift_mm	0.000
 strip	base	walls.layers	9
 strip	base	walls.outside_farthest_mm	0.060
-strip	base	walls.outside_mm2	3.9492
+strip	base	walls.outside_mm2	3.9699
 strip	base	walls.paths	45
 strip	base	walls.shortest_move_mm	0.015
 strip	base	walls.shortest_path_mm	1.643
-strip	base	walls.uncovered_mm2	1.1907
+strip	base	walls.uncovered_mm2	1.1772
 strip	base	walls.uncovered_wider_than_floor_mm2	0.0000
 strip	base	walls.uncovered_widest_mm	0.100
 teeth under a second part	base	check.problems	0
@@ -1809,6 +1896,7 @@ teeth under a second part	base	laid_twice.layers	0
 teeth under a second part	base	laid_twice.spots	0
 teeth under a second part	base	laid_twice.widest_mm	0.000
 teeth under a second part	base	lines.outer_kinks	98
+teeth under a second part	base	lines.outer_zigzags	0
 teeth under a second part	base	lines.tiny_moves	19
 teeth under a second part	base	lines.tiny_moves.outer_wall	19
 teeth under a second part	base	seams.count	91
@@ -1850,6 +1938,7 @@ teeth under a second part	scarf seams	laid_twice.layers	0
 teeth under a second part	scarf seams	laid_twice.spots	0
 teeth under a second part	scarf seams	laid_twice.widest_mm	0.000
 teeth under a second part	scarf seams	lines.outer_kinks	98
+teeth under a second part	scarf seams	lines.outer_zigzags	0
 teeth under a second part	scarf seams	lines.tiny_moves	19
 teeth under a second part	scarf seams	lines.tiny_moves.outer_wall	19
 teeth under a second part	scarf seams	seams.count	91
@@ -1882,7 +1971,8 @@ two blobs and a neck	base	laid_twice.layers	0
 two blobs and a neck	base	laid_twice.spots	0
 two blobs and a neck	base	laid_twice.widest_mm	0.000
 two blobs and a neck	base	lines.outer_kinks	4
-two blobs and a neck	base	lines.tiny_moves	7
+two blobs and a neck	base	lines.outer_zigzags	4
+two blobs and a neck	base	lines.tiny_moves	8
 two blobs and a neck	base	lines.tiny_moves.outer_wall	1
 two blobs and a neck	base	seams.count	44
 two blobs and a neck	base	seams.jog_mm	0.000
@@ -1891,20 +1981,20 @@ two blobs and a neck	base	seams.scar_mm2	3.661
 two blobs and a neck	base	seams.scarf	0
 two blobs and a neck	base	strings.restart_starved_mm	65.00
 two blobs and a neck	base	strings.retractions	23
-two blobs and a neck	base	strings.travel_mm	71.59
+two blobs and a neck	base	strings.travel_mm	70.96
 two blobs and a neck	base	strings.unretracted_across_tops_mm	0.00
 two blobs and a neck	base	strings.unretracted_over_air_mm	4.15
 two blobs and a neck	base	strings.unretracted_shown_mm	4.15
 two blobs and a neck	base	strings.unretracted_travels	39
 two blobs and a neck	base	strings.visible_restarts	13
 two blobs and a neck	base	time_s	72.5
-two blobs and a neck	base	walls.doubled_mm2	0.9816
+two blobs and a neck	base	walls.doubled_mm2	0.9475
 two blobs and a neck	base	walls.largest_shift_mm	0.227
 two blobs and a neck	base	walls.layers	9
 two blobs and a neck	base	walls.outside_farthest_mm	0.065
 two blobs and a neck	base	walls.outside_mm2	0.1913
 two blobs and a neck	base	walls.paths	45
-two blobs and a neck	base	walls.shortest_move_mm	0.013
+two blobs and a neck	base	walls.shortest_move_mm	0.008
 two blobs and a neck	base	walls.shortest_path_mm	1.550
 two blobs and a neck	base	walls.uncovered_mm2	0.6653
 two blobs and a neck	base	walls.uncovered_wider_than_floor_mm2	0.0000
@@ -1934,6 +2024,7 @@ two-color piece	base	laid_twice.layers	0
 two-color piece	base	laid_twice.spots	0
 two-color piece	base	laid_twice.widest_mm	0.000
 two-color piece	base	lines.outer_kinks	0
+two-color piece	base	lines.outer_zigzags	0
 two-color piece	base	lines.tiny_moves	4
 two-color piece	base	lines.tiny_moves.outer_wall	0
 two-color piece	base	seams.count	30
@@ -1975,6 +2066,7 @@ two-color piece	purge into infill	laid_twice.layers	0
 two-color piece	purge into infill	laid_twice.spots	0
 two-color piece	purge into infill	laid_twice.widest_mm	0.000
 two-color piece	purge into infill	lines.outer_kinks	0
+two-color piece	purge into infill	lines.outer_zigzags	0
 two-color piece	purge into infill	lines.tiny_moves	4
 two-color piece	purge into infill	lines.tiny_moves.outer_wall	0
 two-color piece	purge into infill	seams.count	30
@@ -2013,6 +2105,7 @@ web 1.0 mm	base	laid_twice.layers	0
 web 1.0 mm	base	laid_twice.spots	0
 web 1.0 mm	base	laid_twice.widest_mm	0.000
 web 1.0 mm	base	lines.outer_kinks	0
+web 1.0 mm	base	lines.outer_zigzags	0
 web 1.0 mm	base	lines.tiny_moves	21
 web 1.0 mm	base	lines.tiny_moves.outer_wall	0
 web 1.0 mm	base	seams.count	23
@@ -2062,6 +2155,7 @@ web 1.6 mm	base	laid_twice.layers	0
 web 1.6 mm	base	laid_twice.spots	0
 web 1.6 mm	base	laid_twice.widest_mm	0.000
 web 1.6 mm	base	lines.outer_kinks	0
+web 1.6 mm	base	lines.outer_zigzags	0
 web 1.6 mm	base	lines.tiny_moves	20
 web 1.6 mm	base	lines.tiny_moves.outer_wall	0
 web 1.6 mm	base	seams.count	22
@@ -2111,6 +2205,7 @@ web 2.2 mm	base	laid_twice.layers	0
 web 2.2 mm	base	laid_twice.spots	0
 web 2.2 mm	base	laid_twice.widest_mm	0.000
 web 2.2 mm	base	lines.outer_kinks	0
+web 2.2 mm	base	lines.outer_zigzags	0
 web 2.2 mm	base	lines.tiny_moves	11
 web 2.2 mm	base	lines.tiny_moves.outer_wall	0
 web 2.2 mm	base	seams.count	22
@@ -2139,45 +2234,46 @@ web 2.2 mm	base	walls.uncovered_mm2	0.1268
 web 2.2 mm	base	walls.uncovered_wider_than_floor_mm2	0.0000
 web 2.2 mm	base	walls.uncovered_widest_mm	0.045
 wedge	base	check.problems	0
-wedge	base	feature.Brim.length_mm	183.62
+wedge	base	feature.Brim.length_mm	192.49
 wedge	base	feature.Brim.paths	10
-wedge	base	feature.Inner wall.length_mm	59.28
+wedge	base	feature.Inner wall.length_mm	59.90
 wedge	base	feature.Inner wall.paths	21
-wedge	base	feature.Outer wall.length_mm	189.00
+wedge	base	feature.Outer wall.length_mm	187.55
 wedge	base	feature.Outer wall.paths	22
 wedge	base	feature.Prime line.length_mm	30.00
 wedge	base	feature.Prime line.paths	1
-wedge	base	filament.T0_mm	11.13
-wedge	base	filament_mm	11.13
+wedge	base	filament.T0_mm	11.44
+wedge	base	filament_mm	11.44
 wedge	base	laid_twice.area_mm2	0.000
 wedge	base	laid_twice.layers	0
 wedge	base	laid_twice.spots	0
 wedge	base	laid_twice.widest_mm	0.000
 wedge	base	lines.outer_kinks	0
-wedge	base	lines.tiny_moves	0
+wedge	base	lines.outer_zigzags	0
+wedge	base	lines.tiny_moves	7
 wedge	base	lines.tiny_moves.outer_wall	0
 wedge	base	seams.count	33
 wedge	base	seams.jog_mm	0.000
 wedge	base	seams.point	33
 wedge	base	seams.scar_mm2	4.412
 wedge	base	seams.scarf	0
-wedge	base	strings.restart_starved_mm	80.00
+wedge	base	strings.restart_starved_mm	60.00
 wedge	base	strings.retractions	32
-wedge	base	strings.travel_mm	139.26
+wedge	base	strings.travel_mm	139.06
 wedge	base	strings.unretracted_across_tops_mm	0.00
 wedge	base	strings.unretracted_over_air_mm	4.17
 wedge	base	strings.unretracted_shown_mm	4.17
 wedge	base	strings.unretracted_travels	21
-wedge	base	strings.visible_restarts	16
-wedge	base	time_s	73.6
-wedge	base	walls.doubled_mm2	0.2648
+wedge	base	strings.visible_restarts	12
+wedge	base	time_s	72.8
+wedge	base	walls.doubled_mm2	0.2252
 wedge	base	walls.largest_shift_mm	0.000
 wedge	base	walls.layers	9
 wedge	base	walls.outside_farthest_mm	0.084
-wedge	base	walls.outside_mm2	1.2393
+wedge	base	walls.outside_mm2	1.1853
 wedge	base	walls.paths	36
 wedge	base	walls.shortest_move_mm	0.016
-wedge	base	walls.shortest_path_mm	0.960
-wedge	base	walls.uncovered_mm2	1.1932
+wedge	base	walls.shortest_path_mm	1.015
+wedge	base	walls.uncovered_mm2	1.1903
 wedge	base	walls.uncovered_wider_than_floor_mm2	0.0000
 wedge	base	walls.uncovered_widest_mm	0.100

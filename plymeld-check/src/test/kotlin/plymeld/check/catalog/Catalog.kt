@@ -59,6 +59,8 @@ object Catalog {
         walls("letter E", "a letter E of strokes 0.9 mm wide: junctions, corners and ends", { listOf(Models.letter) }),
         walls("deep lens", "a lens 1.4 mm deep: tips, not corners", { listOf(Models.deepLens) }),
         walls("pointed blob", "a blob narrowing to points: wider than three lines in its middle", { listOf(Models.pointedBlob) }),
+        walls("bent stroke", "a stroke bent round three quarters of a circle, about as wide as two lines become three: the outer line where a middle line starts",
+            { listOf(Models.bentStroke) }, WallRead(0.15, 0.4)),
         walls("block", "a block 10 by 10 mm: an ordinary area, its walls and infill", { listOf(Models.block) }),
         Entry("web 1.0 mm", "a web 1.0 mm wide between a hole and the side: room for the two outer lines and a little", Slicing.WALLS,
             { listOf(Models.webBlock(1.0)) }, walls = webWindow(1.0)),

@@ -1769,3 +1769,59 @@ before), and 2.4 inside the fast suite, beside the other tests. The regress case
 the catalog, and a real three-object plate's g-code are byte for byte the same; the plate's planning 49.7, 50.6, 50.3 s
 before and 41.5, 48.1, 47.4 s after (three runs each, in turn; a fourth after, alone, 50.4 s): no more than the runs'
 spread shows.
+
+## 56. The outer loop of a narrow island gives way across the outline; a cut whose ends would overlap is not made (2026-11-17)
+
+Amends 28 and 40.
+
+**Context.** On a real three-object two-color plate, a narrow island's outer line stepped back and forth over itself
+where a place is two to three lines wide (the widths of letter strokes on it): 342 kinks on the outer wall (a turn of more
+than 150 degrees beside a move shorter than the outer line's width) where the line goes on the way it came, besides 2,560
+where it turns back out of a tip by design (decision 28). Read point by point, from the construction's own points:
+- Loop 0 lies at half the place from the outline where the place holds two lines, at half the outer line's width where
+  it holds three or more. Where the count rises from two to three, the loop's points step that difference (60 to 80 µm)
+  toward the outline between two ribs of one outline sample, a step across the track with almost nothing along it.
+- There the loop gives way to the middle line's round start (decision 28), each point along the way across from the
+  points beside it. On the step that way runs along the track: the points before the step moved toward the outline, the
+  points resampled along the step moved along it or not at all, and the line went down, back up the step and down again.
+  Decision 40 leaves out a moved point that lands behind, not an unmoved one ahead of it.
+- Where the loop stops short of a corner (a corner's end, on no rib), its points had no outline sample, and the outer
+  loop's points of no sample were not moved at all (the side to give way on was read from the sample): beside a corner's
+  node, its points moved 65 µm and the corner ends between them stayed.
+Why only two to three lines wide: only there does the outer loop's distance from the outline change with the count (from
+two lines' share to the outer line's own width); from three lines on it stays half the outer width (loop 1 likewise only
+at four to five).
+
+**Decision.**
+- The outer loop gives way across the outline at the point's outline sample (the direction from the sample before it
+  to the sample after), at every point: so the step's points move across the track as their neighbors do, and decision
+  40's "behind or within the tolerance of the last point kept" reads along the outline. A corner's end takes the sample
+  of the rib beside it. An inner loop and a middle line keep the way across from the points beside them.
+- A cut (decision 28: where a bead gave way entirely, it is not laid) whose two ends would lie within half the narrower
+  one's width of each other is not made: each end's round reaches past the other, so the two lay each other twice and
+  cover the gap anyway. The points given way are left out and the line goes on across.
+
+**Rejected.** Keeping only the longest run of a loop's points that never steps back along the outline (tried with
+decision 53): it works on the points before they give way, where the step has no point behind another, so most of the
+zigzags stayed (342 to 307), while plastic laid twice rose from 9 spots and 1.12 mm² to 11 and 1.39. Read layer by
+layer, the new spots lay in letter islands that had kept their walls: the island's self-check (decision 28) now took
+their beads, which lay twice elsewhere (an outer line still zigzagging, a line over the outer loop). Giving every loop
+the outline's way across: an inner loop gives way on both sides to the loop outside it near a turn, where its own track
+leaves the outline's direction (a tip, a corner); there it gave way entirely to the outer loop at a slant and left a bare
+area (one island on the plate then kept its walls). Hysteresis on the count along the outline: the count already changes
+once where the width passes a threshold (decision 28); the step is the loop's place changing with the count, not the
+count flickering.
+
+**Consequences.** The plate: outer-wall zigzags 342 to 53, a tip's run-ins 2,560 to 2,630 (the islands now laid by
+their beads have tips); plastic laid twice 9 spots, 1.116 mm², 8 layers to 9, 1.107, 8 (the same layers); narrow
+islands keeping their walls 777 to 720 of about 4,550 decided (none newly keeps its walls; their beads had been refused
+mostly for the plastic their own zigzags laid twice); seam scar 247.2 to 244.4 mm²; moves shorter than the tolerance
+1,171 to 1,195 (more islands laid by their beads); planning time within the runs' spread (three runs each, in turn: 47.0,
+47.4, 44.4 s before; 44.1, 45.0, 47.0 s after). On the 3DBenchy regression cases the walls alone change, on 16 layers of
+its cabin posts (inner wall +7 mm of 40 m). What is left: an unmoved point beside
+moved ones at a tip's run-in (the ray from it misses the middle line's round start that its neighbors' rays meet), and in
+the catalog the two blobs and a neck, the dipped ridges, the finger in a second part and the exposed wedge. The catalog
+records the outer wall's zigzags per model and row (lines.outer_zigzags) and holds the narrow islands' models to none; a
+new model, a stroke bent round three quarters of a circle about as wide as two lines become three, had two such zigzags
+on one layer and has none. Tests: WallsByWidthTest (no zigzag on the bent stroke; control: that layer's outer line as it
+was is counted), CatalogTest (a spike in a square's side is a zigzag, a run in and back out over itself is not).
