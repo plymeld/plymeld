@@ -874,7 +874,12 @@ object Walls {
                      * Each thin piece's lines by its points, for calls with the same other arguments (Walls.arachne's second
                      * build): a piece's lines are a function of the piece and those arguments alone. Null: none kept.
                      */
-                    pieceCache: MutableMap<PieceKey, List<CenterLine>>? = null): List<CenterLine> {
+                    pieceCache: MutableMap<PieceKey, List<CenterLine>>? = null,
+                    /**
+                     * False: a junction's ends join pair after pair, the straightest first, whatever branch a pair leaves
+                     * behind (joinEnds; a test's control).
+                     */
+                    onePairAtJunction: Boolean = true): List<CenterLine> {
         // one triangulation per connected thin piece: one for a whole layer's thin areas ran out of
         // memory on a large test model's layer
         val lines = plymeld.geom.Polygons.group(thin).flatMap { (o, hs) -> val piece = listOf(o) + hs
@@ -883,7 +888,7 @@ object Walls {
             if (pieceCache == null) lay() else pieceCache.getOrPut(PieceKey(piece.map { it.xy })) { lay() } }
         // two ends are not joined across a place the model is narrower than min_feature: the walls lay no line there
         val outlineGrid by lazy { EdgeGrid(outline.flatMap { p -> (0 until p.size).map { e -> longArrayOf(p.x(e), p.y(e), p.x((e + 1) % p.size), p.y((e + 1) % p.size)) } }, maxOf(maxWidthUm, 4 * minFeatureUm)) }
-        val joined = joinEnds(lines, transitionUm, maxOf(MIN_SAMPLE_UM, minFeatureUm / 2)) { ax, ay, bx, by -> outline.isEmpty() ||
+        val joined = joinEnds(lines, transitionUm, maxOf(MIN_SAMPLE_UM, minFeatureUm / 2), endOverlap, keepWiderUm, minBeadUm, onePairAtJunction) { ax, ay, bx, by -> outline.isEmpty() ||
             (0..8).none { k -> outlineGrid.within(ax + (bx - ax) * k / 8.0, ay + (by - ay) * k / 8.0, minFeatureUm / 2.0) } }
         return giveWay(joined, endOverlap, maxOf(MIN_SAMPLE_UM, minFeatureUm / 2))
     }
@@ -904,17 +909,7 @@ object Walls {
             return longArrayOf(x0, y0, x1, y1)
         }
         val boxes = out.map { box(it!!) }.toMutableList()
-        /** The nearest point of [c]'s center line to (px, py): its distance and the line's half width there. */
-        fun nearest(c: CenterLine, px: Double, py: Double): DoubleArray {
-            var best = Double.MAX_VALUE; var half = 0.0
-            for (m in 0 until c.xy.size / 2 - 1) {
-                val ax = c.xy[2 * m].toDouble(); val ay = c.xy[2 * m + 1].toDouble(); val dx = c.xy[2 * m + 2] - ax; val dy = c.xy[2 * m + 3] - ay
-                val l2 = dx * dx + dy * dy; val t = if (l2 == 0.0) 0.0 else (((px - ax) * dx + (py - ay) * dy) / l2).coerceIn(0.0, 1.0)
-                val d = Math.hypot(px - ax - t * dx, py - ay - t * dy)
-                if (d < best) { best = d; half = (c.widths[m] + t * (c.widths[m + 1] - c.widths[m])) / 2 }
-            }
-            return doubleArrayOf(best, half)
-        }
+        fun nearest(c: CenterLine, px: Double, py: Double) = nearestOn(c, px, py)
         fun isClosed(c: CenterLine): Boolean { val n = c.xy.size / 2; return n >= 2 && c.xy[0] == c.xy[2 * n - 2] && c.xy[1] == c.xy[2 * n - 1] }
         for (i in out.indices) for (last in listOf(false, true)) {
             val c = out[i] ?: continue
@@ -964,6 +959,18 @@ object Walls {
             out[i] = cutLine; boxes[i] = box(cutLine)
         }
         return out.filterNotNull()
+    }
+
+    /** The nearest point of [c]'s center line to (px, py): its distance and the line's half width there. */
+    private fun nearestOn(c: CenterLine, px: Double, py: Double): DoubleArray {
+        var best = Double.MAX_VALUE; var half = 0.0
+        for (m in 0 until c.xy.size / 2 - 1) {
+            val ax = c.xy[2 * m].toDouble(); val ay = c.xy[2 * m + 1].toDouble(); val dx = c.xy[2 * m + 2] - ax; val dy = c.xy[2 * m + 3] - ay
+            val l2 = dx * dx + dy * dy; val t = if (l2 == 0.0) 0.0 else (((px - ax) * dx + (py - ay) * dy) / l2).coerceIn(0.0, 1.0)
+            val d = Math.hypot(px - ax - t * dx, py - ay - t * dy)
+            if (d < best) { best = d; half = (c.widths[m] + t * (c.widths[m + 1] - c.widths[m])) / 2 }
+        }
+        return doubleArrayOf(best, half)
     }
 
     /**
@@ -1110,8 +1117,18 @@ object Walls {
      * area pinched to nothing splits into pieces, each with its own line; Arachne keeps a bead
      * continuous through such transitions (wall_transition_length), so plymeld does too, but only where the gap may be
      * crossed ([crossable]: not past the model's surface closer than half of min_feature, a neck no line is laid in).
+     *
+     * Where three or more ends lie on one point (a junction of the skeleton), one pair is joined: the straightest of the
+     * pairs that leave no other branch there lost. A branch is lost where giveWay would drop it (every point of it within
+     * [overlap] of its width past bead contact with the joined pair's beads) though, where it is wider than the narrowest
+     * line ([minBeadUm]), its bead reaches out past theirs by more than [keepWiderUm] (left bare, that is a hole inside the
+     * walls): a pocket at the end of a short branch, such as a neck into a band beside the junction, or a short stub of a
+     * crossing. A branch into a corner narrows to the narrowest line at its end, and what it leaves is a corner void, as
+     * where its fork was pruned. The ends left at the point spring from the joined line and join nothing (giveWay cuts them
+     * back): two pairs joined at a crossing laid two lines over each other across the junction's whole width.
      */
-    private fun joinEnds(lines: List<CenterLine>, joinUm: Long, slackUm: Long, crossable: (Double, Double, Double, Double) -> Boolean): List<CenterLine> {
+    private fun joinEnds(lines: List<CenterLine>, joinUm: Long, slackUm: Long, overlap: Double, keepWiderUm: Long, minBeadUm: Long, onePair: Boolean,
+                         crossable: (Double, Double, Double, Double) -> Boolean): List<CenterLine> {
         val open = lines.filter { l -> val n = l.xy.size / 2; !(l.xy[0] == l.xy[2 * n - 2] && l.xy[1] == l.xy[2 * n - 1]) }.toMutableList()
         val closed = lines - open.toSet()
         fun end(l: CenterLine, last: Boolean): LongArray { val k = if (last) l.xy.size / 2 - 1 else 0; return longArrayOf(l.xy[2 * k], l.xy[2 * k + 1]) }
@@ -1153,6 +1170,29 @@ object Walls {
             }
             return false
         }
+        /**
+         * For ends on one point: whether a line already joined runs through the end's point, the end's own line among them
+         * (each line read without the stretches at its own ends near the point: a line that only ends there meets the end, it
+         * does not run through it). The end's own line counts where a join made it run through the point before: a
+         * crossing's branch joined across a gap at its far end to the line through the junction is still a branch there.
+         */
+        fun runsThrough(l: CenterLine, last: Boolean): Boolean {
+            val p = end(l, last); val px = p[0].toDouble(); val py = p[1].toDouble()
+            for (m in open.asSequence() + closed.asSequence()) {
+                val b = boxOf(m)
+                if (px < b[0] - s || px > b[2] + s || py < b[1] - s || py > b[3] + s) continue
+                val n = m.xy.size / 2
+                fun near(k: Int) = Math.hypot(px - m.xy[2 * k], py - m.xy[2 * k + 1]) <= s
+                var lo = 0; var hi = n - 1
+                if (m.xy[0] == m.xy[2 * n - 2] && m.xy[1] == m.xy[2 * n - 1]) { if (near(0)) continue }
+                else {
+                    if (near(0)) { while (lo + 1 < n && near(lo + 1)) lo++; lo++ }
+                    if (near(n - 1)) { while (hi - 1 >= 0 && near(hi - 1)) hi--; hi-- }
+                }
+                for (k in lo until hi) if (pointSegUm(px, py, longArrayOf(m.xy[2 * k], m.xy[2 * k + 1], m.xy[2 * k + 2], m.xy[2 * k + 3])) <= s) return true
+            }
+            return false
+        }
         // whether each end springs, kept from one join to the next: a join changes it only for an end within the slack of the
         // joined line's ends or of the segment joining the two (elsewhere the joined line is what the two were, end for end)
         val springing = java.util.IdentityHashMap<CenterLine, Array<Boolean?>>()
@@ -1160,16 +1200,43 @@ object Walls {
             val l = open[i]; val m = springing.getOrPut(l) { arrayOfNulls(2) }; val k = if (last) 1 else 0
             return m[k] ?: springs(l, last).also { m[k] = it }
         }
+        /**
+         * Whether the branch [l] (an end of it at the junction) is lost when [a] and [b] are joined through the junction:
+         * giveWay drops it (no point of it where its bead reaches into theirs no further than [overlap] of its width past
+         * contact) though, where it is wider than the narrowest line, it reaches out past their beads by more than
+         * [keepWiderUm].
+         */
+        fun lost(l: CenterLine, a: CenterLine, b: CenterLine): Boolean {
+            if (!onePair || keepWiderUm == Long.MAX_VALUE) return false
+            val n = l.xy.size / 2
+            var pocket = 0.0
+            for (k in 0 until n) {
+                val px = l.xy[2 * k].toDouble(); val py = l.xy[2 * k + 1].toDouble(); val w = l.widths[k].toDouble()
+                val na = nearestOn(a, px, py); val nb = nearestOn(b, px, py)
+                val (d, h) = if (na[0] <= nb[0]) na[0] to na[1] else nb[0] to nb[1]
+                if (d >= h + w / 2 - overlap * w) return false
+                if (w > minBeadUm) pocket = maxOf(pocket, d + w / 2 - h)
+            }
+            return pocket > keepWiderUm
+        }
         while (true) {
             var best = Double.MAX_VALUE; var bi = -1; var bj = -1; var biLast = false; var bjLast = false
             for (i in open.indices) for (j in i + 1 until open.size) for (il in listOf(false, true)) for (jl in listOf(false, true)) {
                 val a = end(open[i], il); val b = end(open[j], jl)
                 val dx = (a[0] - b[0]).toDouble(); val dy = (a[1] - b[1]).toDouble(); val d = dx * dx + dy * dy
                 if (d > lim) continue
+                // an end that springs from a line joins nothing across a gap; on one point, nothing where a line already runs
+                // through the point (a junction another pair is joined through)
                 if (d > 1.0 && (springsMemo(i, il) || springsMemo(j, jl))) continue
+                if (onePair && d <= 1.0 && (runsThrough(open[i], il) || runsThrough(open[j], jl))) continue
                 // closest first; ends on one point (within a micron) before any other, the straighter pair first (the dot of
-                // the ways they run out: -1 runs straight on)
-                val score = if (d <= 1.0) { val u = outward(open[i], il); val v = outward(open[j], jl); -2.0 + u[0] * v[0] + u[1] * v[1] } else d
+                // the ways they run out: -1 runs straight on), a pair that leaves another branch there lost after every
+                // pair that leaves none (the dot is at most 1: still before any pair across a gap)
+                val score = if (d <= 1.0) { val u = outward(open[i], il); val v = outward(open[j], jl)
+                    val leaves = open.indices.any { k -> k != i && k != j && listOf(false, true).any { kl -> val c = end(open[k], kl)
+                        val ex = (c[0] - a[0]).toDouble(); val ey = (c[1] - a[1]).toDouble()
+                        ex * ex + ey * ey <= 1.0 && lost(open[k], open[i], open[j]) } }
+                    -2.0 + u[0] * v[0] + u[1] * v[1] + (if (leaves) 2.0 else 0.0) } else d
                 if (score < best && crossable(a[0].toDouble(), a[1].toDouble(), b[0].toDouble(), b[1].toDouble())) { best = score; bi = i; bj = j; biLast = il; bjLast = jl }
             }
             if (bi < 0) break

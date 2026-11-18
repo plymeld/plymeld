@@ -159,6 +159,15 @@ section the release's version and date.
 
 ### Fixed
 
+- Where the line of an area too narrow for two walls forks, one pair of its branches runs through the fork and the
+  others give way to it. Where four branches met (two bands crossing, a corner of four cells of a pattern), both pairs
+  were joined through the fork and two lines lay over each other across its whole width, up to 0.9 mm; now the ends left
+  at the fork start where they reach into the line through it by `plan.layer.infill.wall_overlap` of their width. And the
+  pair run through a fork is the straightest one that leaves no branch lost: a short branch that gives way to the other
+  two along all its length was dropped, and where it led into a neck or a stub wider than the narrowest line, the neck
+  was left bare (a hole inside the walls, 0.35 mm wide, at a neck between two notches in an outline). On a
+  three-part plate with a fine code pattern and lettering at the edge, plastic laid twice went from 29 spots (7.8 mm²)
+  to 10 (1.2 mm²) and the pre-print check's refused hole is gone; time and filament unchanged.
 - A narrow island's outer line no longer zigzags where a place about two to three lines wide gets a middle line. Where
   its count rises from two lines to three, the outer loop steps toward the outline within a few points, and it moves
   aside for the middle line's round start; each point moved across the line as read from its neighbors, which on that

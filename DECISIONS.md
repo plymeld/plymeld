@@ -1825,3 +1825,49 @@ records the outer wall's zigzags per model and row (lines.outer_zigzags) and hol
 new model, a stroke bent round three quarters of a circle about as wide as two lines become three, had two such zigzags
 on one layer and has none. Tests: WallsByWidthTest (no zigzag on the bent stroke; control: that layer's outer line as it
 was is counted), CatalogTest (a spike in a square's side is a zigzag, a run in and back out over itself is not).
+
+## 57. A junction of a thin area's line joins one pair through it, the straightest that leaves no branch's pocket bare (2026-11-17)
+
+Amends 33.
+
+**Context.** On a three-part plate with a fine pattern of square cells on its first layer and lettering inlaid at its
+edge, the pre-print check refused a hole 0.35 mm wide inside the walls, and plastic was laid twice in 29 spots (7.8 mm²),
+22 of them on the first layer. Read on the walls alone, from the layer's own outline:
+- The cells, and the bands of the other part between them, are areas too narrow for two walls, laid as center lines.
+  Where four branches of the skeleton meet (a cell's middle, where its corner forks all reach out; a crossing of two
+  bands), the ends on one point were joined pair after pair, the straightest first, with no test of whether a line already
+  ran through the point: both pairs were joined, and two lines lay over each other across the junction's whole width
+  (up to 0.9 mm). A cell's branches also joined across the gap between two of its corners after one pair ran through the
+  middle, so the line came back to the middle as its own branch and joined there again.
+- A tooth of the outline between two notches, its neck too narrow for the second loop: the leftover inside it is a
+  blob running into the neck. Its skeleton forks in the blob: two branches into the blob's corners, one up the neck. The
+  corners' pair runs on straighter through the fork, so it was joined, and the neck's branch, shorter than the junction is
+  wide, gave way to it along all its length (decision 33: a line within that reach throughout is dropped). Nothing was
+  laid in the neck.
+
+**Decision.**
+- On one point, as across a gap, an end joins nothing where a line already runs through the point: one pair of a
+  junction's branches runs through it, every other one gives way to it (decision 33's cut back). A line counts as running
+  through where it was joined through the point before, the end's own line too (a branch joined at its far end to the line
+  through the junction is still a branch there).
+- The pair is the straightest of those that leave no other branch lost. A branch is lost where it would give way to the
+  pair along all its length while, where it is wider than the narrowest line, its bead reaches out past theirs by more
+  than the narrowest place a line is laid in and the slicing tolerance a side (decision 31's floor): left bare, a hole. A
+  branch into a corner narrows to the narrowest line at its end: what it leaves is a corner void, as where a fork is pruned.
+- Across a gap nothing changes.
+
+**Rejected.** Cutting a lost branch back less (into the pair's bead past the wall overlap): its end laid over the junction
+twice, and in a short neck the branch has no length left to lay. Reaching the lost branch's far end into the band ahead
+of it (where the neck meets the next loop): it fixes a neck between walls, not a crossing's stub against another part.
+Weighing every branch's pocket without the narrowest-line condition: a branch into an acute corner was taken for a hole,
+and the corner pair given up laid the line in two paths and another seam a layer (a catalog model's seams 120 to 168).
+The same rule in a narrow island's beads (Beads): not needed by any known case, and it moved one letter island on the
+plate to its beads, which lay a loop over itself.
+
+**Consequences.** The plate: the check's hole refusal gone; plastic laid twice 29 spots (7.812 mm²) to 10 (1.230 mm²);
+time 93.1 min and filament 6081 mm unchanged; seams 2304 to 2282 (seam scar 215.1 to 216.1 mm²). The catalog moves
+nowhere; the regression cases (tools/regress.sh) are byte for byte the same. Left: the outer loops of two fit pieces of
+a level turning back at a pinch narrower than the loop's fit (between two letters, between four cells), 9 spots 0.25 to
+0.40 mm; a bottom surface's line over its own on the first layer (0.25 mm). Tests: JunctionJoinTest (a crossing with a
+stub, a blob into a short neck; control: a junction's ends joined pair after pair lay the crossing twice and leave the
+neck bare).
