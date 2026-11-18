@@ -31,7 +31,9 @@ import plymeld.geom.Skeleton
  *     too narrow for it (a tip, a neck, a sliver) the loop turns back across that place's mouth and carries on along the
  *     other side (the run beginning on the same node's rib to the other end of the triangle edge the narrow part hangs
  *     from), so a loop is closed wherever its place is wide enough, whatever the count does inside it. A short tip the loop
- *     runs into instead: its two sides at the narrowest width at least, then out and back along the axis to its end.
+ *     runs into instead: its two sides at the narrowest width at least, then out and back along the axis to its end;
+ *     where that run reaches no further past the loop's bead beside it than an interior line's end reaches into the walls,
+ *     and the loop goes on past the tip (it turns no corner there), the run is left out.
  *  5. Where 2k + 1 beads fit, loop k's middle bead runs along the axis, over nodes of its own count only. Its ends meeting
  *     a loop stop where they reach into the loop's line as an interior line's end reaches into the walls ([Params.endOverlap]).
  *     Where the count rises from even to odd the middle bead is new within the transition length: it starts with its round
@@ -89,8 +91,16 @@ object Beads {
                  /** A center line shorter than this times its width is a dot (plan.layer.walls.length_factor.min). */
                  val minLengthFactor: Double = 0.0,
                  /** False: a neck narrower than the narrowest line takes its neighbors' count of loops as any short stretch does (smoothCounts; a test's control). */
-                 val necksNarrow: Boolean = true)
+                 val necksNarrow: Boolean = true,
+                 /** False: a loop runs out and back into a tip's end however little that reaches past its bead (Lay.shortRunIns; a test's control). */
+                 val shortRunInsGo: Boolean = true)
 
+    /**
+     * A loop turning more than this (degrees) over a line width either side of a tip it runs into turns a corner there:
+     * its run into the corner fills the outside of its turn and stays (Lay.shortRunIns). A geometric bound, Claude's choice
+     * (about a right angle's turn, not going on straight: the catalog's square-end bound, decision 60).
+     */
+    private const val CORNER_TURN_DEG = 60.0
     /** A bead within this of a node's middle (µm) is the middle bead. A geometric threshold, plymeld's choice. */
     private const val MIDDLE_EPS_UM = 5.0
 
@@ -588,6 +598,48 @@ object Beads {
             val xx = minOf(x, r[u] - MIDDLE_EPS_UM)
             return if (xx > 0) doubleArrayOf(xx, w) else null
         }
+        /**
+         * A loop's points [pc] with each short run into a tip's end left out: a run of its points on the axis of a tip it runs
+         * into (a tip's node, its place narrower than the narrowest line: the line out and back along the axis), between two
+         * points of the loop, every point of it within the bead of the nearer of the two but for [Params.endOverlap] of its own
+         * width (no further past it than an interior line's end reaches into the walls), where the loop goes on past the tip
+         * (turning no more than [CORNER_TURN_DEG] from the way it runs in to the way it runs out, over a line width each).
+         * Such a run laid the line 35 to 90 microns out and back where a short tip ends within the loop's bead at its mouth
+         * (tips of letters on a nameplate, laid by their beads): a zigzag in the outer line that covers nothing the loop's
+         * bead does not. Where the loop turns a corner (a square end two lines wide: a right angle within a line width), its
+         * run into the corner fills the outside of the turn (decision 28's corners) and stays.
+         */
+        fun shortRunIns(pc: Piece) {
+            val m = pc.size
+            if (m < 3) return
+            fun runIn(k: Int) = pc.node[k] >= 0 && vNode[pc.node[k]] && pc.ws[k] < rule.minUm
+            val keep = BooleanArray(m) { true }
+            var i = 1
+            while (i < m - 1) {
+                if (!runIn(i)) { i++; continue }
+                var j = i
+                while (j + 1 < m - 1 && runIn(j + 1)) j++
+                val a = i - 1; val b = j + 1
+                // the way the loop runs into a and out of b, over a line width each: a corner it turns, not a tip it passes
+                fun at(from: Int, step: Int, d: Double): DoubleArray {
+                    var left = d; var k = from
+                    while (k + step in 0 until m) { val l = Math.hypot(pc.xs[k + step] - pc.xs[k], pc.ys[k + step] - pc.ys[k])
+                        if (l >= left) return doubleArrayOf(pc.xs[k] + (pc.xs[k + step] - pc.xs[k]) * left / l, pc.ys[k] + (pc.ys[k + step] - pc.ys[k]) * left / l)
+                        left -= l; k += step }
+                    return doubleArrayOf(pc.xs[k], pc.ys[k])
+                }
+                val pa = at(a, -1, pc.ws[a]); val pb = at(b, 1, pc.ws[b])
+                val ux = pc.xs[a] - pa[0]; val uy = pc.ys[a] - pa[1]; val vx = pb[0] - pc.xs[b]; val vy = pb[1] - pc.ys[b]
+                val lu = Math.hypot(ux, uy); val lv = Math.hypot(vx, vy)
+                val passes = lu > 0 && lv > 0 && (ux * vx + uy * vy) / (lu * lv) > Math.cos(Math.toRadians(CORNER_TURN_DEG))
+                if (passes && !runIn(a) && !runIn(b) && (i..j).all { q ->
+                        fun past(s: Int) = Math.hypot(pc.xs[q] - pc.xs[s], pc.ys[q] - pc.ys[s]) + pc.ws[q] / 2 - pc.ws[s] / 2
+                        minOf(past(a), past(b)) <= p.endOverlap * pc.ws[q] })
+                    for (q in i..j) keep[q] = false
+                i = j + 1
+            }
+            if (!keep.all { it }) pc.keepOnly(keep)
+        }
         // 5. the loops, each traced along the rings: the runs of ribs of its nodes, its bead on each (a corner's end where it
         // stops short of a corner). A run ends where the ring passes to a part too narrow for the loop (a tip, a neck, a
         // sliver); the loop turns there, carrying on into the run that begins across the same mouth: the run starting on the
@@ -646,6 +698,7 @@ object Beads {
                 }
                 if (isLoop.all { it }) {
                     val pc = trace(0, q, true)
+                    if (p.shortRunInsGo) shortRunIns(pc)
                     if (pc.size >= 3) { pc.closed = true; pieces.add(pc) }
                     continue
                 }
@@ -703,6 +756,8 @@ object Beads {
                     k = next[k]
                 }
                 if (k == from && pc.size >= 3) { pc.closed = true; turns.add(doubleArrayOf(pc.xs.last(), pc.ys.last(), pc.xs[0], pc.ys[0], (pc.ws.last() + pc.ws[0]) / 2)) }
+                // (across the runs' joins: a tip's end is where one run ends and the next begins)
+                if (p.shortRunInsGo) shortRunIns(pc)
                 return pc
             }
             // open chains first (from a run nothing carries on into), then the loops

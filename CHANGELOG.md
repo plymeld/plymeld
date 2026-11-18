@@ -159,6 +159,13 @@ section the release's version and date.
 
 ### Fixed
 
+- A narrow island's outer line no longer runs out to a short tip's end and back where that covers nothing its own line
+  does not. Where the line of an island laid by its width runs into a tip narrower than the narrowest line, it went out
+  along the tip's middle to its end and came back; where the tip ends within the line's own bead beside it (no further
+  past it than an interior line's end reaches into the walls, `plan.layer.infill.wall_overlap`) and the line goes on
+  past the tip, the run is now left out. A corner the line turns keeps its run into the corner. On a three-part plate
+  with a fine code pattern and lettering, the outer line's zigzags went from 37 to 30 (the tips of letters on six layers),
+  with time, filament, seams and tool changes as before.
 - A narrow island's outer line no longer dips toward its outline where a slit is cut into it. Where an island laid by
   its width has a slit narrower than its outline is sampled (a sliver of another part between two strokes of a letter),
   its width read round the slit's inner corner came out a few tens of microns, a stretch too short to keep a count of

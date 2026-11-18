@@ -2001,3 +2001,39 @@ NeckLoopTest (a band 2 by 1 mm with a slit 40 microns wide cut 150 microns into 
 step: the outer loop's nearest point to the outline 154 microns, nothing bare wider than the floor, no plastic outside;
 control, the neck taking its neighbors' count: 16 microns, 34 microns of plastic outside; the test's own check seen to
 fail with the rule taken out).
+
+## 62. A narrow island's loop leaves out a run into a tip's end that reaches no further than a line's end overlap past its bead (2026-11-18)
+
+Amends 28.
+
+**Context.** On the plate of decisions 57 to 61, eight of the outer line's 37 zigzags were spikes in the loops of
+narrow islands, read one by one on the islands as the walls hand them over. Seven are one thing: a letter's loop runs
+into a tip (decision 28: the tip's two sides at the narrowest width, then out and back along the axis where the tip is
+narrower than the narrowest line), and the tip ends within the loop's bead beside it: the run went 35 to 90 microns out
+and back, its bead reaching 5 to 21 microns past the loop's (an interior line's end overlap of its width is 39 to 54
+microns there), while the loop went on past the tip, turning less than 60 degrees over a line width either side. The
+eighth (z 5.00, the base's filament) is no narrow island's loop: a sliver's center line of the walls, 35 microns out and
+back near its end, a stub at a junction (decisions 33 and 57), left with those.
+
+**Decision.** A loop's run of points on the axis of a tip it runs into (the tip's place narrower than the narrowest
+line) is left out where every point of it lies within the bead of the loop's point beside it, the nearer of the two,
+but for `plan.layer.infill.wall_overlap` of its own width (no further past it than an interior line's end reaches into
+the walls, the bound a junction's third line and a middle line's end give way by), and the loop turns no more than 60
+degrees from the way it runs in to the way it runs out, over a line width each. Where it turns more, it turns a corner
+there (a square end two lines wide turns a right angle within a line width), and its run into the corner fills the
+outside of its turn, as decision 28 meant (decision 60 found those to be no zigzag). 60 degrees is Claude's choice, the
+square-end bound of decision 60's measure; read across the runs' joins (a tip's end lies where one run of the loop ends
+and the next begins).
+
+**Rejected.** The end overlap alone, every run within it left out: the square end's corners of a band 0.6 mm wide were
+dropped too (corners the loop turns). Reading the loop's turn at the run's two neighbors
+only, without the line width (reasoned, not tried): one of the seven turns 67 degrees between the points beside its run,
+and would keep its spike.
+
+**Consequences.** The plate: zigzags 37 to 30 (those seven, z 3.24 to 8.36), kinks 252 to 245; two islands' plastic
+outside 34 and 45 microns to 30; check, plastic laid twice (none), time 93.1 min, filament 6080 mm, seams 2282, tool
+changes 94, dots left out 45 and narrow islands laid by their beads (698 of 777) as before. The catalog and the
+regression cases: unchanged. Test: TipRunInTest (a band 2 by 0.7 mm tapering over 0.6 mm to a blunt end 0.24 mm wide:
+no zigzag, nothing bare wider than the floor; control, the run laid: one zigzag; the test seen to fail with the rule
+taken out; a band 0.6 mm wide keeps its runs into its square end's corners, seen to lose them with the turn's bound
+taken out).
