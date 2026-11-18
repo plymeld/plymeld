@@ -159,6 +159,13 @@ section the release's version and date.
 
 ### Fixed
 
+- A fill line passing a corner of a wall no longer stops at it and starts again beside itself. Where a line of a fill
+  (a surface, internal solid, sparse infill, a bridge) only grazed the corner of what lies outside its area, it was cut
+  there into two lines, their round ends both laid against the corner, over each other by up to a line's width. Now the
+  two are one line laid past the corner wherever that lays less plastic twice: their ends closer together than a line
+  is wide, and the line laid through coming off its area by less than the ends would overlap. On a three-part plate
+  with a fine code pattern and lettering, the last spot of plastic laid twice (0.22 mm², two bottom-surface lines on the
+  first layer) is gone; on a plain Benchy, 16 spots (4.43 mm²) went to 13 (4.12 mm²).
 - Two wall loops no longer turn back over each other at a pinch. Where an area narrows between two notches (letters cut
   into a face, the corners of four cells of a pattern) below what a loop needs, the loop is laid as two loops, one each
   side; each turned back at the pinch, and their turns faced each other closer than a line apart, 0.25 to 0.4 mm laid

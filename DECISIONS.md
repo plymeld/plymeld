@@ -1901,3 +1901,41 @@ unchanged. The catalog moves nowhere. Of the regression cases the 3DBenchy's two
 on the first, a small loop beside the hull's loop at a pinch is cut back from it; on the second, the scarf seam of the
 loop above it moves with it (seams follow what lies under them, decision 32). Tests: PinchLoopsTest (a band pinched between two V notches: the outer
 loops of its halves 0.419 mm apart at the pinch and nothing bare; control: not cut apart, 0.186 mm).
+
+## 59. A fill line only grazing a corner outside its area is laid through it as one line (2026-11-18)
+
+Amends 54.
+
+**Context.** After decision 58, the plate of decisions 57 and 58 laid plastic twice in one spot: on the first layer, a
+bottom surface's line over another of its own, 0.25 mm wide (0.220 mm²). Read on the g-code: one diagonal line of the
+surface passes the corner of a wall loop round the code pattern's frame. The fill's area there (its region pulled in to
+bead contact with the wall, then out by the line-end overlap, decision 54) has that corner reaching 34 microns across the
+line, so the hatch cut the line into two at it: one line ended there and ran along the wall to the next line, another
+started 34 microns on. Both round ends lay against the corner, over each other by nearly a line's width. Any line of a
+fill that passes a corner of a wall, or of the fill that owns an edge it shares, closer than a few microns is cut so.
+
+**Decision.** Two lines of one scanline whose ends are closer together than the line is wide are made one line where that
+lays less plastic twice: laid through, the line's center comes off its area by at most its farthest point's distance from
+the area's edge (read every micron along the gap, among the area's edges near it); cut, the two ends overlap by the line's
+width less the gap; they are made one where the first is less (Hatch.throughGrazes). The surfaces, internal solid, sparse
+infill and bridges do this; support lines and ironing do not (support is placed and joined by its own rules, ironing is
+laid over a top on purpose). The comparison takes no number of its own: both sides are plastic laid twice, measured
+across the line, and the lesser is laid. Since the line laid through is never farther from the area than half the gap,
+every gap shorter than two thirds of a line is laid through, and a longer one only where the corner is flat.
+
+**Rejected.** A gap shorter than the slicing tolerance only (the line off the area by less than the outline is known):
+it fixes this plate's 34-micron cut, but a line passing a corner 20 to 100 microns deep lays its two ends over each other
+as much. Pulling both ends back until their round ends no longer meet: it leaves a bare spot at every such corner, up to
+a line wide, where the line laid through covers the corner at a few microns more overlap with the wall.
+
+**Consequences.** The plate: plastic laid twice 1 spot (0.220 mm²) to none; the check passes; time 93.1 min, filament 6081
+to 6080 mm, seams 2282 unchanged. Regression cases: the plain and ironed Benchy 16 spots (4.429 mm²) on 8 layers to 13
+(4.119 mm²) on 6, the test plate 8 spots (1.309 mm²) to none, filament 1 mm less each; the hole block and its fuzzy-skin
+case lay one line of a layer through where it was cut (12 paths to 10). The catalog: no measure of the check, plastic laid
+twice or the walls moves; the holes' bottom surface 13 paths to 11 (4 fewer visible restarts), the pins' top 12 to 11;
+the overhang ladder's top 9 paths to 12 (2 more visible restarts, 31 mm more travel): its top's lines graze the corners
+of four square holes' walls with thin strips of the top between the holes and the outline, and a line laid through
+changes where the monotonic sweep's chains split and merge (Linker.link). Tests: HatchTest (a line grazing a diamond
+hole's corner by 5 microns is one, the lines crossing the hole two; a line 0.4 mm short of a flat corner is one, across a
+slot as wide it stays two; controls: clipped alone, the grazing lines are two with their ends closer than a line; with the
+depth not compared, the slot's lines would be one).

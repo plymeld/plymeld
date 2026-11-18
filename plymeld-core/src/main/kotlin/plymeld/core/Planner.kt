@@ -1221,7 +1221,7 @@ object Planner {
                 if (feature == Feature.SPARSE) {
                     // all directions linked together: ends of crossing lines meet near each other at
                     // the wall (see Linker.linkAll)
-                    val segs = angles.mapIndexed { j, a -> Hatch.indexed(grown, a, spacing, phases?.get(j) ?: 0.0).first }.let { parts ->
+                    val segs = angles.mapIndexed { j, a -> Hatch.indexed(grown, a, spacing, phases?.get(j) ?: 0.0).let { (sg, ix) -> Hatch.throughGrazes(sg, ix, grown, width).first } }.let { parts ->
                         val all = LongArray(parts.sumOf { it.size }); var o = 0
                         for (p in parts) { p.copyInto(all, o); o += p.size }
                         all
@@ -1235,7 +1235,8 @@ object Planner {
                     return
                 }
                 for (a in angles) {
-                    val (segs, lineIdx) = Hatch.indexed(grown, a, spacing)
+                    // a line only grazing a corner of what is outside the region is laid through it (Hatch.throughGrazes)
+                    val (segs, lineIdx) = Hatch.indexed(grown, a, spacing).let { (sg, ix) -> Hatch.throughGrazes(sg, ix, grown, width) }
                     // Link neighboring lines along the region boundary: one continuous run instead of a
                     // retract + travel per line, the connector at most ANCHOR_SPACINGS line spacings
                     // (sparse / internal solid: another slicer's anchor limit instead, when one is set).
@@ -1342,7 +1343,7 @@ object Planner {
                     val piece = listOf(o) + hs
                     val angle = families?.let { Bridges.internalAngle(piece, below, it, sp, bw) } ?: Bridges.bestAngle(piece, below, sp, bw)
                     val hatchIn = Offset.offset(piece, grow - contactInset(bw, h)).let { g -> if (beside.isEmpty() || g.isEmpty()) g else Booleans.difference(g, beside) }
-                    val (segs, idx) = Hatch.indexed(hatchIn, angle, sp)
+                    val (segs, idx) = Hatch.indexed(hatchIn, angle, sp).let { (sg, ix) -> Hatch.throughGrazes(sg, ix, hatchIn, bw) }
                     for (chain in plymeld.geom.Linker.link(segs, idx, hatchIn, 3 * sp)) out.add(ToolPath(feature, chain, false, bw, h, null))
                 }
             }

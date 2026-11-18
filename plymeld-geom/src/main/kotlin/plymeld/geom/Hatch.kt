@@ -67,6 +67,63 @@ object Hatch {
         return out.toLongArray() to lineOf.toIntArray()
     }
 
+    /**
+     * [indexed]'s segments [segs] of [lineOf]'s scanlines with two neighbors on one scanline made one where the line only
+     * grazes what lies between them (a corner of the area outside [region] reaching a few microns across the line): their
+     * gap is shorter than [beadUm], the line's width, so their round ends, both laid against that corner, would lie over
+     * each other by beadUm less the gap; laid through, the line's center comes off [region] by its farthest point's
+     * distance from the region's edge, and the two are made one where that is less than the ends' overlap (each the
+     * thickness of plastic laid twice: the lesser is laid). Found on a nameplate's first layer: a bottom surface's diagonal
+     * line passing a wall loop's corner was cut 34 microns short of it, and its two ends lay over each other 0.25 mm wide.
+     * The region's edges near a gap are read once for it; the line's distance from them is sampled every grid unit along
+     * the gap (a distance changes by at most what the point moves, so the farthest is read to within a unit).
+     */
+    fun throughGrazes(segs: LongArray, lineOf: IntArray, region: List<Polygon>, beadUm: Long): Pair<LongArray, IntArray> {
+        val n = lineOf.size
+        if (n < 2 || beadUm <= 0) return segs to lineOf
+        val out = LongArray(segs.size); val lines = IntArray(n); var m = 0
+        val near = ArrayList<DoubleArray>()
+        // the farthest the gap from (ax, ay) to (bx, by) lies from the region's edge
+        fun depth(ax: Double, ay: Double, bx: Double, by: Double): Double {
+            val x0 = minOf(ax, bx) - beadUm; val x1 = maxOf(ax, bx) + beadUm; val y0 = minOf(ay, by) - beadUm; val y1 = maxOf(ay, by) + beadUm
+            near.clear()
+            for (p in region) for (i in 0 until p.size) {
+                val j = (i + 1) % p.size
+                val px = p.x(i).toDouble(); val py = p.y(i).toDouble(); val qx = p.x(j).toDouble(); val qy = p.y(j).toDouble()
+                if (maxOf(px, qx) < x0 || minOf(px, qx) > x1 || maxOf(py, qy) < y0 || minOf(py, qy) > y1) continue
+                near.add(doubleArrayOf(px, py, qx, qy))
+            }
+            val steps = Math.max(2, Math.ceil(Math.hypot(bx - ax, by - ay)).toInt())
+            var far = 0.0
+            for (k in 1 until steps) {
+                val x = ax + (bx - ax) * k / steps; val y = ay + (by - ay) * k / steps
+                var d = Double.POSITIVE_INFINITY
+                for (e in near) {
+                    val vx = e[2] - e[0]; val vy = e[3] - e[1]; val l2 = vx * vx + vy * vy
+                    val t = if (l2 == 0.0) 0.0 else (((x - e[0]) * vx + (y - e[1]) * vy) / l2).coerceIn(0.0, 1.0)
+                    d = minOf(d, Math.hypot(x - e[0] - t * vx, y - e[1] - t * vy))
+                }
+                far = maxOf(far, d)
+            }
+            return far
+        }
+        var k = 0
+        while (k < n) {
+            out[4 * m] = segs[4 * k]; out[4 * m + 1] = segs[4 * k + 1]; out[4 * m + 2] = segs[4 * k + 2]; out[4 * m + 3] = segs[4 * k + 3]
+            lines[m] = lineOf[k]
+            while (k + 1 < n && lineOf[k + 1] == lineOf[k]) {
+                val ax = out[4 * m + 2].toDouble(); val ay = out[4 * m + 3].toDouble()
+                val bx = segs[4 * k + 4].toDouble(); val by = segs[4 * k + 5].toDouble()
+                val gap = Math.hypot(bx - ax, by - ay)
+                if (gap >= beadUm || depth(ax, ay, bx, by) >= beadUm - gap) break
+                k++
+                out[4 * m + 2] = segs[4 * k + 2]; out[4 * m + 3] = segs[4 * k + 3]
+            }
+            m++; k++
+        }
+        return out.copyOf(4 * m) to lines.copyOf(m)
+    }
+
     /** Total length of hatch segments, mm. */
     fun lengthMm(segs: LongArray): Double {
         var l = 0.0
