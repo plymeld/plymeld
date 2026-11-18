@@ -23,7 +23,8 @@ import plymeld.geom.Skeleton
  *  3. Corners: a dead-end branch of the axis shorter than the width where it joins the rest, narrowing fast, runs into a
  *     corner of the outline; it takes the beads of that junction, so they turn the corner as a loop does. Elsewhere the
  *     count follows the width, with a dead band of the slicing tolerance (the outline is known no closer); a stretch with a
- *     count of its own shorter than the transition length takes its neighbors' count, and a middle line too short to be a
+ *     count of its own shorter than the transition length takes its neighbors' count (but a neck narrower somewhere than
+ *     the narrowest line never a count of loops: the loop turns at its mouth), and a middle line too short to be a
  *     line takes the count below: the count changes once where an area's width passes a threshold, not back and forth.
  *  4. Every pair of beads is a loop: loop k runs wherever a place holds 2k + 2 beads, its bead on each rib at its share's
  *     distance from the outline, traced sample by sample round each ring of the outline. Where the ring passes to a place
@@ -86,7 +87,9 @@ object Beads {
                  /** How far a center line's end reaches into the loop it meets, past bead contact, as a share of its width (the infill's wall overlap). */
                  val endOverlap: Double = 0.0,
                  /** A center line shorter than this times its width is a dot (plan.layer.walls.length_factor.min). */
-                 val minLengthFactor: Double = 0.0)
+                 val minLengthFactor: Double = 0.0,
+                 /** False: a neck narrower than the narrowest line takes its neighbors' count of loops as any short stretch does (smoothCounts; a test's control). */
+                 val necksNarrow: Boolean = true)
 
     /** A bead within this of a node's middle (µm) is the middle bead. A geometric threshold, plymeld's choice. */
     private const val MIDDLE_EPS_UM = 5.0
@@ -419,7 +422,8 @@ object Beads {
         /**
          * Stretches with a count of their own shorter than the transition length take the count of their longest neighbor:
          * in rounds, shortest first; a stretch beside one changed in this round waits for the next (its neighbors' lengths
-         * changed).
+         * changed). Not a count whose lines would be wider than the widest, nor a count of loops in a neck narrower somewhere
+         * than the narrowest line.
          */
         fun smoothCounts() {
         run {
@@ -439,6 +443,15 @@ object Beads {
                     // the one line of the neck beside it (it was laid as one disc and nothing round it); a short narrow end
                     // takes the two lines beside it, a little narrower than the narrowest, so they turn round it
                     if (list[id].any { u -> rule.widths(bestN, 2 * r[u]).any { it > rule.maxUm + 1e-6 } }) continue
+                    // nor, in a neck (a stretch the axis leaves at two places or more, not an end), a count of loops where the
+                    // axis reads it narrower somewhere than the narrowest line: a loop's two sides cannot both lie there, each at
+                    // its place from its own side, so its points on the neck's ribs were drawn onto the axis, a spike toward the
+                    // outline (round the inner corner of a slit 40 to 60 microns wide cut into a letter between two strokes, the
+                    // outline sampled coarser than the slit, the axis passed 12 and 43 microns from the outline: its count of
+                    // two raised from one, the outer loop dipped 0.1 mm onto it); the loop turns at the neck's mouth, as at any
+                    // place too narrow for it
+                    if (p.necksNarrow && bestN >= 2 && list[id].any { u -> 2 * r[u] < rule.minUm } &&
+                        list[id].sumOf { u -> (0 until 3).count { val v = adj[3 * u + it]; v >= 0 && !corner[v] && comp[v] != id } } >= 2) continue
                     for (u in list[id]) n[u] = bestN
                     touched[id] = true; touched[bestComp] = true; any = true
                     break   // one a round: each stretch decided on the counts as they now stand (the cost: a round per stretch)

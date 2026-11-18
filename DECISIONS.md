@@ -1969,3 +1969,35 @@ node at the tip's mouth, close beside the outline); they still count. The catalo
 CatalogTest's control (a bar's square end run into at both corners: two kinks, no zigzag; a spike at the square's
 corner: a kink and a zigzag; controls: the exemption taken out, the bar reads two zigzags; the two-width reach taken out,
 the corner spike reads none).
+
+## 61. A neck a narrow island's axis reads narrower than the narrowest line never takes a count of loops (2026-11-18)
+
+Amends 28.
+
+**Context.** On the plate of decisions 57 to 60, a narrow island's outer loop dipped 0.1 mm toward the outline and back
+(two of its zigzags, z 5.16). The island, a letter of the second filament, has a slit 38 to 62 microns wide cut into it
+from its edge (a sliver of the base between two strokes), narrower than the outline's sampling (75 microns). Its medial
+axis, from the triangulation of the samples, ran round the slit's inner corner through two nodes 12 and 43 microns from
+the outline, between junctions 0.26 and 0.64 mm wide: a stretch one line wide by its width, shorter than the transition
+length. Decision 28's smoothing gave it its neighbors' count of two, so the outer loop ran over its ribs, each point at
+its place from the outline (0.15 mm) but no further than the node, and was drawn onto the node.
+
+**Decision.** A short stretch takes its neighbors' count, as before, except a count of loops (two lines or more) in a
+neck that the axis reads narrower somewhere than the narrowest line (`plan.layer.walls.line.width.min`): a stretch the
+axis leaves at two places or more, not an end. A loop's two sides cannot both lie in such a place, each at its place from
+its own side; the stretch keeps its count, and the loop turns at its mouth, as at any place too narrow for it. A short
+narrow end still takes the two lines beside it, a little narrower than the narrowest, so they turn round it. No number of
+its own: the narrowest line is the bound.
+
+**Rejected.** Leaving out a loop's point on a rib whose node lies nearer the outline than its place (as a corner's end
+is): where hysteresis keeps two lines across a short dip a little narrower than they need, the loop's two sides are drawn
+toward each other there by design, and without those points the loop would run straight across the dip, past the
+outline. Sampling the outline finer near a narrow slit: a change to every island's axis for one reading of it.
+
+**Consequences.** The plate: that island alone changes (its widest bare spot 90 microns as before, plastic outside it
+34 to 30 microns); the outer line's zigzags 39 to 37, kinks 254 to 252; time, filament, seams and tool changes as before;
+narrow islands laid by their beads 698 of 777 as before. The catalog and the regression cases: unchanged. Test:
+NeckLoopTest (a band 2 by 1 mm with a slit 40 microns wide cut 150 microns into it, its inner corner carrying a 1 micron
+step: the outer loop's nearest point to the outline 154 microns, nothing bare wider than the floor, no plastic outside;
+control, the neck taking its neighbors' count: 16 microns, 34 microns of plastic outside; the test's own check seen to
+fail with the rule taken out).

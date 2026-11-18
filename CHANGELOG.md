@@ -159,6 +159,13 @@ section the release's version and date.
 
 ### Fixed
 
+- A narrow island's outer line no longer dips toward its outline where a slit is cut into it. Where an island laid by
+  its width has a slit narrower than its outline is sampled (a sliver of another part between two strokes of a letter),
+  its width read round the slit's inner corner came out a few tens of microns, a stretch too short to keep a count of
+  its own; it took the two lines of its neighbors, and the outer loop's points there, drawn onto that narrow reading, ran
+  0.1 mm in toward the outline and back. Such a place, narrower than the narrowest line, now keeps its count, and the
+  loop turns at its mouth as at any place too narrow for it. On a three-part plate with a fine code pattern and
+  lettering, that spike is gone (the outer line's zigzags 39 to 37), and nothing else on the plate changed.
 - A fill line passing a corner of a wall no longer stops at it and starts again beside itself. Where a line of a fill
   (a surface, internal solid, sparse infill, a bridge) only grazed the corner of what lies outside its area, it was cut
   there into two lines, their round ends both laid against the corner, over each other by up to a line's width. Now the
