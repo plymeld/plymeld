@@ -1871,3 +1871,33 @@ a level turning back at a pinch narrower than the loop's fit (between two letter
 0.40 mm; a bottom surface's line over its own on the first layer (0.25 mm). Tests: JunctionJoinTest (a crossing with a
 stub, a blob into a short neck; control: a junction's ends joined pair after pair lay the crossing twice and leave the
 neck bare).
+
+## 58. Two loops of a level turning back at a pinch are kept a spacing apart, the smaller cut back (2026-11-18)
+
+Amends 26 and 52.
+
+**Context.** After decision 57, the plate of decision 57 still laid plastic twice in 9 spots, 0.25 to 0.40 mm wide, all
+outer wall over outer wall: between two letters cut into a face (on layers where the letters' lowest parts are holes
+just inside the face), and on the first layer where four cells of a fine pattern meet at a corner. Read on the walls
+alone: the area narrows between two notches to less than the outer loop's fit needs (0.5 mm against 0.86 mm), so the fit
+is cut there into two pieces, each with its own loop. Each loop is its piece grown by half a spacing, and two pieces
+less than two spacings apart grow loops that come closer than a line: their turns faced each other 0.15 to 0.2 mm apart,
+the mitred tips reaching into the pinch. Decision 26 named this ("two pieces of a loop meeting at a pinch then ended in
+two turns facing each other") as what joining loop pieces across a short gap left; nothing kept pieces too far apart to
+join from overlapping.
+
+**Decision.** A level's loops are read as islands; each island that comes within a spacing of a larger one (by area) is
+cut back from it: its parts within a spacing of the larger island taken out, so its line turns against the larger
+loop's bead, the two touching with the overlap of neighboring beads. A loop shorter than a circle of the spacing after
+the cut is dropped as before. Where no island is cut the loops are the same polygons.
+
+**Rejected** (reasoned, not tried). Cutting both loops back from each other: both would retreat up to a spacing and
+leave a slit across the pinch (about 0.25 mm on the plate), a line there over both. Joining the two pieces through the
+pinch as one loop: its two sides would lie closer than a line through the pinch, the same plastic twice.
+
+**Consequences.** The plate: plastic laid twice 10 spots (1.230 mm²) to 1 (0.220 mm², a bottom surface's line over
+another of its own on the first layer, not read yet); the check passes; time 93.1 min, filament 6081 mm and seams 2282
+unchanged. The catalog moves nowhere. Of the regression cases the 3DBenchy's two change, on their first two layers only:
+on the first, a small loop beside the hull's loop at a pinch is cut back from it; on the second, the scarf seam of the
+loop above it moves with it (seams follow what lies under them, decision 32). Tests: PinchLoopsTest (a band pinched between two V notches: the outer
+loops of its halves 0.419 mm apart at the pinch and nothing bare; control: not cut apart, 0.186 mm).

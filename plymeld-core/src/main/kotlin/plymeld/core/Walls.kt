@@ -51,7 +51,9 @@ object Walls {
      *     walls keep a loop wherever its center line exists, crowding two beads into a band.) The fit region is the outline
      *     shrunk mitred, so a loop keeps its corners sharp, but round where the miter would reach past its limit (a sharp
      *     notch's tip: no ground nearer it than the bead fits), and with the necks the mitre cuts at a turn into the area
-     *     joined again where the exact shrink keeps them ([necksJoined]).
+     *     joined again where the exact shrink keeps them ([necksJoined]). Two loops of a level grown from pieces of the fit
+     *     less than two spacings apart (a pinch narrower than the loop needs between them) are kept a spacing apart, the
+     *     smaller cut back from the larger ([apart]).
      *  2. What the loops leave uncovered is split by width: pieces at least two inner lines wide
      *     are the infill region; narrower pieces get ONE center line along their skeleton, as wide
      *     as the piece is thick there, clamped to [minBeadUm, maxBeadUm]. Where a piece is thinner than
@@ -94,7 +96,9 @@ object Walls {
                 /** False: an island laid by its beads gives up what the walls hand to infill only by each piece's first point (a test's control). */
                 innerTakenByArea: Boolean = true,
                 /** False: a loop's fit keeps the necks its mitred shrink cut ([necksJoined]; a test's control). */
-                joinNecks: Boolean = true): LayerWalls {
+                joinNecks: Boolean = true,
+                /** False: two loops of a level facing each other across a pinch are not cut apart ([apart]; a test's control). */
+                loopsApart: Boolean = true): LayerWalls {
         val so = spacing(outerWidthUm, layerHeightUm)
         val si = spacing(innerWidthUm, layerHeightUm)
         // each loop's fit region (where its bead fits: its strict pieces, each an outer polygon and its holes) and its looser fit
@@ -179,6 +183,8 @@ object Walls {
                 // a restart and a retraction for a blob)
                 val loop = (if (loose.isEmpty()) strict else if (strict.isEmpty()) loose else Booleans.union(strict, loose))
                     .filter { it.perimeter() >= Math.PI * f.sk }
+                    // two loops facing each other across a pinch narrower than the loop needs: the smaller cut back ([apart])
+                    .let { if (loopsApart) apart(it, f.sk).filter { p -> p.perimeter() >= Math.PI * f.sk } else it }
                 if (loop.isEmpty()) break
                 walls.add(loop)
                 // this bead's band: from the loop's center line half a spacing each way (the outer bead
@@ -959,6 +965,35 @@ object Walls {
             out[i] = cutLine; boxes[i] = box(cutLine)
         }
         return out.filterNotNull()
+    }
+
+    /**
+     * [loop] (a level's loops as filled polygons, each center line a boundary) with each island of it that comes within
+     * [sk] of a larger one cut back from it: its parts within [sk] of the larger island taken out. Two pieces of a level's
+     * fit region apart by less than two of its spacings (a pinch between two notches, narrower than the loop needs) grow
+     * loops whose turns face each other closer than a line apart and lie over each other; cut back, the smaller loop turns
+     * against the larger one's bead, the two touching with the usual overlap of neighboring beads.
+     */
+    private fun apart(loop: List<Polygon>, sk: Long): List<Polygon> {
+        val islands = plymeld.geom.Polygons.group(loop)
+        if (islands.size < 2) return loop
+        val order = islands.sortedByDescending { (o, hs) -> Math.abs(o.signedAreaMm2()) - hs.sumOf { Math.abs(it.signedAreaMm2()) } }
+        val boxes = order.map { it.first.bounds() }
+        val out = ArrayList<List<Polygon>>(order.size)
+        var cut = false
+        for ((j, isl) in order.withIndex()) {
+            var cur = listOf(isl.first) + isl.second
+            val b = boxes[j]
+            val near = (0 until j).filter { i -> val a = boxes[i]
+                a[0] - sk <= b[2] && a[2] + sk >= b[0] && a[1] - sk <= b[3] && a[3] + sk >= b[1] }
+            if (near.isNotEmpty()) {
+                val cutter = Offset.offset(near.flatMap { out[it] }, sk, Offset.Join.ROUND)
+                val left = Booleans.difference(cur, cutter)
+                if (Math.abs(left.sumOf { it.signedAreaMm2() } - cur.sumOf { it.signedAreaMm2() }) > 1e-9) { cur = left; cut = true }
+            }
+            out.add(cur)
+        }
+        return if (cut) out.flatten() else loop
     }
 
     /** The nearest point of [c]'s center line to (px, py): its distance and the line's half width there. */

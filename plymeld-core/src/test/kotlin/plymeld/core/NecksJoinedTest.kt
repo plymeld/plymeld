@@ -14,15 +14,16 @@ import plymeld.geom.Polygon
  *
  * Measured round the corner: the inner loops, how near two of them (or two stretches of one, more than 3 mm apart along
  * it) come, and (IslandCheck, each bead narrowed by half its flank and the tolerance a side) the plastic two lines both
- * lay and the widest spot no line covers. Control: the necks not joined (the fit as mitred) lays the band's inner loop as
- * two loops whose ends face each other across the cut closer than a line.
+ * lay and the widest spot no line covers. Control: the necks not joined (the fit as mitred), and the two loops that leaves
+ * not cut apart (Walls.apart, which would hold them a spacing apart on its own), lays the band's inner loop as two loops
+ * whose ends face each other across the cut closer than a line.
  */
 class NecksJoinedTest : StringSpec({
     val outline = listOf(Polygon(longArrayOf(0, 0, 0, -6_000, 8_489, -6_000, -6_000, 8_489, -6_000, 0)).let { if (it.isCcw()) it else it.reversed() })
     val wo = 440L; val wi = 440L; val h = 80L; val tol = 13L
     val si = Walls.spacing(wi, h)
     fun walls(join: Boolean) = Walls.arachne(outline, 2, wo, wi, h, 300, 150, 2.0, 300, toleranceUm = tol, endOverlap = 0.25, maxBeadUm = 880,
-        joinNecks = join)
+        joinNecks = join, loopsApart = join)
     fun beads(r: LayerWalls): List<IslandCheck.Line> = r.walls.flatMapIndexed { k, lv -> lv.mapIndexed { li, p -> val ws = r.widthsOf(k, li)
         IslandCheck.Line(p.xy, DoubleArray(p.size) { (ws?.get(it) ?: (if (k == 0) wo else wi)).toDouble() }, true) } } +
         r.center.map { c -> IslandCheck.Line(c.xy, DoubleArray(c.widths.size) { c.widths[it].toDouble() }, false) }

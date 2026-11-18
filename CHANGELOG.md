@@ -159,6 +159,12 @@ section the release's version and date.
 
 ### Fixed
 
+- Two wall loops no longer turn back over each other at a pinch. Where an area narrows between two notches (letters cut
+  into a face, the corners of four cells of a pattern) below what a loop needs, the loop is laid as two loops, one each
+  side; each turned back at the pinch, and their turns faced each other closer than a line apart, 0.25 to 0.4 mm laid
+  twice. The smaller loop is now cut back from the larger one to a line's spacing, the two touching as neighboring lines
+  do. On a three-part plate with a fine code pattern and lettering at the edge, plastic laid twice went from 10 spots
+  (1.2 mm²) to 1 (0.2 mm², two bottom-surface lines), time and filament unchanged.
 - Where the line of an area too narrow for two walls forks, one pair of its branches runs through the fork and the
   others give way to it. Where four branches met (two bands crossing, a corner of four cells of a pattern), both pairs
   were joined through the fork and two lines lay over each other across its whole width, up to 0.9 mm; now the ends left
