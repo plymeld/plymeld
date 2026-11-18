@@ -20,7 +20,8 @@ scarf seams and jogs; unretracted travel over open air and across tops, visible 
 predicted time; the paths and length of every feature type; and the jagged lines: extruding moves shorter than the
 slicing tolerance (all, and the outer wall's), the outer wall's kinks (a turn of more than 150 degrees beside a move
 shorter than the outer line's width), and of those its zigzags (the line's direction over a line width before the kink
-and after it within 120 degrees: it goes on the way it came, where a tip's run-in goes back where it came from). Planning
+and after it within 120 degrees: it goes on the way it came, where a tip's run-in goes back where it came from; nor a
+square end's corner, where the loop turns a right angle into the corner and goes back within two widths). Planning
 time is not among them (it varies from run
 to run). The measures are compared with the recorded baseline,
 [baseline.tsv](../../plymeld-check/src/test/resources/plymeld/check/catalog/baseline.tsv): one line per model, row
@@ -33,8 +34,8 @@ the test turns red when it goes, and the entry is updated with the fix. It also 
 of straight sides and true arcs (the block, posts, cylinder, holes, pins, fins, decks, slopes, dome, pillar and the
 two-color piece) to no move shorter than the slicing tolerance and no kink, and the outer wall of the models of narrow
 islands laid by their beads (the lenses, wedge, strip, ring, blob, letter E, pointed blob, bent stroke and teeth) to no
-zigzag (a tip's line runs in and turns back by design, so their kinks are held by the baseline, as are the other
-features).
+zigzag (a tip's line runs in and turns back, and a square end's corners are run into, by design, so their kinks are
+held by the baseline, as are the other features).
 
 **Adding a model.** Build it in
 [Models.kt](../../plymeld-check/src/test/kotlin/plymeld/check/catalog/Models.kt) (synthetic, in code, never a user's

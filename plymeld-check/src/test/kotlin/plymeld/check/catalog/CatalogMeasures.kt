@@ -26,7 +26,7 @@ import java.util.Locale
  *    feature, tool and layer, each starting where the last ended) and their length (TechniqueRender's moves);
  *  - `lines.*` ([jagged]): extruding moves shorter than the slicing tolerance, all and the outer wall's, and the outer wall's
  *    kinks (a turn of more than 150 deg beside a move shorter than the outer line's width), and of those the zigzags (the
- *    line goes on the way it came, not back out of a tip).
+ *    line goes on the way it came, not back out of a tip, nor round a square end's corner).
  * Planning time is not recorded: it varies from run to run (NarrowIslandTimeTest holds it).
  */
 object CatalogMeasures {
@@ -108,12 +108,19 @@ object CatalogMeasures {
      * path (feature, tool and layer) starts. A kink is a zigzag where the line goes on the way it came: its direction over
      * [widthMm] of its length before the vertex (from the point that far back to the vertex) and after it (from the vertex to
      * the point that far on), each cut short at the path's end, differ by 120 deg or less. Otherwise the line goes back where
-     * it came from: a narrow island's tip, which its loop runs into and out of by design (decision 28), turns so.
+     * it came from: a narrow island's tip, which its loop runs into and out of by design (decision 28), turns so. Nor is a
+     * square end's corner a zigzag: where the loop runs into each corner of a tip's square end, turning a right angle there
+     * (decision 28's corners), its direction over [widthMm] turns more than 60 deg, over twice [widthMm] it goes back the way
+     * it came (more than 120 deg: the end's second corner within a line or so), and the spike points out of the turn, into
+     * the corner (the move into the vertex against the difference of the two directions). A spike at a single corner, the
+     * line not turning back within two widths (a stub at a center line's junction where it turns), stays a zigzag.
+     * (60 deg and twice the width: Claude's choice, geometric bounds of this measure, not print values.)
      */
     fun jagged(ms: List<TechniqueRender.Move>, tolMm: Double, widthMm: Double): Jagged {
         var tiny = 0; var tinyOuter = 0; var kinks = 0; var zigzags = 0
         val cosLimit = Math.cos(Math.toRadians(150.0))
         val cosBack = Math.cos(Math.toRadians(120.0))
+        val cosCorner = Math.cos(Math.toRadians(60.0))
         fun joined(k: Int): Boolean = k > 0 && ms[k - 1].let { p -> val m = ms[k]
             p.feature == m.feature && p.tool == m.tool && p.layer == m.layer && Math.hypot(p.x1 - m.x0, p.y1 - m.y0) <= 1e-6 }
         // the point [d] mm back from the start of move [k] (back) or on from it (not back), along its path
@@ -139,7 +146,17 @@ object CatalogMeasures {
             val b = along(k, widthMm, true); val a = along(k, widthMm, false)
             val bx = m.x0 - b[0]; val by = m.y0 - b[1]; val ax = a[0] - m.x0; val ay = a[1] - m.y0
             val lb = Math.hypot(bx, by); val la = Math.hypot(ax, ay)
-            if (lb > 0 && la > 0 && (bx * ax + by * ay) / (lb * la) >= cosBack) zigzags++
+            if (lb == 0.0 || la == 0.0) continue
+            val turn = (bx * ax + by * ay) / (lb * la)
+            if (turn < cosBack) continue
+            // a square end's corner: a right angle here, back the way it came within two widths, the spike into the corner
+            val b2 = along(k, 2 * widthMm, true); val a2 = along(k, 2 * widthMm, false)
+            val ux = m.x0 - b2[0]; val uy = m.y0 - b2[1]; val vx = a2[0] - m.x0; val vy = a2[1] - m.y0
+            val lu = Math.hypot(ux, uy); val lv = Math.hypot(vx, vy)
+            val back2 = lu > 0 && lv > 0 && (ux * vx + uy * vy) / (lu * lv) < cosBack
+            val into = (m.x0 - p.x0) * (bx / lb - ax / la) + (m.y0 - p.y0) * (by / lb - ay / la)
+            if (turn < cosCorner && back2 && into > 0) continue
+            zigzags++
         }
         return Jagged(tiny, tinyOuter, kinks, zigzags)
     }

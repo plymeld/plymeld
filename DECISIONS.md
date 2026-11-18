@@ -1939,3 +1939,33 @@ changes where the monotonic sweep's chains split and merge (Linker.link). Tests:
 hole's corner by 5 microns is one, the lines crossing the hole two; a line 0.4 mm short of a flat corner is one, across a
 slot as wide it stays two; controls: clipped alone, the grazing lines are two with their ends closer than a line; with the
 depth not compared, the slot's lines would be one).
+
+## 60. The catalog's zigzag measure does not count a square end's corners (2026-11-18)
+
+Amends 56.
+
+**Context.** The catalog's outer-wall zigzag (decision 56: a kink where the line's direction over a line width before and
+after it stays within 120 degrees, the line going on the way it came) counted the corners of a narrow island's square end.
+Where a loop turns a tip's square end (a bar 0.65 mm wide, laid by its beads), decision 28's corners run it into each of
+the end's two corners and back, 0.07 to 0.09 mm, turning a right angle there: the turn over a width is 100 to 105 degrees,
+so each read as a zigzag. On the three-part plate of decisions 57 to 59, five of the 44 were these, on a fine code
+pattern's bars on the first layer.
+
+**Decision.** A kink is no zigzag where the loop turns a square end's corner: its direction over a line width turns more
+than 60 degrees there (about a right angle, not going on straight), over two widths it goes back the way it came (more
+than 120 degrees: the end's second corner within a line or so), and the spike points out of the turn, into the corner.
+60 degrees and two widths are Claude's choice, bounds of the measure's geometry, not print values. A spike at a single
+corner, the line not turning back within two widths, stays a zigzag: a center line's stub at a junction where the line
+turns a right angle (the code pattern's square cells) reads so, and is a defect.
+
+**Rejected.** Exempting every spike at a right-angle turn: the cells' stubs, 15 of the 44, turn the same way at their
+junction (101 to 106 degrees) and would no longer count. Reading the path's being closed: a narrow island's loop is
+closed, but so is the loop that spikes onto a node 43 microns from the outline (z 5.16 on the plate), which is a defect.
+
+**Consequences.** The plate: 44 zigzags to 39 (the five square-end corners on the first layer). Eight more that an
+earlier reading of the plate called a tip's run-in do not turn a right angle at the spike (3 to 76 degrees over a width):
+the loop goes on past a spike (one read layer by layer, at z 5.00: out of an acute tip's run-in, the loop spikes onto a
+node at the tip's mouth, close beside the outline); they still count. The catalog: no measure moves. Test:
+CatalogTest's control (a bar's square end run into at both corners: two kinks, no zigzag; a spike at the square's
+corner: a kink and a zigzag; controls: the exemption taken out, the bar reads two zigzags; the two-width reach taken out,
+the corner spike reads none).

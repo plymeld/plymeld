@@ -18,7 +18,7 @@ import plymeld.check.catalog.Catalog.Row
  * ThinRidgeTest, ExposedSliverTest, SpeckNearPartTest); here the pre-print check: each model passes it, or is refused
  * only as its entry names (a finding not yet fixed); the outer wall of the models of straight sides and true arcs: no
  * move shorter than the slicing tolerance and no kink; and the outer wall of the models of narrow islands laid by their
- * beads: no zigzag (a kink where the line goes on the way it came, not a tip's run-in).
+ * beads: no zigzag (a kink where the line goes on the way it came, not a tip's run-in nor a square end's corner).
  *
  * Controls: a setting changed on one model moves its measures and the comparison reports them; a baseline with a value
  * altered, a line missing and a stray line is reported for each. Determinism: every unit measured side by side on the
@@ -114,7 +114,8 @@ class CatalogTest : StringSpec({
     }
 
     /*
-     * A narrow island laid by its beads (decision 28) turns its outer line back only where it runs into a tip and out: no
+     * A narrow island laid by its beads (decision 28) turns its outer line back only where it runs into a tip and out, or
+     * into a square end's corner as it turns there: no
      * kink where the line goes on the way it came (a zigzag), on the models of narrow islands alone. Their outer loop gives
      * way across the outline where a middle line starts (the bent stroke, the wedge and the lenses change from two lines to
      * three). The two blobs and a neck (an area narrowing fast from four lines to one), the dipped ridges, the finger in a
@@ -138,12 +139,14 @@ class CatalogTest : StringSpec({
      * kink (the spike's tip turns 180 deg; where it leaves and rejoins the side, 63 and 117 deg), a zigzag (the side goes on
      * the way it came); with a run 0.5 mm in from that side and 0.5 mm back out over itself (as a loop runs into a narrow
      * island's tip and out), one kink (where it turns back, beside the 0.3 mm move) and no zigzag (it goes back where it came
-     * from).
+     * from); with a bar 0.8 mm up from that side, its square end 0.4 mm across, the loop running 0.07 mm into each of the
+     * end's corners and back (as a narrow island's loop turns a square end's corners), two kinks and no zigzag; with a spike
+     * 0.07 mm out of the square's corner and back, the side turning there but not back, one kink and a zigzag.
      */
     "control: a move shorter than the tolerance, a kink, a zigzag and a run-in inserted in a square's outer wall are each counted" {
-        fun square(extraAfterFirst: String = "", extraOnTop: String = "") = TechniqueRender.read(
+        fun square(extraAfterFirst: String = "", extraOnTop: String = "", extraAtCorner: String = "") = TechniqueRender.read(
             "M83\n;LAYER_CHANGE\n;Z:0.2\n;TYPE:Outer wall\nG1 X0 Y0 F600\nG1 X10 Y0 E0.5\n$extraAfterFirst" +
-                "G1 X10 Y10 E0.5\nG1 X5 Y10 E0.25\n${extraOnTop}G1 X0 Y10 E0.25\nG1 X0 Y0 E0.5\n").moves
+                "G1 X10 Y10 E0.5\n${extraAtCorner}G1 X5 Y10 E0.25\n${extraOnTop}G1 X0 Y10 E0.25\nG1 X0 Y0 E0.5\n").moves
         val plain = CatalogMeasures.jagged(square(), 0.0125, 0.44)
         val tiny = CatalogMeasures.jagged(square(extraAfterFirst = "G1 X10.005 Y0 E0.0003\n"), 0.0125, 0.44)
         val spike = CatalogMeasures.jagged(square(extraOnTop = "G1 X5.05 Y10.1 E0.006\nG1 X5 Y10 E0.006\n"), 0.0125, 0.44)
@@ -152,6 +155,11 @@ class CatalogTest : StringSpec({
         listOf(tiny.tiny, tiny.tinyOuter, tiny.kinks, tiny.zigzags) shouldBe listOf(1, 1, 0, 0)
         listOf(spike.tiny, spike.tinyOuter, spike.kinks, spike.zigzags) shouldBe listOf(0, 0, 1, 1)
         listOf(runIn.tiny, runIn.tinyOuter, runIn.kinks, runIn.zigzags) shouldBe listOf(0, 0, 1, 0)
+        val squareEnd = CatalogMeasures.jagged(square(extraOnTop = "G1 X5 Y10.8 E0.04\nG1 X5.05 Y10.85 E0.004\nG1 X5 Y10.8 E0.004\n" +
+            "G1 X4.6 Y10.8 E0.02\nG1 X4.55 Y10.85 E0.004\nG1 X4.6 Y10.8 E0.004\nG1 X4.6 Y10 E0.04\n"), 0.0125, 0.44)
+        val cornerSpike = CatalogMeasures.jagged(square(extraAtCorner = "G1 X10.05 Y10.05 E0.004\nG1 X10 Y10 E0.004\n"), 0.0125, 0.44)
+        listOf(squareEnd.tiny, squareEnd.tinyOuter, squareEnd.kinks, squareEnd.zigzags) shouldBe listOf(0, 0, 2, 0)
+        listOf(cornerSpike.tiny, cornerSpike.tinyOuter, cornerSpike.kinks, cornerSpike.zigzags) shouldBe listOf(0, 0, 1, 1)
     }
 
     /*
