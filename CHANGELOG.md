@@ -159,6 +159,16 @@ section the release's version and date.
 
 ### Fixed
 
+- A line no longer runs out along a short dead end at a junction and back. Where a thin area too small to keep all its
+  forks kept two of them, they were the two longest of those it was cutting, which could be a short trunk beside two
+  longer forks: its line ran down the trunk and back. It now keeps its own two longest forks. And where a narrow island
+  laid by its width has a short piece from a junction of its middle line to a dead end, covering nothing the line through
+  the junction does not, the piece is now left out instead of joined, so the line no longer runs out along it and back.
+  On a three-part plate with a fine code pattern and lettering, the outer line's zigzags went from 30 to 5 (the pattern's
+  cells on the first layer and the lettering above), with the check passing, nothing laid twice, and time, filament and
+  tool changes as before; the lines in the small corners of a Benchy and a test plate follow their corners' longest
+  forks. A dot of one part beside another, left out on the object's surface, is still judged on its line as it would
+  have been joined with those dead ends, the lines that rule was set on.
 - A narrow island's outer line no longer runs out to a short tip's end and back where that covers nothing its own line
   does not. Where the line of an island laid by its width runs into a tip narrower than the narrowest line, it went out
   along the tip's middle to its end and came back; where the tip ends within the line's own bead beside it (no further

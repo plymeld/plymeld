@@ -615,7 +615,8 @@ object Planner {
                 .polys(effOutlines[i]).text(walls[i].walls.map { it.size })
             for (ws0 in walls[i].walls) kb.polys(ws0)
             for (lv in walls[i].loopWidths) for (wa in lv) if (wa != null) kb.longs(wa)
-            for (c in walls[i].center) kb.longs(c.xy).longs(c.widths)
+            // (and the line each was joined as with its stubs, which the rule for a dot beside another part reads)
+            for (c in walls[i].center) { kb.longs(c.xy).longs(c.widths); c.withStubs?.let { kb.text("stubs").longs(it.xy).longs(it.widths) } }
             regions[i].let { r -> kb.polys(r.inner).polys(r.topSurface).polys(r.bottomSurface).polys(r.internalSolid).polys(r.sparse) }
             seams.getOrNull(i)?.let { ls -> kb.text("seams"); for (k in ls) { kb.text(k.size); for (p in k) kb.text(p.atCorner).longs(p.loop.xy) } } ?: kb.text("noseams")
             seamOver[i]?.let { so -> kb.text("over"); for (k in so) { kb.text(k.size); for (b in k) kb.flags(b) } } ?: kb.text("noover")
@@ -1064,9 +1065,18 @@ object Planner {
                 // 1.3 x 0.8 mm in a gray arch, too small for a loop, its one line 0.3 to 0.78 mm wide, had nothing laid in it).
                 // And only on the object's surface (along the whole object's outline): a speck along a part's edge inside
                 // the object shows no dot, and nothing behind it fills its place (a pocket between a letter-gap stroke's
-                // loop, the rim's loop and the letters beside it, 0.45 mm wide, was left bare)
-                if (speck && whole != null && c.widths.min() <= s.minBeadUm && c.maxWidthUm <= 2 * s.minBeadUm && ownLength < c.maxWidthUm && otherPartNear(c) &&
-                    Walls.alongOutline(c.xy, c.widths, whole.w.effOutlines[i])) continue
+                // loop, the rim's loop and the letters beside it, 0.45 mm wide, was left bare).
+                // Read on the line as it was joined with the stubs at junctions that were left out of it
+                // (CenterLine.withStubs): the rule's bounds were set on those lines, and a stub run out and back made a short
+                // line long enough to be laid (a V-shaped line on a ridge's dipped crest beside a second part, 0.4 mm long
+                // without its stub, left a hole there when left out)
+                fun dot(d: CenterLine): Boolean {
+                    val own = if (d === c) ownLength else Planner.polylineLength(d.xy) - d.reachUm
+                    val sp = if (d === c) speck else own < 2.0 * d.maxWidthUm && Walls.alongOutline(d.xy, d.widths, effOutlines[i])
+                    return sp && whole != null && d.widths.min() <= s.minBeadUm && d.maxWidthUm <= 2 * s.minBeadUm && own < d.maxWidthUm && otherPartNear(d) &&
+                        Walls.alongOutline(d.xy, d.widths, whole.w.effOutlines[i])
+                }
+                if (dot(c.withStubs ?: c)) continue
                 paths.add(ToolPath(f, c.xy, false, c.maxWidthUm, h, widths = c.widths, speck = speck, wall = if (outer) 0 else if (c.wall >= 0) c.wall else ws.size)) } }
             if (s.innerWallsFirst) center()
             if (s.fuzzySkin != "none") require(s.fuzzyMode == "displacement" && s.fuzzyNoise == "classic") {

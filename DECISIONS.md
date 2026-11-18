@@ -1132,6 +1132,10 @@ seam_scar 244.6 to 261.6 mm²).
 another (a neck 0.36 to 0.58 mm wide and 0.5 mm long, a layer each): with the rule as before, holes on 6 of 23 layers;
 control, its lines taken out, refused on all.
 
+Amended by 63: the rule reads each line as it was joined with the stubs at junctions that were left out of it
+(`CenterLine.withStubs`), the lines its bounds were set on. A known limitation, kept for that calibration; it may be
+revisited.
+
 ## 37. A gap opening onto the area handed to infill is not a slit (2026-11-15)
 
 **Context.** Decision 34 widens two lines that leave a slit between them too narrow for a line. In ThinRidgeTest's ridge
@@ -2037,3 +2041,70 @@ regression cases: unchanged. Test: TipRunInTest (a band 2 by 0.7 mm tapering ove
 no zigzag, nothing bare wider than the floor; control, the run laid: one zigzag; the test seen to fail with the rule
 taken out; a band 0.6 mm wide keeps its runs into its square end's corners, seen to lose them with the turn's bound
 taken out).
+
+## 63. A small thin area keeps its own two longest forks; a narrow island's stub at a junction is left out (2026-11-18)
+
+Amends 28, 33 and 36.
+
+**Context.** On the plate of decisions 57 to 62, 29 of the outer line's 30 zigzags were one thing: a short dead end at a
+junction that the line ran out along and back, 40 to 150 microns. Twenty were the walls' center lines (fifteen in the
+code pattern's cells on the first layer, five on the lettering above), nine a narrow island's middle beads.
+- The walls (decision 33): where a round of pruning would leave a small area less of its skeleton than its widest line,
+  the two longest of the forks that round cut stayed. In a cell 0.5 mm across, those were a short trunk whose own corner
+  forks went in an earlier round, beside two longer forks that stay anyway: the line ran down the trunk and back.
+- The beads (decision 28, step 6): a piece from a middle line's junction to a dead end was joined as any end, closest
+  first: it joined one of the other pieces there, and the third piece's end then joined its dead end, so the line ran out
+  along it and back.
+
+**Decision.**
+- A small area keeps its own two longest forks (of all its forks with a dead end), not the two longest of those cut.
+- A narrow island's piece is a stub at a junction where one end lies where two or more other pieces end and the other on
+  no other piece, within the joins' reach, its bead within the junction's (the widest of the others' ends there) but for
+  `plan.layer.infill.wall_overlap` of its own width at every point (the bound a junction's third line gives way by,
+  decision 33), and its side of the axis reaching no further past the junction's bead than the narrowest place a line is
+  laid in (decision 31's floor, read on the axis's nodes beyond its dead end as decision 33's pruning reads a fork's
+  pocket). A stub is left out, not joined; at a junction the shortest go while two of its ends stay.
+- Decision 36's rule for a dot beside another part reads each line as it was joined with the stubs left out of it
+  (`CenterLine.withStubs`, carried through every change made to the line after: its ends reaching into the walls, its
+  simplification). The rule's bounds were set on those lines: without its stub a short line it kept laid becomes a dot
+  (a V-shaped line on a ridge's dipped crest beside a second part, 0.4 mm long, left a hole when left out). This is a known
+  limitation, kept for that calibration, and may be revisited. The paths' layer cache reads those lines too.
+- Beads' joins no longer mark a piece closed in place when it joins round on itself (the pieces are joined twice, with
+  the stubs and without); the line still closes on its first point.
+
+**Rejected.**
+- Cutting the walls' stub where its ends join (decision 33's give-way): the line through the junction gave way to the
+  stub first (a catalog model's finger lost a 0.22 mm line).
+- Leaving out every narrow island's stub whose bead lies within the junction's, with no reading of the pocket beyond it:
+  a middle bead's run into a corner arm went too (an island's widest bare spot 170 to 240 microns), and one more island
+  fell back to its walls.
+- Reading the dot rule on the line as laid: the ridge's crest left bare. On the span of its medial axis instead: the
+  crest faults where the line is curved; read as the extent of the axis's discs, 35 more dots laid on the plate (45 left
+  out to 10, 21 more visible restarts, a new spot laid twice).
+- One reading of covered ground for both the walls' bands and IslandCheck (below), either by moving the walls' band half
+  a flank toward the loop (the two clusters stayed bare by IslandCheck, and the catalog's wall reading of one model grew
+  worse: doubled 0.95 to 1.06 mm², outside 0.19 to 0.24 mm²), or by IslandCheck reading a line at its full width (the
+  narrow islands decided under it opened a hole 0.30 mm wide in the repository's Benchy, which the pre-print check
+  refused).
+
+**Consequences.** The plate: zigzags 30 to 5 (left: z 5.00's loop turning across a tab 157 to 187 microns wide, and four
+beads stubs whose pocket reaches past the floor, z 5.48, 5.56 and 6.12), kinks 245 to 216; the check passes, nothing laid
+twice, 93.1 to 93.0 min, filament 6080 mm, tool changes 94, seams 2282 to 2268 (seam scar 216.1 to 211.5 mm²); dots
+left out 45 to 43 (two remnants of a third fork that is now pruned, nothing laid there before or after); narrow islands
+laid by their beads 698 of 777, two each way. Planning time as before (9.4 to 9.6 s before, 9.1 to 9.7 s after). The
+catalog: zigzags fewer (an exposed wedge 1 to 0, a finger inside a second part 15 to 0, a dipped ridge 5 to 0, one
+beside a second part 6 to 1), lines through small areas laid as one where a trunk and a fragment were (fewer paths), no
+check, laid-twice or wall-reading measure moved. The regression cases: the Benchy's and the test plate's short corner
+lines follow the area's two longest forks (most 0.05 to 0.6 mm shorter); the Benchy passes the check, laid twice as
+before, filament 4022 to 4021 mm.
+
+Open inconsistency: IslandCheck reads a line narrower than the pre-print check's hole rule (HoleCheck) and the catalog's
+wall reading (WallCoverage) do, its bead less half its rounded flanks a side against their full width. By IslandCheck
+alone the walls now leave two clusters of the code pattern's cells bare wider than the floor on the first layer (0.168
+to 0.262 mm² and 0 to 0.068 mm²); WallCoverage reads nothing there wider than the floor (widest 0.175 mm before and
+after, and 0.127 to 0.156 mm, the floor 0.176 mm), HoleCheck no hole in either. Those slivers are accepted for now.
+
+Tests: JunctionStubTest (a cell 0.52 by 0.58 mm between walls, laid by its center line; an L of a strip 0.34 mm wide with
+a stub 0.1 mm long at its corner, laid by its beads: no line turning back, nothing bare wider than the floor, each
+line's `withStubs` turning back where the stub was; controls, each rule off, lay the stub out and back; the test seen to
+fail with each rule taken out); ThinRidgeTest seen to fail with the dot rule reading the line without its stubs.

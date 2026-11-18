@@ -26,7 +26,14 @@ import plymeld.geom.Polygon
  */
 class CenterLine(val xy: LongArray, val widths: LongArray, val reachUm: Double = 0.0,
                  /** The wall it lays, counted from the outside (a narrow island's beads, [Beads]); -1 = the innermost, past the loops. */
-                 val wall: Int = -1) {
+                 val wall: Int = -1,
+                 /**
+                  * The line as it was joined with the stubs at junctions that were left out of it (a small thin area's short
+                  * trunk, Walls' pruning; a narrow island's piece from a junction to a dead end, Beads), each once run out
+                  * along and back: what Planner's rule for a dot beside another part reads (decision 36), as it was calibrated
+                  * on. Null: none was left out of it. Carried through every change made to the line after ([Walls.carried]).
+                  */
+                 val withStubs: CenterLine? = null) {
     val maxWidthUm: Long get() = widths.max()
 }
 
@@ -156,7 +163,7 @@ object Walls {
         }
         val sample = maxOf(MIN_SAMPLE_UM, minFeatureUm / 2)
         // the thin pieces' lines, kept from the first build for the second (the pieces a kept tiny loop does not change)
-        val pieceLines = HashMap<PieceKey, List<CenterLine>>()
+        val pieceLines = HashMap<PieceKey, PieceLines>()
         /** The walls with the tiny pieces left out except those [keep] names (loop index, piece index); and what their loops' bands leave. */
         fun build(keep: Set<Pair<Int, Int>>): Pair<LayerWalls, List<Polygon>> {
             val walls = ArrayList<List<Polygon>>(fits.size)
@@ -217,7 +224,7 @@ object Walls {
             val center = if (thin.isEmpty()) emptyList() else centerLines(thin, minBeadUm, minFeatureUm, maxBeadUm, minLengthFactor, transitionUm, outline,
                 interiorMinUm = minBeadUm - 2 * interiorOverlap, keepWiderUm = minFeatureUm + 2 * toleranceUm, endOverlap = endOverlap, surface = surface,
                 pieceCache = pieceLines)
-            return LayerWalls(walls, thick, if (covered.isEmpty()) center else center.map { reachInto(it, covered, endOverlap, sample) }) to left
+            return LayerWalls(walls, thick, if (covered.isEmpty()) center else center.map { c -> carried(c) { reachInto(it, covered, endOverlap, sample) } }) to left
         }
         val firstBuilt = build(emptySet()); val first = firstBuilt.first
         // a tiny piece left out where no center line took its place keeps its loop (a pin too small for a loop of length
@@ -880,23 +887,72 @@ object Walls {
                      * Each thin piece's lines by its points, for calls with the same other arguments (Walls.arachne's second
                      * build): a piece's lines are a function of the piece and those arguments alone. Null: none kept.
                      */
-                    pieceCache: MutableMap<PieceKey, List<CenterLine>>? = null,
+                    pieceCache: MutableMap<PieceKey, PieceLines>? = null,
                     /**
                      * False: a junction's ends join pair after pair, the straightest first, whatever branch a pair leaves
                      * behind (joinEnds; a test's control).
                      */
-                    onePairAtJunction: Boolean = true): List<CenterLine> {
+                    onePairAtJunction: Boolean = true,
+                    /**
+                     * False: a small area keeps the two longest of the forks a round of pruning cuts, though one may be a short
+                     * trunk whose own forks went in an earlier round, laid out and back (a test's control).
+                     */
+                    trunksGo: Boolean = true): List<CenterLine> {
         // one triangulation per connected thin piece: one for a whole layer's thin areas ran out of
         // memory on a large test model's layer
-        val lines = plymeld.geom.Polygons.group(thin).flatMap { (o, hs) -> val piece = listOf(o) + hs
-            fun lay() = centerLinesOfPiece(piece, minBeadUm, minFeatureUm, maxWidthUm, minLengthFactor, transitionUm, outline,
-                maxOf(minFeatureUm, interiorMinUm), keepWiderUm, surface)
+        val lines = plymeld.geom.Polygons.group(thin).map { (o, hs) -> val piece = listOf(o) + hs
+            fun lay(): PieceLines {
+                fun of(trunks: Boolean) = centerLinesOfPiece(piece, minBeadUm, minFeatureUm, maxWidthUm, minLengthFactor, transitionUm, outline,
+                    maxOf(minFeatureUm, interiorMinUm), keepWiderUm, surface, trunks)
+                val (laid, stubbed) = of(trunksGo)
+                return PieceLines(laid, if (stubbed && trunksGo) of(false).first else null)
+            }
             if (pieceCache == null) lay() else pieceCache.getOrPut(PieceKey(piece.map { it.xy })) { lay() } }
         // two ends are not joined across a place the model is narrower than min_feature: the walls lay no line there
         val outlineGrid by lazy { EdgeGrid(outline.flatMap { p -> (0 until p.size).map { e -> longArrayOf(p.x(e), p.y(e), p.x((e + 1) % p.size), p.y((e + 1) % p.size)) } }, maxOf(maxWidthUm, 4 * minFeatureUm)) }
-        val joined = joinEnds(lines, transitionUm, maxOf(MIN_SAMPLE_UM, minFeatureUm / 2), endOverlap, keepWiderUm, minBeadUm, onePairAtJunction) { ax, ay, bx, by -> outline.isEmpty() ||
-            (0..8).none { k -> outlineGrid.within(ax + (bx - ax) * k / 8.0, ay + (by - ay) * k / 8.0, minFeatureUm / 2.0) } }
-        return giveWay(joined, endOverlap, maxOf(MIN_SAMPLE_UM, minFeatureUm / 2))
+        fun laidOf(ls: List<CenterLine>): List<CenterLine> {
+            val joined = joinEnds(ls, transitionUm, maxOf(MIN_SAMPLE_UM, minFeatureUm / 2), endOverlap, keepWiderUm, minBeadUm, onePairAtJunction) { ax, ay, bx, by -> outline.isEmpty() ||
+                (0..8).none { k -> outlineGrid.within(ax + (bx - ax) * k / 8.0, ay + (by - ay) * k / 8.0, minFeatureUm / 2.0) } }
+            return giveWay(joined, endOverlap, maxOf(MIN_SAMPLE_UM, minFeatureUm / 2))
+        }
+        val laid = laidOf(lines.flatMap { it.laid })
+        // where pruning left a small area's trunk out, each line keeps the line it would have been joined as with it (what
+        // the rule for a dot beside another part reads: CenterLine.withStubs)
+        if (lines.all { it.asJoined == null }) return laid
+        return withStubs(laid, laidOf(lines.flatMap { it.asJoined ?: it.laid }))
+    }
+
+    /**
+     * A thin piece's lines as laid ([laid]), and as they would be with the short forks pruning left out at a small area's
+     * junction kept ([asJoined]; null where it left out none): centerLines' piece cache value.
+     */
+    class PieceLines(val laid: List<CenterLine>, val asJoined: List<CenterLine>?)
+
+    /**
+     * [laid] each with the line it was joined as with its stubs ([CenterLine.withStubs]): of the lines [asJoined] (the same
+     * area's lines with every stub kept), the one sharing the most points with it, where it is not one of them as it is.
+     * A line that shares no point with any keeps none.
+     */
+    internal fun withStubs(laid: List<CenterLine>, asJoined: List<CenterLine>): List<CenterLine> {
+        fun key(c: CenterLine, k: Int) = (c.xy[2 * k] shl 32) xor (c.xy[2 * k + 1] and 0xffffffffL)
+        val linesAt = HashMap<Long, MutableList<Int>>()
+        for ((i, c) in asJoined.withIndex()) for (k in 0 until c.xy.size / 2) linesAt.getOrPut(key(c, k)) { ArrayList() }.add(i)
+        return laid.map { c ->
+            if (asJoined.any { it.xy.contentEquals(c.xy) && it.widths.contentEquals(c.widths) }) return@map c
+            val shared = IntArray(asJoined.size)
+            for (k in 0 until c.xy.size / 2) linesAt[key(c, k)]?.distinct()?.forEach { shared[it]++ }
+            val best = shared.indices.maxByOrNull { shared[it] }
+            if (best == null || shared[best] == 0) c else CenterLine(c.xy, c.widths, c.reachUm, c.wall, asJoined[best])
+        }
+    }
+
+    /**
+     * [f] made to [c] and to the line it was joined as with its stubs ([CenterLine.withStubs]) alike: a change made to a
+     * line after its stubs were left out is made to that line too, so what reads it reads it as it would be laid.
+     */
+    internal inline fun carried(c: CenterLine, f: (CenterLine) -> CenterLine): CenterLine {
+        val r = f(c); val t = c.withStubs?.let { f(it) }
+        return if (r.withStubs === t) r else CenterLine(r.xy, r.widths, r.reachUm, r.wall, t)
     }
 
     /**
@@ -1090,7 +1146,10 @@ object Walls {
      */
     private const val DIST_MARGIN = 1e-6
 
-    fun simplified(c0: CenterLine, tolUm: Long, /** false: no [merged] first (a test's control) */ merge: Boolean = true): CenterLine {
+    fun simplified(c0: CenterLine, tolUm: Long, /** false: no [merged] first (a test's control) */ merge: Boolean = true): CenterLine =
+        carried(c0) { simplifiedOne(it, tolUm, merge) }
+
+    private fun simplifiedOne(c0: CenterLine, tolUm: Long, merge: Boolean): CenterLine {
         if (c0.xy.size / 2 <= 2 || tolUm <= 0) return c0
         val c = if (merge) merged(c0, tolUm) else c0
         val n = c.xy.size / 2
@@ -1293,8 +1352,11 @@ object Walls {
     }
 
     private fun centerLinesOfPiece(thin: List<Polygon>, minBeadUm: Long, minFeatureUm: Long, maxWidthUm: Long, minLengthFactor: Double, transitionUm: Long, outline: List<Polygon>,
-                                   interiorMinUm: Long, keepWiderUm: Long, surface: List<Polygon>?): List<CenterLine> {
+                                   interiorMinUm: Long, keepWiderUm: Long, surface: List<Polygon>?, trunksGo: Boolean): Pair<List<CenterLine>, Boolean> {
         val sample = maxOf(MIN_SAMPLE_UM, minFeatureUm / 2)
+        // whether a small area's pruning left out a short fork the two longest of the forks cut would have kept (a stub:
+        // CenterLine.withStubs)
+        var stubbed = false
         val sk = plymeld.geom.Skeleton(thin, sample, maxOf(minFeatureUm, 2 * sample))
         // graph: node = circumcenter (exact doubles, shared by the edges of one triangle)
         val index = HashMap<Pair<Long, Long>, Int>()
@@ -1405,7 +1467,10 @@ object Walls {
                 }.toMutableList()
                 // Nor every branch of a small area whose junction is several skeleton nodes a few microns apart: where the
                 // round's cuts would leave less of its skeleton than its own widest line, its two longest forks stay (a
-                // dome 1.3 x 0.8 mm kept a line 23 um long between two of its junction's nodes)
+                // dome 1.3 x 0.8 mm kept a line 23 um long between two of its junction's nodes). The area's two longest,
+                // not the two longest of the forks cut: those could be a short trunk whose own forks went in an earlier round
+                // beside two longer forks that stay anyway, and the line ran out along it and back (a cell 0.5 mm across
+                // between a code pattern's walls, a zigzag in the line)
                 if (cut.isNotEmpty()) {
                     val comp = HashMap<Int, Int>()
                     for (start in adj.keys) if (start !in comp) {
@@ -1415,7 +1480,12 @@ object Walls {
                     for ((id, cs) in cut.groupBy { comp[it.first()] }) {
                         val inComp = all.filter { comp[it.first()] == id }
                         val left = inComp.sumOf { length(it) } - cs.sumOf { length(it) }
-                        if (left < inComp.maxOf { c -> c.maxOf { width(it) } }) cut.removeAll(cs.sortedBy { length(it) }.takeLast(2).toSet())
+                        if (left >= inComp.maxOf { c -> c.maxOf { width(it) } }) continue
+                        val longest = inComp.filter { ((degree[it.first()] ?: 0) == 1) != ((degree[it.last()] ?: 0) == 1) }
+                            .sortedBy { length(it) }.takeLast(2).flatMap { listOf(it, it.reversed()) }.toSet()
+                        val cutLongest = cs.sortedBy { length(it) }.takeLast(2).toSet()
+                        if (cs.any { (it in longest) != (it in cutLongest) }) stubbed = true
+                        cut.removeAll(if (trunksGo) longest else cutLongest)
                     }
                 }
                 for (c in cut) {
@@ -1512,7 +1582,7 @@ object Walls {
         }.map { c ->
             CenterLine(LongArray(2 * c.size) { k -> Math.round(if (k % 2 == 0) nx[c[k / 2]] else ny[c[k / 2]]) },
                 LongArray(c.size) { Math.round(width(c[it])) })
-        }
+        } to stubbed
     }
 
     fun generate(outline: List<Polygon>, loops: Int, outerWidthUm: Long, innerWidthUm: Long, layerHeightUm: Long): LayerWalls {

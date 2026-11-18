@@ -40,7 +40,10 @@ import plymeld.geom.Skeleton
  *     end and the beads beside it give way to it across their own track (the outer loop across the outline, on its inner
  *     side only, no narrower than the narrowest line, never cut); a loop inside another gives way to the one outside it near
  *     their turns. A cut where a bead gave way entirely is not made where its two ends would lie within half a line.
- *  6. Open pieces' ends (a middle bead's at a junction of the axis) are joined closest first within a short reach.
+ *  6. Open pieces' ends (a middle bead's at a junction of the axis) are joined closest first within a short reach. A stub
+ *     at a junction (a piece from it to a dead end, its bead within the junction's but for the end overlap, its side of the
+ *     axis reaching no further past the junction's bead than the narrowest place a line is laid in) is left out, not
+ *     joined: the line through the junction does not run out along it and back.
  */
 object Beads {
     /** The beads across a place W wide (µm): set widths, the walls' count, the beads' overlap, the narrowest and the widest line. */
@@ -93,7 +96,9 @@ object Beads {
                  /** False: a neck narrower than the narrowest line takes its neighbors' count of loops as any short stretch does (smoothCounts; a test's control). */
                  val necksNarrow: Boolean = true,
                  /** False: a loop runs out and back into a tip's end however little that reaches past its bead (Lay.shortRunIns; a test's control). */
-                 val shortRunInsGo: Boolean = true)
+                 val shortRunInsGo: Boolean = true,
+                 /** False: a stub at a junction of open pieces is joined as any end is (Lay.joins; a test's control). */
+                 val stubsGiveWay: Boolean = true)
 
     /**
      * A loop turning more than this (degrees) over a line width either side of a tip it runs into turns a corner there:
@@ -1071,11 +1076,76 @@ object Beads {
         return kept
         }
 
-        /** 6. Open pieces' ends joined, closest first; the beads as center lines. */
+        /**
+         * The stubs at junctions among the open pieces [fs] (their indices): a piece with one end on a point where at least
+         * two other pieces' ends lie and its other end on no other piece's end, within [reachUm] of the first (the joins'
+         * reach: an end at the junction may join it), whose bead lies within a bead of the junction's width there (the
+         * widest of the others' ends) but for [Params.endOverlap] of its own width at every point (no further past it than an
+         * interior line's end reaches into the walls), and whose side of the axis reaches no further past the junction's bead
+         * than the narrowest place a line is laid in ([pokesOut]). At each junction the shortest go while two of its ends stay
+         * (a small Y keeps its two longest). Joined as an end, a stub was the closest pair with one of the others there and
+         * the third end then joined its dead end: the line ran out along it and back, 40 to 150 microns (letters on a
+         * nameplate, nine such zigzags in the outer line; four stay, where the pocket beyond the stub reaches further).
+         */
+        fun stubs(fs: List<Piece>, reachUm: Double): Set<Int> {
+            fun key(x: Double, y: Double) = x.toRawBits() to y.toRawBits()
+            val at = HashMap<Pair<Long, Long>, ArrayList<Pair<Int, Boolean>>>()
+            for ((i, pc) in fs.withIndex()) for (last in listOf(false, true)) { val k = if (last) pc.size - 1 else 0
+                at.getOrPut(key(pc.xs[k], pc.ys[k])) { ArrayList() }.add(i to last) }
+            val floor = (p.minFeatureUm + 2 * p.toleranceUm).toDouble()
+            val cand = LinkedHashMap<Int, Pair<Long, Long>>()
+            for ((i, pc) in fs.withIndex()) for (last in listOf(false, true)) {
+                if (pc.loop || pc.size < 2) continue
+                val k0 = if (last) pc.size - 1 else 0; val k1 = if (last) 0 else pc.size - 1
+                val j = key(pc.xs[k0], pc.ys[k0])
+                val others = at.getValue(j).filter { it.first != i }
+                if (others.size < 2 || at.getValue(key(pc.xs[k1], pc.ys[k1])).any { it.first != i }) continue
+                if (Math.hypot(pc.xs[k1] - pc.xs[k0], pc.ys[k1] - pc.ys[k0]) > reachUm) continue
+                val half = others.maxOf { (o, ol) -> fs[o].ws[if (ol) fs[o].size - 1 else 0] } / 2
+                val inside = (0 until pc.size).all { k -> val d = Math.hypot(pc.xs[k] - pc.xs[k0], pc.ys[k] - pc.ys[k0]); val w = pc.ws[k]
+                    d + w / 2 - half <= p.endOverlap * w }
+                if (inside && !pokesOut(pc.node[k0], pc.node[k1], half, floor)) cand[i] = j
+            }
+            return cand.entries.groupBy { it.value }.flatMap { (j, es) -> es.map { it.key }.sortedBy { fs[it].length() }.take(maxOf(0, at.getValue(j).size - 2)) }.toSet()
+        }
+
+        /**
+         * Whether the area on a stub's side reaches out past the junction's bead (half-width [half], at node [jn]) by more
+         * than [floor]: each node of the axis reached from the stub's dead end (node [en]) without passing the junction (the
+         * stub's own and the corners beyond it), by its distance from the junction and its own half-width, no more than its
+         * width (the measure Walls' pruning reads a fork's pocket by). Left out, such a stub leaves that much bare: its bead
+         * reached into a corner the junction's does not (a narrow island's third arm, 0.5 mm long, run into 90 microns).
+         * An end on no node: true (kept).
+         */
+        fun pokesOut(jn: Int, en: Int, half: Double, floor: Double): Boolean {
+            if (jn < 0 || en < 0) return true
+            val seen = HashSet<Int>(); val stack = ArrayDeque<Int>()
+            seen.add(jn); seen.add(en); stack.add(en)
+            while (stack.isNotEmpty()) {
+                val u = stack.removeLast()
+                if (minOf(2 * r[u], dist(u, jn) + r[u] - half) > floor) return true
+                for (q in 0 until 3) { val v = adj[3 * u + q]; if (v >= 0 && seen.add(v)) stack.add(v) }
+            }
+            return false
+        }
+
+        /**
+         * 6. Open pieces' ends joined, closest first, a junction's stubs left out ([stubs]); the beads as center lines, each
+         * with the line it was joined as with the stubs ([CenterLine.withStubs]) where some were left out.
+         */
         fun joins(kept: List<Piece>): List<CenterLine> {
-        val joinUm = 2.0 * p.sampleUm + 2 * MIDDLE_EPS_UM
-        val first = kept.filter { !it.closed && it.size >= 1 }
+            val joinUm = 2.0 * p.sampleUm + 2 * MIDDLE_EPS_UM
+            val open = kept.filter { !it.closed && it.size >= 1 }
+            val left = if (!p.stubsGiveWay) emptySet() else stubs(open, joinUm)
+            val laid = joined(kept, open.filterIndexed { i, _ -> i !in left }, joinUm)
+            return if (left.isEmpty()) laid else Walls.withStubs(laid, joined(kept, open, joinUm))
+        }
+
+        /** The closed pieces of [kept] and the open pieces [first] joined, closest first (within [joinUm]); the beads as center lines. */
+        fun joined(kept: List<Piece>, first: List<Piece>, joinUm: Double): List<CenterLine> {
         val done = kept.filter { it.closed }.toMutableList()
+        // (a piece joined round on itself: closed, the piece itself left as it is for another joining)
+        val closedHere = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Piece, Boolean>())
         // each open piece's ends: 2 i its first point, 2 i + 1 its last; what an end allows (a cut end nothing, a middle line's
         // end another middle line's, a loop's piece another's) stays with the end as pieces join
         val ne = 2 * first.size
@@ -1136,7 +1206,7 @@ object Beads {
             }
             val c = cands[pick]; gone[pick] = true
             val pa = owner[c.a]!!; val pb = owner[c.b]!!
-            if (pa === pb) { pa.closed = true; done.add(pa); free[c.a] = false; free[c.b] = false; continue }
+            if (pa === pb) { closedHere.add(pa); done.add(pa); free[c.a] = false; free[c.b] = false; continue }
             val a = if (atEnd[c.a]) pa else pa.reversed()
             val b = if (atEnd[c.b]) pb.reversed() else pb
             val j = Piece(ArrayList(a.xs), ArrayList(a.ys), ArrayList(a.ws), minOf(a.wall, b.wall))
@@ -1152,10 +1222,14 @@ object Beads {
         for (e in 0 until ne) if (free[e]) { val pc = owner[e]!!; if (seen.add(pc)) open.add(pc) }
         val out = ArrayList<CenterLine>()
         for (pc in done + open) {
-            if (pc.closed) { if (pc.size < 3) continue; if (pc.xs.last() != pc.xs[0] || pc.ys.last() != pc.ys[0]) { pc.xs.add(pc.xs[0]); pc.ys.add(pc.ys[0]); pc.ws.add(pc.ws[0]) } }
-            if (pc.size < 2 || pc.length() < 1.0) continue
-            out.add(CenterLine(LongArray(2 * pc.size) { k -> Math.round(if (k % 2 == 0) pc.xs[k / 2] else pc.ys[k / 2]) },
-                LongArray(pc.size) { Math.round(pc.ws[it]) }, wall = pc.wall))
+            // a closed piece's line ends on its first point
+            val closed = pc.closed || pc in closedHere
+            if (closed && pc.size < 3) continue
+            val shut = closed && (pc.xs.last() != pc.xs[0] || pc.ys.last() != pc.ys[0])
+            val m = pc.size + (if (shut) 1 else 0)
+            if (m < 2 || pc.length() + (if (shut) Math.hypot(pc.xs[0] - pc.xs.last(), pc.ys[0] - pc.ys.last()) else 0.0) < 1.0) continue
+            out.add(CenterLine(LongArray(2 * m) { k -> val q = (k / 2) % pc.size; Math.round(if (k % 2 == 0) pc.xs[q] else pc.ys[q]) },
+                LongArray(m) { Math.round(pc.ws[it % pc.size]) }, wall = pc.wall))
         }
         return out
         }

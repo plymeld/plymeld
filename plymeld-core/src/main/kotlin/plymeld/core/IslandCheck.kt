@@ -11,6 +11,9 @@ import plymeld.geom.Polygon
  *    one), and the uncovered area wider than [floorUm] (within reach of a disc that wide fitting in it);
  *  - outside: how far beyond the island the farthest plastic lies;
  *  - doubled: the area two different lines both cover, each narrowed by half the flank and a further [slackUm].
+ * A line read so is narrower than the pre-print check's hole rule (HoleCheck) and the catalog's wall reading
+ * (WallCoverage) read it, at its full width: a sliver only this measure reads bare is accepted for now, an open
+ * inconsistency (decision 63).
  */
 object IslandCheck {
     /** [cellUm]: the grid's cell it was read on (each figure is good to about a cell). */
