@@ -38,6 +38,16 @@ class RenderRequest(
     val layersAtZ: List<Double> = emptyList(),
     val layerRanges: List<IntRange> = emptyList(),
     val layerStep: Int? = null,
+    val cutZ: List<Double> = emptyList(),
+    val cutY: List<Double> = emptyList(),
+    val cutX: List<Double> = emptyList(),
+    /** Each `--cut-line`: x0, y0, x1, y1. */
+    val cutLine: List<DoubleArray> = emptyList(),
+    /** Each `--cut-plane`: a point and a direction. */
+    val cutPlane: List<Pair<DoubleArray, DoubleArray>> = emptyList(),
+    val cutDepth: Double? = null,
+    val zRange: ClosedFloatingPointRange<Double>? = null,
+    val heightStretch: Double? = null,
     // choosing lines
     val onlyObject: List<String> = emptyList(),
     val onlyPart: List<String> = emptyList(),
@@ -68,12 +78,20 @@ class RenderRequest(
     val facts: FileFacts = FileFacts(),
 ) {
     val listing: Boolean get() = listFeatures || listObjects
+    /** The cuts seen from the side (every cut but the level `--cut-z`, which is seen from above). */
+    val sideCuts: Boolean get() = cutY.isNotEmpty() || cutX.isNotEmpty() || cutLine.isNotEmpty() || cutPlane.any { Math.abs(it.second[2]) < 0.999999 * Math.sqrt(it.second.sumOf { v -> v * v }) }
+    val anyCut: Boolean get() = cutZ.isNotEmpty() || cutY.isNotEmpty() || cutX.isNotEmpty() || cutLine.isNotEmpty() || cutPlane.isNotEmpty()
+    /** Whether the run draws a layer picture: one asked for, or the middle layer when no view is. */
+    val layerViews: Boolean get() = layers.isNotEmpty() || layersAtZ.isNotEmpty() || layerRanges.isNotEmpty() || !anyCut
     val anyOnly: Boolean get() = onlyObject.isNotEmpty() || onlyPart.isNotEmpty() || onlyTool.isNotEmpty() || onlyFeature.isNotEmpty()
 
     /** The options given that draw or frame a picture, by their names, for a listing to refuse. */
     private fun pictureOptions(): List<String> = listOfNotNull(
         "--layer".takeIf { layers.isNotEmpty() }, "--layer-at-z".takeIf { layersAtZ.isNotEmpty() }, "--layer-range".takeIf { layerRanges.isNotEmpty() },
-        "--layer-step".takeIf { layerStep != null }, "--only-object".takeIf { onlyObject.isNotEmpty() }, "--only-part".takeIf { onlyPart.isNotEmpty() },
+        "--layer-step".takeIf { layerStep != null }, "--cut-z".takeIf { cutZ.isNotEmpty() }, "--cut-y".takeIf { cutY.isNotEmpty() },
+        "--cut-x".takeIf { cutX.isNotEmpty() }, "--cut-line".takeIf { cutLine.isNotEmpty() }, "--cut-plane".takeIf { cutPlane.isNotEmpty() },
+        "--cut-depth".takeIf { cutDepth != null }, "--z-range".takeIf { zRange != null }, "--height-stretch".takeIf { heightStretch != null },
+        "--only-object".takeIf { onlyObject.isNotEmpty() }, "--only-part".takeIf { onlyPart.isNotEmpty() },
         "--only-tool".takeIf { onlyTool.isNotEmpty() }, "--only-feature".takeIf { onlyFeature.isNotEmpty() }, "--others".takeIf { others != null },
         "--color-by".takeIf { colorBy != null }, "--line-width".takeIf { lineWidth != null }, "--show".takeIf { show.isNotEmpty() },
         "--layers-below".takeIf { layersBelow != null }, "--bed-window".takeIf { bedWindow != null }, "--around".takeIf { around != null },
@@ -104,6 +122,17 @@ class RenderRequest(
         if (pxPerMm != null && pxPerMm <= 0) out += "--px-per-mm must be more than 0"
         pictureSize?.let { (w, h) -> if (w < 16 || h < 16) out += "--picture-size ${w}x$h: a picture is at least 16 x 16 pixels" }
         if (layersBelow != null && layersBelow < 0) out += "--layers-below must be 0 or more (got $layersBelow)"
+        if (layersBelow != null && !layerViews) out += "--layers-below adds the layers under a layer picture, and the run draws none (only cuts): give --layer, --layer-at-z, or --layer-range with it"
+        if (show.isNotEmpty() && !layerViews) out += "--show marks a layer picture, and the run draws none (only cuts): give --layer, --layer-at-z, or --layer-range with it"
+        if (sameFrame && !layerViews) out += "--same-frame frames the run's layer pictures as one, and it draws none (only cuts): give --layer, --layer-at-z, or --layer-range with it"
+        if (cutDepth != null && !anyCut) out += "--cut-depth draws the lines along a cut's plane, and the run draws no cut: give --cut-z, --cut-y, --cut-x, --cut-line, or --cut-plane with it"
+        if (cutDepth != null && cutDepth <= 0) out += "--cut-depth must be more than 0 mm (got $cutDepth)"
+        if (zRange != null && !sideCuts) out += "--z-range limits the heights of a picture seen from the side, and the run draws none (layer pictures and --cut-z are seen from above): give --cut-y, --cut-x, --cut-line, or --cut-plane with it"
+        zRange?.let { if (it.endInclusive <= it.start) out += "--z-range Z0..Z1 needs Z1 above Z0" }
+        if (heightStretch != null && !sideCuts) out += "--height-stretch stretches the heights of a picture seen from the side, and the run draws none (layer pictures and --cut-z are seen from above): give --cut-y, --cut-x, --cut-line, or --cut-plane with it"
+        if (heightStretch != null && heightStretch <= 0) out += "--height-stretch must be more than 0 (1 is true proportions)"
+        for (l in cutLine) if (Math.hypot(l[2] - l[0], l[3] - l[1]) < 1e-9) out += "--cut-line ${l.joinToString(",")}: its two points are one; a line needs two"
+        for ((_, n) in cutPlane) if (n.all { Math.abs(it) < 1e-12 }) out += "--cut-plane: its direction is (0, 0, 0), which faces nowhere"
         sheet?.let { s ->
             val ext = s.fileName.toString().substringAfterLast('.', "").lowercase()
             val other = Format.entries.firstOrNull { it.ext == ext && it != format }

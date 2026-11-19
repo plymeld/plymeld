@@ -254,6 +254,17 @@ A check message gives a height and a point on the bed: `--layer-at-z` takes the 
 `--around` with `--span` draws the square of that side round the point, here with the seams marked.
 
 ```
+plymeld render part.gcode --cut-y 110 --z-range 0..6 --cut-depth 0.3
+```
+
+A cut through the print, seen from the side: each line crossing the plane is drawn as its bead's cross-section, so the
+walls, the layers, and how they meet show as they will be printed. `--cut-y` is seen from the front, `--cut-x` from the
+right, `--cut-line` along any line on the bed, and `--cut-plane` through any plane; `--cut-z` is a level plane seen from
+above, which meets a curved layer or a lowered line wherever its bead is. Heights are stretched so a layer is at least
+3 pixels tall (the caption gives the factor; `--height-stretch 1` keeps true proportions), `--z-range` draws only
+some heights, and `--cut-depth` adds the lines running beside the plane, lighter.
+
+```
 plymeld render part.gcode --layer-range 1..40 --layer-step 5 --same-frame --sheet layers.png
 ```
 

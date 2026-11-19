@@ -46,9 +46,14 @@ object Render {
         Files.createDirectories(dir)
         val written = ArrayList<Path>()
         val pictures = ArrayList<Pair<String, ByteArray>>()
-        val frames = if (req.sameFrame) ctx.sharedFrame(views) else null
+        val frames = if (req.sameFrame) ctx.sharedFrame(views.filterIsInstance<LayerView>()) else null
         for (v in views) {
-            val panel = ctx.layerPanel(v, frames, notes)
+            val panel = when (v) {
+                is LayerView -> ctx.layerPanel(v, frames, notes)
+                is CutZView -> ctx.cutZPanel(v, notes)
+                is CutView -> ctx.sectionPanel(v, notes)
+                else -> error("no picture for $v")
+            }
             val bytes = encode(listOf(panel), req)
             val path = dir.resolve(v.fileName + "." + req.format.ext)
             Files.write(path, bytes)
@@ -89,10 +94,13 @@ object Render {
     internal fun f(v: Double, d: Int = 2): String = String.format(Locale.ROOT, "%.${d}f", v)
 }
 
+/** One picture a run asks for: its file's name (without the extension) and its title on a sheet. */
+internal interface View { val fileName: String; val title: String }
+
 /** A picture of one layer from above (0-based [layer]). */
-internal class LayerView(val layer: Int, digits: Int) {
-    val fileName = "layer-" + (layer + 1).toString().padStart(maxOf(4, digits), '0')
-    val title = "layer ${layer + 1}"
+internal class LayerView(val layer: Int, digits: Int) : View {
+    override val fileName = "layer-" + (layer + 1).toString().padStart(maxOf(4, digits), '0')
+    override val title = "layer ${layer + 1}"
 }
 
 /** A rectangle of the bed, mm. */
@@ -238,10 +246,22 @@ internal class Context(val req: RenderRequest, val index: GcodeIndex) {
     }
 
     // ---- views
-    fun views(): List<LayerView> {
+    fun views(): List<View> {
         val n = index.layers.size
         val digits = n.toString().length
         val out = LinkedHashSet<Int>()
+        val cuts = ArrayList<View>()
+        for (z in req.cutZ) cuts += CutZView(z)
+        for (y in req.cutY) cuts += Cuts.y(y)
+        for (x in req.cutX) cuts += Cuts.x(x)
+        for (l in req.cutLine) cuts += Cuts.line(l[0], l[1], l[2], l[3])
+        for ((p, d) in req.cutPlane) {
+            val l = Math.sqrt(d.sumOf { it * it })
+            if (Math.abs(d[2]) >= 0.999999 * l) {
+                require(d[2] > 0) { "--cut-plane ${p.joinToString(",")}:${d.joinToString(",")}: a level plane facing down; a level cut is seen from above: --cut-z ${Layout.mm(p[2])}" }
+                cuts += CutZView(p[2])
+            } else cuts += Cuts.plane(p, d)
+        }
         for (k in req.layers) { require(k <= n) { "--layer $k: $name has $n layers (the first is 1)" }; out += k - 1 }
         for (z in req.layersAtZ) out += (index.layerNumberAtZ(z) ?: error("--layer-at-z ${Layout.mm(z)}: no layer of $name reaches that height (its top layer is at z ${Layout.mm(index.layers.last().z)} mm)")) - 1
         for (r in req.layerRanges) {
@@ -249,8 +269,8 @@ internal class Context(val req: RenderRequest, val index: GcodeIndex) {
             for (k in r.first..minOf(r.last, n) step (req.layerStep ?: 1)) out += k - 1
             if (r.last > n) notes += "--layer-range ${r.first}..${r.last}: $name has $n layers; drawn to layer $n"
         }
-        if (out.isEmpty()) out += (n - 1) / 2
-        return out.map { LayerView(it, digits) }
+        if (out.isEmpty() && cuts.isEmpty()) out += (n - 1) / 2
+        return out.map { LayerView(it, digits) } + cuts.distinctBy { it.fileName }
     }
 
     /** The layers a picture of [layer] reads: it, and those --layers-below adds. */
@@ -261,12 +281,12 @@ internal class Context(val req: RenderRequest, val index: GcodeIndex) {
         req.bedWindow?.let { return Frame(it[0], it[1], it[2], it[3]) }
         req.around?.let { (x, y) -> val s = req.span!! / 2; return Frame(x - s, y - s, x + s, y + s) }
         var x0 = Double.MAX_VALUE; var y0 = Double.MAX_VALUE; var x1 = -Double.MAX_VALUE; var y1 = -Double.MAX_VALUE
-        for (i in 0 until m.n) if (m.kind[i] == MoveSet.EXTRUDE && m.layer[i] == layer && chosen(m, i)) {
+        for (i in 0 until m.n) if (m.kind[i] == MoveSet.EXTRUDE && (layer < 0 || m.layer[i] == layer) && chosen(m, i)) {
             val w = beadWidth(m, i).takeIf { !it.isNaN() } ?: 0.0
             x0 = minOf(x0, m.x0[i] - w, m.x1[i] - w); x1 = maxOf(x1, m.x0[i] + w, m.x1[i] + w)
             y0 = minOf(y0, m.y0[i] - w, m.y1[i] - w); y1 = maxOf(y1, m.y0[i] + w, m.y1[i] + w)
         }
-        if (x0 > x1) { val l = index.layers[layer]; if (l.minX.isNaN()) return Frame(0.0, 0.0, 10.0, 10.0); x0 = l.minX; y0 = l.minY; x1 = l.maxX; y1 = l.maxY }
+        if (x0 > x1) { val l = index.layers.getOrNull(layer); if (l == null || l.minX.isNaN()) return Frame(0.0, 0.0, 10.0, 10.0); x0 = l.minX; y0 = l.minY; x1 = l.maxX; y1 = l.maxY }
         val pad = maxOf(1.0, 0.04 * maxOf(x1 - x0, y1 - y0))
         return Frame(x0 - pad, y0 - pad, x1 + pad, y1 + pad)
     }
@@ -279,7 +299,7 @@ internal class Context(val req: RenderRequest, val index: GcodeIndex) {
     fun closest(m: MoveSet, layer: Int, f: Frame): Double {
         val sp = ArrayList<Double>(); val len = ArrayList<Double>()
         for (i in 0 until m.n) {
-            if (m.kind[i] != MoveSet.EXTRUDE || m.layer[i] != layer || !chosen(m, i)) continue
+            if (m.kind[i] != MoveSet.EXTRUDE || (layer >= 0 && m.layer[i] != layer) || !chosen(m, i)) continue
             if (maxOf(m.x0[i], m.x1[i]) < f.x0 || minOf(m.x0[i], m.x1[i]) > f.x1 || maxOf(m.y0[i], m.y1[i]) < f.y0 || minOf(m.y0[i], m.y1[i]) > f.y1) continue
             val w = beadWidth(m, i); val h = heightOf(m, i)
             if (w.isNaN() || w <= 0) continue
@@ -355,6 +375,103 @@ internal class Context(val req: RenderRequest, val index: GcodeIndex) {
         if (!index.layerMarkers) caption += "Layers read from the heights the moves are laid at: the file marks none."
         if (top.empty) caption += "No line of this layer is chosen by the --only-... options."
         return Panel(dw, dh, caption, top.key(), s, plymeld.check.TechniqueRender.niceBar(frame.w), draw = { c, ox, oy -> top.draw(c, ox, oy, dw, dh) })
+    }
+
+    /** The picture of a level cut at [v]'s height, seen from above: each bead the plane crosses, as wide as it is there. */
+    fun cutZPanel(v: CutZView, notes: MutableList<String>): Panel {
+        val z = v.z; val d = req.cutDepth ?: 0.0
+        val layers = index.layers.filter { l -> !l.minZ.isNaN() && l.maxZ >= z - d && l.minZ <= z + maxOf(l.height, 0.0) + d }.map { it.index }
+        val (m, _) = MoveReader.read(index, layers) { _, _, a, _, _, b -> minOf(a, b) <= z + 5 + d && maxOf(a, b) >= z - d }
+        val cm = MoveSet(); val widths = ArrayList<Double>(); val nearFlags = ArrayList<Boolean>()
+        val from = java.util.TreeSet<Int>()
+        for (i in 0 until m.n) {
+            if (m.kind[i] != MoveSet.EXTRUDE) continue
+            val h = heightOf(m, i); val w0 = drawWidth(m, i).takeIf { !it.isNaN() } ?: beadWidth(m, i)
+            if (h.isNaN() || w0.isNaN()) continue
+            val za = m.z0[i]; val zb = m.z1[i]
+            // the part of the move whose bead (from the nozzle down its height) the plane crosses: the nozzle within [z, z + h]
+            var t0 = 0.0; var t1 = 1.0
+            if (Math.abs(zb - za) < 1e-12) { if (za < z || za > z + h) { t0 = 1.0; t1 = 0.0 } }
+            else { val ta = (z - za) / (zb - za); val tb = (z + h - za) / (zb - za); t0 = maxOf(0.0, minOf(ta, tb)); t1 = minOf(1.0, maxOf(ta, tb)) }
+            fun piece(a: Double, b: Double, width: Double, near: Boolean) {
+                val dx = m.x1[i] - m.x0[i]; val dy = m.y1[i] - m.y0[i]
+                cm.addFrom(m, i, m.x0[i] + a * dx, m.y0[i] + a * dy, za + a * (zb - za), m.x0[i] + b * dx, m.y0[i] + b * dy, za + b * (zb - za), m.e[i] * (b - a))
+                widths += width; nearFlags += near
+            }
+            if (t1 > t0 + 1e-12) {
+                val zc = za + (t0 + t1) / 2 * (zb - za)
+                piece(t0, t1, 2 * Cuts.halfWidthAt(w0, h, z - (zc - h)), false)
+                from += m.layer[i]
+            } else if (d > 0) {
+                // not crossing: within the depth when the bead's height range comes within it of the plane
+                val lo = minOf(za, zb) - h; val hi = maxOf(za, zb)
+                if (hi >= z - d && lo <= z + d) piece(0.0, 1.0, w0, true)
+            }
+        }
+        val frame = frameOf(cm, -1)
+        val spacing = closest(cm, -1, frame)
+        val what = "$name, ${v.title}"
+        val (s, resolved) = scale(frame, spacing, what, notes)
+        val asLines = resolved || req.allowUnresolved
+        val dw = maxOf(1, Math.round(frame.w * s).toInt()); val dh = maxOf(1, Math.round(frame.h * s).toInt())
+        val top = TopDrawing(this, cm, MarkSet(), -1, frame, s, asLines, widths.toDoubleArray(), nearFlags.toBooleanArray())
+        val layerWords = if (from.isEmpty()) "no layer's beads" else if (from.size == 1) "layer ${from.first() + 1}'s beads" else "beads of ${from.size} layers (${from.first() + 1} to ${from.last() + 1})"
+        val caption = ArrayList<String>()
+        caption += "$name: cut by the level plane z = ${Cuts.n3(z)} mm, seen from above"
+        caption += "Not a layer: it meets $layerWords, each drawn as wide as its bead is at that height (bead model). X across, Y up; ${Render.f(s, 2)} px per mm; " +
+            "bed X ${Render.f(frame.x0, 1)} to ${Render.f(frame.x1, 1)}, Y ${Render.f(frame.y0, 1)} to ${Render.f(frame.y1, 1)} mm."
+        caption += (if (asLines) "edges darker" else "each feature's area as a flat region with its outline (its lines ${Render.f(spacing, 3)} mm apart need ${Render.f(Render.LEGIBLE_PX / spacing, 1)} px per mm)") +
+            "; ${colorWords()}" + (if (d > 0) "; the beads within ${Layout.mm(d)} mm of the plane that it does not cross, lighter" else "") + top.extraWords() + "."
+        if (top.empty) caption += "No line crosses this plane" + (if (anyOnlyWords()) " among those the --only-... options choose." else ".")
+        return Panel(dw, dh, caption, top.key(), s, plymeld.check.TechniqueRender.niceBar(frame.w), draw = { c, ox, oy -> top.draw(c, ox, oy, dw, dh) })
+    }
+
+    private fun anyOnlyWords() = req.anyOnly
+
+    /** The picture of a cut seen from the side ([v]'s plane): each crossing bead's cross-section, heights stretched so a layer reads. */
+    fun sectionPanel(v: CutView, notes: MutableList<String>): Panel {
+        val pl = v.plane
+        val zr = req.zRange
+        val d = req.cutDepth
+        val layers = index.layers.filter { l -> !l.minZ.isNaN() && (zr == null || (l.maxZ >= zr.start && l.minZ - maxOf(l.height, 0.0) <= zr.endInclusive)) }.map { it.index }
+        val margin = (d ?: 0.0) + 1.0
+        val (m, _) = MoveReader.read(index, layers) { x0, y0, z0, x1, y1, z1 ->
+            val a = pl.dist(x0, y0, z0); val b = pl.dist(x1, y1, z1); a * b <= 0 || minOf(Math.abs(a), Math.abs(b)) <= margin }
+        val sd = SectionDrawing(this, m, v, d)
+        val ext = sd.extent()
+        var u0: Double; var u1: Double; var v0: Double; var v1: Double
+        if (ext == null) { u0 = 0.0; u1 = 10.0; v0 = 0.0; v1 = 1.0 } else { u0 = ext[0]; v0 = ext[1]; u1 = ext[2]; v1 = ext[3] }
+        val pad = maxOf(0.5, 0.03 * (u1 - u0))
+        u0 -= pad; u1 += pad
+        val vpad = maxOf(0.2, 0.03 * (v1 - v0)); v0 -= vpad; v1 += vpad
+        val heightUp = pl.vz > 0.999999
+        if (zr != null && heightUp) { v0 = zr.start - pl.pz; v1 = zr.endInclusive - pl.pz }
+        val spacing = sd.closest()
+        val what = "$name, ${v.title}"
+        val (s, resolved) = scale(Frame(u0, v0, u1, v1), spacing, what, notes)
+        val asLines = resolved || req.allowUnresolved
+        val hMin = sd.heightMin
+        var k = req.heightStretch ?: (if (hMin.isNaN()) 1.0 else maxOf(1.0, Render.LEGIBLE_PX / (hMin * s)))
+        val maxH = if (req.pictureSize != null) req.pictureSize.second.toDouble() else Render.MAX_PX.toDouble()
+        if (req.heightStretch == null && (v1 - v0) * s * k > maxH) {
+            k = maxOf(1.0, maxH / ((v1 - v0) * s))
+            notes += "$what: its heights stretched ${Render.f(k, 2)} times, all a picture ${maxH.toInt()} px tall holds: a layer ${Render.f(hMin, 2)} mm thick is drawn ${Render.f(hMin * s * k, 1)} px tall (--z-range draws fewer heights, taller)"
+        }
+        require((v1 - v0) * s * k <= Render.LIMIT_PX) { "$what would be ${Math.ceil((v1 - v0) * s * k).toInt()} px tall, more than ${Render.LIMIT_PX}: give a smaller --height-stretch, or --z-range" }
+        val dw = maxOf(1, Math.round((u1 - u0) * s).toInt()); val dh = maxOf(1, Math.round((v1 - v0) * s * k).toInt())
+        val ids = sd.moveIds
+        val coloring = Coloring(this, m, ids)
+        val caption = ArrayList<String>()
+        caption += "$name: cut by ${v.words}"
+        caption += "${v.axes}; ${Render.f(s, 2)} px per mm across; " +
+            (if (Math.abs(k - 1) < 1e-9) "heights in true proportion" else "heights drawn ${Render.f(k, 2)} times their true size") +
+            "; ${v.acrossName} ${Render.f(u0, 1)} to ${Render.f(u1, 1)}, ${if (heightUp && pl.pz == 0.0) "height" else "up"} ${Render.f(v0, 2)} to ${Render.f(v1, 2)} mm" +
+            (if (zr != null) " (--z-range)" else "") + "."
+        caption += "${ids.size} bead section(s): each line crossing the plane drawn as its bead's cross-section where the plane meets it (bead model; " +
+            (if (lineWidth == LineWidth.PLASTIC) "filament $diameterWords" else "its width as declared") + ")" + (if (asLines) ", outlined darker" else ", as flat regions with their outlines") +
+            "; ${colorWords()}" + (if (d != null) "; the lines within ${Layout.mm(d)} mm of the plane, from the side and lighter (${sd.alongCount})" else "") + onlyWords() + "."
+        return Panel(dw, dh, caption, coloring.key(), s, plymeld.check.TechniqueRender.niceBar(u1 - u0), s * k, plymeld.check.TechniqueRender.niceBar(v1 - v0),
+            draw = { c, ox, oy -> sd.draw(c, coloring::color, { u -> ox + (u - u0) * s }, { vv -> oy + (v1 - vv) * s * k }, asLines, dw, dh, ox, oy) })
     }
 
     fun onlyWords(): String {

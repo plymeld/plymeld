@@ -13,13 +13,20 @@ import java.awt.image.BufferedImage
  * darker outline instead.
  */
 internal class TopDrawing(
-    private val ctx: Context, private val m: MoveSet, private val marks: MarkSet, private val layer: Int,
+    private val ctx: Context, private val m: MoveSet, private val marks: MarkSet,
+    /** The layer drawn (0-based); -1 for a level cut, whose moves are its sections, of whichever layers they come from. */
+    private val layer: Int,
     private val f: Frame, private val s: Double, private val asLines: Boolean,
+    /** A level cut's width for each move (mm: the bead's width at the cut's height); null: the run's line width. */
+    private val widthOf: DoubleArray? = null,
+    /** A level cut's moves within --cut-depth of it but not crossing it, drawn lighter under the sections. */
+    private val nearOf: BooleanArray? = null,
 ) {
     private val req = ctx.req
     private val main = ArrayList<Int>()
     private val faint = ArrayList<Int>()
     private val below = ArrayList<Int>()
+    private val near = ArrayList<Int>()
     val empty: Boolean
     private var lo = Double.NaN
     private var hi = Double.NaN
@@ -31,10 +38,12 @@ internal class TopDrawing(
         for (i in 0 until m.n) {
             if (m.kind[i] != MoveSet.EXTRUDE) continue
             val ch = ctx.chosen(m, i)
+            val here = layer < 0 || m.layer[i] == layer
             when {
-                m.layer[i] == layer && ch -> main += i
-                m.layer[i] == layer && req.others == Others.FAINT -> faint += i
-                m.layer[i] < layer && ch -> below += i
+                nearOf != null && nearOf[i] -> if (ch) near += i
+                here && ch -> main += i
+                here && req.others == Others.FAINT -> faint += i
+                layer >= 0 && m.layer[i] < layer && ch -> below += i
             }
         }
         empty = main.isEmpty()
@@ -64,10 +73,11 @@ internal class TopDrawing(
     private fun py(y: Double, oy: Double) = oy + (f.y1 - y) * s
     private fun visible(i: Int, margin: Double) =
         !(maxOf(m.x0[i], m.x1[i]) < f.x0 - margin || minOf(m.x0[i], m.x1[i]) > f.x1 + margin || maxOf(m.y0[i], m.y1[i]) < f.y0 - margin || minOf(m.y0[i], m.y1[i]) > f.y1 + margin)
-    private fun widthPx(i: Int): Double { val w = ctx.drawWidth(m, i); return if (w.isNaN() || w <= 0) 1.0 else maxOf(1.0, w * s) }
+    private fun widthPx(i: Int): Double { val w = widthOf?.get(i) ?: ctx.drawWidth(m, i); return if (w.isNaN() || w <= 0) 1.0 else maxOf(1.0, w * s) }
 
     fun draw(c: Canvas, ox: Double, oy: Double, dw: Int, dh: Int) {
         if (asLines) {
+            strokes(c, near, ox, oy) { Cuts.lighter(color(it)) }
             strokes(c, below, ox, oy) { Palette.BELOW }
             strokes(c, faint, ox, oy) { Palette.CONTEXT }
             strokes(c, main, ox, oy, ::color)
@@ -116,28 +126,19 @@ internal class TopDrawing(
 
     /** Each feature's area as a flat region: the beads at their true width (at least a pixel), the region's edge darker. */
     private fun regions(c: Canvas, ox: Double, oy: Double, dw: Int, dh: Int) {
-        val img = BufferedImage(dw, dh, BufferedImage.TYPE_INT_ARGB)
-        val g = img.createGraphics()
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF)
-        fun bead(i: Int, col: Color) {
-            if (!visible(i, 1.0)) return
-            g.color = col
-            // a pixel and a half wider than the bead: neighbors closer than the pixels can show close up into one area,
-            // not a pattern of gaps
-            g.stroke = BasicStroke((widthPx(i) + 1.5).toFloat(), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
-            g.draw(Line2D.Double(px(m.x0[i], 0.0), py(m.y0[i], 0.0), px(m.x1[i], 0.0), py(m.y1[i], 0.0)))
-        }
-        for (i in below) bead(i, Palette.BELOW)
-        for (i in faint) bead(i, Palette.CONTEXT)
-        for (i in main) bead(i, color(i))
-        g.dispose()
-        val a = IntArray(dw * dh); img.getRGB(0, 0, dw, dh, a, 0, dw)
-        val out = a.copyOf()
-        for (y in 0 until dh) for (x in 0 until dw) {
-            val p = a[y * dw + x]
-            if ((p ushr 24) == 0) continue
-            val edge = x == 0 || y == 0 || x == dw - 1 || y == dh - 1 || a[y * dw + x - 1] != p || a[y * dw + x + 1] != p || a[(y - 1) * dw + x] != p || a[(y + 1) * dw + x] != p
-            if (edge) out[y * dw + x] = (0xFF shl 24) or (Palette.darker(Color(p and 0xFFFFFF), 0.55).rgb and 0xFFFFFF)
+        val out = Cuts.regions(dw, dh) { g ->
+            fun bead(i: Int, col: Color) {
+                if (!visible(i, 1.0)) return
+                g.color = col
+                // a pixel and a half wider than the bead: neighbors closer than the pixels can show close up into one area,
+                // not a pattern of gaps
+                g.stroke = BasicStroke((widthPx(i) + 1.5).toFloat(), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
+                g.draw(Line2D.Double(px(m.x0[i], 0.0), py(m.y0[i], 0.0), px(m.x1[i], 0.0), py(m.y1[i], 0.0)))
+            }
+            for (i in near) bead(i, Cuts.lighter(color(i)))
+            for (i in below) bead(i, Palette.BELOW)
+            for (i in faint) bead(i, Palette.CONTEXT)
+            for (i in main) bead(i, color(i))
         }
         c.image(out, dw, dh, Math.round(ox).toInt(), Math.round(oy).toInt())
     }
@@ -150,6 +151,7 @@ internal class TopDrawing(
     }
 
     private fun drawMarks(c: Canvas, ox: Double, oy: Double) {
+        if (layer < 0) return
         if (Show.TRAVELS in req.show) for (i in 0 until m.n) {
             if (m.kind[i] == MoveSet.EXTRUDE || m.layer[i] != layer || !ctx.chosenPlace(m.obj[i], m.tool[i]) || !visible(i, 1.0)) continue
             c.line(px(m.x0[i], ox), py(m.y0[i], oy), px(m.x1[i], ox), py(m.y1[i], oy), 1.0, TRAVEL)
@@ -173,8 +175,8 @@ internal class TopDrawing(
     fun extraWords(): String {
         val w = StringBuilder()
         w.append(ctx.onlyWords())
-        if (below.isNotEmpty() || (req.layersBelow ?: 0) > 0) w.append("; the ${req.layersBelow} layer(s) below in light gray")
-        if (req.show.isNotEmpty()) w.append("; marked: " + req.show.joinToString(", ") { markWords(it) })
+        if (layer >= 0 && (below.isNotEmpty() || (req.layersBelow ?: 0) > 0)) w.append("; the ${req.layersBelow} layer(s) below in light gray")
+        if (layer >= 0 && req.show.isNotEmpty()) w.append("; marked: " + req.show.joinToString(", ") { markWords(it) })
         return w.toString()
     }
 
@@ -198,8 +200,9 @@ internal class TopDrawing(
                 else k += KeyItem.Swatch(Palette.UNNAMED, "the file does not say")
         }
         if (faint.isNotEmpty()) k += KeyItem.Swatch(Palette.CONTEXT, "other lines")
+        if (near.isNotEmpty()) k += KeyItem.Swatch(Cuts.lighter(Palette.UNNAMED), "lighter: within --cut-depth, not crossing")
         if (below.isNotEmpty()) k += KeyItem.Swatch(Palette.BELOW, "layers below")
-        for (sh in req.show) k += when (sh) {
+        if (layer >= 0) for (sh in req.show) k += when (sh) {
             Show.TRAVELS -> KeyItem.Mark({ c, x, y -> c.line(x - 6, y, x + 6, y, 1.0, TRAVEL) }, "travel")
             Show.SEAMS -> KeyItem.Mark(::seamMark, "seam")
             Show.RETRACTIONS -> KeyItem.Mark(::retractMark, "retraction")

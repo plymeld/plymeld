@@ -2140,7 +2140,14 @@ sample pictures' way): the gaps shown are not in the print; a darker edge keeps 
 spacing for the scale: a scarf's ramp, laid on the wall at nearly no width, asked for 800 px per mm on a 30 mm part.
 Reading the whole file into memory: a file of hundreds of megabytes would need gigabytes for its moves.
 
-**Consequences.** Layer views, framing, choosing lines, coloring, marks, the sheet, PNG and SVG are built; cuts, the
+A cut draws each line crossing its plane as its bead's cross-section where the plane meets it: the bead model's section
+swept along the line and cut by the plane (an affine image of the section, so a line crossing at a slant is drawn as
+wide as the plane meets it); a line meeting the plane at less than 3 degrees runs along it and is drawn only within
+`--cut-depth`, from the side. A cut seen from the side has its heights stretched so the thinnest layer crossed is at
+least 3 px tall (the factor in the caption); a level cut (`--cut-z`) is seen from above, each bead whose height range it
+crosses drawn as wide as the bead is at that height, whichever layer laid it.
+
+**Consequences.** Layer views, cuts, framing, choosing lines, coloring, marks, the sheet, PNG and SVG are built; the
 outside and 3D views, two files compared, and the check's measures marked are decided and not built yet. `render-plate`
 and its pictures are unchanged; the techniques' sample pictures are unchanged (the bead width they read is the same
 number by the same formula). Tests on synthetic g-code only: RenderLayerTest (lines where they lie and nowhere else,
@@ -2148,4 +2155,7 @@ control: a line left out; widths from the plastic, control: as declared; arcs ag
 fewer than 0.1 % of pixels differing, control: a half circle, and the test seen to fail with the arc reader taken out;
 the lines `--only-object` chooses; the legibility rule's regions and `--span`; a file that marks no layers and names
 nothing; `--layer-at-z`; the sheet; the same bytes for the same options, PNG and SVG), RenderRefusalTest (every refusal,
-naming its options; control: each option accepted where it applies).
+naming its options; control: each option accepted where it applies), RenderCutTest (a cut through a box of two walls
+shows four bead sections a layer at the walls' places, three layers tall, control: one wall, two sections; the side
+each cut is seen from, control: a line drawn the other way; a level cut meets a lowered line of the layer above,
+control: a higher cut does not meet the layer below; `--cut-depth`; the cut options' refusals).

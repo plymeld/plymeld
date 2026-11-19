@@ -55,6 +55,9 @@ class SyntheticGcode(val diameter: Double = 1.75, val markers: Boolean = true, v
         for (k in 1..n) { val a = a0 + (if (cw) -sweep else sweep) * k / n; line(if (k == n) tx else cx + r * Math.cos(a), if (k == n) ty else cy + r * Math.sin(a), w) }
         return this
     }
+    /** A closed rectangular loop through its corners, [w] mm wide, started at (x0, y0). */
+    fun loop(x0: Double, y0: Double, x1: Double, y1: Double, w: Double): SyntheticGcode =
+        travel(x0, y0).line(x1, y0, w).line(x1, y1, w).line(x0, y1, w).line(x0, y0, w)
     fun text(): String = b.toString()
     fun write(p: Path): Path { java.nio.file.Files.writeString(p, b.toString()); return p }
 

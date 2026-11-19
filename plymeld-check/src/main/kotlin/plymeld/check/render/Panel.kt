@@ -45,7 +45,7 @@ internal object Layout {
     private fun place(p: Panel): Placed {
         val w = maxOf(p.drawW, MIN_W)
         val cap = ArrayList<Pair<String, Boolean>>()
-        for ((i, line) in p.caption.withIndex()) for (s in Canvas.wrap(line, w, if (i == 0) 14 else 13, i == 0)) cap += s to (i == 0)
+        for ((i, line) in p.caption.withIndex()) for (s in Canvas.wrap(if (i == 0) line else line.replaceFirstChar { it.uppercaseChar() }, w, if (i == 0) 14 else 13, i == 0)) cap += s to (i == 0)
         val widths = p.key.associateWith(::keyWidth)
         val rows = ArrayList<List<KeyItem>>(); var row = ArrayList<KeyItem>(); var used = 0
         for (k in p.key) { val kw = widths.getValue(k); if (row.isNotEmpty() && used + kw > w) { rows += row; row = ArrayList(); used = 0 }; row += k; used += kw }

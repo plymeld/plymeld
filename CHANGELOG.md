@@ -13,7 +13,11 @@ section the release's version and date.
 
 - `plymeld render FILE.gcode`: pictures of what any g-code file lays down, read from the file alone (no slicing, no
   printer). Layers seen from above (`--layer N`, the first layer 1; `--layer-at-z MM`; `--layer-range A..B` with
-  `--layer-step K`; the middle layer when no view is given), each line as wide as the plastic it lays (`--line-width
+  `--layer-step K`; the middle layer when no view is given) and cuts through it: `--cut-y MM` (seen from the front),
+  `--cut-x MM` (from the right), `--cut-line X0,Y0:X1,Y1`, and `--cut-plane PX,PY,PZ:NX,NY,NZ`, each line crossing the
+  plane drawn as its bead's cross-section, heights stretched so a layer is at least 3 px tall (`--height-stretch`),
+  `--z-range Z0..Z1` for some heights, `--cut-depth MM` for the lines beside the plane; `--cut-z MM`, a level plane seen
+  from above, each bead it crosses as wide as it is at that height. Each line as wide as the plastic it lays (`--line-width
   plastic`, the default; `declared`; `center`), colored by `--color-by` feature, tool, speed, flow, width, height, fan,
   temperature, order, or layer-time. `--only-object`, `--only-part`, `--only-tool`, and `--only-feature` choose lines,
   `--others faint` keeps the rest in gray; `--layers-below N` adds the layers under it; `--show` marks travels, seams,

@@ -43,6 +43,23 @@ class RenderCommand : CliktCommand(name = "render") {
         .convert { s -> Regex("""^\s*(\d+)\s*\.\.\s*(\d+)\s*$""").find(s)?.let { it.groupValues[1].toInt()..it.groupValues[2].toInt() } ?: fail("a range of layers A..B (e.g. 10..20), not '$s'") }.multiple()
     private val layerStep by option("--layer-step", metavar = "K", help = "with --layer-range: every K-th layer of the range, from its first (default 1, every layer)").int()
 
+    private val cutZ by option("--cut-z", metavar = "MM", help = "draw a level plane at this height (mm), seen from above: each bead it crosses as wide as the bead is there. Not a layer: where layers are curved or lines lowered, it meets several; repeatable, or a list")
+        .convert { s -> s.split(',').map { length(it) ?: fail("a height in mm, not '$it'") } }.multiple()
+    private val cutY by option("--cut-y", metavar = "MM", help = "draw the vertical plane at this Y (mm, bed coordinates), seen from the front: X across, height up; each line crossing it as its bead's cross-section; repeatable, or a list")
+        .convert { s -> s.split(',').map { length(it) ?: fail("a Y in mm, not '$it'") } }.multiple()
+    private val cutX by option("--cut-x", metavar = "MM", help = "draw the vertical plane at this X (mm, bed coordinates), seen from the right: the bed's front at the picture's left, height up; repeatable, or a list")
+        .convert { s -> s.split(',').map { length(it) ?: fail("an X in mm, not '$it'") } }.multiple()
+    private val cutLine by option("--cut-line", metavar = "X0,Y0:X1,Y1", help = "draw the vertical plane along this line on the bed (mm), the first point at the picture's left, height up; repeatable")
+        .convert { s -> numbers(s, listOf(2, 2)) ?: fail("a line on the bed, X0,Y0:X1,Y1 in mm, not '$s'") }.multiple()
+    private val cutPlane by option("--cut-plane", metavar = "PX,PY,PZ:NX,NY,NZ", help = "draw any plane, by a point on it (mm) and the direction it faces, seen from the side that direction points to; a level plane facing up is --cut-z; repeatable")
+        .convert { s -> numbers(s, listOf(3, 3)) ?: fail("a point and a direction, PX,PY,PZ:NX,NY,NZ, not '$s'") }.multiple()
+    private val cutDepth by option("--cut-depth", metavar = "MM", help = "with a cut: also the lines within this distance (mm) of its plane that do not cross it, drawn lighter (from the side in a vertical cut, so a wall the cut follows shows as a wall)")
+        .convert { length(it) ?: fail("a length in mm, not '$it'") }
+    private val zRange by option("--z-range", metavar = "Z0..Z1", help = "with a cut seen from the side: only these heights (mm). Not with layer pictures or --cut-z alone")
+        .convert { s -> Regex("""^\s*([-0-9.]+)\s*(?:mm)?\s*\.\.\s*([-0-9.]+)\s*(?:mm)?\s*$""").find(s)?.let { (it.groupValues[1].toDoubleOrNull() ?: fail("a range of heights Z0..Z1 in mm, not '$s'"))..(it.groupValues[2].toDoubleOrNull() ?: fail("a range of heights Z0..Z1 in mm, not '$s'")) } ?: fail("a range of heights Z0..Z1 in mm (e.g. 2..4.5), not '$s'") }
+    private val heightStretch by option("--height-stretch", metavar = "FACTOR", help = "with a cut seen from the side: how many times taller than true its heights are drawn (1: true proportions). Default: enough for a layer to be at least 3 px tall; the factor is in the caption")
+        .convert { it.toDoubleOrNull() ?: fail("a number (1 is true proportions), not '$it'") }
+
     // choosing lines
     private val onlyObject by option("--only-object", metavar = "NAME", help = "only the lines of this object, named as the file names it (--list-objects); repeatable: any of them").multiple()
     private val onlyPart by option("--only-part", metavar = "NAME", help = "only the lines of this part, named as the file names it; repeatable: any of them. Refused for a file that names no parts").multiple()
@@ -60,12 +77,12 @@ class RenderCommand : CliktCommand(name = "render") {
     private val lineWidth by option("--line-width", metavar = "plastic|declared|center", help = "how wide each line is drawn: as wide as the plastic it lays, by the bead model (default; needs the filament's diameter, " +
         "from the file or its source block), as wide as the file declares (;WIDTH:), or as a thin center line")
         .choice(*LineWidth.entries.map { it.word }.toTypedArray())
-    private val show by option("--show", metavar = "MARK", help = "add marks: travels, seams, retractions, starts, or tool-changes; repeatable")
+    private val show by option("--show", metavar = "MARK", help = "with a layer picture: add marks: travels, seams, retractions, starts, or tool-changes; repeatable")
         .choice(*Show.entries.map { it.word }.toTypedArray()).multiple()
     private val layersBelow by option("--layers-below", metavar = "N", help = "with a layer picture: also the N layers under it, in light gray (default 0)").int()
 
     // framing and size
-    private val bedWindow by option("--bed-window", metavar = "X0,Y0,X1,Y1", help = "draw only this rectangle of the bed (mm, in the g-code's coordinates). Not with --around")
+    private val bedWindow by option("--bed-window", metavar = "X0,Y0,X1,Y1", help = "draw only this rectangle of the bed (mm, in the g-code's coordinates); a cut seen from the side, only where its plane crosses the rectangle. Not with --around")
         .convert { s -> s.split(',').map { length(it) ?: fail("four bed coordinates in mm, X0,Y0,X1,Y1, not '$s'") }.also { if (it.size != 4) fail("four bed coordinates in mm, X0,Y0,X1,Y1, not '$s'") }.toDoubleArray() }
     private val around by option("--around", metavar = "X,Y", help = "draw only the square of side --span centered on this point of the bed (mm, in the g-code's coordinates, as plymeld's check messages give them); needs --span. Not with --bed-window")
         .convert { s -> s.split(',').map { length(it) ?: fail("a point X,Y in mm, not '$s'") }.also { if (it.size != 2) fail("a point X,Y in mm, not '$s'") }.let { it[0] to it[1] } }
@@ -88,6 +105,7 @@ class RenderCommand : CliktCommand(name = "render") {
 
     override fun help(context: com.github.ajalt.clikt.core.Context) =
         "Draw what any g-code file lays down, read from the file alone: its layers from above (--layer, --layer-at-z, --layer-range; the middle layer by default), " +
+            "cuts through it (--cut-z from above; --cut-y, --cut-x, --cut-line, --cut-plane from the side, each line crossing the plane as its bead's cross-section), " +
             "the lines chosen by object, tool, or feature (--only-...), colored by feature, tool, speed, flow, width, height, fan, temperature, order, or layer time, " +
             "each line as wide as the plastic it lays, framed round a point (--around, --span) or a window of the bed, at a scale that keeps the closest lines 3 px apart. " +
             "Every picture's caption says what it shows. Lengths in mm, the first layer 1, tools by the file's own numbers."
@@ -95,6 +113,8 @@ class RenderCommand : CliktCommand(name = "render") {
     override fun run() {
         val req = RenderRequest(file,
             layers = layer.flatten(), layersAtZ = layerAtZ.flatten(), layerRanges = layerRange, layerStep = layerStep,
+            cutZ = cutZ.flatten(), cutY = cutY.flatten(), cutX = cutX.flatten(), cutLine = cutLine,
+            cutPlane = cutPlane.map { it.copyOfRange(0, 3) to it.copyOfRange(3, 6) }, cutDepth = cutDepth, zRange = zRange, heightStretch = heightStretch,
             onlyObject = onlyObject, onlyPart = onlyPart, onlyTool = onlyTool.flatten(), onlyFeature = onlyFeature,
             others = others?.let { o -> Others.entries.first { it.word == o } },
             colorBy = colorBy?.let { ColorBy.of(it) }, lineWidth = lineWidth?.let { w -> LineWidth.entries.first { it.word == w } },
@@ -105,6 +125,15 @@ class RenderCommand : CliktCommand(name = "render") {
             listFeatures = listFeatures, listObjects = listObjects, facts = facts(file))
         val r = Render.run(req) { echo(it) }
         for (n in r.notes) echo("note: $n", err = printFiles)
+    }
+
+    /** Groups of numbers split by ':' then ',' with the counts [sizes] (lengths may end in "mm"), flattened; null when they do not fit. */
+    private fun numbers(s: String, sizes: List<Int>): DoubleArray? {
+        val groups = s.split(':')
+        if (groups.size != sizes.size) return null
+        val out = ArrayList<Double>()
+        for ((g, n) in groups.zip(sizes)) { val vs = g.split(',').map { length(it) ?: return null }; if (vs.size != n) return null; out += vs }
+        return out.toDoubleArray()
     }
 
     /** A length in mm: a bare number or one ending in "mm". */

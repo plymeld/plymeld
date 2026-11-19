@@ -31,6 +31,15 @@ class MoveSet {
         n++
     }
 
+    /** A piece of [src]'s move [i], from (ax, ay, az) to (bx, by, bz), feeding [fed] mm: every other value as the move's. */
+    fun addFrom(src: MoveSet, i: Int, ax: Double, ay: Double, az: Double, bx: Double, by: Double, bz: Double, fed: Double) {
+        if (n == x0.size) grow()
+        x0[n] = ax; y0[n] = ay; z0[n] = az; x1[n] = bx; y1[n] = by; z1[n] = bz; e[n] = fed; kind[n] = src.kind[i]
+        feature[n] = src.feature[i]; obj[n] = src.obj[i]; tool[n] = src.tool[i]; layer[n] = src.layer[i]
+        wDecl[n] = src.wDecl[i]; hDecl[n] = src.hDecl[i]; fan[n] = src.fan[i]; temp[n] = src.temp[i]; speed[n] = src.speed[i]
+        n++
+    }
+
     fun lengthXY(i: Int): Double = Math.hypot(x1[i] - x0[i], y1[i] - y0[i])
 
     companion object { const val EXTRUDE: Byte = 0; const val TRAVEL: Byte = 1; const val WIPE: Byte = 2 }
