@@ -44,8 +44,13 @@ import javax.imageio.ImageIO
  * Everything is read from the g-code text, nothing from plymeld's own model of the plate.
  */
 object PlateRender {
-    /** [layerZ]: the layer for panel A (the melt steps' strips are drawn over it, but those of a step whose floor it is); default 10 mm. */
-    fun render(gcodeFile: Path, outFile: Path, layerZ: Double? = null, log: (String) -> Unit = ::println) {
+    /**
+     * [layerZ]: the layer for panel A (the melt steps' strips are drawn over it, but those of a step whose floor it is); default 10 mm.
+     * [window]: panel A shows only this part of the bed (mm: x0, y0, x1, y1), magnified to fill it, so a large plate's lines are
+     * resolved; default: the whole plate.
+     */
+    fun render(gcodeFile: Path, outFile: Path, layerZ: Double? = null, window: DoubleArray? = null, log: (String) -> Unit = ::println) {
+        require(window == null || (window.size == 4 && window[2] > window[0] && window[3] > window[1])) { "a window is x0, y0, x1, y1 (mm), x1 above x0 and y1 above y0" }
         System.setProperty("java.awt.headless", "true")
         val gcodePath = gcodeFile.toString(); val outPath = outFile.toString()
         val pickZ = layerZ ?: 10.0
@@ -292,11 +297,16 @@ object PlateRender {
         val flowLo = colored.minOf { it.flow }; val flowHi = colored.maxOf { it.flow }
         run {
             val ax = 40; val ay = 92; val aw = 1060; val ah = 400
-            val s = minOf(aw / (maxX - minX + 4), ah / (maxY - minY + 4))
-            fun px(x: Double) = ax + (x - minX + 2) * s
-            fun py(y: Double) = ay + ah - (y - minY + 2) * s
-            g.color = Color.BLACK; g.drawString("A  top view, " + (if (meltFloorZ != null) "z %.2f mm and up: the floors and labels gray, the rows by flow".format(layerZ) else "layer at z ${"%.2f".format(layerZ)} mm") + ":", ax, ay - 28)
+            // the part of the bed shown: the plate (2 mm round it), or the window asked for, magnified to fill the panel
+            val (wx0, wy0, wx1, wy1) = window?.toList() ?: listOf(minX - 2, minY - 2, maxX + 2, maxY + 2)
+            val s = minOf(aw / (wx1 - wx0), ah / (wy1 - wy0))
+            fun px(x: Double) = ax + (x - wx0) * s
+            fun py(y: Double) = ay + ah - (y - wy0) * s
+            g.color = Color.BLACK; g.drawString("A  top view, " + (if (meltFloorZ != null) "z %.2f mm and up: the floors and labels gray, the rows by flow".format(layerZ) else "layer at z ${"%.2f".format(layerZ)} mm") +
+                (if (window != null) ", bed x %.1f..%.1f, y %.1f..%.1f mm (%.1f px/mm)".format(wx0, wx1, wy0, wy1, s) else "") + ":", ax, ay - 28)
             g.drawString("each line colored by its volumetric flow, at its declared width", ax + 22, ay - 10)
+            val clip = g.clip
+            if (window != null) { g.clipRect(ax, ay, aw, ah); g.color = Color(120, 120, 128); g.drawRect(ax, ay, aw - 1, ah - 1) }
             for (m in layer) {
                 g.stroke = BasicStroke((m.w * s).toFloat(), BasicStroke.CAP_BUTT, BasicStroke.JOIN_ROUND)   // each line its declared width
                 g.color = if (strips.isNotEmpty() && !stripRx.matches(m.cell)) Color(185, 185, 190) else ramp((m.flow - flowLo) / maxOf(1e-9, flowHi - flowLo), viridis)
@@ -330,6 +340,7 @@ object PlateRender {
                 g.drawString("each labeled nozzle Z (mm) over speed (mm/s), read from its moves", tx.toInt(), ty.toInt() + 10)
                 g.font = Font("SansSerif", Font.PLAIN, 15)
             }
+            g.clip = clip
             // color bar
             g.stroke = BasicStroke(1f)
             for (i in 0 until 300) { g.color = ramp(i / 299.0, viridis); g.fillRect(ax + 700 + i, ay + ah + 30, 1, 18) }

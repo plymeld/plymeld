@@ -29,11 +29,12 @@ import javax.imageio.ImageIO
  *   - labels: wording and numbers parsed from the plate's .md page; a phrase the page no longer
  *     contains fails the render instead of drifting
  *   - anchors: each leader ends on a pixel that the depth buffer shows belongs to that region
- * Two kinds of picture, told apart by the page's title: the plates made by band of height ("# Melt plate",
- * "# Filament plate": a region per test, bands by height) and the first-layer plate ("# First-layer
+ * Three kinds of picture, told apart by the page's title: the plates made by band of height ("# Melt plate",
+ * "# Filament plate": a region per test, bands by height), the first-layer plate ("# First-layer
  * plate": one layer, a region per column of tiles, colored cool to warm by temperature, its frame darker, the base with its labels, and the prime
  * lines; each column's temperature is read from the g-code too and must agree with the page's column
- * table, or the render fails).
+ * table, or the render fails), and the thermal plate ("# Thermal plate": a region per section and gauge, at one temperature,
+ * so no bands and no ruler; each region's words from the page's description of the plate).
  */
 object PlateIso {
     fun render(gcodeFile: Path, pageFile: Path, outFile: Path, log: (String) -> Unit = ::println) {
@@ -42,6 +43,9 @@ object PlateIso {
         val md = File(mdPath).readText()
         val mdLines = md.lines()
         val firstLayerKind = mdLines.first().startsWith("# First-layer plate")
+        // the thermal plate: a region per section and gauge, one temperature (no bands of temperature, no ruler)
+        val thermalKind = mdLines.first().startsWith("# Thermal plate")
+        val banded = !firstLayerKind && !thermalKind
 
         // ================================================================ g-code
         // [temp]: the nozzle target in force when it printed; [waited]: a wait (M109) for that target came after it was set
@@ -177,7 +181,7 @@ object PlateIso {
             else -> null
         }
         val families = listOf("post", "melt", "ledges", "bridges", "fit", "tubes", "locks")
-        val present = if (firstLayerKind) emptyList() else
+        val present = if (!banded) emptyList() else
             segs.mapNotNull { filamentKey(it.cell.removePrefix("adhesion:"))?.first }.toSet().let { p -> families.filter { it in p } }
         fun famIndex(key: String) = present.indexOf(key)
         fun filamentRegions() = present.map { key -> when (key) {
@@ -250,9 +254,57 @@ object PlateIso {
                 Region("Prime lines", Color(120, 120, 128), listOf(
                 mdHas("The prime line") + ": one per column, along the base's front, laid after the wait for that column's temperature. " + mdHas("It is not read") + "."), listOf("prime"))
         }
-        val regions = if (firstLayerKind) firstLayerRegions() else filamentRegions()
+        // the thermal plate: a region per section and gauge, its words from the page's "The plate" list
+        fun pageFind(rx: String, what: String): MatchResult = Regex(rx).find(md) ?: error("the .md page no longer says $what")
+        val thermalOrder = listOf("strands", "feeler", "fins", "compass", "lag", "pins", "card", "base")
+        fun thermalRegions(): List<Region> {
+            val st = pageFind("""\*\*The strands\*\* \(front\): (\d+ rows, front to back at [0-9%, ]+?), each duty""", "the strand rows")
+            val sp = pageFind("""per span \(([0-9., ]+) mm, shortest on the left""", "the spans")
+            val fe = pageFind("""its steps ([0-9., ]+) mm thick from its thin end, allowing a sag of ([0-9., ]+) mm""", "the feeler's steps")
+            val fi = pageFind("""\*\*The fins\*\* \(middle left\): (\d+) rows front to back at ([0-9%, ]+?) \(each fin's own lines at its row's duty\), (\d+) fins in each, left to right at ([0-9.s, ]+?) \(raised""", "the fins")
+            val co = pageFind("""with (\d+) identical tabs round it, each a ledge stepping out ([0-9.]+ mm a layer \([0-9]+ degrees from vertical\))""", "the compass's tabs")
+            val lg = pageFind("""the fan is off until a mark ([0-9.]+ mm) along""", "the lag wall's mark")
+            val pn = pageFind("""(\d+) round pins, ([0-9., ]+) mm across left to right, each on a pedestal ([0-9.]+ mm) across up to ([0-9.]+ mm) above the slab, their test lengths above in \*\*(\d+ bands of [0-9.]+ mm)\*\*, each band's layers at ([0-9.s, ]+?) from the bottom""", "the pins")
+            val cd = pageFind("""each its pin's diameter plus ([0-9.]+ mm) \(([0-9., ]+) mm\)""", "the ring card's holes")
+            return listOf(
+                Region("Strand bridges", Color(38, 108, 205), listOf("how long a bead stays soft, by fan duty", "${st.groupValues[1]}; spans ${sp.groupValues[1]} mm, shortest on the left",
+                    mdHas("one single line laid across each gap at the piers' top at the bridge speed") + "; the fan waited for, parked, before each row"), listOf("strands", "piers")),
+                Region("Feeler (gauge)", Color(150, 100, 45), listOf("steps ${fe.groupValues[1]} mm thick from the thin end (sags ${fe.groupValues[2]} mm), a tally of notches each",
+                    "slides under the strands; its flat back lies across the compass's posts", "joined to the slab by two break-off tabs"), listOf("feeler")),
+                Region("Bond fins", Color(148, 78, 190), listOf("the bond against how cold the layer below was", "${fi.groupValues[1]} rows at ${fi.groupValues[2]}, ${fi.groupValues[3]} fins each at ${fi.groupValues[4]} a layer",
+                    "each fin's notched band at its own height: " + mdHas("while its band prints, every layer of the plate takes that fin's time"), "a stop post behind each fin"), listOf("fins", "posts")),
+                Region("Fan compass", Color(18, 150, 165), listOf("fan reach and shadowing by direction", "${co.groupValues[1]} tabs stepping out ${co.groupValues[2]}, each tip between two reference posts",
+                    "directions " + mdHas("1 toward the front, counted clockwise from above")), listOf("tabs", "post")),
+                Region("Fan lag wall", Color(200, 40, 40), listOf("how long a fan command takes to act", "outer line laid " + mdHas("always left to right") + "; the fan switches ${lg.groupValues[1]} along: lower half off to full, upper half full to off",
+                    "notches in the slab's back edge from the switch on, one every " + pageFind("""one every ([0-9.]+ mm) after it""", "the lag notches' pitch").groupValues[1]), listOf("lag")),
+                Region("Pin towers", Color(215, 85, 35), listOf("the real minimum layer time", "${pn.groupValues[1]} pins ${pn.groupValues[2]} mm on ${pn.groupValues[3]} pedestals to ${pn.groupValues[4]}",
+                    "${pn.groupValues[5]} at ${pn.groupValues[6]} a layer, shortest lowest; the band stair beside them"), listOf("pins", "stair")),
+                Region("Ring card (gauge)", Color(120, 80, 60), listOf("holes ${cd.groupValues[2]} mm (each pin + ${cd.groupValues[1]}), each labeled", "joined to the slab by two break-off tabs"), listOf("card")),
+                Region("Base and labels", Color(150, 150, 158), listOf("one slab under every section, its " + mdHas("chamfered corner at your front-left") + " (the origin)",
+                    "raised labels: the value each names"), listOf("labels")),
+            )
+        }
+        fun thermalKey(c: String): Pair<String, String>? = when {
+            c == "base thermal" -> "base" to "base"
+            c == "prime line" -> "base" to "prime"       // the writer's own, in front of the plate
+            c.startsWith("label ") -> "base" to "labels"
+            c.startsWith("pier ") -> "strands" to "piers"
+            c.startsWith("strand ") -> "strands" to "strands"
+            c == "feeler" || c.startsWith("break-off feeler") -> "feeler" to "feeler"
+            c == "card" || c.startsWith("card label") || c.startsWith("break-off card") -> "card" to "card"
+            c.startsWith("fin post") -> "fins" to "posts"
+            c.startsWith("fin ") -> "fins" to "fins"
+            c == "compass post" || c.startsWith("compass reference") -> "compass" to "post"
+            c.startsWith("compass tab") -> "compass" to "tabs"
+            c.startsWith("lag ") -> "lag" to "lag"
+            c.startsWith("pedestal ") || c == "stair" -> "pins" to "stair"
+            c.matches(Regex("pin \\d+( core)?")) -> "pins" to "pins"
+            else -> null
+        }
+        val regions = when { firstLayerKind -> firstLayerRegions(); thermalKind -> thermalRegions(); else -> filamentRegions() }
         // a CELL name (without its "adhesion:" first-layer prefix) -> (region index, sub-part)
         fun classify(cell: String): Pair<Int, String>? {
+            if (thermalKind) { val (r, sub) = thermalKey(cell.removePrefix("adhesion:")) ?: return null; return thermalOrder.indexOf(r) to sub }
             if (firstLayerKind) {
                 val m = Regex("block (\\d+) (prime|base \\d+|mark \\d+|speed \\d+ \\d+|height \\d+\\.\\d+ \\d+|tile \\d+\\.\\d+|frame \\d+\\.\\d+ \\d+|border \\d+)").matchEntire(cell) ?: return null
                 val k = m.groupValues[1].toInt() - 1; val part = m.groupValues[2]
@@ -307,7 +359,7 @@ object PlateIso {
         val rulerX = minX - 26; val rulerY = minY + 2                 // left of the front row, clear of its first item (a tube)
         val corners = ArrayList<DoubleArray>()
         for (x in listOf(minX - 6, maxX + 6)) for (y in listOf(minY - 6, maxY + 6)) for (z in listOf(0.0, maxZ)) corners += doubleArrayOf(x, y, z)
-        if (!firstLayerKind) corners += doubleArrayOf(rulerX, rulerY, 0.0)       // the first-layer plate has no bands: no ruler
+        if (banded) corners += doubleArrayOf(rulerX, rulerY, 0.0)       // the first-layer and thermal plates have no bands: no ruler
         val uLo = corners.minOf { dot(right, it[0], it[1], it[2]) }; val uHi = corners.maxOf { dot(right, it[0], it[1], it[2]) }
         val vLo = corners.minOf { dot(up, it[0], it[1], it[2]) }; val vHi = corners.maxOf { dot(up, it[0], it[1], it[2]) }
 
@@ -330,7 +382,7 @@ object PlateIso {
             return when (g.sub) { "base" -> mix(c, WHITE, 0.72); "pedestals", "pedestal", "bodies" -> mix(c, GRAY, 0.5); "floors" -> mix(c, GRAY, 0.3); "marker" -> darker(c, 0.6); "frame", "border" -> darker(c, 0.35); "decks" -> mix(c, WHITE, 0.6); else -> c } }   // decks pale: each terrace step stands out from the piers; the melt bodies gray under their bright tops
         // the band tint: odd bands base (a little darker), even bands lighter, the change between bands grayed
         fun bandTint(c: Color, layer: Double): Color {
-            if (layer == firstLayerZ) return c
+            if (layer == firstLayerZ || !banded) return c
             val b = bandOf[layer] ?: return mix(c, Color(170, 170, 172), 0.7)
             return if (b % 2 == 1) darker(c, 0.86) else mix(c, WHITE, 0.32)
         }
@@ -406,7 +458,7 @@ object PlateIso {
         g.color = BG; g.fillRect(0, 0, W, H)
         // the bed under the plate, with a 10 mm grid
         run {
-            val bx0 = if (firstLayerKind) minX - 6 else minOf(minX - 6, rulerX - 4); val bx1 = maxX + 6; val by0 = minY - 6; val by1 = maxY + 6
+            val bx0 = if (!banded) minX - 6 else minOf(minX - 6, rulerX - 4); val bx1 = maxX + 6; val by0 = minY - 6; val by1 = maxY + 6
             val p = Polygon(); for ((x, y) in listOf(bx0 to by0, bx1 to by0, bx1 to by1, bx0 to by1)) p.addPoint(sx(x, y, 0.0).toInt(), sy(x, y, 0.0).toInt())
             g.color = Color(229, 230, 234); g.fillPolygon(p)
             g.color = Color(216, 217, 222); g.stroke = BasicStroke(1f)
@@ -493,7 +545,7 @@ object PlateIso {
         }
         // the band ruler (drawn below) stands on the bed in front of the post; its key is a callout of its own
         fun rulerPt(z: Double) = sx(rulerX, rulerY, z) to sy(rulerX, rulerY, z)
-        if (!firstLayerKind && bands.isNotEmpty()) run {
+        if (banded && bands.isNotEmpty()) run {
             val (rx, ry) = rulerPt(0.0)                    // the leader meets the ruler's foot, clear of its numbers
             val body = bands.map { b -> "band ${b.n}: Z %.1f-%.1f (%d layers), %d C, fan %d %%".format(b.zLo, b.zHi, b.layers.size, b.temp, b.fan) } +
                 (if (layerList.any { it.z > bands.first().zLo && it.z !in bandOf }) listOf("pale on the ruler and the plate: temperature changing between bands, not read") else emptyList()) +
@@ -540,7 +592,7 @@ object PlateIso {
             log("anchors aimed at: " + labels.withIndex().filter { it.value.gids.isNotEmpty() }.joinToString { (i, l) -> "${l.name}=" + (if (bestPick[i] == 0) "centroid" else "near end") })
         }
         // ---- the band ruler, from the g-code's layers: band numbers beside it, the key is its callout
-        if (!firstLayerKind && bands.isNotEmpty()) run {
+        if (banded && bands.isNotEmpty()) run {
             val (bx, by) = rulerPt(0.0)
             g.stroke = BasicStroke(1.5f); g.color = Color(120, 120, 128); val (tx, ty) = rulerPt(maxZ); g.draw(Line2D.Double(bx, by, tx, ty))
             g.stroke = BasicStroke(10f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER)
@@ -592,7 +644,11 @@ object PlateIso {
         g.color = Color(25, 25, 30); g.font = Font("SansSerif", Font.BOLD, 26)
         g.drawString(mdLines.first().removePrefix("# ").substringBefore(":") + ", isometric: ${File(gcodePath).name}", 20, 42)
         g.font = Font("SansSerif", Font.PLAIN, 16); g.color = Color(70, 70, 78)
-        if (firstLayerKind) {
+        if (thermalKind) {
+            g.drawString("Geometry read from the g-code (every extrusion inside a ; CELL, all ${layerList.size} layers, z drawn ${ZS.toInt()}x); labels from ${File(mdPath).name}.", 20, 70)
+            g.drawString("Viewed from the front left; one color per section and gauge (the slab and its labels gray). The question: " + mdHas("how does this filament cool on this machine?"), 20, 92)
+        }
+        else if (firstLayerKind) {
             g.drawString("Geometry read from the g-code (every extrusion inside a ; CELL: one layer, each tile at its own height, a frame (dark) a layer over the walls where the plate has one, z drawn ${ZS.toInt()}x); labels from ${File(mdPath).name}.", 20, 70)
             g.drawString("Viewed from the front left; a color per column, cool to warm in print order; the base and its labels gray. It measures " + mdHas("the nozzle height, speed, and first-layer temperature a first layer goes down well at") + ".", 20, 92)
         }
@@ -608,7 +664,8 @@ object PlateIso {
             groups.withIndex().filter { it.value.region == i }.joinToString { (gi, gr) -> "${gr.sub}=${segGroup.count { it == gi }}" }))
         require(segCount.all { it > 0 }) { "a region has no segments" }
         log("unmapped cells: " + (if (unmapped.isEmpty()) "none" else unmapped.joinToString()))
-        require(unmapped.isEmpty() || !firstLayerKind) { "cells the first-layer plate should not have: $unmapped" }
+        require(unmapped.isEmpty() || banded) { "cells the ${if (thermalKind) "thermal" else "first-layer"} plate should not have: $unmapped" }
+        if (thermalKind) return
         if (firstLayerKind) {
             // each column's temperature and wait, from its tiles in the g-code, against the page's column table (the base's upper
             // layers, the labels, and the frame print after the last column, at its temperature: not the column's own)

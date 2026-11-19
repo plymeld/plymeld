@@ -167,6 +167,7 @@ per plate, run in this order, because each plate prints within values the plates
 | 5 | `calibrate filament` | overhangs, bridges, stringing, line widths, and fit, by temperature band | not read back yet |
 | 6 | `calibrate ironing` | the ironing flow, spacing, speed, angle, and inset | `calibrate ironing readings`, then `calibrate ironing values` |
 | 6 | `calibrate seams` | where seams show least | `calibrate seams readings`, then `calibrate seams values` |
+| 7 | `calibrate thermal` | how the filament cools on the machine: a bead's set by fan duty, the shortest layer time a small part takes, the bond against layer time and fan, the fan's reach by direction, the fan's lag | by hand, on the page's readings sheet (no setting to write them to yet) |
 
 Each plate is made the same way:
 

@@ -20,5 +20,6 @@ Options:
 - `--layers`: also each base's layers (every 'base ...' cell in the g-code), with a zoom round its notch
 - `--base=<cell>`: only this base (e.g. 'base melt'); repeatable; implies --layers
 - `--layer-z=<mm>`: the layer for the top view (panel A); default: the one nearest 10 mm
+- `--window=<x0,y0,x1,y1>`: the top view (panel A) of only this part of the bed (mm), magnified to fill it, so a large plate's lines are resolved; default: the whole plate
 - `--section=<band>`: melt plate: also a side section through this step (from 1, the front): the beads cut front to back through its FAST surface, and the head's travel from its FAST strips to its MID strips against what lies under it
 - `-h, --help`: Show this message and exit

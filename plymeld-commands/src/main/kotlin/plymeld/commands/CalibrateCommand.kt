@@ -28,14 +28,14 @@ import plymeld.model.pressureAdvanceByTool
 import java.util.Locale
 
 /**
- * `plymeld calibrate melt|flow|first-layer|motion|filament|ironing|seams -cf ... [--filament NAME [--like NAME]] [--machine KEY]
+ * `plymeld calibrate melt|flow|first-layer|motion|filament|ironing|seams|thermal -cf ... [--filament NAME [--like NAME]] [--machine KEY]
  * [--tool N] [--temps LOW-HIGH] [--step S] -o plate.gcode`: a calibration plate for one filament, which need not be loaded or
  * even in the config, printed exactly as specified. One plate per step of the dependency order ([KINDS]: the melt rate, the
  * flow ratio, the first layer, the motion, then the rest), and the kind is the subcommand, never picked automatically: the
  * melt plate (a column per temperature, a row per flow, run first), the flow plate (a column per temperature, a patch per
  * ratio), the first-layer plate (the temperature varied within its one layer), the motion plate (one cross-shaped tower, a
  * speed per face and an acceleration per band, the tower at one temperature), the filament plate (the other tests, the
- * temperature by band), the ironing and the seam plates. Every plate but the melt and flow plates is read back and checked
+ * temperature by band), the ironing, the seam and the thermal plates. Every plate but the melt and flow plates is read back and checked
  * against its specification, with deliberately altered copies as controls that must fail; a plate that fails is not written.
  */
 abstract class PlateCommand(name: String, protected val kind: String) : ConfigCommand(name) {
@@ -98,11 +98,26 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
     protected open val ironingAngles: String? get() = null
     /** --ironing-insets: a plate of the kinds that take it declares the option; null for the rest. */
     protected open val ironingInsets: String? get() = null
+    // the thermal plate's steps: each a placeholder list ([plymeld.core.calibrate.ThermalGeometry]), not measured
+    /** --strand-fans: a plate of the kinds that take it declares the option; null for the rest. */
+    protected open val strandFans: String? get() = null
+    /** --strand-spans: a plate of the kinds that take it declares the option; null for the rest. */
+    protected open val strandSpans: String? get() = null
+    /** --pin-diameters: a plate of the kinds that take it declares the option; null for the rest. */
+    protected open val pinDiameters: String? get() = null
+    /** --pin-times: a plate of the kinds that take it declares the option; null for the rest. */
+    protected open val pinTimes: String? get() = null
+    /** --fin-times: a plate of the kinds that take it declares the option; null for the rest. */
+    protected open val finTimes: String? get() = null
+    /** --fin-fans: a plate of the kinds that take it declares the option; null for the rest. */
+    protected open val finFans: String? get() = null
+    /** --fan-settle: a plate of the kinds that take it declares the option; null for the rest. */
+    protected open val fanSettle: String? get() = null
 
 
     override fun run() {
         if (currentContext.invokedSubcommand != null) return
-        when (kind) { "melt" -> runMelt(); "flow" -> runFlow(); "first-layer" -> runFirstLayer(); "ironing" -> runIroning(); "seams" -> runSeams(); "motion" -> runMotion(); else -> runBanded(kind) }
+        when (kind) { "melt" -> runMelt(); "flow" -> runFlow(); "first-layer" -> runFirstLayer(); "ironing" -> runIroning(); "seams" -> runSeams(); "motion" -> runMotion(); "thermal" -> runThermal(); else -> runBanded(kind) }
     }
 
     /**
@@ -1531,6 +1546,168 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         echo("after printing: `plymeld calibrate motion readings ${output.fileName} -o readings.toml`, grade each cell, then `plymeld calibrate motion values readings.toml -o motion.toml`")
     }
 
+    /**
+     * The thermal plate ([plymeld.core.calibrate.ThermalPlate]): how the filament cools on this machine, five sections on one
+     * slab with two gauges joined to it, at the filament's own print temperature (or --print-temp). Every banded layer's time
+     * made up to its target by a wait worked out from plymeld's own prediction of the layer; a target its layer cannot reach
+     * refused, naming the band. Read by hand: no readings sheet or write-back yet.
+     */
+    private fun runThermal() {
+        val toolN = toolOpt.toIntOrNull()?.takeIf { it >= 1 } ?: throw UsageError("--tool is a tool's index, a whole number from 1 (got '$toolOpt')")
+        val plain = ConfigSetup.setup(plateConfig(toolN, null).first).setup
+        val plainMt = plain.spool(plain.objects[0].spool).let { sp -> plain.materialTool[sp.material to sp.tool] }
+        val printC: Int = printTemp?.let { whole(it.trim().removeSuffix("C").trim().toDoubleOrNull() ?: throw UsageError("--print-temp is whole degrees C (got '$it')"), "--print-temp") }
+            ?: (plainMt?.get("hardware.filament.temperature.print")?.value as Number?)?.toDouble()?.let { whole(it, "the filament's temperature.print") }
+            ?: throw UsageError("the thermal plate prints at the filament's own temperature (temperature.print), which '${plain.spool(plain.objects[0].spool).material}' has none of: give --print-temp")
+        val (config, slotN) = plateConfig(toolN, printC, firstLayerToo = false)
+        val result = try { ConfigSetup.setup(config) } catch (e: ConfigError) { throw UsageError("the config has ${e.problems.size} problem(s):\n" + e.problems.joinToString("\n") { "  $it" }) }
+        val setup = result.setup
+        val s = SliceSettings.of(setup, plymeld.model.Context(0))
+        val spool = setup.spool(setup.objects[0].spool)
+        val g = plymeld.core.calibrate.ThermalGeometry
+        val h = s.layerHeightUm; val w = s.outerWallWidthUm
+        val hm = h / 1000.0; val fhm = s.firstLayerHeightUm / 1000.0
+        fun meltCap(lw: Long, lh: Double) = s.maxVolumetric / (lh * (lw / 1000.0 - lh * (1 - Math.PI / 4)) * s.flowRatio)
+        /** A list option: numbers in [unit], each through [check], else the defaults. */
+        fun list(opt: String, v: String?, unit: String, example: String, default: List<Double>, ok: (Double) -> Boolean): List<Double> = v?.let { t ->
+            t.split(',').map { it.trim().removeSuffix(unit).trim().toDoubleOrNull()?.takeIf(ok) ?: throw UsageError("$opt is $example (got '$t')") }
+        } ?: default
+        val strandDuties = list("--strand-fans", strandFans, "%", "fan duties in %, 0 to 100, a strand row each, front to back (e.g. 0,50,100)", g.STRAND_FANS) { it in 0.0..100.0 }
+        val finDuties = list("--fin-fans", finFans, "%", "fan duties in %, 0 to 100, a fin row each, front to back (e.g. 0,50,100)", g.FIN_FANS) { it in 0.0..100.0 }
+        val spans = list("--strand-spans", strandSpans, "mm", "spans in mm, short to long (e.g. 10,20,30,40)", g.STRAND_SPANS.map { it / 1000.0 }) { it > 0 }.map { Math.round(it * 1000) }
+        val pins = list("--pin-diameters", pinDiameters, "mm", "diameters in mm, small to large (e.g. 2,3,4,6)", g.PIN_DIAMETERS.map { it / 1000.0 }) { it > 0 }.map { Math.round(it * 1000) }
+        val pinT = list("--pin-times", pinTimes, "s", "layer times in s, one per band, shortest lowest (e.g. 5,6,8,10,15)", g.PIN_TIMES) { it > 0 }
+        val finT = list("--fin-times", finTimes, "s", "layer times in s, one per fin, left to right (e.g. 45,60,90,120)", g.FIN_TIMES) { it > 0 }
+        val settle = fanSettle?.let { it.trim().removeSuffix("s").trim().toDoubleOrNull()?.takeIf { v -> v >= 0 } ?: throw UsageError("--fan-settle is seconds, 0 or more (got '$it')") } ?: g.SETTLE_S
+        // the values: the first layer at its configured speed held to the filament's maximum flow; the structural parts at the
+        // machine's print speed held to it (the frame's); the read surfaces at a visible wall's speed and acceleration held to it;
+        // the strands at the bridge speed and the bridge flow
+        val firstSpeed = Math.min(s.firstLayerSpeed, meltCap(s.firstLayerWidthUm, fhm))
+        val level = s.levelGcode?.takeIf { !noLevel }
+        fun spec(ox: Long, oy: Long) = try {
+            plymeld.core.calibrate.ThermalSpec(spool.tool, spool.id, h, s.firstLayerHeightUm, w, s.firstLayerWidthUm, s.filamentDiameterMm, s.flowRatio, printC, s.nozzleTempFirstC, s.fanMinPct,
+                adhesion = PathValues(firstSpeed, s.defaultAccel, s.flowRatio, s.retractMm), frame = PathValues(Math.min(s.hiddenSpeed, meltCap(w, hm)), s.defaultAccel, s.flowRatio, s.retractMm),
+                visible = PathValues(Math.min(s.visibleSpeed, meltCap(w, hm)), s.visibleAccel, s.flowRatio, s.retractMm),
+                bridge = PathValues(Math.min(s.bridgeSpeed, meltCap(w, hm)), s.visibleAccel, s.flowRatio * s.bridgeFlow, s.retractMm),
+                strandFans = strandDuties, spansUm = spans, pinDiametersUm = pins, pinTimesS = pinT, finTimesS = finT, finFans = finDuties, settleS = settle,
+                liftUm = s.zHopUm, originXUm = ox, originYUm = oy, levelGcode = level)
+        } catch (e: IllegalArgumentException) { throw UsageError(e.message ?: "the thermal plate's values") }
+        fun bed(k: String) = (Resolver.resolve(setup, "hardware.machine.build.$k").value as Number).toDouble()
+        val bedW = bed("right") - bed("left"); val bedD = bed("back") - bed("front")
+        val draft = spec(0, 0)
+        val plateW = draft.bounds.w / 1000.0; val plateD = draft.bounds.d / 1000.0
+        val park = PlateGeometry.parkFront / 1000.0
+        if (draft.topZ / 1000.0 > s.maxPrintHeightMm) throw UsageError("the thermal plate is ${n(draft.topZ / 1000.0)} mm tall; the machine prints ${n(s.maxPrintHeightMm)} mm (hardware.machine.<key>.build)")
+        if (plateW > bedW || plateD + 2 * park > bedD) throw UsageError("the thermal plate does not fit this machine: it is ${n(plateW)} x ${n(plateD)} mm (the slab ${n(draft.slabW / 1000.0)} x ${n(draft.slabD / 1000.0)} mm and the gauges in front of it), " +
+            "and ${n(plateD + 2 * park)} mm deep with the head's parking places in front and behind; the bed is ${n(bedW)} x ${n(bedD)} mm (hardware.machine.<key>.build). Fewer or shorter spans (--strand-spans), fewer fins (--fin-times) or pins (--pin-diameters) make it smaller")
+        val fitWarnings = listOfNotNull(if (bedW - plateW < 2 * PlateGeometry.bedSpare / 1000.0 || bedD - plateD - 2 * park < 2 * PlateGeometry.bedSpare / 1000.0) "the plate is ${n(plateW)} x ${n(plateD)} mm on a ${n(bedW)} x ${n(bedD)} mm bed: less than ${n(PlateGeometry.bedSpare / 1000.0)} mm to spare at an edge; check the bed's clips or wiper are clear of it" else null)
+        val cx = Math.round((bed("left") + bed("right")) * 500); val cy = Math.round((bed("front") + bed("back")) * 500)
+        val spec = spec(cx - draft.bounds.w / 2, cy - draft.bounds.d / 2)
+        val plate = plymeld.core.calibrate.ThermalPlate(spec)
+        val warnings = result.warnings + fitWarnings + plymeld.core.check.TemperatureLimits.warnings(setup, spool.id, listOf(printC), "the plate's temperature")
+        val pa = setup.pressureAdvanceByTool()
+        val changeS = (Resolver.resolveOrNull(setup, "hardware.machine.tool_change.time")?.value as Number?)?.toDouble()
+        val limits = plymeld.core.Predict.limits(s)
+        fun gcodeOf(p: plymeld.core.calibrate.ThermalPlate) = try { p.gcode(s, setup.foreignTemplateVars, PlymeldVersion.value, pa) } catch (e: IllegalArgumentException) { throw UsageError(e.message ?: "the thermal plate's bands") }
+        val machineDesc = Resolver.resolve(setup, "hardware.machine.model").value.toString()
+        val text = withThermalConditions(gcodeOf(plate), spec, spool.material, slotN, s, pa[spool.tool], machineDesc)
+        val expect = plymeld.core.check.Expectations.forSetup(setup)
+        fun layerS(t: String) = plymeld.core.Predict.gcode(t, s.machineDescription, changeS, limits).layerS
+        fun allProblems(t: String) = plymeld.core.calibrate.ThermalCheck.check(spec, t, layerS(t)) + plymeld.core.check.GcodeCheck.check(t, expect)
+        val problems = allProblems(text)
+        fun without(vararg c: String) = gcodeOf(plymeld.core.calibrate.ThermalPlate(spec, without = c.toSet()))
+        val controls = listOfNotNull(
+            "the bands' waits left out" to without("waits"),
+            "the second strand row at the first row's fan duty" to without("strandfan"),
+            "the strands a layer above the piers' top" to without("strandz"),
+            "each strand stopping short of its far pier" to without("strandshort"),
+            "the first fin's band a layer higher" to without("finband"),
+            "every fin row at the first row's duty" to without("finfan"),
+            "the compass's eighth tab left out" to without("tabs"),
+            "the lag wall's switch 5 mm late in its upper half" to without("lagswitch"),
+            "the lag wall's outer line laid right to left" to without("lagdir"),
+            "the ring card's break-off tabs left out" to without("gaugetab"),
+            "the first fin row's stop posts off the slab" to without("offslab"),
+            if (spec.settleS > 0) "no fan settle before the strands and the lag wall" to without("settle") else null,
+            "a pin at 1.5x its speed" to alterTileSpeed(text, "pin 1"),
+            "a fin with twice its plastic" to alterZoneFlow(text, "fin 1.1"),
+            "a line laid outside the plate's cells" to addStrayThermalLine(text, spec),
+            "a retraction shortened" to alterRetraction(text),
+            removeEndLift(text)?.let { "the end's lift removed" to it },
+        )
+        val controlMisses = controls.filter { (_, t) -> allProblems(t).isEmpty() }.map { it.first }
+        if (problems.isNotEmpty() || controlMisses.isNotEmpty()) {
+            val msg = StringBuilder("the plate does not print as specified; not written\n")
+            problems.forEach { msg.append("  $it\n") }
+            controlMisses.forEach { msg.append("  control not caught: $it (the check cannot fail there)\n") }
+            error(msg.toString().trimEnd())
+        }
+        val prediction = plymeld.core.Predict.gcode(text, s.machineDescription, changeS, limits)
+        output.parent?.let { java.nio.file.Files.createDirectories(it) }
+        java.nio.file.Files.writeString(output, withMachineHeader(text, config, setup, s, prediction))
+        echo("thermal plate for filament '${spool.material}' on tool $slotN of '$machineDesc', build plate '$plateName' (bed ${s.bedTempFirstC} C, constant): " +
+            "one slab ${n(draft.slabW / 1000.0)} x ${n(draft.slabD / 1000.0)} mm (${g.slabLayers} layers), the feeler and the ring card in front of it, ${n(plateW)} x ${n(plateD)} mm in all; ${spec.layers} layers (the first ${n(spec.firstLayerUm / 1000.0)} mm, then ${n(hm)} mm), the pins' tops ${n((spec.topZ - spec.slabTop) / 1000.0)} mm above the slab; " +
+            "${n(w / 1000.0)} mm lines, flow ratio ${n(s.flowRatio)}, at $printC C${if (spec.firstTempC != printC) " (the first layer at ${spec.firstTempC} C)" else ""}, part fan ${n(spec.fanPct)} % where no section sets its own")
+        echo("strands: rows at ${strandDuties.joinToString(", ") { n(it) }} % (front to back), spans ${spans.joinToString(", ") { n(it / 1000.0) }} mm, the piers ${n(spec.pierLayers * hm)} mm above the slab, at ${n(spec.bridge.speed)} mm/s (the bridge speed) and the bridge flow; the fan waited for ${n(settle)} s before each row; the feeler's steps ${g.FEELER_SAGS.indices.joinToString(", ") { n(spec.feelerThick(it) / 1000.0) }} mm thick (sags of ${g.FEELER_SAGS.indices.joinToString(", ") { n(spec.feelerSag(it) / 1000.0) }} mm)")
+        echo("pins: ${pins.joinToString(", ") { n(it / 1000.0) }} mm on ${n(g.pedestal / 1000.0)} mm pedestals to ${n(spec.pedestalLayers * hm)} mm, bands of ${n(spec.pinBandLayers * hm)} mm at ${pinT.joinToString(", ") { n(it) }} s a layer (bottom to top); the ring card's holes ${pins.indices.joinToString(", ") { spec.holeText(it) }} mm")
+        echo("fins: rows at ${finDuties.joinToString(", ") { n(it) }} % (front to back), layer times ${finT.joinToString(", ") { n(it) }} s (left to right), each band ${n(spec.finBandRange(0).count() * hm)} mm at ${finT.indices.joinToString(", ") { n((spec.finBandRange(it).first * h) / 1000.0) }} mm above the slab")
+        echo("compass: ${g.tabs} tabs leaning ${n(g.tabLeanDeg)} deg from vertical, ${spec.tabLayers} layers each, their tips ${n(spec.compassLayers * hm)} mm above the slab; lag wall: ${n(g.lagLength / 1000.0)} mm at ${n(spec.visible.speed)} mm/s, the fan switching ${n(g.lagSwitch / 1000.0)} mm along, the lower half off to full, the upper full to off")
+        echo(when { level != null -> "bed levelling before the plate (hardware.machine.<key>.gcode.level); --no-level to skip it"; noLevel -> "bed levelling: skipped (--no-level)"; else -> "bed levelling: this machine has none plymeld can run (hardware.machine.<key>.gcode.level is empty): level it when you start the print" })
+        warnings.forEach { echo("warning: $it") }
+        val paFrom = Resolver.resolveOrNull(setup, "hardware.filament.pressure_advance", plymeld.model.Context(0))?.let { "the filament's, ${it.from}" }
+            ?: Resolver.resolveOrNull(setup, "hardware.tool.pressure_advance", plymeld.model.Context(0))?.let { "the tool's, ${it.from}" }
+            ?: Resolver.resolveOrNull(setup, "hardware.machine.pressure_advance", plymeld.model.Context(0))?.let { "the machine's, ${it.from}" }
+        echo(pa[spool.tool]?.let { v -> "pressure advance: $v s ($paFrom)" }
+            ?: "pressure advance: not set, so the printer's own value applies, unknown to plymeld (set the machine's, the tool's, or the filament's pressure_advance to state it)")
+        echo("check: the layers and cells; every line's speed, width, and filament per mm; one slab under every part, the gauges off it joined by their break-off tabs; each strand one line across its gap at the piers' top at its row's fan, waited for; each pin band's and fin band's layers at their times (within ${n(plymeld.core.calibrate.ThermalCheck.TIME_TOL)} s), parked off the plate; each fin's notched band at its height, its lever and stop post; the compass's eight tabs in their directions, stepping out by the lean, between their reference posts; the lag wall laid left to right, the fan switching at its mark in both halves, its notches; the temperatures and the fan; and the g-code as the config says. Controls caught: ${controls.joinToString { it.first }}")
+        val page = output.resolveSibling(output.fileName.toString().substringBeforeLast('.') + ".md")
+        val paText = pa[spool.tool]?.let { v -> "$v s (${paFrom?.substringBefore(',')})" } ?: "not set: the printer's own, unknown to plymeld (write down what it was if you know)"
+        plymeld.core.calibrate.ThermalInstructions.write(page, spec, plate, plymeld.core.calibrate.PlateInstructions.Info(
+            spool.material, machineDesc, spool.tool, PlymeldVersion.value, output.fileName.toString(),
+            prediction.timeS?.let { it / 60 }, paText, s.bedTempFirstC, firstSpeed, spec.frame.speed, s.retractMm,
+            plate = plateName, levels = level != null, levelSkipped = noLevel && s.levelGcode != null, warnings = warnings))
+        echo("-> $output")
+        echo("-> $page (and ${page.fileName.toString().removeSuffix(".md")}.png): the question, before printing, the conditions, the picture, each section and how to read it, the readings sheet")
+        echo("predicted: $prediction")
+        echo("after printing: take the readings by hand on the page's sheet (plymeld has no setting to write them to yet)")
+    }
+
+    /** The thermal plate's conditions in its own g-code, as `; name = value` comments after its first lines. */
+    private fun withThermalConditions(text: String, spec: plymeld.core.calibrate.ThermalSpec, filament: String, tool: Int, s: SliceSettings, pa: Double?, machineDesc: String): String {
+        val g = plymeld.core.calibrate.ThermalGeometry
+        val block = buildList {
+            add("; CALIBRATION_PLATE_START")
+            add("; plate = thermal (how the filament cools on this machine: strand bridges by fan duty, pins in bands of layer time, bond fins by layer time and fan duty, a fan compass, a fan lag wall; read by position or against the gauges printed with it)")
+            add("; filament = $filament, tool $tool, build plate $plateName")
+            add("; machine = $machineName ($machineDesc)")
+            add("; temperature = " + (if (spec.firstTempC != spec.tempC) "${spec.firstTempC} C on the first layer (the filament's temperature.first_layer), ${spec.tempC} C above, waited for before the slab's top" else "${spec.tempC} C throughout") + "; part fan ${n(spec.fanPct)} % where no section sets its own (off on the first layer)")
+            add("; slab = ${n(spec.slabW / 1000.0)} x ${n(spec.slabD / 1000.0)} mm, ${g.slabLayers} layers (the first ${n(spec.firstLayerUm / 1000.0)} mm, then ${n(spec.layerUm / 1000.0)} mm), its front-left corner chamfered ${n(plymeld.core.calibrate.PlateMarks.CHAMFER / 1000.0)} mm; flow_ratio = ${n(spec.flowRatio)}; lines ${n(spec.widthUm / 1000.0)} mm (the first layer ${n(spec.firstWidthUm / 1000.0)} mm)")
+            add("; speeds = the first layer ${n(spec.adhesion.speed)} mm/s; the structure ${n(spec.frame.speed)} mm/s and ${n(spec.frame.accel)} mm/s2; the read surfaces (pins, fins, compass tabs, the lag wall's outer line) ${n(spec.visible.speed)} mm/s and ${n(spec.visible.accel)} mm/s2; the strands ${n(spec.bridge.speed)} mm/s at flow ${n(spec.bridge.flowRatio)}")
+            add("; strands = rows at ${spec.strandFans.joinToString(", ") { n(it) }} % front to back, spans ${spec.spansUm.joinToString(", ") { n(it / 1000.0) }} mm, piers ${n(spec.pierLayers * spec.layerUm / 1000.0)} mm above the slab, ${g.capLayers} cap layers; the fan waited for ${n(spec.settleS)} s, parked, before each row")
+            add("; feeler = steps ${g.FEELER_SAGS.indices.joinToString(", ") { n(spec.feelerThick(it) / 1000.0) }} mm thick, allowing sags of ${g.FEELER_SAGS.indices.joinToString(", ") { n(spec.feelerSag(it) / 1000.0) }} mm, tallies of ${g.FEELER_SAGS.indices.joinToString(", ") { "${g.FEELER_SAGS.size - it}" }} notches")
+            add("; pins = ${spec.pinDiametersUm.joinToString(", ") { n(it / 1000.0) }} mm on ${n(g.pedestal / 1000.0)} mm pedestals ${n(spec.pedestalLayers * spec.layerUm / 1000.0)} mm tall; bands of ${n(spec.pinBandLayers * spec.layerUm / 1000.0)} mm at ${spec.pinTimesS.joinToString(", ") { n(it) }} s a layer, bottom to top; ring card holes ${spec.pinDiametersUm.indices.joinToString(", ") { spec.holeText(it) }} mm")
+            add("; fins = rows at ${spec.finFans.joinToString(", ") { n(it) }} % front to back; layer times ${spec.finTimesS.joinToString(", ") { n(it) }} s left to right; bands ${n(spec.finBandRange(0).count() * spec.layerUm / 1000.0)} mm from ${spec.finTimesS.indices.joinToString(", ") { n(spec.finBandRange(it).first * spec.layerUm / 1000.0) }} mm above the slab, V notches ${n(g.notchDepth / 1000.0)} mm deep, levers ${n(g.lever / 1000.0)} mm, stop posts ${n(g.postBack / 1000.0)} mm behind")
+            add("; compass = a ${n(g.compassPost / 1000.0)} mm post ${n(spec.compassLayers * spec.layerUm / 1000.0)} mm tall, ${g.tabs} tabs ${n(g.tabWidth / 1000.0)} mm wide stepping out ${n(spec.tabStep / 1000.0)} mm a layer (${n(g.tabLeanDeg)} deg from vertical) over ${spec.tabLayers} layers, reference posts between them")
+            add("; lag = a wall ${n(g.lagLength / 1000.0)} mm long and ${n(spec.lagLayers * spec.layerUm / 1000.0)} mm tall, its outer line left to right at ${n(spec.visible.speed)} mm/s; the fan switching ${n(g.lagSwitch / 1000.0)} mm along (lower half off to full, upper half full to off), the starting duty waited for ${n(spec.settleS)} s; notches every ${n(g.lagPitch / 1000.0)} mm from the switch")
+            add("; pressure_advance = ${pa?.let { "$it s" } ?: "the printer's own (not set: unknown)"}, bed = ${s.bedTempFirstC} C, retraction = ${n(spec.frame.retractMm)} mm, lift = ${n(spec.liftUm / 1000.0)} mm")
+            add("; CALIBRATION_PLATE_END")
+        }
+        block.drop(1).dropLast(1).firstOrNull { !it.matches(Regex("; [a-z_0-9. ]+ = \\S.*")) }?.let { error("the conditions block has a malformed line: '$it'") }
+        val lines = text.lines().toMutableList()
+        val at = lines.indexOfFirst { it.startsWith("; total layer number:") }.let { if (it < 0) 0 else it + 1 }
+        lines.addAll(at, block)
+        return lines.joinToString("\n")
+    }
+
+    /** A control: a short line extruded outside every cell, before the lag wall's last outer line, in front of the plate. */
+    private fun addStrayThermalLine(text: String, spec: plymeld.core.calibrate.ThermalSpec): String {
+        val lines = text.lines().toMutableList()
+        val at = lines.indexOfLast { it == "; CELL: lag outer" }
+        val x = spec.originXUm / 1000.0; val y = spec.originYUm / 1000.0 - 5
+        lines.addAll(at, listOf("G1 X${n(x)} Y${n(y)} F6000", "G1 X${n(x + 5)} Y${n(y)} E0.2 F1200"))
+        return lines.joinToString("\n")
+    }
+
     /** The motion plate's conditions in its own g-code, as `; name = value` comments after its first lines. */
     private fun withMotionConditions(text: String, spec: plymeld.core.calibrate.MotionSpec, filament: String, tool: Int, s: SliceSettings, pa: Double?, machineDesc: String,
                                      topSpeedWhy: String, topAccelWhy: String): String {
@@ -1864,6 +2041,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             "filament" to "the filament's other tests by temperature band, once its melt rate and flow ratio are measured: overhangs, bridges, stringing, line widths, fit (--tests picks a subset)",
             "ironing" to "the ironing values: one flat slab whose top is divided into zones, each ironed with its own combination of flow, line spacing, speed, angle, and inset, a control zone per speed left as laid; graded zone by zone, the readings become the ironing values",
             "seams" to "the seam measure's shares: eight hollow pieces on one slab, each with its outer wall's seam laid one way (a point seam or plymeld's scarf, on a round wall, mid-face, in a corner, on a face leaning 30 and 45 degrees); graded piece by piece for how far away the seam shows, the ratios become method.quality.seam.scarf_share, .corner_share and method.quality.visibility.under",
+            "thermal" to "how the filament cools on this machine: strand bridges by fan duty, pins in bands of layer time, bond fins by layer time and fan duty, a fan compass and a fan lag wall on one slab, a feeler and a ring card printed with it; read by position or go/no-go against the gauges, the readings recorded by hand for now",
         )
 
         /** The motion plate's band count unless --motion-accels gives the accelerations: plymeld's choice, as many as there are speeds (a 6 x 6 grid of speed by acceleration in each direction). */
@@ -1958,12 +2136,30 @@ class SeamsPlateCommand : PlateCommand("seams", "seams") {
     override val invokeWithoutSubcommand = true
 }
 
+/** `plymeld calibrate thermal`: no readings sheet or write-back yet (nothing to write the readings to). */
+class ThermalPlateCommand : PlateCommand("thermal", "thermal") {
+    override fun help(context: com.github.ajalt.clikt.core.Context) = "The thermal plate: how the filament cools on this machine, five sections on one slab: strand bridges in rows by fan duty " +
+        "(--strand-fans, --strand-spans), read with the feeler printed beside the slab; pins whose test lengths rise in bands of layer time (--pin-diameters, --pin-times), read with the ring card " +
+        "printed beside it against the band stair; bond fins by layer time and fan duty (--fin-times, --fin-fans), bent back to their stop posts; a fan compass of eight overhang tabs; and a fan " +
+        "lag wall whose fan switches at a mark. A banded layer's time is made up to its target by a wait with the head parked clear of the plate, worked out from plymeld's own prediction of the " +
+        "layer; a target its layer cannot reach is refused, naming the band. At the filament's temperature.print (or --print-temp). Read by position or go/no-go against the gauges; the page " +
+        "has a readings sheet, recorded by hand for now."
+    override val printTemp: String? by option("--print-temp", metavar = "C", help = "thermal plate: the plate's temperature (the first layer follows the filament's first-layer temperature, worked out from it); default: the filament's temperature.print")
+    override val strandFans: String? by option("--strand-fans", metavar = "P,P,...", help = "thermal plate: the strand rows' fan duties (%), a row each, front to back; default: 0,50,100 (plymeld's choice, not measured)")
+    override val strandSpans: String? by option("--strand-spans", metavar = "MM,MM,...", help = "thermal plate: the strands' spans (mm), short to long, a pair of piers each in every row; default: 10,20,30,40 (plymeld's choice, not measured)")
+    override val pinDiameters: String? by option("--pin-diameters", metavar = "MM,MM,...", help = "thermal plate: the pins' diameters (mm), small to large, a hole each in the ring card (0.3 mm larger); default: 2,3,4,6 (plymeld's choice, not measured)")
+    override val pinTimes: String? by option("--pin-times", metavar = "S,S,...", help = "thermal plate: the pins' bands' layer times (s), shortest lowest, a band of 3 mm each; default: 5,6,8,10,15 (plymeld's choice, not measured: the first whole seconds above a fast machine's natural layer time there)")
+    override val finTimes: String? by option("--fin-times", metavar = "S,S,...", help = "thermal plate: the fins' layer times (s), left to right, a fin each in every row, each fin's band at its own height; default: 45,60,90,120 (plymeld's choice, not measured: above the natural layer time where the fins' bands are)")
+    override val finFans: String? by option("--fin-fans", metavar = "P,P,...", help = "thermal plate: the fin rows' fan duties (%), a row each, front to back; default: 0,50,100 (plymeld's choice, not measured)")
+    override val fanSettle: String? by option("--fan-settle", metavar = "S", help = "thermal plate: how long the head waits, parked, for the fan after it changes for a strand row or the lag wall (s); default: 5 (plymeld's choice, not measured)")
+}
+
 /**
  * `plymeld calibrate <kind> ...`: one subcommand per plate kind, each with its own options, readings, and write-back, so a
  * kind offers only the options it takes.
  */
 class CalibrateCommand : com.github.ajalt.clikt.core.CliktCommand(name = "calibrate") {
-    init { subcommands(MeltPlateCommand(), FlowPlateCommand(), FirstLayerPlateCommand(), MotionPlateCommand(), FilamentPlateCommand(), IroningPlateCommand(), SeamsPlateCommand()) }
+    init { subcommands(MeltPlateCommand(), FlowPlateCommand(), FirstLayerPlateCommand(), MotionPlateCommand(), FilamentPlateCommand(), IroningPlateCommand(), SeamsPlateCommand(), ThermalPlateCommand()) }
     override fun help(context: com.github.ajalt.clikt.core.Context) =
         "Make a calibration plate for one filament (--filament, --tool), printed exactly as specified: " +
             "one subcommand per plate, in the order to run them (each plate's results lean on the ones before it): " +

@@ -16,7 +16,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 
 /**
- * `plymeld render-plate PLATE.gcode [--iso] [--section BAND] [--layers | --base CELL...] [--layer-z Z] [-o DIR]`: pictures of
+ * `plymeld render-plate PLATE.gcode [--iso] [--section BAND] [--layers | --base CELL...] [--layer-z Z] [--window X0,Y0,X1,Y1] [-o DIR]`: pictures of
  * a calibration plate (`plymeld calibrate`) read back from its g-code, for reviewing it before it is printed. Each picture is
  * drawn from the g-code text alone (and, for --iso, the plate's instructions page), never from plymeld's own model of the
  * plate, so it shows what the printer will be told. Outputs: `<plate>.render.png` (always), `<plate>.iso.png` (--iso),
@@ -34,6 +34,7 @@ class RenderPlateCommand : CliktCommand(name = "render-plate") {
     private val layers by option("--layers", help = "also each base's layers (every 'base ...' cell in the g-code), with a zoom round its notch").flag()
     private val bases by option("--base", metavar = "CELL", help = "only this base (e.g. 'base melt'); repeatable; implies --layers").multiple()
     private val layerZ by option("--layer-z", metavar = "MM", help = "the layer for the top view (panel A); default: the one nearest 10 mm").double()
+    private val window by option("--window", metavar = "X0,Y0,X1,Y1", help = "the top view (panel A) of only this part of the bed (mm), magnified to fill it, so a large plate's lines are resolved; default: the whole plate")
     private val section by option("--section", metavar = "BAND", help = "melt plate: also a side section through this step (from 1, the front): the beads cut front to back through its FAST surface, and the head's travel from its FAST strips to its MID strips against what lies under it").int()
 
     override fun help(context: com.github.ajalt.clikt.core.Context) =
@@ -50,7 +51,9 @@ class RenderPlateCommand : CliktCommand(name = "render-plate") {
             draw()
             echo("-> $out ($what, ${(System.nanoTime() - t0) / 1_000_000} ms)")
         }
-        timed("g-code render", dir.resolve("$stem.render.png")) { PlateRender.render(gcode, dir.resolve("$stem.render.png"), layerZ) { echo(it) } }
+        val box = window?.let { w -> w.split(',').map { it.trim().toDoubleOrNull() }.takeIf { v -> v.size == 4 && v.all { it != null } && v[2]!! > v[0]!! && v[3]!! > v[1]!! }?.map { it!! }?.toDoubleArray()
+            ?: throw com.github.ajalt.clikt.core.UsageError("--window is X0,Y0,X1,Y1 in mm on the bed, X1 above X0 and Y1 above Y0 (got '$w')") }
+        timed("g-code render", dir.resolve("$stem.render.png")) { PlateRender.render(gcode, dir.resolve("$stem.render.png"), layerZ, box) { echo(it) } }
         if (iso) {
             val md = page ?: gcode.resolveSibling("$stem.md")
             require(Files.isRegularFile(md)) { "--iso needs the plate's instructions page: no $md (give it with --page)" }

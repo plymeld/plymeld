@@ -9,6 +9,21 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Added
+
+- `plymeld calibrate thermal`: a plate that reads how a filament cools on your machine, on one slab with two gauges
+  printed beside it and joined to it by break-off tabs, so it lifts off as one piece. Strand bridges in rows by fan duty
+  (`--strand-fans`, `--strand-spans`), read with the stepped feeler: how long a bead stays soft. Pins whose test lengths
+  rise in bands of layer time (`--pin-diameters`, `--pin-times`), read with the ring card against a band stair: the
+  shortest layer time a small part takes. Bond fins by layer time and fan duty (`--fin-times`, `--fin-fans`), bent back
+  to their stop posts. A fan compass of eight overhang tabs: where the fan does not reach. A fan lag wall whose fan
+  switches at a notched mark: how long a fan command takes to act. Each banded layer is made up to its time by a wait
+  with the head parked clear of the plate, worked out from plymeld's own prediction of the layer; a time its layer
+  cannot reach is refused, naming the band and both times. The fan waits `--fan-settle` seconds after changing for a
+  strand row or the lag wall. Every reading is a position or a go/no-go, recorded by hand on the page's sheet for now.
+- `plymeld render-plate --window X0,Y0,X1,Y1`: the top view of only that part of the bed, magnified, so a large
+  plate's lines are resolved. `--iso` draws the thermal plate, a region per section.
+
 ## [0.20261109.1] - 2026-11-09
 
 ### Added

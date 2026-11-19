@@ -304,3 +304,47 @@ no measurement says by how much; the setting allows it where a print needs it.
 
 **Consequences.** Prints with a tower move it next to the object (the plate's g-code changes where it has one). The
 gap's 5 mm is a placeholder. The order of the sides is plymeld's choice, untested against a print.
+
+## 14. The thermal plate: five readings of how a filament cools, on one base, read by position or against its own gauges (2026-11-19)
+
+**Context.** How fast a filament sets and cools on a given machine (how long a bead stays soft, the shortest layer time a
+small part takes, how the bond between layers holds as the layer below cools, where the part fan reaches, how long a fan
+command takes) is read nowhere: the filament's `cooling.layer.time.min` and fan are bundled values, not read from a
+print, and the plates so far
+read flow, motion and surfaces. Graded readings (good, marginal, bad) differ from one person to the next.
+
+**Decision.** One plate, `calibrate thermal`, five sections on one slab: strand bridges in rows by fan duty; pins whose
+test lengths rise in bands of layer time; bond fins by layer time and fan duty; a fan compass of eight identical
+overhang tabs; a fan lag wall whose fan switches at a mark. **Every reading is a position or a go/no-go against a gauge
+printed with the plate**, never a grade: the longest span the feeler's step slides under, the band the ring card stops
+in (read off the band stair), the first fin that snaps before its stop post, the tabs that hold the feeler off their
+reference posts, the notches between the switch and the change in the wall's surface. The marks are the plates' one
+scheme (PlateMarks): the chamfered origin, labels that are the value they name, tallies where a label does not fit.
+**One base**: every section stands on the slab; the feeler and the ring card lie flat in front of it on the bed, each
+joined to its edge by two break-off tabs, so the plate lifts off in one piece. **Height zones**: a wait can only be
+added to a whole layer, and a short layer time is only possible where little prints, so the strands, the compass, the
+lag wall, the fins and the pins' pedestals stand in the lower zone (up to 15 mm above the slab), and only the pins'
+test lengths and the band stair rise above it. **A banded layer's time is made up by a wait with the head parked clear
+of the plate**, worked out from plymeld's own prediction of the layer as written (the program written once with no
+waits, its layers' times predicted, each wait the band's time less its layer's); a time shorter than its layer's own is
+refused when the plate is built, naming the band and both times. The read-back check verifies each band's layer time
+from the written file, within 0.1 s. Where a reading depends on the fan's duty at a moment (a strand row, the lag wall's
+start), the head waits for it, parked (`--fan-settle`). The readings are recorded by hand on the page's sheet: no
+setting holds them yet.
+
+**Rejected.** Slowing a band's lines to stretch its layer: it changes the bead being read, where a wait changes only
+the time between layers. Separate plates per section: five prints where one reads all five, each needing its own base
+and settings. A fan settle before each fin row: three waits on every fin band layer would put the fins' shortest
+reachable time further up still. Separate posts for the band stair: each costs a travel on the layers where time is
+shortest; one stepped block costs one. A warp test (it needs long bars and stepped bed temperatures, and the base would
+hold their corners down), melt temperature against flow (the melt plate's), the strands repeated at a second height or
+nozzle temperature, and the nozzle passing close over fresh plastic: not on this plate; the strands' repeats are
+options to add once one has printed.
+
+**Consequences.** The fins' bands share their layers with everything else in the lower zone, which takes 35 to 45 s a
+layer on a fast machine: a band can be no shorter, so the fins' default times are 45, 60, 90 and 120 s, not the shorter
+times a bond is most sensitive to; the pins' default bands start at 5 s, the first whole second above the upper zone's
+own time on a fast machine. A slower machine's plate is refused until longer times are given. Every number of the plate
+is plymeld's choice, a placeholder, unmeasured: whether a strand's sag separates the fan duties at these spans, whether
+an overheated pin bulges (it may lean or shrink instead), and whether a finger's bend to a stop repeats well enough
+need a printed plate, with its outcomes decided before printing.
