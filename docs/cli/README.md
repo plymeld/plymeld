@@ -78,9 +78,9 @@ To try a detail of a large model without printing all of it, give the object a s
 coordinates. Only what is inside the box prints.
 
 ```toml
-[model.object."nameplate.3mf".section]
-min = "38 -30 -1 mm"                    # the box's corners; a side beyond the model cuts nothing
-max = "96 -9 12.5 mm"
+[model.object."part.3mf".section]
+min = "0 0 -1 mm"                       # the box's corners; a side beyond the model cuts nothing
+max = "30 20 10 mm"
 faces = "open"                          # the default; "closed" for a section printed as an object of its own
 ```
 

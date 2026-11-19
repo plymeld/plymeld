@@ -56,8 +56,8 @@ section the release's version and date.
   over a waved bridge): the wipe ran at the head's height, into the line where it rises. A waved bridge's last bead on
   a layer is retracted and wiped before the layer change, on the layer it was laid on.
 - The wall order holds after a tool change: on a layer where the incoming filament lays no infill, all its inner walls
-  were laid ahead of its outer walls, whatever `plan.layer.walls.order` said (about half of a two-color nameplate's
-  layers printed inner walls first). Its lines now keep their planned order there; where it lays infill, the infill
+  were laid ahead of its outer walls, whatever `plan.layer.walls.order` said (on an object of two filaments, about half
+  its layers printed inner walls first). Its lines now keep their planned order there; where it lays infill, the infill
   still comes first and the walls follow in their order.
 - Several multi-color objects on one plate: an object on several filaments was sliced on its own or refused. On each
   layer each filament now lays its lines of every object in turn, so the plate changes tool no more often than one of
@@ -65,7 +65,7 @@ section the release's version and date.
   take settings of their own (`plan.object."<key>#2".…`), for trying variations side by side. The objects print
   together, by height, each on its own flat layers; one object at a time is not written for such a plate yet.
 - A section of a model printed on its own: `model.object.<key>.section.min` and `.max` give a box in the model's own
-  coordinates, and only what is inside it prints. For trying a detail of a large model (one face, a line of lettering)
+  coordinates, and only what is inside it prints. For trying a detail of a large model (one face, one small feature)
   without the hours of the whole. By default its cut faces are left open (`section.faces = "open"`): the whole model is
   planned as it would be, and only its lines inside the box are laid, so the section prints as that part of the whole
   print would, with no walls or top added where it is cut; on the bed it is laid out by its box, so several copies fit. With `faces = "closed"` the model itself is cut
@@ -90,7 +90,7 @@ section the release's version and date.
 ### Changed
 
 - Variable-width walls lay an island too narrow anywhere for all its walls (a lens, a wedge, a ring, a strip, a
-  letter's stroke) by its local width: across each place as many lines as its width holds, each between
+  narrow stroke) by its local width: across each place as many lines as its width holds, each between
   `plan.layer.walls.line.width.min` and the new `plan.layer.walls.line.width.max` (unset: twice the inner wall's width),
   as near the set widths as can be; one line as wide as the place, two sharing it, from three the outer two at the outer
   wall's width and the rest sharing what is left. Every pair of lines is a loop built from the outline, so the outer
@@ -123,16 +123,16 @@ section the release's version and date.
   nozzle stopped. Off before; a filament of yours that sets it keeps its own.
 - Prints are looked at from their front by default (`plan.view_from = "front"`: the model's own front, its small-y side
   as modeled, turned with its pose): quality's measures count its back less, and least-visible seams go there. Looked at
-  from all around (the default before), a plain round wall's seams stayed wherever a feature first put them, on a
-  nameplate's front face from its lettering to its top edge. A model with no front of its own sets `all_around`.
+  from all around (the default before), a plain round wall's seams stayed wherever a feature first put them, even in a
+  column up the front face from a detail low on it to the top edge. A model with no front of its own sets `all_around`.
 - Tool and filament changes are made over where the incoming filament first prints (the purge tower when there is one),
   after the outgoing tool leaves the part with its usual retraction, wipe, and lift and travels there. The change was
   made standing on the outgoing filament's last line, which left ooze on the part: on a plate, every change stood on
   the last object's face.
 - On an object of several parts, an outer wall whose seam is pressed against another part (that part within one line
   width of the seam on the layer) gets a point seam, not a scarf: the seam is hidden there, and the scarf's ramp and its
-  closing pass ran on from it onto the faces that show. On a small island of one filament inside a letter of another,
-  the ramp ran from a seam hidden against the letter round the island's front corner and across its whole front, laying
+  closing pass ran on from it onto the faces that show. On a small island of one filament inside another's part,
+  the ramp ran from a seam hidden against that part round the island's front corner and across its whole front, laying
   a thin line and a second over it there, and the print showed a hump. Least-visible seams count such a seam as the
   point seam it is laid as, so they no longer avoid a covered spot because a scarf would be better elsewhere.
   `plan.technique.scarf_seam.covered = "scarf"` (per object or part too) scarfs a covered seam as before; seams that are
@@ -141,9 +141,9 @@ section the release's version and date.
   object's outer surface stays its own part's: its own filament lays it where it is wide enough for a line
   (`plan.layer.walls.feature.min`), and it is left empty where it is not. It went to the filament beside it, whose
   plastic then showed in the wrong color on the surface, outside its own part, and whose outline stepped out over the
-  layer below for the layers the sliver was thin: on a nameplate, where a gray wall leaning out over a white plate starts
-  at zero width on the white's face, the white's outer wall was laid 0.13 mm out over the gray's place for a layer before
-  the gray's first line. A sliver inside the object, and one meeting the surface only end on, still goes to its neighbor
+  layer below for the layers the sliver was thin: where one filament's wall leans out over another's face, starting at
+  zero width on that face, the face's outer wall was laid 0.13 mm out over the leaning wall's place for a layer before
+  that wall's first line. A sliver inside the object, and one meeting the surface only end on, still goes to its neighbor
   (it fills what would be a void), and between two parts of one filament with settings of their own every sliver does.
   `plan.layer.sliver.at_surface = "neighbor"` (per object too) hands a sliver along the surface over as before. The
   pre-print check refuses a line whose bead covers a stretch of the object's surface that is another tool's part
@@ -164,46 +164,44 @@ section the release's version and date.
   area, and a wedge of ground between the ring inside it and the wall, up to nearly a line wide, was laid by nothing.
   Each ring now runs on past its arc there, its line narrowed to the ground left (its own reach into the wall a share of
   its own width, `plan.layer.infill.wall_overlap`), down to half a line; two arcs it runs between become one line, and a
-  ring that fits all round narrowed becomes whole. Where a ring crosses the wall steeply, its arc ends as before. On an
-  oval top 78 by 41 mm, the ground left bare on the top layer went from 7.5 mm² (128 spots at least 0.1 mm wide, the
-  widest 0.28 mm) to 0.4 mm² (none at least 0.1 mm wide), with nothing laid twice; a path with a narrowed stretch is
-  written as straight moves, not fitted to arcs.
+  ring that fits all round narrowed becomes whole. Where a ring crosses the wall steeply, its arc ends as before. On the
+  test suite's oval, the widest spot left bare on a quarter of its top layer went from 0.12 mm to 0.02 mm, with nothing
+  laid twice; a path with a narrowed stretch is written as straight moves, not fitted to arcs.
 - A line no longer runs out along a short dead end at a junction and back. Where a thin area too small to keep all its
   forks kept two of them, they were the two longest of those it was cutting, which could be a short trunk beside two
   longer forks: its line ran down the trunk and back. It now keeps its own two longest forks. And where a narrow island
   laid by its width has a short piece from a junction of its middle line to a dead end, covering nothing the line through
   the junction does not, the piece is now left out instead of joined, so the line no longer runs out along it and back.
-  On a three-part plate with a fine code pattern and lettering, the outer line's zigzags went from 30 to 5 (the pattern's
-  cells on the first layer and the lettering above), with the check passing, nothing laid twice, and time, filament and
-  tool changes as before; the lines in the small corners of a Benchy and a test plate follow their corners' longest
+  On a test slice of two filaments with many narrow islands, the outer line's zigzags went from 30 to 5, with the check
+  passing, nothing laid twice, and time, filament and tool changes as before; the lines in the small corners of a Benchy and a test plate follow their corners' longest
   forks. A dot of one part beside another, left out on the object's surface, is still judged on its line as it would
   have been joined with those dead ends, the lines that rule was set on.
 - A narrow island's outer line no longer runs out to a short tip's end and back where that covers nothing its own line
   does not. Where the line of an island laid by its width runs into a tip narrower than the narrowest line, it went out
   along the tip's middle to its end and came back; where the tip ends within the line's own bead beside it (no further
   past it than an interior line's end reaches into the walls, `plan.layer.infill.wall_overlap`) and the line goes on
-  past the tip, the run is now left out. A corner the line turns keeps its run into the corner. On a three-part plate
-  with a fine code pattern and lettering, the outer line's zigzags went from 37 to 30 (the tips of letters on six layers),
-  with time, filament, seams and tool changes as before.
+  past the tip, the run is now left out. A corner the line turns keeps its run into the corner. On a test slice of
+  two filaments with many narrow islands, the outer line's zigzags went from 37 to 30 (narrow islands' tips on six
+  layers), with time, filament, seams and tool changes as before.
 - A narrow island's outer line no longer dips toward its outline where a slit is cut into it. Where an island laid by
-  its width has a slit narrower than its outline is sampled (a sliver of another part between two strokes of a letter),
+  its width has a slit narrower than its outline is sampled (a sliver of another part between two narrow strokes),
   its width read round the slit's inner corner came out a few tens of microns, a stretch too short to keep a count of
   its own; it took the two lines of its neighbors, and the outer loop's points there, drawn onto that narrow reading, ran
   0.1 mm in toward the outline and back. Such a place, narrower than the narrowest line, now keeps its count, and the
-  loop turns at its mouth as at any place too narrow for it. On a three-part plate with a fine code pattern and
-  lettering, that spike is gone (the outer line's zigzags 39 to 37), and nothing else on the plate changed.
+  loop turns at its mouth as at any place too narrow for it. On a test slice of two filaments with many narrow
+  islands, that spike is gone (the outer line's zigzags 39 to 37), and nothing else in the slice changed.
 - A fill line passing a corner of a wall no longer stops at it and starts again beside itself. Where a line of a fill
   (a surface, internal solid, sparse infill, a bridge) only grazed the corner of what lies outside its area, it was cut
   there into two lines, their round ends both laid against the corner, over each other by up to a line's width. Now the
   two are one line laid past the corner wherever that lays less plastic twice: their ends closer together than a line
-  is wide, and the line laid through coming off its area by less than the ends would overlap. On a three-part plate
-  with a fine code pattern and lettering, the last spot of plastic laid twice (0.22 mm², two bottom-surface lines on the
+  is wide, and the line laid through coming off its area by less than the ends would overlap. On a test slice of
+  two filaments, the last spot of plastic laid twice (0.22 mm², two bottom-surface lines on the
   first layer) is gone; on a plain Benchy, 16 spots (4.43 mm²) went to 13 (4.12 mm²).
-- Two wall loops no longer turn back over each other at a pinch. Where an area narrows between two notches (letters cut
-  into a face, the corners of four cells of a pattern) below what a loop needs, the loop is laid as two loops, one each
+- Two wall loops no longer turn back over each other at a pinch. Where an area narrows between two notches (two pockets
+  cut into a face, the corners of four cells of a pattern) below what a loop needs, the loop is laid as two loops, one each
   side; each turned back at the pinch, and their turns faced each other closer than a line apart, 0.25 to 0.4 mm laid
   twice. The smaller loop is now cut back from the larger one to a line's spacing, the two touching as neighboring lines
-  do. On a three-part plate with a fine code pattern and lettering at the edge, plastic laid twice went from 10 spots
+  do. On a test slice of two filaments, plastic laid twice went from 10 spots
   (1.2 mm²) to 1 (0.2 mm², two bottom-surface lines), time and filament unchanged.
 - Where the line of an area too narrow for two walls forks, one pair of its branches runs through the fork and the
   others give way to it. Where four branches met (two bands crossing, a corner of four cells of a pattern), both pairs
@@ -212,16 +210,15 @@ section the release's version and date.
   pair run through a fork is the straightest one that leaves no branch lost: a short branch that gives way to the other
   two along all its length was dropped, and where it led into a neck or a stub wider than the narrowest line, the neck
   was left bare (a hole inside the walls, 0.35 mm wide, at a neck between two notches in an outline). On a
-  three-part plate with a fine code pattern and lettering at the edge, plastic laid twice went from 29 spots (7.8 mm²)
-  to 10 (1.2 mm²) and the pre-print check's refused hole is gone; time and filament unchanged.
+  test slice of two filaments, plastic laid twice went from 29 spots (7.8 mm²) to 10 (1.2 mm²) and the pre-print check's refused hole is gone; time and filament unchanged.
 - A narrow island's outer line no longer zigzags where a place about two to three lines wide gets a middle line. Where
   its count rises from two lines to three, the outer loop steps toward the outline within a few points, and it moves
   aside for the middle line's round start; each point moved across the line as read from its neighbors, which on that
   step points along the line, so the step's points moved along it and the line went back and forth over itself, a
-  fraction of a millimeter, roughening its edge (letter strokes about that wide showed it). The outer loop now moves
+  fraction of a millimeter, roughening its edge (narrow strokes about that wide showed it). The outer loop now moves
   across the outline at every point, the points where it stops short of a corner too. Where an inner line moves aside
   entirely at a single point, it is no longer cut into two ends lying over each other: the line goes on across. On a
-  three-object plate, outer-line zigzags 342 to 53 (a tip's designed run-in and back counted apart), plastic laid twice
+  test slice of two filaments, outer-line zigzags 342 to 53 (a tip's designed run-in and back counted apart), plastic laid twice
   9 spots and 1.116 mm² to 9 and 1.107, and 53 more narrow islands laid by their width instead of keeping their walls.
 - Two fills sharing an edge no longer lay their edges over each other. Every fill of a layer (internal solid, sparse
   infill, a bridge, a top) placed its lines against each edge of its area as against a wall: where two of them met, both
@@ -238,8 +235,8 @@ section the release's version and date.
   width, its lines built from points on the outline's samples, two or three points to a sample a few microns apart, each
   with a width of its own; the lines kept them all, so the printer was sent thousands of moves shorter than the slicing
   tolerance (`method.slicing.tolerance`) carrying steps in width. Points closer together than the tolerance are now one,
-  its width keeping the plastic of the moves on either side; an open line's ends are left as they were. On a real
-  three-object plate, moves shorter than the tolerance went from 10,311 to 1,160 (outer wall 8,345 to 803), with the
+  its width keeping the plastic of the moves on either side; an open line's ends are left as they were. On a
+  test slice of two filaments, moves shorter than the tolerance went from 10,311 to 1,160 (outer wall 8,345 to 803), with the
   plastic laid twice unchanged. The catalog of test models records the moves shorter than the tolerance and the outer
   wall's sharp turns beside a short move, and holds the outer wall of its models of straight sides and true arcs to
   none of either.
@@ -248,22 +245,22 @@ section the release's version and date.
   keeping ground nearer the tip than the line fits, and the loop ran across the notch over the loop inside it. It now
   keeps a line's distance from the tip. Where an area turns in beside a narrow neck, the shrink cut deeper at the turn
   than the line needs and cut the neck through, and the loops grown from the two sides ended against each other or
-  crossed the cut twice; such a neck is now kept and one loop runs through it. On a real three-object plate, plastic
-  laid twice falls from 29 spots (4.8 mm²) to 10 (1.2 mm²).
+  crossed the cut twice; such a neck is now kept and one loop runs through it. On a test slice of two filaments,
+  plastic laid twice falls from 29 spots (4.8 mm²) to 10 (1.2 mm²).
 - On an object of several filaments, a sliver of one filament too thin for a line that goes over to the filament around
   it now takes the gap between them along. Parts meet a few microns apart, and that gap was left as a crack in the
   neighbor's area, a hole of its own or one opening onto its edge, which the neighbor's walls looped round: three or four
-  lines over each other at the crack's end. On a real three-object plate, plastic laid twice falls from 38 spots
+  lines over each other at the crack's end. On a test slice of two filaments, plastic laid twice falls from 38 spots
   (9.9 mm²) to 29 (4.8 mm²).
 - A small area laid by its local width (one too narrow anywhere for the set walls, such as a tooth along an outline) could
   also get a bridge or solid infill across its own lines: where the walls laid no loop of theirs in it, they handed most of
   it to infill, and that piece was taken back only when its first corner lay inside the area (a mitred tip of it lay a few
-  hundredths of a millimetre past the area's sharp corner). The area now hands nothing to infill. On a real three-object
-  plate, 14 spots of plastic laid twice (a bridge or solid infill over an outer wall, up to 0.51 mm wide) are gone.
+  hundredths of a millimetre past the area's sharp corner). The area now hands nothing to infill. On a test slice of two
+  filaments, 14 spots of plastic laid twice (a bridge or solid infill over an outer wall, up to 0.51 mm wide) are gone.
 - A move inside a line whose plastic rounds to nothing in the file is now merged into the next move instead of written
   as `E0`, where its point lies within the slicing tolerance of the straight move that replaces the two: a reader takes a
   move without plastic for a travel, and the line broke in two there. A scarf seam's closing pass over a small loop, so broken, read to the pre-print check as a line of its own at
-  the line's full width over the loop's start (40 spots of plastic laid twice on a real plate where nothing lay twice);
+  the line's full width over the loop's start (40 spots of plastic laid twice on a test slice where nothing lay twice);
   ironing lines broken the same way now read as one line.
 - A bridge's lines, over air or over sparse infill, ended with their middle on the edge of the area they fill: every line
   end and every run linking two lines along that edge lay half a line over the walls and the infill beside it. They now
@@ -293,8 +290,7 @@ section the release's version and date.
   the pockets where the inner walls part. The voids a round bead leaves in a sharp corner, narrower than that, stay empty.
 - Variable-width walls keep a thin area's fork into a corner where its area reaches out past the line's end by more than
   that narrowest place: a strip's line ending in a head 1 mm across left its point bare (0.34 mm on a Benchy), and where
-  three strips meet between the lettering and the rim of a two-color plate the pruned forks left pockets 0.25 to 0.45 mm
-  wide. A part's edge where another part of the object lies beside it counts as between walls, not as the surface. A
+  three thin strips meet beside another part of the object the pruned forks left pockets 0.25 to 0.45 mm wide. A part's edge where another part of the object lies beside it counts as between walls, not as the surface. A
   third line from a junction starts where it reaches into the line the other two make by the infill's wall overlap,
   instead of laying the junction twice; ends on one point join the straightest pair first; and a junction's third line no
   longer joins another line's end across a gap (it ran back out and over that line's fork).
@@ -304,27 +300,27 @@ section the release's version and date.
   onto the area the walls hand to infill (between a loop and a short line in that area's corner) is that area's corner,
   not a slit: a loop widened into it narrowed a ridge's infill pocket below what infill is handed and left it bare.
 - An area too narrow anywhere for all its walls that keeps its walls (where its lines laid by width would leave it no
-  better covered) now shares the slits between those walls too: on a two-color plate, a strip 1.8 mm wide whose inner
+  better covered) now shares the slits between those walls too: on a test slice, a strip 1.8 mm wide whose inner
   wall's two sides lay 0.09 mm apart was left bare along that slit on one layer. A loop takes no more of a slit than its
   own stretch across the slit is away, measured straight: where a lens-shaped loop's two sides converge, a side widened
   by the gap seen along its normal reached over the other side.
 - On an object of several parts, a dot of one part's outer line (shorter than its width, beside another part) is left
-  out only on the object's surface; along a part's edge inside the object it is laid: between the lettering and the rim
-  of a two-color plate, the pocket where a stroke between letters met the rim was left bare, 0.25 to 0.45 mm wide, on 7
-  layers.
+  out only on the object's surface; along a part's edge inside the object it is laid: where a narrow stroke of one
+  filament met another part through a neck too narrow for its loop, the pocket there was left bare, 0.25 to 0.45 mm
+  wide.
 - Fewer retractions for the short lines walls by width keep: a wall or infill path whose travel in or out would retract
   is moved beside a path that ends within `hardware.filament.retract.travel.min` of it, a travel that never retracts; such
   a travel counts its length alone when paths are ordered; an open line is turned end to end where its far end lies
   nearer the next path; and lines meeting end to end within that travel are laid with one contour's walls (each went
-  with its own nearest contour, and a thin area's pieces between two contours were laid apart). On a three-object
-  two-color plate, 8,764 retractions to 8,663.
+  with its own nearest contour, and a thin area's pieces between two contours were laid apart). On a test slice of
+  two filaments, 8,764 retractions to 8,663.
 - An outer line no longer steps back where the line beside it gives way to a middle line's round start: each point moved
   across the track on its own, and one moved farther than the point before it landed behind it, a spike 15 to 30 µm
   long turning about 159 degrees on every layer of a wedge (22 on the test wedge, none now). A point left behind, or
   moved to within the slicing tolerance of the one before it, is left out.
 - Planning runs each layer as a task of its own on the cores: the slowest layers of a run (an object's first layers)
-  ran one after another on one core. A three-object two-color plate plans in about 43 s instead of about 60 s,
-  the g-code unchanged; a few of the walls' and paths' measures skip what lies too far away to count.
+  ran one after another on one core. A test slice of three objects in two filaments plans in about 43 s instead of about
+  60 s, the g-code unchanged; a few of the walls' and paths' measures skip what lies too far away to count.
 - A loop's seam is aligned only with the seams of the loops under it on the layer below, as `seam_scar` reads a jog: a new
   island took the corner nearest another island's seam.
 - A part narrowing to a ridge a line or two wide (variable-width walls) is laid as one line where two walls do not fit,
@@ -344,11 +340,11 @@ section the release's version and date.
   that line reaches into the walls no further than an interior line may (`plan.layer.infill.wall_overlap` of its width a
   side; narrower, it is left empty); and a line of no length (its ends on one point) is not written, saving a restart
   and a retraction for nothing.
-- A line is never laid where the area is narrower than `plan.layer.walls.feature.min`, however short the stretch: a gray
+- A line is never laid where the area is narrower than `plan.layer.walls.feature.min`, however short the stretch: a
   line 0.3 mm wide was printed through a gap 0.1 mm wide between a model's face and another part's tip, into that
   part's place; it now stops either side of the gap, and two lines' ends are not joined across such a place. A small
   area whose skeleton's forks all read as corners (its junction several points a few microns apart) keeps a line
-  through its two longest forks (a white dome 1.3 x 0.8 mm inside a gray arch had a line 23 µm long); a "speck" beside
+  through its two longest forks (a small dome of one filament inside another's arch had a line 23 µm long); a "speck" beside
   another part is left out only where it is a sliver, not where it is wider somewhere than two narrowest lines; and a
   thin sliver in an acute corner of the model's outline, beside the infill region, gets its line (it was left to infill
   anchors that do not reach the outline).
@@ -383,14 +379,14 @@ section the release's version and date.
   `plan.object.<key>.region.<key>`) apply to an object printed in several filaments, alone or on a plate, and to the other
   objects on such a plate; they were ignored there.
 - The step from an inner wall onto the outer wall's start, and from it onto the wall beside it, goes unretracted only
-  within two line widths: in a letter's narrow stroke, steps of 2 to 5 mm crossed the pocket's edge and drew strands.
+  within two line widths: in a narrow stroke, steps of 2 to 5 mm crossed the pocket's edge and drew strands.
 - A plate of several objects heats the next tool ahead of a change as one object does (`hardware.tool.<key>.heat.time`);
   it waited at every change.
 - A retraction's wipe is written under the feature it wipes: the next path's `;TYPE:` and `;WIDTH:` lines came first, so
   a wipe along an inner wall was labelled as the outer wall that followed.
 - A scarf seam is judged by its whole ramp, not its start alone, where it is placed and in the seam measure: the seam
-  goes where the most-seen point of its ramp is seen least. A nameplate's seams started hidden in a letter's pocket, and
-  their 10 mm ramps ran out onto the face beside the letter. (A seam another part covers is now laid, and judged, as a
+  goes where the most-seen point of its ramp is seen least. Seams started hidden in a small pocket another part
+  fills, and their 10 mm ramps ran out of it onto the face beside it. (A seam another part covers is now laid, and judged, as a
   point seam: under Changed.)
 - Least-visible seams are planned up the whole wall, not layer by layer. Each layer's seam stayed in line with the one
   below rather than pay the move to a better place on its own, so a seam drawn to the front by a feature low on the

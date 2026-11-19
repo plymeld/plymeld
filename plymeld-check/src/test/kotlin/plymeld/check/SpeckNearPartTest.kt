@@ -10,8 +10,8 @@ import plymeld.model.SliceSettings
 /**
  * One part's thin edge right in front of another part: a gray base whose front face passes a white triangle's tip 0.1 mm
  * in front of it, the gray between them narrower than any line is laid in (plan.layer.walls.feature.min), widening either
- * side of the tip. On a two-color nameplate such a place printed a dot of gray, stopped and restarted on the visible face
- * every layer (142 such starts made columns of blobs on the lettering's face); and a gray line printed through the gap
+ * side of the tip. On an object of two filaments such a place printed a dot of one filament, stopped and restarted on the
+ * visible face every layer (stacked into columns of blobs on that face); and a gray line printed through the gap
  * at the narrowest line (0.3 mm in a gap 0.1 mm wide) reached 0.13 mm into the white's place. Read here on the gray's
  * lines: no dot at the tip (an outer-wall speck, a line kept only for walling the outline, shorter than its own width),
  * and no gray bead reaching into the white's place further than the narrowest line stands out of the narrowest place a
@@ -33,7 +33,7 @@ class SpeckNearPartTest : StringSpec({
     val tops = LongArray(n) { 200L * (it + 1) }
     val s = SliceSettings.of(testSetup())
 
-    /** The dots at the tip: outer-wall specks shorter than their own width (what the nameplate's blobs were). */
+    /** The dots at the tip: outer-wall specks shorter than their own width (what made the blobs). */
     fun specksNearTip(layers: List<List<ToolPath>>): Int = (2 until n).sumOf { i ->
         layers[i].count { p -> p.feature == Feature.OUTER_WALL && p.speck && plymeld.core.Planner.polylineLength(p.xy) < p.widthUm &&
             (0 until p.xy.size / 2).all { k -> p.xy[2 * k] in 18_000..22_000 && p.xy[2 * k + 1] < 1_500 } }

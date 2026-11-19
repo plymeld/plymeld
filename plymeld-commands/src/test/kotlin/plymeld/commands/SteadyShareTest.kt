@@ -207,7 +207,7 @@ class SteadyShareTest : StringSpec({
     }
 
     // A line of no length: a thin area's center line along the outline whose points come out as one (here at a five-pointed
-    // star's tips; on a real print, a lettering's). Its cap was sqrt(a * 0 * (1 - share)) = 0: written G1 F0, a feed at which
+    // star's tips; on any shape with sharp tips like them). Its cap was sqrt(a * 0 * (1 - share)) = 0: written G1 F0, a feed at which
     // the printer stopped the print, and the preheat's estimate of it 0 / 0, "NaN s". The star is the test's own shape, found
     // to give such lines (inner radius 1 mm, outer 10, turned 0.13 rad, 1 mm tall, the sample config). Such a line laid
     // nothing yet cost a restart and a retraction: the walls now drop it (Walls.centerLines), so none is written; the

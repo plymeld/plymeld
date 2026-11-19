@@ -22,7 +22,7 @@ close_gaps = "= tool.bore / 8"                 # gaps narrower than a quarter of
 # ---- where the finished print is looked at from: its own front (its small-y side as modeled, turned with its pose), so
 # quality's measures count its back less and least-visible seams go there; all_around counts every side alike. Most
 # prints have a front; a model with none of its own (a vase, a figure on a turntable) sets all_around. Looked at from all
-# around, a plain round wall's seams stayed in line wherever a feature first put them: on a nameplate's front face
+# around, a plain round wall's seams stayed in line wherever a feature first put them, up the front face too
 [plan]
 view_from = "front"
 

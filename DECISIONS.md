@@ -309,8 +309,8 @@ gap's 5 mm is a placeholder. The order of the sides is plymeld's choice, unteste
 
 **Context.** `plan.view_from` was unset by default: looked at from all around, every side of a print counted alike. On a
 plain round wall no point hides a seam better than another, so each layer's seam stayed in line with the one below,
-wherever an earlier feature had put it. On a two-color nameplate the lettering on its front drew the seams there, and
-the column carried on up the plain wall above it to the top edge, on the face the nameplate is made to show.
+wherever an earlier feature had put it. On a print with a detail low on its front, the detail drew the seams there, and
+the column carried on up the plain wall above it to the top edge, on the face the print is made to show.
 
 **Decision.** `plan.view_from` is `front` in plymeld's bundled defaults: the model's own front, its small-y side as
 modeled, turned with whatever pose the plan gives it. Its back counts less in quality's measures, and least-visible
@@ -318,7 +318,7 @@ seams go there. `all_around` stays a value, for a model with no front of its own
 
 **Rejected.** Keeping all around and changing the seams' tie-break to fall back to the back: it moves seams without
 saying a print has a front, but the other quality measures would still count a print's back as much as its front.
-Deciding the front from the model's geometry: no rule tells a nameplate's face from its back reliably yet.
+Deciding the front from the model's geometry: no rule tells a print's face from its back reliably yet.
 
 **Consequences.** Least-visible seams and other quality-weighted decisions change on prints that leave `view_from`
 unset: seams move toward the back, and a decision whose benefit lies on faces turned away (a curved top on a round,
@@ -329,8 +329,8 @@ The technique samples and the curved-island tests, round and symmetric, set `all
 
 **Context.** Least-visible seams were placed layer by layer: each loop's seam at its cheapest point, counting a jog
 from the seam below. On a plain wall no one layer saves enough to pay the move to a better side, so a seam a feature
-drew to the front low on the wall stayed in line on the front face all the way up. On a nameplate it ran from the
-lettering to the top edge, even with the print looked at from its front.
+drew to the front low on the wall stayed in line on the front face all the way up, to the top edge, even with the print
+looked at from its front.
 
 **Decision.** The outer walls' least-visible seams are planned over each run of layers where a loop continues one to
 one (each loop linked to the loop below whose bounding box matches its own best, by overlap over union: by overlap
@@ -351,7 +351,7 @@ nothing else changes). Where loops split or merge, a run ends and a new one star
 
 ## 16. A retraction wipes by default (2026-11-09)
 
-**Context.** The bundled filaments left the wipe off, with no reason recorded. On a two-color nameplate each outer
+**Context.** The bundled filaments left the wipe off, with no reason recorded. On a print of two filaments each outer
 wall's retraction stood still where its loop ended, on the visible face, and left a mark there beside the seam.
 
 **Decision.** Every bundled filament wipes as it retracts (`retract.wipe.enabled = "true"`): the path just laid is
@@ -365,7 +365,7 @@ a hidden line's blob can still lift the nozzle's next pass. Leaving it to a cali
 
 ## 17. An outer wall's ends land their ooze on hidden material (2026-11-09)
 
-**Context.** On a two-color nameplate the outer walls' scarf seams showed far more than scarf seams do, though each
+**Context.** On a print of two filaments the outer walls' scarf seams showed far more than scarf seams do, though each
 scarf was laid as planned (its ramp and closing pass making one layer). The outer wall was laid first in each contour
 (the old switch `inner_first`, false, an inherited value with no reason recorded): the head came down from a travel
 onto the visible face, pushed its 0.8 mm retraction back standing at the seam, where the ramp is meant to be thinnest,
@@ -385,9 +385,9 @@ and at the loop's end retracted standing on the face again, with no wipe. Both o
   head then moves onto the start with nothing pushed (`retract.return.inside`).
 - A wall loop's wipe steps one line width inside it before running back along it (`retract.wipe.inward`), with the whole
   retraction spread over its moves. The outer wall's wipe first; then the inner walls' too, once a print showed a
-  column of scars beside a nameplate's lettering: the wall beside the outer one ended right behind the outer wall's
+  column of scars beside a detail on its face: the wall beside the outer one ended right behind the outer wall's
   scarf, in line with the seams, and its retraction stood there, 0.4 mm behind the face, every layer.
-- A step between an inner wall and the outer wall goes unretracted only within two line widths: in a letter's narrow
+- A step between an inner wall and the outer wall goes unretracted only within two line widths: in a narrow
   stroke, steps of 2 to 5 mm crossed the pocket's edge unretracted and drew strands.
 
 The scarf's own speed, step and flow became settings beside them (`plan.technique.scarf_seam.speed`: half the visible
@@ -400,7 +400,7 @@ inherited and fixing only the restore: the layer's first line would still start 
 
 **Consequences.** Every print with three or more walls is laid in a new order; every outer wall reached by a retracted
 travel, or left with a retraction, moves its restore or wipe inside it. None of it is measured on a print yet: the next
-print of the nameplate is the test.
+test print of two filaments is the test.
 
 ## 18. Renamed settings are migrated; a setting's kind matches its dimension (2026-11-10)
 
@@ -431,7 +431,7 @@ is a new command (in the window, its form). A JSON config is read with the new n
 
 ## 19. A section of a model: its planned lines cut to a box, or the mesh cut as it is read (2026-11-10)
 
-**Context.** Judging a change to how a detail prints (a line of lettering on a nameplate's face) took a print of the
+**Context.** Judging a change to how a detail prints (a small feature on one face) took a print of the
 whole model, hours each time. A section of the model, printed with the same settings, shows the same lines in a
 fraction of the time.
 
@@ -474,7 +474,7 @@ both, the layers take less time than the whole model's, so the section cools les
 ## 20. A plate with multi-filament objects is laid per filament (2026-11-10)
 
 **Context.** An object on several filaments was planned and written by its own slicer, alone: a plate of two was
-refused. Comparing two settings on such an object (a two-color nameplate's lettering) meant a print each, every one
+refused. Comparing two settings on such an object (how its two filaments meet on its face) meant a print each, every one
 paying all its tool changes.
 
 **Decision.** `MultiFilament.steps`, which put one object's filaments in order layer by layer, became `plateSteps` over
@@ -535,7 +535,7 @@ the loop, and a closing pass back over the ramp: it softens a seam on a wall tha
 a part's seam can land on an edge pressed against another part, where it is hidden. The scarf was decided by whether the
 seam lands on a corner (`plan.technique.scarf_seam.where`), not by where its ramp and closing pass run, so such a seam was
 scarfed like any other, and from the hidden point the ramp and closing pass ran on along the loop onto the faces that
-show. On a printed nameplate, a gray island about 2.1 by 2.4 mm inside a white letter started its wall against the letter,
+show. On a test print, a small island of one filament inside another's part started its wall against that part,
 then ramped round its front corner and across its whole front: its only visible faces got a thin line with a second over
 it, and the print showed a hump there. The point needed no softening; the scarf put a double pass on the faces that show.
 
@@ -610,7 +610,7 @@ as the writer does: a value set on a part that prints with the object's own tool
 Amends 23: a line of no length gets no steady-share cap.
 
 **Context.** A program can hold a line of no length: its points all one, so it lays nothing (a thin area's center line
-along the outline whose points come out as one, at a lettering's or a star's sharp tips). Its steady-share cap was
+along the outline whose points come out as one, at sharp tips such as a star's). Its steady-share cap was
 sqrt(a · 0 · (1 − share)) = 0, written `G1 F0`, and its time in the preheat's walk back was 0 / 0, written "NaN s". The
 printer's firmware stopped the job at the zero feed, mid-print, and the pre-print check had passed the file: it read
 feeds only to compare them with the machine's top speeds.
@@ -645,8 +645,8 @@ written as numbers, so a macro's text arguments, lists, and names pass.
 
 **Context.** A curved island a plan locks on an object of parts in several filaments or part settings (laid per part)
 was refused when its area covered parts of more than one of them ("an island is laid as one"). An island's area is
-every cell of the top above its start joined to its cap (CurvedRegions.islandAt): on a small ledge in front of an inlaid
-letter (a pocket's lower wall on a block's sloped face) that is the whole object above the start, block and inlay
+every cell of the top above its start joined to its cap (CurvedRegions.islandAt): on a small ledge in front of an inlay
+(a pocket's lower wall on a block's sloped face) that is the whole object above the start, block and inlay
 alike, since both rise behind the ledge. So the island over the ledge could not be laid at all.
 
 **Decision.** The island is laid over every part inside its area. Each part is warped by the island's warp and sliced
@@ -786,12 +786,12 @@ an outer loop cuts across a sharp concave corner of its area (into a neighboring
 (`plan.layer.sliver.width`, unset: `plan.layer.walls.feature.min` with variable-width walls) where it touches another
 filament's went to that neighbor wherever it lay. Inside the object that fills what would be a void. On the surface the
 neighbor's plastic showed in the wrong color outside its own part, and its outline stepped out over the layer below for
-the layers the sliver was thin, an overhang nobody modeled. On a nameplate whose gray wall leans out at 55 deg over a
-white plate, starting at zero width on the white's face, the white's outer wall was laid 0.137 mm out of the white's face
-over the gray's place (0.138 mm wide at the layer's middle, under `feature.min`, 0.15 mm) for one layer, its front edge
-0.10 mm out from the layer below while the white's own face leaned back 0.04 mm; the gray's first line came on the next
-layer. The pre-print check passed the file: its tool rule reads where a line's middle lies, and the white's middle lay in
-the white.
+the layers the sliver was thin, an overhang nobody modeled. On a test slice where one filament's wall leans out at
+55 deg over another filament's face, starting at zero width on that face, the face's outer wall was laid 0.137 mm out
+of its face over the leaning wall's place (0.138 mm wide at the layer's middle, under `feature.min`, 0.15 mm) for one
+layer, its front edge 0.10 mm out from the layer below while its own face leaned back 0.04 mm; the leaning wall's first
+line came on the next layer. The pre-print check passed the file: its tool rule reads where a line's middle lies, and
+that line's middle lay in its own part.
 
 **Decision.**
 - `plan.layer.sliver.at_surface`: `own` (bundled) keeps a sliver lying along the object's outer surface its own part's,
@@ -818,23 +818,24 @@ nothing by the walls of the time, left a strip 2.8 mm long unprinted). Laying an
 exposed sliver at the narrowest line anyway: under `feature.min` the line stands out of the sliver into the neighbor
 and out of the model further than decision 26 allows. Counting any contact with the outline as along it: a tongue meeting
 the surface end on would leave a notch in the surface and a void behind it. A refusal by the covered outline's total on
-a layer (0.5 mm, as the tool rule): on the nameplates, where a feature narrower than a line meets another part (a gray tip
-reaching 0.15 mm into a white face, a wall passing over it, a center line's round end in the narrowest place a line is
+a layer (0.5 mm, as the tool rule): on test slices of two filaments, where a feature narrower than a line meets another
+part (a tip of one part reaching 0.15 mm into another's face, a wall passing over it, a center line's round end in the narrowest place a line is
 laid in), such pieces added up to 3 mm on a layer; one stretch a handed-over sliver lays is what shows. Reading the bead
-from `;WIDTH`: a variable-width line read as its widest everywhere, 48 refusals on the nameplates.
+from `;WIDTH`: a variable-width line read as its widest everywhere, 48 refusals on those slices.
 
-**Consequences.** On the nameplate above, the white's outer wall stays on the white's face on every layer (its front
-0.007 mm inside it where the gray wedge is 0.138 mm wide), the wedge's place is left empty on that one layer, and the
-gray's first line comes where it did; the file's check passes on that object (it refused the earlier behavior there:
-5.9 mm of the gray's surface laid by the white on that layer, 1.3 to 4.6 mm on five others). On the two-color Benchy
+**Consequences.** On the test slice above, the face's outer wall stays on its own face on every layer (its front
+0.007 mm inside it where the leaning wall's wedge is 0.138 mm wide), the wedge's place is left empty on that one layer,
+and the leaning wall's first line comes where it did; the file's check passes on that object (it refused the earlier
+behavior there: 5.9 mm of the leaning wall's surface laid by the other filament on that layer, 1.3 to 4.6 mm on five
+others). On the two-color Benchy
 (0.2 mm layers, the split alone) the filaments' areas differ on 85 of 240 layers: 24.5 mm² in all, summed over the
 layers, of slivers along the surface stays its own and is left empty where it is narrower than `feature.min`, a
 recess in the surface where the neighbor's color filled it before; 0.2 mm² inside the object still goes over. The
 check reads the flat layers of an object with a curved island with the tool in force: an island layer's tool change
 was left out of the flat layers' reading, and the new rule refused a correct file on it (the curved-island ledge test).
-Still open: a narrow tip of one part reaching into another's face is passed over by that part's wall (on a nameplate,
-gray tips 0.15 mm into a white face, the white's wall dipping round them laid 1.3 and 1.4 mm of their surface white, as
-before this change; the check now refuses it); a sliver along a top or bottom face only (the layers above or below
+Still open: a narrow tip of one part reaching into another's face is passed over by that part's wall (on a test slice,
+tips of one filament 0.15 mm into another's face, that face's wall dipping round them laid 1.3 and 1.4 mm of their
+surface in its own filament, as before this change; the check now refuses it); a sliver along a top or bottom face only (the layers above or below
 leave it showing) is judged inside the object, the layer's outline alone telling the surface; and a part's own
 `plan.object.<key>.part.<part>.layer.sliver.*` is not read (the object's is), as for `sliver.width` before.
 
@@ -843,7 +844,7 @@ leave it showing) is judged inside the object, the layer's outline alone telling
 
 Amends 26: in such an island the loops, the center lines and their rules give way to this construction.
 
-**Context.** An area of a layer between about one and three lines wide was laid badly. A gray lens about 2.4 mm long,
+**Context.** An area of a layer between about one and three lines wide was laid badly. A lens about 2.4 mm long,
 growing layer by layer from 0.7 to 1.2 mm deep against another part's straight edge, was one line along it while one
 line filled it; one layer higher, a small loop in its middle and two short lines at its ends: a hole in the loop's middle,
 gaps between the loop and the end pieces, the lens's long edge bare by up to 0.25 mm, an end piece 0.1 mm outside the
@@ -854,8 +855,8 @@ whole, and a band between two and three lines wide holds two fixed-width beads a
 
 A first construction (lines traced along each side, one line carrying on as the other side's line where one became two,
 the new line starting beside it) covered the lens but laid such an island as open lines on some layers and a loop on
-others: an open line has no seam, so the next layer's loop read its jog from a seam elsewhere, and on a real three-object
-plate the seam measure rose from 65.5 to 159 mm² (all of it jogs).
+others: an open line has no seam, so the next layer's loop read its jog from a seam elsewhere, and on a test slice of two
+filaments the seam measure rose from 65.5 to 159 mm² (all of it jogs).
 
 **Decision.**
 - An island (an outer polygon and its holes) where the set walls nowhere all fit (the innermost loop has no fit region in
@@ -933,7 +934,7 @@ wide: 0.91 mm² uncovered against 17.8 (widest 0.020 against 0.135), two loops 0
 6.62 mm², laid twice 0.61 against 1.20 mm², plastic outside 3.95 against 2.98 mm² (the narrowest steps' lines at the
 narrowest line). The ridges of 26 stay laid edge to edge.
 
-On a real plate of three objects (a nameplate base in two filaments and two variants of it; 0.08 mm layers) against 26:
+On a test slice of three objects in two filaments (0.08 mm layers) against 26:
 by the measure of 29, seam_scar 247.0 mm² against 379.6 (5,908 seams, 333 scarfed, jogs 331 mm, against 7,822, 362, 305
 mm; by the measure before 29, 48.2 mm² against 65.5); visible restarts 3,233 against 3,658, retractions 8,121 against
 8,572; predicted 150.6 min against 150.4; the pre-print check passes all three objects (26's walls: two refusals, one
@@ -963,7 +964,7 @@ inside the walls (it passed 26's hole in the lens).
 loop fits) starts and stops on the surface, two blemishes, yet counted nothing; a loop's jog was read from the nearest
 seam anywhere on the layer below, so a loop over a place where the layer below had only an open line, or nothing, read a
 jog from a seam centimetres away on another island; and what hides a seam was read from the loops alone, so an open line
-in front of a seam hid nothing. On a real plate a construction that laid narrow islands as lines on some layers and loops
+in front of a seam hid nothing. On a test slice a construction that laid narrow islands as lines on some layers and loops
 on others read a jog of 50 mm on a single loop, and was scored worse than the one laying the same islands as many short
 open lines, whose ends counted nothing.
 
@@ -1006,11 +1007,11 @@ of the line's width: a hole a line could not have filled is still bare plastic m
 
 **Consequences.** The old lens (the file that version wrote for the test model, kept as a test fixture) is refused at its
 top layers; a hand-written print with a stretch of a loop left out is refused where it is; fuzzy skin passes with its
-allowance and is refused without it (both on a hand-written print and on the planner's). Over the regression models and a
-real plate of three objects, as first run, every refusal read was a real hole, all present before walls by local width
+allowance and is refused without it (both on a hand-written print and on the planner's). Over the regression models and a two-filament test
+slice, as first run, every refusal read was a real hole, all present before walls by local width
 too: webs between an opening and the outside where both sets of inner loops end (decision 31), pockets inside an inner
-loop, the gap between an outer and an inner loop's turns at a sharp end; benchy 83 layers, the test plate 30, the real
-plate 104 (191 with the walls before decision 28). A stretch of a two-part ridge's sparse-infill region read as a hole
+loop, the gap between an outer and an inner loop's turns at a sharp end; benchy 83 layers, the test plate 30, the test
+slice 104 (191 with the walls before decision 28). A stretch of a two-part ridge's sparse-infill region read as a hole
 until the infill-width rule.
 
 ## 31. A short line between walls is kept where its area is wider than the narrowest place a line is laid in (2026-11-15)
@@ -1028,9 +1029,9 @@ left empty is a hole, not a corner void. Narrower voids stay empty as before.
 **Rejected.** Laying the web by local width as narrow islands are (decision 28): the larger change, to be done (open
 items below). Lowering length_factor.min: every short line everywhere, not the ones that leave holes.
 
-**Consequences.** Regression models: benchy 83 refused layers to 1, the test plate 30 to 0; the real plate 104 to 46, the
-rest small pockets (0.25 to 0.45 mm) where a center line's fork into a corner is pruned. More short lines: on the real
-plate 706 more retractions, 2.3 min longer. Open: the pruned forks' pockets; a slit narrower than the floor between two
+**Consequences.** Regression models: benchy 83 refused layers to 1, the test plate 30 to 0; the test slice 104 to 46, the
+rest small pockets (0.25 to 0.45 mm) where a center line's fork into a corner is pruned. More short lines: on the test
+slice 706 more retractions, 2.3 min longer. Open: the pruned forks' pockets; a slit narrower than the floor between two
 outer loops in a web just over two lines wide (0.12 to 0.14 mm on test webs of 1.0 and 1.6 mm), where a line is barred
 by the interior minimum; the narrow-island pocket at a ridge's end (ThinRidgeTest's dipped ridge, 0.30 mm).
 
@@ -1046,15 +1047,15 @@ Nothing under it: the loop is placed as on a first layer (its sharpest corner, t
 
 **Rejected.** Keeping every seam below as a weak pull: what the measure does not count, the placement should not chase.
 
-**Consequences.** Real plate (with 31): seam_scar 247.4 to 244.5 mm², jogs 328.8 to 325.5 mm, scarf seams 283 to 143
+**Consequences.** Test slice (with 31): seam_scar 247.4 to 244.5 mm², jogs 328.8 to 325.5 mm, scarf seams 283 to 143
 (loops with nothing under them take a corner), predicted 152.8 to 152.3 min. Test in SeamsTest, with its control.
 
 ## 33. A thin area's fork is pruned only where no hole is left; a third line from a junction gives way to the other two (2026-11-15)
 
 **Context.** The center lines of a thin area drop a dead-end fork shorter than its width: the fork into a corner, where a
 line would only add a start and a stop. Where the area is wide at the fork, pruning it left a hole the pre-print check
-(decision 30) refuses: on the real plate 45 pockets 0.25 to 0.45 mm wide where three thin strips meet between letters and
-the rim, in the repository's Benchy a strip's line ending in a head 1 mm across with its point bare (0.34 mm), and the
+(decision 30) refuses: on the test slice 45 pockets 0.25 to 0.45 mm wide where three thin strips meet beside another
+part, in the repository's Benchy a strip's line ending in a head 1 mm across with its point bare (0.34 mm), and the
 pocket at a ridge's end in ThinRidgeTest (0.30 mm). Kept, a fork is a third line from a junction the other two run through,
 laid from the junction over the others' plastic; and joining ends across a gap then joined that branch to another fork's
 far end, laying it out and back.
@@ -1072,8 +1073,8 @@ far end, laying it out and back.
 **Rejected.** Lowering the prune length: every corner fork everywhere. Laying the third fork out and back from the
 junction: twice over its own length.
 
-**Consequences.** With 34, on a three-object two-color plate the check's hole refusals fell from 46 to 7 (the rest
-pockets 0.25 to 0.45 mm on the base object, open); planning took 61 s against 46 s before. Tests: JunctionPocketTest (a
+**Consequences.** With 34, on a two-filament test slice the check's hole refusals fell from 46 to 7 (the rest
+pockets 0.25 to 0.45 mm, open); planning took 61 s against 46 s before. Tests: JunctionPocketTest (a
 strip into a head, a triangle of three forks; controls: the exception off leaves the pockets, an end reaching in fully lays
 plastic twice), ThinRidgeTest's dipped ridge (its pocket at the narrow end, 0.30 mm, gone). The walls of one filament's
 areas read the object's whole cut (Planner.walls `whole`), and a narrow island's cached decision is keyed by it too.
@@ -1096,18 +1097,18 @@ block changed.
 
 **Consequences.** WallsByWidthTest's web 1.0: widest bare 0.120 to 0.020 mm; the block control unchanged byte for byte.
 Open: a pocket 0.13 mm wide where three lines meet at the end of a web 1.6 mm wide's center line (no slit: three sides).
-On the real plate, slits shared closed 4 of the 11 holes left without it and took about 6 s of the planning.
+On the test slice, slits shared closed 4 of the 11 holes left without it and took about 6 s of the planning.
 
 ## 35. The scarf seams decision 32 gave up are covered seams, point seams by decision 22 (2026-11-15)
 
-**Context.** Decision 32 put the fall in scarf seams (283 to 143 on the real plate) down to loops with nothing under them
+**Context.** Decision 32 put the fall in scarf seams (283 to 143 on the test slice) down to loops with nothing under them
 taking a corner. Counted per outer loop, with the alignment of 32 on and off: the loops that lost their scarf are small
 loops laid by width whose seam now lies where another part of the object covers it.
 
 **Decision.** No change: a covered seam is a point seam (decision 22), and the placement of 32 finds such hidden points.
 This corrects 32's consequence, not its decision.
 
-**Consequences.** Real plate, 32 off and on: scarf seams 284 to 143, seam_scar 247.6 to 244.6 mm², jogs 327.4 to 322.9
+**Consequences.** Test slice, 32 off and on: scarf seams 284 to 143, seam_scar 247.6 to 244.6 mm², jogs 327.4 to 322.9
 mm, visible restarts 3115 to 3078, retractions 8790 to 8747, predicted 152.7 to 152.2 min.
 
 ## 36. A dot of one part's outer line beside another part is left out only on the object's surface (2026-11-15)
@@ -1115,19 +1116,19 @@ mm, visible restarts 3115 to 3078, retractions 8790 to 8747, predicted 152.7 to 
 **Context.** On an object of several parts, the paths leave out an outer-wall speck shorter than its own width where
 another part lies within a width of it: on the object's surface such a dot, stopped and restarted every layer, made a
 column of blobs, and the part behind fills the outline there. The rule read the part's own outline, so it held along a
-part's edge inside the object too. On a three-object two-color plate, a stroke of the base's filament between two
-letters met the rim through a neck too narrow for its loop; the pocket between the rim's loop, the stroke's loop and the
-letters was laid by one short line, 0.44 mm long and up to 0.45 mm wide, which the rule left out: the pre-print check
+part's edge inside the object too. On a two-filament test slice, a narrow stroke of one filament between two
+pockets of the other met a wider band of its own through a neck too narrow for its loop; the pocket between the band's
+loop, the stroke's loop and the pockets was laid by one short line, 0.44 mm long and up to 0.45 mm wide, which the rule left out: the pre-print check
 (decision 30) refused a hole there, 0.25 to 0.45 mm wide, on 7 layers.
 
 **Decision.** The speck is left out only where it runs along the whole object's outline (its surface), as
 Walls.alongOutline reads it; along a part's edge inside the object it is laid. The paths' layer cache reads the whole
 object's outline.
 
-**Rejected.** Leaving the rule out altogether: on the surface the dots return (on the real plate 80 more restarts,
+**Rejected.** Leaving the rule out altogether: on the surface the dots return (on the test slice 80 more restarts,
 seam_scar 244.6 to 261.6 mm²).
 
-**Consequences.** Real plate: check refusals 7 to 0; seams 5916 to 5974, seam_scar 244.6 to 247.7 mm², visible restarts
+**Consequences.** Test slice: check refusals 7 to 0; seams 5916 to 5974, seam_scar 244.6 to 247.7 mm², visible restarts
 3078 to 3097, retractions 8747 to 8764, predicted 152.2 to 152.3 min. Test: WallsByWidthTest's finger of one part inside
 another (a neck 0.36 to 0.58 mm wide and 0.5 mm long, a layer each): with the rule as before, holes on 6 of 23 layers;
 control, its lines taken out, refused on all.
@@ -1156,7 +1157,7 @@ Benchy and the test plate lay a few slits fewer shared (the regression's walls d
 
 ## 38. Each unit of parallel work is a task of its own (2026-11-15)
 
-**Context.** Decisions 28 to 35 took the planning of a three-object two-color plate from 46 s to about 60 s. Timed per
+**Context.** Decisions 28 to 35 took the planning of a two-filament test slice from 46 s to about 60 s. Timed per
 layer, the walls of each part ran as long as their slowest stretch: an object's first five layers (0.5 to 3 s each,
 the rest well under 1 s) fell in one chunk of the parallel stream and ran one after another on one core.
 
@@ -1172,14 +1173,14 @@ layer's task that waited on the lock; the cuts are now made before the layers' t
 
 **Rejected.** Ordering the layers by expected cost: a guess where splitting to single units needs none.
 
-**Consequences.** Real plate: planning 61.8 s (profiled) to 42 to 43.5 s (two runs), the g-code byte for byte the same;
+**Consequences.** Test slice: planning 61.8 s (profiled) to 42 to 43.5 s (two runs), the g-code byte for byte the same;
 the per-index tasks alone took the walls of the three objects from 23.9 s to 16.9 s. Test: ParallelLockTest (the
 check of 2 to 200 layers of two parts finishes; control: with the cuts a synchronized lazy again, 16 layers hung).
 
 ## 39. A path whose travel would retract is laid beside a path that ends within a travel that never retracts (2026-11-16)
 
-**Context.** The short lines kept by decisions 31, 33 and 36 close holes, and each cost retractions: on a three-object
-two-color plate, open inner-wall lines under 1 mm rose from 179 to 1,282 and retractions from 8,121 to 8,764 (about
+**Context.** The short lines kept by decisions 31, 33 and 36 close holes, and each cost retractions: on a two-filament test
+slice, open inner-wall lines under 1 mm rose from 179 to 1,282 and retractions from 8,121 to 8,764 (about
 40 % of all of them are a section's, its cut pieces each entered by a retracted travel, unchanged). Read by the path on
 each side of a retracted travel: the lines in a thin area's chain were reached one by one from far off, the order
 greedy (nearest-first) left a short line for last and crossed the part to it, a line was entered at its nearer end
@@ -1222,7 +1223,7 @@ the pre-print check refused its first layer. Smoothing the shifts along the trac
 lines from laying plastic twice.
 
 **Consequences.** The wedge: no such turn (22 before), no move shorter than the tolerance on its outer line; its
-coverage unchanged by the self-check's measure. On the three-object plate, outer-wall turns over 150 degrees beside a
+coverage unchanged by the self-check's measure. On the test slice, outer-wall turns over 150 degrees beside a
 step shorter than the line 967 to 746, moves shorter than the tolerance 10,567 to 10,252 (most of what is left lies
 outside the narrow islands, not read here; a tip's run-in turns back by design). Test: WallsByWidthTest (no such spike
 on the wedge; control: the old layer's line is counted).
@@ -1276,7 +1277,7 @@ model fell from about 2.5 GB to under 0.2 GB of the check's 7.5 GB.
 
 **Context.** Each technique's test models were built inside its own test, and each test read only what its technique
 is about. A change to the walls moved retractions, seam counts and planning time on other models, and nothing showed
-it until a real plate was sliced.
+it until a large model was sliced.
 
 **Decision.** The slicing tests' small models live in one catalog (plymeld-check's tests, `catalog/`), each with a
 stable name, what it is for, the rig it is sliced with and a few rows of settings that matter to it; the technique
@@ -1352,8 +1353,8 @@ grouped by it). Testing the hole's centroid: a hole's centroid can lie outside i
 **Consequences.** The inlay passes the pre-print check under both its rows. Only its plate's first layer changes: the
 inner and outer wall lines over the block's infill go (inner wall 137.6 to 74.1 mm on that layer, its lines 0.8 mm wide
 or more from 106 segments to none), the web gets its line; on the whole model filament 659.5 to 654.7 mm, seams 155 to
-141, retractions 335 to 328. No other model of the catalog moves, the regression cases write the same files, and a
-real three-object plate keeps its retractions and predicted time. The pre-print check did not refuse the lines laid
+141, retractions 335 to 328. No other model of the catalog moves, the regression cases write the same files, and a two-filament test
+slice keeps its retractions and predicted time. The pre-print check did not refuse the lines laid
 over the infill (plastic laid twice is not among its rules): open.
 
 ## 46. An island that keeps its walls shares their slits, a loop no wider than its own facing stretch allows (2026-11-16)
@@ -1362,7 +1363,7 @@ Amends 34.
 
 **Context.** Decision 34 left the slits of a narrow island (decision 28: the set walls fit nowhere all in it) unshared,
 its walls being judged against its beads as laid. Where the beads were not taken, the island kept those walls with
-their slits: on a three-object two-color plate, one layer of a strip 1.8 mm wide, its inner wall's two sides 0.52 mm
+their slits: on a two-filament test slice, one layer of a strip 1.8 mm wide, its inner wall's two sides 0.52 mm
 apart, left 0.09 mm bare between them. Sharing those slits too, the catalog's two blobs joined by a neck (walls kept on
 four layers) laid more twice than the slits it closed: in a lens-shaped inner loop the two sides converge toward its
 ends, a side's normal there meets the other side at a slant, and a bead widened by the gap seen along it reached over
@@ -1419,16 +1420,16 @@ laid through the innermost loop are found, and the file the inlay's walls of dec
 a fixture) is found at that layer (29 spots, 45.9 mm²). The first reading of the catalog found spots on 27 model rows,
 nearly all on the internal bridge layer: a bridge's lines were clipped with their middle on the edge of the area they fill, half
 a line over the walls and the infill beside it (the planner's own rule for every other interior line places them at bead
-contact); fixed, for bridges over air too (a bridge laid across a tooth's own wall loop on a real plate). Still found,
+contact); fixed, for bridges over air too (a bridge laid across a tooth's own wall loop on a test slice). Still found,
 and recorded in the catalog's baseline: where an internal bridge meets the internal solid or sparse infill of its own
 layer, both fills place their lines against the shared edge as against a wall's bead, and their linking runs lie over each
-other along it (the bridges and the sloped top). On a real three-object plate it finds teeth along the outline laid as
+other along it (the bridges and the sloped top). On a two-filament test slice it finds teeth along the outline laid as
 loops of their own over the main outer loop, and wall junctions in narrow webs. Decision 48 lists what is still open.
 
 ## 48. Plastic laid twice is reported, not refused, until the planner lays none (2026-11-16)
 
 **Context.** Decision 47's rule, as a refusal, refused what the planner has always laid: a plain Benchy, a two-part
-Benchy, a real three-object plate, and dozens of the test suite's own slices, at overlaps of 0.25 to 0.55 mm between
+Benchy, a two-filament test slice, and dozens of the test suite's own slices, at overlaps of 0.25 to 0.55 mm between
 lines the planner placed. They are real overlaps, to be fixed in the planner one cause at a time; a slicer that refuses
 an ordinary model in the meantime cannot be used.
 
@@ -1463,7 +1464,7 @@ floor until the planner's overlaps pass: they are 0.25 mm and wider, as wide as 
 Amends 28 and 48.
 
 **Context.** Decision 48 listed teeth along an outline laid as outer loops of their own over the main outer loop among
-the planner's causes of plastic laid twice: on a real three-object plate, 40 of the 92 spots read "outer wall over outer
+the planner's causes of plastic laid twice: on a two-filament test slice, 40 of the 92 spots read "outer wall over outer
 wall" (0.25 to 0.62 mm wide) and 14 "bridge over outer wall" or "internal solid over outer wall", all at small teeth of
 one filament, about 2 by 1 mm, hanging off another filament's edge. Read path by path, neither was a loop over a loop:
 - Each tooth is an island too narrow for the set walls, laid by its beads (decision 28): one loop. Where the walls of 26
@@ -1484,7 +1485,7 @@ one filament, about 2 by 1 mm, hanging off another filament's edge. Read path by
   slicing tolerance (`method.slicing.tolerance`: the path is known no closer) of the straight move that replaces it and
   the next; its plastic goes with the next move (KlipperWriter). A point farther off is kept however little plastic its
   move carries (an ironing line's step to the next line: merged, the next line would run askew), and a line's last move
-  is always written. Of the real plate's 212 `E0` moves, 81 are left: at a line's end, or off the straight move.
+  is always written. Of the test slice's 212 `E0` moves, 81 are left: at a line's end, or off the straight move.
 
 **Rejected.** Reading an `E0` move inside a line as part of the line in the check: the check would read the file
 otherwise than the printer and every other reader do, and the file would still say a travel there. Carrying every
@@ -1493,7 +1494,7 @@ round to nothing, and every E in every file would move by a digit. Testing a pie
 rather than by area: the piece also pokes past the outline at the tip, which the area rule takes off too. Merging only
 moves shorter than the slicing tolerance: two closing passes on the plate still broke, at moves of 7 to 14 µm.
 
-**Consequences.** The real plate: 92 spots, 23.251 mm², on 73 layers to 38 spots, 9.921 mm², on 25 layers; what is left
+**Consequences.** The test slice: 92 spots, 23.251 mm², on 73 layers to 38 spots, 9.921 mm², on 25 layers; what is left
 is wall junctions in narrow webs on its base object (36 spots), one pair of internal solid lines, and one short inner
 line beside a long one. The catalog's new model, small teeth under a second part (WALLS rig, with and without scarf
 seams), reads no spot; taken out by first point it read 33 spots, 6.5 mm², bridge over outer wall, on 19 of the teeth's
@@ -1508,7 +1509,7 @@ two parts' fills over each other, a curved island's rising rim.
 
 Amends 27.
 
-**Context.** On a real three-object two-color plate the laid-twice measure (decision 48) read 38 spots, 9.9 mm², on its
+**Context.** On a two-filament test slice the laid-twice measure (decision 48) read 38 spots, 9.9 mm², on its
 base object, where lines of one filament converge at the tip of a thin sliver of the other. Read spot by spot, with the
 planner's areas per filament dumped at those layers, one cause was the largest: a tongue of one part too thin for a line,
 inside the other filament's area, goes over to that neighbor (decision 27), and the parts meet a few microns apart
@@ -1539,9 +1540,9 @@ lays one outer loop fewer on a layer (the sliver now joins it with no gap), and 
 1.41 to 3.13 mm²).
 Still open on the plate, the 29: a blunt spike of one filament into the other's area leaves a narrow notch, and the
 walls (decision 26), growing a loop back from its fit by a mitred offset, run it across the notch's tip, in places
-0.04 mm outside the area, over the loop inside it (9 spots); wall junctions in narrow webs between letters (inner loops
-of two pieces of an inset meeting at a neck, 11, and two outer loops at a V between letters, 3); small inner loops of a
-letter (2); two outer loops of one letter crossing (1); fills (2); one short inner line beside a long one.
+0.04 mm outside the area, over the loop inside it (9 spots); wall junctions in narrow webs between pockets (inner loops
+of two pieces of an inset meeting at a neck, 11, and two outer loops at a V between two pockets, 3); small inner loops
+of a narrow island (2); two outer loops of one narrow island crossing (1); fills (2); one short inner line beside a long one.
 
 ## 51. What a slice no longer needs is let go: the check streams its file, keeps its grids flat, and holds a layer only while reading it (2026-11-16)
 
@@ -1588,7 +1589,7 @@ after writing; the window's holds and reuses them).
 
 Amends 26.
 
-**Context.** Decision 50 left 29 spots of plastic laid twice on a real three-object two-color plate. The catalog's
+**Context.** Decision 50 left 29 spots of plastic laid twice on a two-filament test slice. The catalog's
 slivers ending inside a second part read 24 spots, 20.7 mm², on 13 layers. Read loop by loop, two causes were in the
 walls' fit regions (decision 26: loop k is laid round the outline shrunk by its inset and half its spacing, mitred so its
 corners stay sharp):
@@ -1618,7 +1619,7 @@ corners stay sharp):
 the loop outside it, and their beads overlap there. Telling a cut neck by the exact and mitred shrinks' numbers of
 pieces and holes, each mitred piece assigned to the exact piece holding its first point (as first written): the two share
 their moved edges, a mitred piece's first point can lie on the exact piece's boundary, and three spots on the plate
-stayed (one read layer by layer: an inner loop cut in two at a V between letters). Joining necks in the looser fit
+stayed (one read layer by layer: an inner loop cut in two at a V between two pockets). Joining necks in the looser fit
 alone: the hysteresis then made one loop round the looser fit, and its mitred cut to the inset less the tolerance cut
 it again beside the neck (two spots on the plate came back, one an outer loop broken there). Making the exact shrink of
 the outline cut to boxes round the turns: hundreds of overlapping boxes made the booleans the slowest step (planning 47
@@ -1632,22 +1633,22 @@ notch, which the loop ran across, is laid by a short outer line of its own on ea
 to 52, seams 52 to 78, visible restarts 15 to 28, seam scar 0.68 to 1.17 mm²); the loops that ended at the neck are one
 (inner wall paths 131 to 118). Elsewhere in the catalog walls move by up to 0.026 mm on a few layers of the web 2.2 mm,
 the finger in a second part and the inlay, where a neck at a polygon's vertex is kept; on one layer of the inlay a neck
-joins two inner loops into one, whose round turn there lies nearer the loop outside it (no spot). The real plate: 29
+joins two inner loops into one, whose round turn there lies nearer the loop outside it (no spot). The test slice: 29
 spots, 4.833 mm², on 22 layers to 10, 1.199 mm², on 9 layers; its planning takes longer, 47.2 s to 49.7 s (three runs
-each, in turn), the exact shrink and its difference with the mitred one about 4 % of the planning's CPU (on this plate's
-letters most layers have a turn the gate keeps; a cache of the necks by outline found almost no outline repeated, and
+each, in turn), the exact shrink and its difference with the mitred one about 4 % of the planning's CPU (on this slice's
+narrow islands most layers have a turn the gate keeps; a cache of the necks by outline found almost no outline repeated, and
 was dropped). Open: that cost. Tests: OffsetTest (a thin
 triangle grown past the limit, its area in closed form, the bevel's as the control; a notched square shrunk, nothing of
 it nearer the outline than d less the arc's chord sag, the bevel 0.21 mm from the tip as the control; random polygons
 against the sleeve method with the arc), NecksJoinedTest (a band round a square corner whose inner fit's neck the mitre
 cuts: one inner loop, its sides a spacing apart; control, the necks not joined: two loops whose ends lie 0.305 mm apart).
-Still open on the plate: a loop crossing a web between two letter pockets twice, not a neck the mitre cut (the exact
-and mitred shrinks agree there); outer loops at a V between letters; small inner loops of a letter; two outer loops of
-one letter crossing; two fills sharing an edge; one internal solid line over another.
+Still open on the plate: a loop crossing a web between two pockets twice, not a neck the mitre cut (the exact and
+mitred shrinks agree there); outer loops at a V between two pockets; small inner loops of a narrow island; two outer
+loops of one narrow island crossing; two fills sharing an edge; one internal solid line over another.
 
 ## 53. A line's points closer together than the slicing tolerance are one, its width keeping the plastic (2026-11-16)
 
-**Context.** On a real three-object plate, 10,311 extruding moves were shorter than `method.slicing.tolerance` (12.5 µm
+**Context.** On a two-filament test slice, 10,311 extruding moves were shorter than `method.slicing.tolerance` (12.5 µm
 there), 8,345 of them on the outer wall, and 741 outer-wall vertices turned by more than 150 degrees beside a move
 shorter than the outer line. Read move by move: 99.6 % of the outer wall's short moves lay in lines whose plastic per
 millimetre varies, the lines of narrow islands laid by their beads (decision 28), none in an arc and none at an arc's
@@ -1732,7 +1733,7 @@ most models (up to half on the narrow ridges, where a narrow sparse piece beside
 no wall, seam, or check measure moves. Its new model, a stepped top (a top beside internal solid, an internal bridge
 beside internal solid and sparse), reads none. FillContactTest: a stepped block and a table, no plastic laid twice
 between fills; controls on two fills side by side: both placed against the edge lay 1.12 mm² twice, both at bead contact
-leave 1.07 mm² bare. A real three-object plate: 10 spots, 1.199 mm², on 9 layers to 9, 1.116 mm², on 8 (the fills' one
+leave 1.07 mm² bare. A two-filament test slice: 10 spots, 1.199 mm², on 9 layers to 9, 1.116 mm², on 8 (the fills' one
 gone), filament 5838 to 5833 mm, retractions 8642 to 8640, seams unchanged; its planning 44.4, 46.7, 48.0 s before and
 47.1, 46.6, 46.2 s after (three runs each, in turn): within the runs' spread (a layer with one fill makes no extra
 boolean). Open: where both fills' gaps between line ends meet, holes up to 0.275 mm across remain (0.15 mm
@@ -1770,7 +1771,7 @@ beads, so it moves the ratio the wrong way (an option for planning time on its o
 **Consequences.** The strip, over 150 islands after 60: 27.5 ms an island against 10.5 cached (2.6 times) to 22.2 against
 10.6 (2.1 times); the test's own reading, ten runs: 2.39, 2.29, 2.43, 2.53, 2.75, 2.51, 2.53, 2.29, 2.52, 2.61 (2.6 to 3.1
 before), and 2.4 inside the fast suite, beside the other tests. The regress cases,
-the catalog, and a real three-object plate's g-code are byte for byte the same; the plate's planning 49.7, 50.6, 50.3 s
+the catalog, and a two-filament test slice's g-code are byte for byte the same; the plate's planning 49.7, 50.6, 50.3 s
 before and 41.5, 48.1, 47.4 s after (three runs each, in turn; a fourth after, alone, 50.4 s): no more than the runs'
 spread shows.
 
@@ -1778,8 +1779,8 @@ spread shows.
 
 Amends 28 and 40.
 
-**Context.** On a real three-object two-color plate, a narrow island's outer line stepped back and forth over itself
-where a place is two to three lines wide (the widths of letter strokes on it): 342 kinks on the outer wall (a turn of more
+**Context.** On a two-filament test slice, a narrow island's outer line stepped back and forth over itself
+where a place is two to three lines wide (the widths of its narrow strokes): 342 kinks on the outer wall (a turn of more
 than 150 degrees beside a move shorter than the outer line's width) where the line goes on the way it came, besides 2,560
 where it turns back out of a tip by design (decision 28). Read point by point, from the construction's own points:
 - Loop 0 lies at half the place from the outline where the place holds two lines, at half the outer line's width where
@@ -1808,7 +1809,7 @@ at four to five).
 **Rejected.** Keeping only the longest run of a loop's points that never steps back along the outline (tried with
 decision 53): it works on the points before they give way, where the step has no point behind another, so most of the
 zigzags stayed (342 to 307), while plastic laid twice rose from 9 spots and 1.12 mm² to 11 and 1.39. Read layer by
-layer, the new spots lay in letter islands that had kept their walls: the island's self-check (decision 28) now took
+layer, the new spots lay in narrow islands that had kept their walls: the island's self-check (decision 28) now took
 their beads, which lay twice elsewhere (an outer line still zigzagging, a line over the outer loop). Giving every loop
 the outline's way across: an inner loop gives way on both sides to the loop outside it near a turn, where its own track
 leaves the outline's direction (a tip, a corner); there it gave way entirely to the outer loop at a slant and left a bare
@@ -1834,8 +1835,8 @@ was is counted), CatalogTest (a spike in a square's side is a zigzag, a run in a
 
 Amends 33.
 
-**Context.** On a three-part plate with a fine pattern of square cells on its first layer and lettering inlaid at its
-edge, the pre-print check refused a hole 0.35 mm wide inside the walls, and plastic was laid twice in 29 spots (7.8 mm²),
+**Context.** On a two-filament test slice with a fine pattern of square cells on its first layer, the pre-print check
+refused a hole 0.35 mm wide inside the walls, and plastic was laid twice in 29 spots (7.8 mm²),
 22 of them on the first layer. Read on the walls alone, from the layer's own outline:
 - The cells, and the bands of the other part between them, are areas too narrow for two walls, laid as center lines.
   Where four branches of the skeleton meet (a cell's middle, where its corner forks all reach out; a crossing of two
@@ -1865,13 +1866,13 @@ twice, and in a short neck the branch has no length left to lay. Reaching the lo
 of it (where the neck meets the next loop): it fixes a neck between walls, not a crossing's stub against another part.
 Weighing every branch's pocket without the narrowest-line condition: a branch into an acute corner was taken for a hole,
 and the corner pair given up laid the line in two paths and another seam a layer (a catalog model's seams 120 to 168).
-The same rule in a narrow island's beads (Beads): not needed by any known case, and it moved one letter island on the
+The same rule in a narrow island's beads (Beads): not needed by any known case, and it moved one narrow island on the
 plate to its beads, which lay a loop over itself.
 
 **Consequences.** The plate: the check's hole refusal gone; plastic laid twice 29 spots (7.812 mm²) to 10 (1.230 mm²);
 time 93.1 min and filament 6081 mm unchanged; seams 2304 to 2282 (seam scar 215.1 to 216.1 mm²). The catalog moves
 nowhere; the regression cases (tools/regress.sh) are byte for byte the same. Left: the outer loops of two fit pieces of
-a level turning back at a pinch narrower than the loop's fit (between two letters, between four cells), 9 spots 0.25 to
+a level turning back at a pinch narrower than the loop's fit (between two pockets, between four cells), 9 spots 0.25 to
 0.40 mm; a bottom surface's line over its own on the first layer (0.25 mm). Tests: JunctionJoinTest (a crossing with a
 stub, a blob into a short neck; control: a junction's ends joined pair after pair lay the crossing twice and leave the
 neck bare).
@@ -1881,7 +1882,7 @@ neck bare).
 Amends 26 and 52.
 
 **Context.** After decision 57, the plate of decision 57 still laid plastic twice in 9 spots, 0.25 to 0.40 mm wide, all
-outer wall over outer wall: between two letters cut into a face (on layers where the letters' lowest parts are holes
+outer wall over outer wall: between two pockets cut into a face (on layers where the pockets' lowest parts are holes
 just inside the face), and on the first layer where four cells of a fine pattern meet at a corner. Read on the walls
 alone: the area narrows between two notches to less than the outer loop's fit needs (0.5 mm against 0.86 mm), so the fit
 is cut there into two pieces, each with its own loop. Each loop is its piece grown by half a spacing, and two pieces
@@ -1912,7 +1913,7 @@ Amends 54.
 
 **Context.** After decision 58, the plate of decisions 57 and 58 laid plastic twice in one spot: on the first layer, a
 bottom surface's line over another of its own, 0.25 mm wide (0.220 mm²). Read on the g-code: one diagonal line of the
-surface passes the corner of a wall loop round the code pattern's frame. The fill's area there (its region pulled in to
+surface passes the corner of a wall loop round the cell pattern's frame. The fill's area there (its region pulled in to
 bead contact with the wall, then out by the line-end overlap, decision 54) has that corner reaching 34 microns across the
 line, so the hatch cut the line into two at it: one line ended there and ran along the wall to the next line, another
 started 34 microns on. Both round ends lay against the corner, over each other by nearly a line's width. Any line of a
@@ -1952,7 +1953,7 @@ Amends 56.
 after it stays within 120 degrees, the line going on the way it came) counted the corners of a narrow island's square end.
 Where a loop turns a tip's square end (a bar 0.65 mm wide, laid by its beads), decision 28's corners run it into each of
 the end's two corners and back, 0.07 to 0.09 mm, turning a right angle there: the turn over a width is 100 to 105 degrees,
-so each read as a zigzag. On the three-part plate of decisions 57 to 59, five of the 44 were these, on a fine code
+so each read as a zigzag. On the test slice of decisions 57 to 59, five of the 44 were these, on the cell
 pattern's bars on the first layer.
 
 **Decision.** A kink is no zigzag where the loop turns a square end's corner: its direction over a line width turns more
@@ -1960,7 +1961,7 @@ than 60 degrees there (about a right angle, not going on straight), over two wid
 than 120 degrees: the end's second corner within a line or so), and the spike points out of the turn, into the corner.
 60 degrees and two widths are Claude's choice, bounds of the measure's geometry, not print values. A spike at a single
 corner, the line not turning back within two widths, stays a zigzag: a center line's stub at a junction where the line
-turns a right angle (the code pattern's square cells) reads so, and is a defect.
+turns a right angle (the pattern's square cells) reads so, and is a defect.
 
 **Rejected.** Exempting every spike at a right-angle turn: the cells' stubs, 15 of the 44, turn the same way at their
 junction (101 to 106 degrees) and would no longer count. Reading the path's being closed: a narrow island's loop is
@@ -1979,8 +1980,8 @@ the corner spike reads none).
 Amends 28.
 
 **Context.** On the plate of decisions 57 to 60, a narrow island's outer loop dipped 0.1 mm toward the outline and back
-(two of its zigzags, z 5.16). The island, a letter of the second filament, has a slit 38 to 62 microns wide cut into it
-from its edge (a sliver of the base between two strokes), narrower than the outline's sampling (75 microns). Its medial
+(two of its zigzags, z 5.16). The island, of the second filament, has a slit 38 to 62 microns wide cut into it from its
+edge (a sliver of the first filament between two strokes), narrower than the outline's sampling (75 microns). Its medial
 axis, from the triangulation of the samples, ran round the slit's inner corner through two nodes 12 and 43 microns from
 the outline, between junctions 0.26 and 0.64 mm wide: a stretch one line wide by its width, shorter than the transition
 length. Decision 28's smoothing gave it its neighbors' count of two, so the outer loop ran over its ribs, each point at
@@ -2011,12 +2012,12 @@ fail with the rule taken out).
 Amends 28.
 
 **Context.** On the plate of decisions 57 to 61, eight of the outer line's 37 zigzags were spikes in the loops of
-narrow islands, read one by one on the islands as the walls hand them over. Seven are one thing: a letter's loop runs
+narrow islands, read one by one on the islands as the walls hand them over. Seven are one thing: a narrow island's loop runs
 into a tip (decision 28: the tip's two sides at the narrowest width, then out and back along the axis where the tip is
 narrower than the narrowest line), and the tip ends within the loop's bead beside it: the run went 35 to 90 microns out
 and back, its bead reaching 5 to 21 microns past the loop's (an interior line's end overlap of its width is 39 to 54
 microns there), while the loop went on past the tip, turning less than 60 degrees over a line width either side. The
-eighth (z 5.00, the base's filament) is no narrow island's loop: a sliver's center line of the walls, 35 microns out and
+eighth (z 5.00, the first filament) is no narrow island's loop: a sliver's center line of the walls, 35 microns out and
 back near its end, a stub at a junction (decisions 33 and 57), left with those.
 
 **Decision.** A loop's run of points on the axis of a tip it runs into (the tip's place narrower than the narrowest
@@ -2048,7 +2049,7 @@ Amends 28, 33 and 36.
 
 **Context.** On the plate of decisions 57 to 62, 29 of the outer line's 30 zigzags were one thing: a short dead end at a
 junction that the line ran out along and back, 40 to 150 microns. Twenty were the walls' center lines (fifteen in the
-code pattern's cells on the first layer, five on the lettering above), nine a narrow island's middle beads.
+pattern's cells on the first layer, five in narrow islands above), nine a narrow island's middle beads.
 - The walls (decision 33): where a round of pruning would leave a small area less of its skeleton than its widest line,
   the two longest of the forks that round cut stayed. In a cell 0.5 mm across, those were a short trunk whose own corner
   forks went in an earlier round, beside two longer forks that stay anyway: the line ran down the trunk and back.
@@ -2100,7 +2101,7 @@ before, filament 4022 to 4021 mm.
 
 Open inconsistency: IslandCheck reads a line narrower than the pre-print check's hole rule (HoleCheck) and the catalog's
 wall reading (WallCoverage) do, its bead less half its rounded flanks a side against their full width. By IslandCheck
-alone the walls now leave two clusters of the code pattern's cells bare wider than the floor on the first layer (0.168
+alone the walls now leave two clusters of the pattern's cells bare wider than the floor on the first layer (0.168
 to 0.262 mm² and 0 to 0.068 mm²); WallCoverage reads nothing there wider than the floor (widest 0.175 mm before and
 after, and 0.127 to 0.156 mm, the floor 0.176 mm), HoleCheck no hole in either. Those slivers are accepted for now.
 
@@ -2115,9 +2116,9 @@ fail with each rule taken out); ThinRidgeTest seen to fail with the dot rule rea
 where its center leaves the area a line's center may lie in (bead contact with the walls, then the line-end overlap,
 decision 54), and where the walls run nearly along the rings (an oval's sides and ends, a cylinder's edge) the arc inside
 the last one cut was left as the line nearest the wall: between its bead and the wall lay a sawtooth of wedges, each from
-nothing to nearly a spacing wide, that no line covered. On a user's oval top 78 by 41 mm (0.44 mm lines), its top layer
-read 7.5 mm² bare beside the walls in 244 spots, 128 at least 0.1 mm wide, the widest 0.28 mm where the rings run tangent
-to the wall. The pre-print check passed it (its hole rule leaves out ground a surface line borders, decision 30).
+nothing to nearly a spacing wide, that no line covered. On a test slice whose top in rings runs nearly along its walls
+(0.44 mm lines), its top layer read 7.5 mm² bare beside the walls in 244 spots, 128 at least 0.1 mm wide, the widest
+0.28 mm where the rings run tangent to the wall. The pre-print check passed it (its hole rule leaves out ground a surface line borders, decision 30).
 
 **Decision.** Each circle runs on past where its arc ends, its line narrowed to its own bead's cross-section (taken
 across the circle) within the ground a line may lay plastic on (the area grown by the line's reach past the walls,
@@ -2137,20 +2138,20 @@ arc ends as before, as a hatch line's. Claude's choices: the quarter-line step a
 print values); half a line is the planner's sliver bound, the overlap and tolerance are settings.
 
 **Rejected.** A loop round the surface's edge, the circles laid against it: the same wedges, one line in. Filling the
-wedges afterward with lines of their own: a short line per wedge (hundreds on the oval), each a start and a stop on the
+wedges afterward with lines of their own: a short line per wedge (hundreds on that slice's top), each a start and a stop on the
 top. Running each cut circle on along the wall at its full width: up to a whole line laid over the ring inside it where
 the two come close. Reaching a narrowed line as far into the wall as the full line (its end overlap of the full width):
 the catalog's oval read specks of plastic laid twice all along its walls by the measure that reads the overlap of each
 line's own width. Narrowing to the tool's narrowest line (`plan.layer.walls.line.width.min`, three quarters of the bore
-as a stand-in) instead of half a line: it stops each run where the wedge is still about 0.19 mm wide on the oval (computed
+as a stand-in) instead of half a line: it stops each run where the wedge is still about 0.19 mm wide with 0.44 mm lines (computed
 from the bead model, not measured), and that setting is the variable-width walls'. Fitting arcs to a path's runs of one width in the writer (so a
 narrowed ring keeps its arcs): a change to every variable-width wall's file, outside this fix.
 
-**Consequences.** The user's oval, its top layer by the measure above: bare 7.5 to 0.40 mm², spots at least 0.1 mm wide 128
+**Consequences.** The test slice above, its top layer by the measure above: bare 7.5 to 0.40 mm², spots at least 0.1 mm wide 128
 to none, at least 0.2 mm 11 to none, the widest 0.28 to 0.08 mm; the check passes, nothing laid twice, time 93.0 to 93.1
 min, filament 6080 to 6081 mm, seams 2268 as before. A path with a narrowed stretch is written as straight moves, not
 fitted to arcs (the writer fits only a path of one width); a run of whole rings that a narrowed ring joins is too: the
-file 4.10 to 4.30 MB. The same oval with a monotonic top reads 2.35 mm² bare, 36 spots at least 0.1 mm, the widest 0.23
+file 4.10 to 4.30 MB. The same top laid monotonic reads 2.35 mm² bare, 36 spots at least 0.1 mm, the widest 0.23
 mm, where its lines run nearly along the wall: line patterns leave the same wedge where they run along a wall, not
 changed here. The regression cases: unchanged (none lays this pattern). The catalog: a new model, an oval 24 by 14 mm
 with its top in rings (its top layer read by the walls' measure on 0.02 mm cells: the whole oval on the walls' 5-micron

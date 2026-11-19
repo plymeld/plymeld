@@ -281,8 +281,8 @@ class WallsByWidthTest : StringSpec({
      * the finger's loop and about as long as it is wide: the neck is a pocket between the band's loop, the finger's loop and
      * the other part, inside the object. Its line is a short outer line beside the other part, often shorter than its width
      * (the rule that leaves such a dot out on the object's surface), but not on the surface: no dot shows there, and left
-     * out it left the neck bare, a hole the pre-print check refused on 6 of these 23 layers (on a real plate, a hole 0.45 mm
-     * wide between letters). The pre-print check passes it. Control: the same file with the lines in the neck taken out
+     * out it left the neck bare, a hole the pre-print check refused on 6 of these 23 layers (on a test slice, a hole 0.45 mm
+     * wide between two pockets). The pre-print check passes it. Control: the same file with the lines in the neck taken out
      * is refused for a hole there.
      */
     "a finger of one part inside another, its neck a short pocket: laid, no hole; control: the neck's lines taken out are refused" {

@@ -93,7 +93,7 @@ class WallOrderTest : StringSpec({
         // one wall; a strip 1.6 mm wide, 20 mm long off a 10 mm block (an island wide enough for its wall somewhere, so laid by
         // a loop where it fits and center lines in the rest): the outer loop and a center line inside the strip; inner first,
         // the center line ends at one end of the strip and the outer wall starts at its back, so the step between them is long
-        // (a letter's narrow stroke)
+        // (a narrow stroke)
         val s = SliceSettings.of(testSetup("plan.layer.walls.order" to "inner_first", "plan.layer.walls.style" to "variable_width",
             "plan.layer.walls.thickness" to "0.44 mm"))
         val n = 8

@@ -1056,16 +1056,16 @@ object Planner {
                 val speck = outer && ownLength < 2.0 * c.maxWidthUm
                 // a speck shorter than one of its widths where another part of the object lies within a width of it (this part a
                 // sliver in front of the other there) is left out: a dot of one filament, stopped and restarted on the visible
-                // face every layer, made a column of blobs (on a two-color nameplate, 142 such starts on the lettering's face),
+                // face every layer, made a column of blobs (on a test print, 142 such starts on one face),
                 // and the part behind fills the outline there within less than a line. Only a sliver's: a speck that runs
                 // into a place thinner than the narrowest line (its narrowest point widened to that line). One as wide as its
                 // area all along fills a short stretch of a band a line or more wide (between two walls, at a band's end):
                 // left out, it left a hole as wide as the band (a ridge of one filament beside another, 0.9 mm along it with
-                // no line). Nor one wider somewhere than two narrowest lines: it fills a patch, not a sliver (a white dome
-                // 1.3 x 0.8 mm in a gray arch, too small for a loop, its one line 0.3 to 0.78 mm wide, had nothing laid in it).
+                // no line). Nor one wider somewhere than two narrowest lines: it fills a patch, not a sliver (a small dome
+                // of one filament in another's arch, too small for a loop, its one line 0.3 to 0.78 mm wide, had nothing laid in it).
                 // And only on the object's surface (along the whole object's outline): a speck along a part's edge inside
-                // the object shows no dot, and nothing behind it fills its place (a pocket between a letter-gap stroke's
-                // loop, the rim's loop and the letters beside it, 0.45 mm wide, was left bare).
+                // the object shows no dot, and nothing behind it fills its place (a pocket between a narrow stroke's
+                // loop, the loop of the band it meets through a neck and the pockets beside it, 0.45 mm wide, was left bare).
                 // Read on the line as it was joined with the stubs at junctions that were left out of it
                 // (CenterLine.withStubs): the rule's bounds were set on those lines, and a stub run out and back made a short
                 // line long enough to be laid (a V-shaped line on a ridge's dipped crest beside a second part, 0.4 mm long
@@ -1101,7 +1101,7 @@ object Planner {
                     // a scarf seam on an outer wall above the first layer (not with fuzzy skin): every one, or those with no corner;
                     // not where another part of the object covers the seam (plan.technique.scarf_seam.covered = point): the seam
                     // is hidden there, and a scarf's ramp and closing pass ran on from it onto the faces that show (on a small
-                    // island inlaid in a letter, its whole front laid twice, thin)
+                    // island of one filament inside another's part, its whole front laid twice, thin)
                     val scarfWanted = if (k == 0 && !first && !fuzz && s.scarfStart != null &&
                         (s.scarf == "all" || (s.scarf == "smooth" && !placed.atCorner)) &&
                         coveredAt[i].value?.invoke(placed.loop.x(0), placed.loop.y(0)) != true) s.scarfLengthUm ?: 0L else 0L
@@ -1728,7 +1728,7 @@ object Planner {
                 val chosen = if (cost(backward) < cost(forward)) backward else forward
                 // the inner wall laid just before the outer one, a loop, starts (and so ends) nearest the outer wall's start (an
                 // inner wall's start is not seen): left at its own seam, the step onto the outer wall was a travel of tens of mm
-                // along the inside of the visible face (36 mm on a nameplate)
+                // along the inside of the visible face (36 mm on a test print)
                 val seq = chosen.mapIndexed { q, w -> if (q == chosen.size - 1 && w.closed) w.startingNear(sx, sy) else w }
                 ordered.addAll(seq)
                 lastX = endX(seq.last()); lastY = endY(seq.last())
@@ -1755,7 +1755,7 @@ object Planner {
                 val fam = IntArray(members.size) { k -> outers.indices.minBy { distToPath(outers[it], members[k].xy[0], members[k].xy[1]) } }
                 // open inner lines that meet end to end within a travel that needs no retraction (retract.travel.min) go with one
                 // contour, the longest one's: assigned each by its own nearest contour, a thin area's pieces between two contours
-                // were split between them and laid apart, each piece then reached by a retracted travel (a three-object plate:
+                // were split between them and laid apart, each piece then reached by a retracted travel (a test slice:
                 // 655 of 1,117 lines under 1 mm with a retraction had another line's end within 1 mm)
                 run {
                     val open = members.indices.filter { !members[it].closed && members[it].feature == Feature.INNER_WALL }
@@ -1838,7 +1838,7 @@ object Planner {
                     val bx = b.xy[0]; val by = b.xy[1]
                     val p0 = plymeld.geom.IntPoint(ax, ay); val p1 = plymeld.geom.IntPoint(bx, by)
                     // a step between a wall and the outer one keeps its retraction unless it is a step, two line widths at most:
-                    // in a letter's narrow stroke the steps of 2 to 5 mm crossed the pocket's edge unretracted and drew strands
+                    // in a narrow stroke the steps of 2 to 5 mm crossed the pocket's edge unretracted and drew strands
                     if (seamStep) { if (Math.hypot((bx - ax).toDouble(), (by - ay).toDouble()) > 2.0 * s.outerWallWidthUm || !ontoOuterWallInside(p0, p1)) continue }
                     else if (!staysHidden(ax, ay, bx, by) || crossesOuterWall(p0, p1)) continue
                     ordered[k] = b.withRetract(false)

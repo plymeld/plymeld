@@ -461,7 +461,7 @@ object Beads {
                     // nor, in a neck (a stretch the axis leaves at two places or more, not an end), a count of loops where the
                     // axis reads it narrower somewhere than the narrowest line: a loop's two sides cannot both lie there, each at
                     // its place from its own side, so its points on the neck's ribs were drawn onto the axis, a spike toward the
-                    // outline (round the inner corner of a slit 40 to 60 microns wide cut into a letter between two strokes, the
+                    // outline (round the inner corner of a slit 40 to 60 microns wide cut into an island between two strokes, the
                     // outline sampled coarser than the slit, the axis passed 12 and 43 microns from the outline: its count of
                     // two raised from one, the outer loop dipped 0.1 mm onto it); the loop turns at the neck's mouth, as at any
                     // place too narrow for it
@@ -610,7 +610,7 @@ object Beads {
          * width (no further past it than an interior line's end reaches into the walls), where the loop goes on past the tip
          * (turning no more than [CORNER_TURN_DEG] from the way it runs in to the way it runs out, over a line width each).
          * Such a run laid the line 35 to 90 microns out and back where a short tip ends within the loop's bead at its mouth
-         * (tips of letters on a nameplate, laid by their beads): a zigzag in the outer line that covers nothing the loop's
+         * (tips of narrow islands laid by their beads): a zigzag in the outer line that covers nothing the loop's
          * bead does not. Where the loop turns a corner (a square end two lines wide: a right angle within a line width), its
          * run into the corner fills the outside of the turn (decision 28's corners) and stays.
          */
@@ -1084,8 +1084,8 @@ object Beads {
          * interior line's end reaches into the walls), and whose side of the axis reaches no further past the junction's bead
          * than the narrowest place a line is laid in ([pokesOut]). At each junction the shortest go while two of its ends stay
          * (a small Y keeps its two longest). Joined as an end, a stub was the closest pair with one of the others there and
-         * the third end then joined its dead end: the line ran out along it and back, 40 to 150 microns (letters on a
-         * nameplate, nine such zigzags in the outer line; four stay, where the pocket beyond the stub reaches further).
+         * the third end then joined its dead end: the line ran out along it and back, 40 to 150 microns (on a test slice,
+         * nine such zigzags in the outer line; four stay, where the pocket beyond the stub reaches further).
          */
         fun stubs(fs: List<Piece>, reachUm: Double): Set<Int> {
             fun key(x: Double, y: Double) = x.toRawBits() to y.toRawBits()

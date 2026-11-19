@@ -12,7 +12,7 @@ import plymeld.model.SliceSettings
  * face for its first 10 layers (a recess the seams hide in, 1.5 mm deep) and plain above for 120 more. Placed layer by
  * layer, each seam stayed in line with the one below rather than pay the 80 mm move to the back once (on a plain wall no
  * single layer's saving outweighs it), so above the slot the seams ran up the front face, the most-seen place on the
- * column (on a nameplate: from its lettering to its top edge; here 118 of 118 plain layers). Planned across the layers, the
+ * column (here 118 of 118 plain layers). Planned across the layers, the
  * move is paid once (here at the bottom: the slot hides less than starting at the back saves) and the plain layers' seams
  * are at the back. Control: they stay in line there, not wandering after the least-seen point layer by layer.
  */

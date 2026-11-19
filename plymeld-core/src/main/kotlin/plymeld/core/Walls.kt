@@ -1470,7 +1470,7 @@ object Walls {
                 // dome 1.3 x 0.8 mm kept a line 23 um long between two of its junction's nodes). The area's two longest,
                 // not the two longest of the forks cut: those could be a short trunk whose own forks went in an earlier round
                 // beside two longer forks that stay anyway, and the line ran out along it and back (a cell 0.5 mm across
-                // between a code pattern's walls, a zigzag in the line)
+                // between the walls of a pattern of square cells, a zigzag in the line)
                 if (cut.isNotEmpty()) {
                     val comp = HashMap<Int, Int>()
                     for (start in adj.keys) if (start !in comp) {
@@ -1500,7 +1500,7 @@ object Walls {
         prune { c -> (adj[c.last()]?.size ?: 0) >= 3 }
         // Thin stretches: a run of the line thinner than min_feature (between walls: than [interiorMinUm]) is cut out
         // when it is longer than the transition length; a shorter dip between walls, still at least min_feature, is printed
-        // through at the narrowest line (min_bead): cutting every such dip broke the center line of a letter stroke whose
+        // through at the narrowest line (min_bead): cutting every such dip broke the center line of a narrow stroke whose
         // leftover hovers around the threshold into dashes. Where the area is narrower than min_feature the line is never
         // laid, however short the stretch: printed through, a 0.3 mm line crossed a gap 0.1 mm wide between the model's
         // face and another part's tip, into that part's place.

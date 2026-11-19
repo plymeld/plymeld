@@ -49,17 +49,17 @@ class SeamPartsHiddenTest : StringSpec({
     }
 
     // a scarf seam is seen along its ramp: a base with a 4 x 2 mm pocket in its front face, an inlay of the other filament in
-    // it (a letter in a nameplate's face). A point seam may hide in the pocket, against the inlay; a 10 mm scarf's ramp from
+    // it. A point seam may hide in the pocket, against the inlay; a 10 mm scarf's ramp from
     // there runs out of the 8 mm of pocket walls onto the face, so where a seam the inlay covers is scarfed too
     // (plan.technique.scarf_seam.covered = scarf) it stays out of the pocket. By default (point) a seam the inlay covers is
     // laid as a point seam, and costed as one: it hides in the pocket, with no ramp
     val pocketBase = Polygon(longArrayOf(0, 0, 18_000, 0, 18_000, 2_000, 22_000, 2_000, 22_000, 0, 40_000, 0, 40_000, 20_000, 0, 20_000))
-    val letter = rect(18_000, 0, 22_000, 2_000)
+    val pocketInlay = rect(18_000, 0, 22_000, 2_000)
     /** Per layer from the third up, the base's outer wall: where it starts (x, y in mm), and its scarf's length (µm; 0 = a point seam). */
     fun baseSeams(scarf: Boolean, vararg extra: Pair<String, Any>): List<Triple<Double, Double, Long>> {
         val st = SliceSettings.of(testSetup("plan.seam" to "least_visible", "plan.technique.scarf_seam.enabled" to scarf,
             *(if (scarf) arrayOf<Pair<String, Any>>("plan.technique.scarf_seam.where" to "all", "plan.technique.scarf_seam.length" to "10 mm") else emptyArray()), *extra))
-        val r = MultiFilament.plan(st, listOf(List(n) { listOf(pocketBase) }, List(n) { listOf(letter) }), listOf("spool 1", "spool 2"), listOf(0, 1), tops, "spool 1")
+        val r = MultiFilament.plan(st, listOf(List(n) { listOf(pocketBase) }, List(n) { listOf(pocketInlay) }), listOf("spool 1", "spool 2"), listOf(0, 1), tops, "spool 1")
         val layers = r.filaments.single { it.spool == "spool 1" }.layers
         return (2 until n).map { i -> val w = layers[i].paths.first { it.feature == Feature.OUTER_WALL }; Triple(w.xy[0] / 1000.0, w.xy[1] / 1000.0, w.scarfUm) }
     }

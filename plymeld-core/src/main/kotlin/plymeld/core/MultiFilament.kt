@@ -395,17 +395,17 @@ object MultiFilament {
                     // after a change (or a swap by hand), the new filament's first lines on the model are its hidden infill (sparse and
                     // internal solid), in their planned order, then everything else in its order: a nozzle back from the dock
                     // (from its idle temperature, past the purge) lays its first, least even lines where they do not show. Its
-                    // outer wall had come first: on a two-color nameplate every change back to the base color began on the
-                    // lettering's visible face. The walls stay in their planned order among themselves, so the wall order
+                    // outer wall had come first: on an object of two filaments every change back to the first filament began
+                    // on the visible face beside the second's part. The walls stay in their planned order among themselves, so the wall order
                     // (plan.layer.walls.order) holds; on a layer where it lays no infill nothing is moved, and its first line is
                     // the wall order's (hidden with inner walls first; all its inner walls laid ahead of its outer walls there
-                    // had made every wall order print inner-first on about half of a two-color nameplate's layers).
+                    // had made every wall order print inner-first on about half of such an object's layers).
                     if (!changed && !swapped) { for (p in planned) if (p !in purged) extrude(p, i, t, o) } else {
                         val rest = planned.filter { it !in purged }
                         val laid = rest.filter { it.feature in HIDDEN_FIRST } + rest.filter { it.feature !in HIDDEN_FIRST }
                         // a line whose predecessor is not the one it was planned after retracts on the travel into it: whether that
                         // travel retracts was decided for the planned order (inside an island, crossing no wall), and moved lines'
-                        // travels can cross open air (unretracted, they quadrupled the strings over air on that nameplate)
+                        // travels can cross open air (unretracted, they quadrupled the strings over air on that object)
                         val plannedBefore = java.util.IdentityHashMap<ToolPath, ToolPath?>()
                         for ((q, p) in planned.withIndex()) plannedBefore[p] = planned.getOrNull(q - 1)
                         for ((q, p) in laid.withIndex()) {

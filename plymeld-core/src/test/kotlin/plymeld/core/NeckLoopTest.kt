@@ -12,7 +12,7 @@ import plymeld.geom.Polygon
  * outline sampled every 75 microns, the axis runs round the slit's inner corner through nodes a few tens of microns from
  * the outline: a stretch with a count of one line from its width, between two of two lines. Short, it took their count,
  * and the outer loop's points on its ribs, each at its place from the outline but no further than the node, were drawn
- * onto the node: a spike toward the outline (on a real plate, 0.1 mm long where two strokes of a letter meet). Measured:
+ * onto the node: a spike toward the outline (on a test slice, 0.1 mm long where two narrow strokes meet). Measured:
  * the outer loop's nearest point to the outline; IslandCheck's coverage (each line a bead of its width: the widest spot
  * no line covers, plastic outside the island). Control: the stretch taking its neighbors' count as before, the loop is
  * drawn onto it.

@@ -82,8 +82,8 @@ object FilamentAreas {
      * surface stays its own (plan.layer.sliver.at_surface = own): the part of a sliver along the surface ([alongSurface])
      * stays, laid by its own filament where a line fits and left empty where none does, and only the rest goes over.
      * Handed over, its neighbor's plastic showed in the wrong color on the surface, and the neighbor's outline stepped out
-     * over the layer below where nothing was modeled to (a white part's wall laid over a gray wedge's first 0.14 mm on a
-     * nameplate's lettering). Null: every sliver goes over. [filamentOf]: the filament of a key of [bySpool] (a settings
+     * over the layer below where nothing was modeled to (one part's wall laid over the first 0.14 mm of a wedge of another
+     * filament leaning out over its face). Null: every sliver goes over. [filamentOf]: the filament of a key of [bySpool] (a settings
      * group's spool): a sliver beside another group of its own filament goes over wherever it lies, the same color either way.
      */
     fun handOverSlivers(bySpool: Map<String, List<Polygon>>, minWidthUm: Long, objectArea: List<Polygon>? = null,
@@ -130,7 +130,7 @@ object FilamentAreas {
      * counted as touching its neighbor across such a gap ([neighbor]), and the gap (the parts sliced one by one meet a few
      * microns apart) went over with it; left out, it was a crack in the neighbor's own area, a few microns wide and a few
      * tenths of a millimetre long, a hole of its own or opening onto the neighbor's edge, and the neighbor's walls laid a
-     * loop round it, three or four lines over each other at its end (a two-color plate's lettering: up to 0.8 mm² laid twice
+     * loop round it, three or four lines over each other at its end (on a test slice: up to 0.8 mm² laid twice
      * at one crack).
      */
     private fun withGap(merged: List<Polygon>, give: List<Polygon>, others: List<Polygon>): List<Polygon> {

@@ -629,7 +629,7 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 // settings its last line was laid with; then its lift), and travels, lifted, routed and cleared like any other
                 // travel, to where the incoming filament's first line starts (its purge on the tower, or its first line on a
                 // part): the change is made there, never standing on what the outgoing filament just laid (made where the last
-                // line ended, every change of a two-color plate stood on its last object's lettering, and that object came out
+                // line ended, every change of a plate of two filaments stood on its last object's face, and that object came out
                 // strung and blobbed). Where no line follows directly (a wait, a pause, a swap by hand) or the head's place is
                 // not known (the print's first selection), it is made where the head is, retracted.
                 // Then the tool-changer sequence observed in the Creator 5's own slicer output (Flash Studio's): the old tool

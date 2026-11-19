@@ -336,7 +336,7 @@ object Models {
      *    to A ([TONGUES]);
      *  - A's spikes reaching into B, a wedge [SPIKES] wide at the base and long: too short and blunt to go over to B (their
      *    thin tips are crumbs), so B's area has a narrow notch at each.
-     * The widths and lengths are the test's (Claude's choice, around a real plate's: a sliver 0.12 to 0.2 mm wide, a notch
+     * The widths and lengths are the test's (Claude's choice, around a test slice's: a sliver 0.12 to 0.2 mm wide, a notch
      * 0.18 mm wide and 0.2 mm deep).
      */
     val sliverTips: List<TriangleSoup> by lazy {

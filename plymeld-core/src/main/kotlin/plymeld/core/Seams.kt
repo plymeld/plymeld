@@ -204,7 +204,7 @@ object Seams {
         // it; costed as a scarf, a covered point read as seen as the ramp's most-seen point and the placement avoided it)
         val point = BooleanArray(n) { i -> rampUm <= 0 || (rampOffCorners && corner[i]) || covered?.invoke(p.x(i), p.y(i)) == true }
         // a scarf seam is seen along its ramp, not at its start alone: the most-seen point of the [rampUm] the loop runs on
-        // from the start. Judged at the start alone, a lettering's seams started hidden in a letter's pocket and their 10 mm
+        // from the start. Judged at the start alone, seams started hidden in a small pocket another part fills and their 10 mm
         // ramps ran out onto the face beside it
         val seen = if (rampUm <= 0) vs else DoubleArray(n) { i ->
             if (point[i]) vs[i] else {
@@ -222,7 +222,7 @@ object Seams {
         // the blemish as seam_scar counts it: a band as wide as the shelf the point sits on (SeamScar.pointBlemish), a scarf's
         // where it gets one (SeamScar.scarfBlemish). Charged a point seam's at a scarf's start, the plan took a seam's blemish
         // for several times what the measure counts against the move to a less-seen point, and moved too readily: on a
-        // two-color nameplate, 2,284 of its 2,420 seams scarfs, the plan's jogs added more to the measure than its moves saved
+        // print of two filaments, most of its seams scarfs, the plan's jogs added more to the measure than its moves saved
         val rampMm = rampUm / 1000.0
         val blem = DoubleArray(n) { i ->
             val sh = shelf?.invoke(p.x(i), p.y(i)) ?: 0.0
@@ -298,7 +298,7 @@ object Seams {
     /**
      * The runs of layers the outer walls' least-visible seams are planned over ([planColumn]): each a list of (layer, outer
      * loop), bottom up. Each loop is linked to the loop below it whose bounding box matches its own best (the most overlap
-     * over the two boxes' union: a letter's pocket links to the pocket below, not to the outside loop round it, which
+     * over the two boxes' union: a pocket's loop links to the pocket below, not to the outside loop round it, which
      * overlaps it as much); a run goes up while the loop above links one to one (one loop over one loop). A run of one
      * layer is left out: placed on its own, it is placed as planned.
      */
@@ -340,8 +340,8 @@ object Seams {
      * is seen x its blemish, [costsOf]), each move from the point below its jog (its length x the line width, times how much
      * the new point is seen; none within a line), the run's first move from the nearest of the seams placed below it
      * ([below]: x, y pairs; none = no move). Placed layer by layer instead, a seam stayed in line with the one below on a
-     * face fully seen rather than pay the move once: on a nameplate's plain round wall, 70 layers on its front face for one
-     * move of 90 mm to the back.
+     * face fully seen rather than pay the move once: on a test print's plain round wall, 70 layers on its front face for
+     * one move of 90 mm to the back.
      */
     private fun planColumn(run: List<Pair<Int, Int>>, loops: List<List<List<Polygon>>>, below: LongArray, cornerDeg: Double?,
                            overhangs: List<List<List<BooleanArray>>?>?, spanUm: (Int, Int) -> Double, vis: plymeld.core.decide.Visibility,

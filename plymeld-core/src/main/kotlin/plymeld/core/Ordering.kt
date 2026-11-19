@@ -111,7 +111,7 @@ object Ordering {
         // travel that costs nothing extra, when that lowers the total. A stretch reversal cannot move a path the greedy order
         // left for later: a short line between walls, beside the line it meets, reached once everything round it was laid by a
         // retracted travel. Only such places are tried: every place in the group, each costed with [extra], made the
-        // planning of a three-object plate 7 to 11 s slower.
+        // planning of a test slice 7 to 11 s slower.
         fun relocate(): Boolean {
             if (freeUm <= 0.0 || extra == null) return false
             var moved = false
