@@ -2147,8 +2147,15 @@ wide as the plane meets it); a line meeting the plane at less than 3 degrees run
 least 3 px tall (the factor in the caption); a level cut (`--cut-z`) is seen from above, each bead whose height range it
 crosses drawn as wide as the bead is at that height, whichever layer laid it.
 
-**Consequences.** Layer views, cuts, framing, choosing lines, coloring, marks, the sheet, PNG and SVG are built; the
-outside and 3D views, two files compared, and the check's measures marked are decided and not built yet. `render-plate`
+The outside (`--outside`) and 3D (`--3d`) views are orthographic and drawn into a depth buffer: every chosen move a
+round bead swept along it (as wide as its plastic, as tall as its layer, stretched as the heights are), the nearest kept
+at each pixel and shaded as a tube, the file read a run of 64 layers at a time; where the lines cannot be resolved, flat
+colors with an outline at every change of color and every step in depth of more than 1 mm. `--compare-with` draws the
+other file with the same options, both in the frame that holds the two at the finer scale, and compares them pixel by
+pixel (alike within 24 levels a channel, for an edge's smoothing).
+
+**Consequences.** Layer views, cuts, the outside and 3D views, two files compared, framing, choosing lines, coloring,
+marks, the sheet, PNG and SVG are built; the check's measures marked are decided and not built yet. `render-plate`
 and its pictures are unchanged; the techniques' sample pictures are unchanged (the bead width they read is the same
 number by the same formula). Tests on synthetic g-code only: RenderLayerTest (lines where they lie and nowhere else,
 control: a line left out; widths from the plastic, control: as declared; arcs against the same path in 4000 short lines,
@@ -2158,4 +2165,7 @@ nothing; `--layer-at-z`; the sheet; the same bytes for the same options, PNG and
 naming its options; control: each option accepted where it applies), RenderCutTest (a cut through a box of two walls
 shows four bead sections a layer at the walls' places, three layers tall, control: one wall, two sections; the side
 each cut is seen from, control: a line drawn the other way; a level cut meets a lowered line of the layer above,
-control: a higher cut does not meet the layer below; `--cut-depth`; the cut options' refusals).
+control: a higher cut does not meet the layer below; `--cut-depth`; the cut options' refusals), RenderSolidTest (the
+outside from the front shows the front wall's tool, control: from the back the other; from the top the top layer, and 3D
+from straight above draws the same, control: from the front-left above it does not; `--compare-with` marks the line two
+files differ by, control: a file against itself differs nowhere; the refusals).

@@ -17,7 +17,10 @@ section the release's version and date.
   `--cut-x MM` (from the right), `--cut-line X0,Y0:X1,Y1`, and `--cut-plane PX,PY,PZ:NX,NY,NZ`, each line crossing the
   plane drawn as its bead's cross-section, heights stretched so a layer is at least 3 px tall (`--height-stretch`),
   `--z-range Z0..Z1` for some heights, `--cut-depth MM` for the lines beside the plane; `--cut-z MM`, a level plane seen
-  from above, each bead it crosses as wide as it is at that height. Each line as wide as the plastic it lays (`--line-width
+  from above, each bead it crosses as wide as it is at that height. The whole print: `--outside SIDE` (front, back,
+  left, right, or top: the nearest bead at each point) and `--3d` (from the front-left above, or `--3d-from TURN,TILT`),
+  each bead shaded as a tube; `--compare-with OTHER.gcode` makes each picture three panels, this file, the other in the
+  same frame and scale, and where they differ. Each line as wide as the plastic it lays (`--line-width
   plastic`, the default; `declared`; `center`), colored by `--color-by` feature, tool, speed, flow, width, height, fan,
   temperature, order, or layer-time. `--only-object`, `--only-part`, `--only-tool`, and `--only-feature` choose lines,
   `--others faint` keeps the rest in gray; `--layers-below N` adds the layers under it; `--show` marks travels, seams,

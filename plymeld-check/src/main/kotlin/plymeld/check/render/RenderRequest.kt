@@ -48,6 +48,11 @@ class RenderRequest(
     val cutDepth: Double? = null,
     val zRange: ClosedFloatingPointRange<Double>? = null,
     val heightStretch: Double? = null,
+    /** Each `--outside` side: front, back, left, right, or top. */
+    val outside: List<String> = emptyList(),
+    val threeD: Boolean = false,
+    /** Each `--3d-from`: turn and tilt, degrees. */
+    val threeDFrom: List<Pair<Double, Double>> = emptyList(),
     // choosing lines
     val onlyObject: List<String> = emptyList(),
     val onlyPart: List<String> = emptyList(),
@@ -73,6 +78,9 @@ class RenderRequest(
     val format: Format = Format.PNG,
     val sheet: Path? = null,
     val printFiles: Boolean = false,
+    /** `--compare-with`: the other file, and what its source block says. */
+    val compareWith: Path? = null,
+    val compareFacts: FileFacts = FileFacts(),
     val listFeatures: Boolean = false,
     val listObjects: Boolean = false,
     val facts: FileFacts = FileFacts(),
@@ -81,8 +89,18 @@ class RenderRequest(
     /** The cuts seen from the side (every cut but the level `--cut-z`, which is seen from above). */
     val sideCuts: Boolean get() = cutY.isNotEmpty() || cutX.isNotEmpty() || cutLine.isNotEmpty() || cutPlane.any { Math.abs(it.second[2]) < 0.999999 * Math.sqrt(it.second.sumOf { v -> v * v }) }
     val anyCut: Boolean get() = cutZ.isNotEmpty() || cutY.isNotEmpty() || cutX.isNotEmpty() || cutLine.isNotEmpty() || cutPlane.isNotEmpty()
+    /** Views of the whole print: the outside from a side, or 3D. */
+    val anySolid: Boolean get() = outside.isNotEmpty() || threeD
+    /** Pictures whose up is height: cuts seen from the side and the outside from a side (not from the top). */
+    val sideViews: Boolean get() = sideCuts || outside.any { it != "top" }
     /** Whether the run draws a layer picture: one asked for, or the middle layer when no view is. */
-    val layerViews: Boolean get() = layers.isNotEmpty() || layersAtZ.isNotEmpty() || layerRanges.isNotEmpty() || !anyCut
+    val layerViews: Boolean get() = layers.isNotEmpty() || layersAtZ.isNotEmpty() || layerRanges.isNotEmpty() || !(anyCut || anySolid)
+
+    /** The same options for [other] (`--compare-with`): its own facts, and nothing to compare it with. */
+    fun forOther(other: Path, otherFacts: FileFacts) = RenderRequest(other, layers, layersAtZ, layerRanges, layerStep, cutZ, cutY, cutX, cutLine, cutPlane,
+        cutDepth, zRange, heightStretch, outside, threeD, threeDFrom, onlyObject, onlyPart, onlyTool, onlyFeature, others, colorBy, lineWidth, show,
+        layersBelow, bedWindow, around, span, sameFrame, pxPerMm, pictureSize, allowUnresolved, noAnnotations, outDir, format, sheet, printFiles,
+        null, FileFacts(), listFeatures, listObjects, otherFacts)
     val anyOnly: Boolean get() = onlyObject.isNotEmpty() || onlyPart.isNotEmpty() || onlyTool.isNotEmpty() || onlyFeature.isNotEmpty()
 
     /** The options given that draw or frame a picture, by their names, for a listing to refuse. */
@@ -91,6 +109,8 @@ class RenderRequest(
         "--layer-step".takeIf { layerStep != null }, "--cut-z".takeIf { cutZ.isNotEmpty() }, "--cut-y".takeIf { cutY.isNotEmpty() },
         "--cut-x".takeIf { cutX.isNotEmpty() }, "--cut-line".takeIf { cutLine.isNotEmpty() }, "--cut-plane".takeIf { cutPlane.isNotEmpty() },
         "--cut-depth".takeIf { cutDepth != null }, "--z-range".takeIf { zRange != null }, "--height-stretch".takeIf { heightStretch != null },
+        "--outside".takeIf { outside.isNotEmpty() }, "--3d".takeIf { threeD }, "--3d-from".takeIf { threeDFrom.isNotEmpty() },
+        "--compare-with".takeIf { compareWith != null },
         "--only-object".takeIf { onlyObject.isNotEmpty() }, "--only-part".takeIf { onlyPart.isNotEmpty() },
         "--only-tool".takeIf { onlyTool.isNotEmpty() }, "--only-feature".takeIf { onlyFeature.isNotEmpty() }, "--others".takeIf { others != null },
         "--color-by".takeIf { colorBy != null }, "--line-width".takeIf { lineWidth != null }, "--show".takeIf { show.isNotEmpty() },
@@ -122,14 +142,16 @@ class RenderRequest(
         if (pxPerMm != null && pxPerMm <= 0) out += "--px-per-mm must be more than 0"
         pictureSize?.let { (w, h) -> if (w < 16 || h < 16) out += "--picture-size ${w}x$h: a picture is at least 16 x 16 pixels" }
         if (layersBelow != null && layersBelow < 0) out += "--layers-below must be 0 or more (got $layersBelow)"
-        if (layersBelow != null && !layerViews) out += "--layers-below adds the layers under a layer picture, and the run draws none (only cuts): give --layer, --layer-at-z, or --layer-range with it"
-        if (show.isNotEmpty() && !layerViews) out += "--show marks a layer picture, and the run draws none (only cuts): give --layer, --layer-at-z, or --layer-range with it"
-        if (sameFrame && !layerViews) out += "--same-frame frames the run's layer pictures as one, and it draws none (only cuts): give --layer, --layer-at-z, or --layer-range with it"
+        val others = "(only ${listOfNotNull("cuts".takeIf { anyCut }, "--outside".takeIf { outside.isNotEmpty() }, "--3d".takeIf { threeD }).joinToString(" and ")})"
+        if (layersBelow != null && !layerViews) out += "--layers-below adds the layers under a layer picture, and the run draws none $others: give --layer, --layer-at-z, or --layer-range with it"
+        if (show.isNotEmpty() && !layerViews) out += "--show marks a layer picture, and the run draws none $others: give --layer, --layer-at-z, or --layer-range with it"
+        if (sameFrame && !layerViews) out += "--same-frame frames the run's layer pictures as one, and it draws none $others: give --layer, --layer-at-z, or --layer-range with it"
         if (cutDepth != null && !anyCut) out += "--cut-depth draws the lines along a cut's plane, and the run draws no cut: give --cut-z, --cut-y, --cut-x, --cut-line, or --cut-plane with it"
         if (cutDepth != null && cutDepth <= 0) out += "--cut-depth must be more than 0 mm (got $cutDepth)"
-        if (zRange != null && !sideCuts) out += "--z-range limits the heights of a picture seen from the side, and the run draws none (layer pictures and --cut-z are seen from above): give --cut-y, --cut-x, --cut-line, or --cut-plane with it"
+        if (zRange != null && !sideCuts && !anySolid) out += "--z-range limits the heights a cut, the outside, or the 3D view draws, and the run draws none of them (layer pictures and --cut-z are layers' heights already): give --cut-y, --cut-x, --cut-line, --cut-plane, --outside, or --3d with it"
         zRange?.let { if (it.endInclusive <= it.start) out += "--z-range Z0..Z1 needs Z1 above Z0" }
-        if (heightStretch != null && !sideCuts) out += "--height-stretch stretches the heights of a picture seen from the side, and the run draws none (layer pictures and --cut-z are seen from above): give --cut-y, --cut-x, --cut-line, or --cut-plane with it"
+        if (heightStretch != null && !sideViews) out += "--height-stretch stretches the heights of a picture seen from the side, and the run draws none (layer pictures, --cut-z, --outside top, and --3d have none to stretch): give --cut-y, --cut-x, --cut-line, --cut-plane, or --outside front, back, left, or right with it"
+        if (threeDFrom.isNotEmpty() && !threeD) out += "--3d-from sets where --3d is seen from: give --3d with it"
         if (heightStretch != null && heightStretch <= 0) out += "--height-stretch must be more than 0 (1 is true proportions)"
         for (l in cutLine) if (Math.hypot(l[2] - l[0], l[3] - l[1]) < 1e-9) out += "--cut-line ${l.joinToString(",")}: its two points are one; a line needs two"
         for ((_, n) in cutPlane) if (n.all { Math.abs(it) < 1e-12 }) out += "--cut-plane: its direction is (0, 0, 0), which faces nowhere"

@@ -279,6 +279,22 @@ Lines colored by the tool that lays them, in the filaments' own colors where the
 options choose lines by object, tool, or feature, and `--others faint` keeps the rest in gray. `--list-objects` and
 `--list-features` print the names a file uses.
 
+```
+plymeld render part.gcode --outside front --3d --3d-from 30,20
+```
+
+The whole print: `--outside` from the front, back, left, right, or top shows its outermost lines (the nearest bead at
+each point, not a cut), and `--3d` shows it in 3D from the front-left above, or from where `--3d-from` says (a turn
+round to the right of the front, and a tilt up, in degrees).
+
+```
+plymeld render new.gcode --layer 12 --compare-with old.gcode
+```
+
+Two files compared: each picture becomes three panels, this file, the other drawn with the same options in the same
+frame and at the same scale, and where they differ (only in this file, only in the other, or in both but not alike).
+It shows what a change of settings or of plymeld's version changed in what is laid down.
+
 `plymeld render-plate` is for calibration plates: a fixed set of pictures for reviewing a plate before printing it (a
 top view by flow, the front by temperature, an isometric diagram labeled from the plate's page). `plymeld render` draws
 any file, in the views its options ask for.

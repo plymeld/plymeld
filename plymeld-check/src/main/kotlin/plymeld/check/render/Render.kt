@@ -47,19 +47,36 @@ object Render {
         val written = ArrayList<Path>()
         val pictures = ArrayList<Pair<String, ByteArray>>()
         val frames = if (req.sameFrame) ctx.sharedFrame(views.filterIsInstance<LayerView>()) else null
+        // the other file (--compare-with), read with the same options; its notes said as its own
+        val other = req.compareWith?.let { o ->
+            require(Files.isRegularFile(o)) { "--compare-with: no such g-code file: $o" }
+            val oi = GcodeIndex.read(o)
+            require(oi.layers.isNotEmpty()) { "--compare-with: ${o.fileName} lays no plastic: nothing to compare" }
+            Context(req.forOther(o, req.compareFacts), oi).also { notes += it.notes }
+        }
+        fun panelOf(c: Context, v: View, sink: MutableList<String>): Panel = when (v) {
+            is LayerView -> { require(v.layer < c.index.layers.size) { "--compare-with: ${c.req.file.fileName} has ${c.index.layers.size} layers, no layer ${v.layer + 1}" }; c.layerPanel(v, frames, sink) }
+            is CutZView -> c.cutZPanel(v, sink)
+            is CutView -> c.sectionPanel(v, sink)
+            is OutsideView, is ThreeDView -> c.solidPanel(v, sink)
+            else -> error("no picture for $v")
+        }
         for (v in views) {
-            val panel = when (v) {
-                is LayerView -> ctx.layerPanel(v, frames, notes)
-                is CutZView -> ctx.cutZPanel(v, notes)
-                is CutView -> ctx.sectionPanel(v, notes)
-                else -> error("no picture for $v")
+            val panels = if (other == null) listOf(panelOf(ctx, v, notes)) else {
+                // each file's own frame first, then both drawn in the frame that holds the two, at the finer scale
+                val fa = panelOf(ctx, v, ArrayList()).fit; val fb = panelOf(other, v, ArrayList()).fit
+                val shared = if (fa != null && fb != null) fa.union(fb) else null
+                ctx.forced = shared; other.forced = shared
+                val pa = panelOf(ctx, v, notes); val pb = panelOf(other, v, notes)
+                ctx.forced = null; other.forced = null
+                listOf(pa, pb, Compare.difference(pa, pb, req.file.fileName.toString(), other.req.file.fileName.toString()))
             }
-            val bytes = encode(listOf(panel), req)
+            val bytes = encode(panels, req)
             val path = dir.resolve(v.fileName + "." + req.format.ext)
             Files.write(path, bytes)
             written.add(path)
             if (req.sheet != null) pictures += v.title to bytes
-            val (w, h) = Layout.size(listOf(panel), !req.noAnnotations)
+            val (w, h) = Layout.size(panels, !req.noAnnotations)
             out(if (req.printFiles) path.toString() else "-> $path (${v.title}, $w x $h px)")
         }
         req.sheet?.let { s ->
@@ -91,7 +108,7 @@ object Render {
         }
     }
 
-    internal fun f(v: Double, d: Int = 2): String = String.format(Locale.ROOT, "%.${d}f", v)
+    internal fun f(v: Double, d: Int = 2): String = String.format(Locale.ROOT, "%.${d}f", v).let { if (it.trimStart('-').all { c -> c == '0' || c == '.' }) it.trimStart('-') else it }
 }
 
 /** One picture a run asks for: its file's name (without the extension) and its title on a sheet. */
@@ -103,6 +120,11 @@ internal class LayerView(val layer: Int, digits: Int) : View {
     override val title = "layer ${layer + 1}"
 }
 
+/** A picture's frame (across a0..a1, up b0..b1, mm, before any stretch), its scale (px per mm), and its height stretch. */
+internal class Fit(val a0: Double, val b0: Double, val a1: Double, val b1: Double, val s: Double, val k: Double) {
+    fun union(o: Fit) = Fit(minOf(a0, o.a0), minOf(b0, o.b0), maxOf(a1, o.a1), maxOf(b1, o.b1), minOf(s, o.s), maxOf(k, o.k))
+}
+
 /** A rectangle of the bed, mm. */
 internal class Frame(val x0: Double, val y0: Double, val x1: Double, val y1: Double) {
     val w get() = x1 - x0
@@ -111,6 +133,8 @@ internal class Frame(val x0: Double, val y0: Double, val x1: Double, val y1: Dou
 
 /** One run's resolved settings over one indexed file: the views, the lines chosen, the widths and colors. */
 internal class Context(val req: RenderRequest, val index: GcodeIndex) {
+    /** A frame and scale every picture of this context takes (two files compared share one); null: each its own. */
+    var forced: Fit? = null
     companion object {
         /** The share of the length laid in view whose lines do not set the scale: the narrowest (plymeld's choice). */
         const val THIN_SHARE = 0.01
@@ -269,6 +293,11 @@ internal class Context(val req: RenderRequest, val index: GcodeIndex) {
             for (k in r.first..minOf(r.last, n) step (req.layerStep ?: 1)) out += k - 1
             if (r.last > n) notes += "--layer-range ${r.first}..${r.last}: $name has $n layers; drawn to layer $n"
         }
+        for (sd in req.outside.distinct()) cuts += OutsideView(sd)
+        if (req.threeD) {
+            if (req.threeDFrom.isEmpty()) cuts += ThreeDView(ThreeDView.TURN, ThreeDView.TILT, false)
+            for ((t, u) in req.threeDFrom) cuts += ThreeDView(t, u, true)
+        }
         if (out.isEmpty() && cuts.isEmpty()) out += (n - 1) / 2
         return out.map { LayerView(it, digits) } + cuts.distinctBy { it.fileName }
     }
@@ -335,6 +364,7 @@ internal class Context(val req: RenderRequest, val index: GcodeIndex) {
     fun scale(f: Frame, spacing: Double, what: String, notes: MutableList<String>): Pair<Double, Boolean> {
         val longer = maxOf(f.w, f.h)
         val s = when {
+            forced != null -> forced!!.s
             req.pxPerMm != null -> req.pxPerMm
             req.pictureSize != null -> minOf(req.pictureSize.first / f.w, req.pictureSize.second / f.h)
             else -> {
@@ -347,7 +377,7 @@ internal class Context(val req: RenderRequest, val index: GcodeIndex) {
         if (!resolved) {
             val span = Math.floor(Render.MAX_PX * spacing / Render.LEGIBLE_PX)
             notes += "$what: its closest lines lie ${Render.f(spacing, 3)} mm apart and need ${Render.f(Render.LEGIBLE_PX / spacing, 1)} px per mm; " +
-                (if (req.pxPerMm != null || req.pictureSize != null) "the scale given is ${Render.f(s, 1)}" else "at that scale the ${Render.f(longer, 1)} mm frame would be more than ${Render.MAX_PX} px") +
+                (if (forced != null) "the scale both files share is ${Render.f(s, 1)}" else if (req.pxPerMm != null || req.pictureSize != null) "the scale given is ${Render.f(s, 1)}" else "at that scale the ${Render.f(longer, 1)} mm frame would be more than ${Render.MAX_PX} px") +
                 (if (req.allowUnresolved) ": lines drawn anyway (--allow-unresolved-lines)" else ": drawn as flat regions with their outlines") +
                 (if (req.pxPerMm != null || req.pictureSize != null) "; --px-per-mm ${Render.f(Math.ceil(Render.LEGIBLE_PX / spacing * 10) / 10, 1)} or more resolves them"
                  else "; --around X,Y --span ${Layout.mm(span)} resolves them")
@@ -358,7 +388,7 @@ internal class Context(val req: RenderRequest, val index: GcodeIndex) {
     /** The picture of [v]: its layer from above. */
     fun layerPanel(v: LayerView, shared: Pair<Frame, Double>?, notes: MutableList<String>): Panel {
         val (m, marks) = MoveReader.read(index, readLayers(v.layer))
-        val frame = shared?.first ?: frameOf(m, v.layer)
+        val frame = forced?.let { Frame(it.a0, it.b0, it.a1, it.b1) } ?: shared?.first ?: frameOf(m, v.layer)
         val spacing = shared?.second ?: closest(m, v.layer, frame)
         val l = index.layers[v.layer]
         val what = "${name}, layer ${v.layer + 1}"
@@ -374,7 +404,8 @@ internal class Context(val req: RenderRequest, val index: GcodeIndex) {
             "; ${colorWords()}" + top.extraWords() + "."
         if (!index.layerMarkers) caption += "Layers read from the heights the moves are laid at: the file marks none."
         if (top.empty) caption += "No line of this layer is chosen by the --only-... options."
-        return Panel(dw, dh, caption, top.key(), s, plymeld.check.TechniqueRender.niceBar(frame.w), draw = { c, ox, oy -> top.draw(c, ox, oy, dw, dh) })
+        return Panel(dw, dh, caption, top.key(), s, plymeld.check.TechniqueRender.niceBar(frame.w), fit = Fit(frame.x0, frame.y0, frame.x1, frame.y1, s, 1.0),
+            draw = { c, ox, oy -> top.draw(c, ox, oy, dw, dh) })
     }
 
     /** The picture of a level cut at [v]'s height, seen from above: each bead the plane crosses, as wide as it is there. */
@@ -408,7 +439,7 @@ internal class Context(val req: RenderRequest, val index: GcodeIndex) {
                 if (hi >= z - d && lo <= z + d) piece(0.0, 1.0, w0, true)
             }
         }
-        val frame = frameOf(cm, -1)
+        val frame = forced?.let { Frame(it.a0, it.b0, it.a1, it.b1) } ?: frameOf(cm, -1)
         val spacing = closest(cm, -1, frame)
         val what = "$name, ${v.title}"
         val (s, resolved) = scale(frame, spacing, what, notes)
@@ -423,7 +454,8 @@ internal class Context(val req: RenderRequest, val index: GcodeIndex) {
         caption += (if (asLines) "edges darker" else "each feature's area as a flat region with its outline (its lines ${Render.f(spacing, 3)} mm apart need ${Render.f(Render.LEGIBLE_PX / spacing, 1)} px per mm)") +
             "; ${colorWords()}" + (if (d > 0) "; the beads within ${Layout.mm(d)} mm of the plane that it does not cross, lighter" else "") + top.extraWords() + "."
         if (top.empty) caption += "No line crosses this plane" + (if (anyOnlyWords()) " among those the --only-... options choose." else ".")
-        return Panel(dw, dh, caption, top.key(), s, plymeld.check.TechniqueRender.niceBar(frame.w), draw = { c, ox, oy -> top.draw(c, ox, oy, dw, dh) })
+        return Panel(dw, dh, caption, top.key(), s, plymeld.check.TechniqueRender.niceBar(frame.w), fit = Fit(frame.x0, frame.y0, frame.x1, frame.y1, s, 1.0),
+            draw = { c, ox, oy -> top.draw(c, ox, oy, dw, dh) })
     }
 
     private fun anyOnlyWords() = req.anyOnly
@@ -446,14 +478,15 @@ internal class Context(val req: RenderRequest, val index: GcodeIndex) {
         val vpad = maxOf(0.2, 0.03 * (v1 - v0)); v0 -= vpad; v1 += vpad
         val heightUp = pl.vz > 0.999999
         if (zr != null && heightUp) { v0 = zr.start - pl.pz; v1 = zr.endInclusive - pl.pz }
+        forced?.let { u0 = it.a0; v0 = it.b0; u1 = it.a1; v1 = it.b1 }
         val spacing = sd.closest()
         val what = "$name, ${v.title}"
         val (s, resolved) = scale(Frame(u0, v0, u1, v1), spacing, what, notes)
         val asLines = resolved || req.allowUnresolved
         val hMin = sd.heightMin
-        var k = req.heightStretch ?: (if (hMin.isNaN()) 1.0 else maxOf(1.0, Render.LEGIBLE_PX / (hMin * s)))
+        var k = forced?.k ?: req.heightStretch ?: (if (hMin.isNaN()) 1.0 else maxOf(1.0, Render.LEGIBLE_PX / (hMin * s)))
         val maxH = if (req.pictureSize != null) req.pictureSize.second.toDouble() else Render.MAX_PX.toDouble()
-        if (req.heightStretch == null && (v1 - v0) * s * k > maxH) {
+        if (forced == null && req.heightStretch == null && (v1 - v0) * s * k > maxH) {
             k = maxOf(1.0, maxH / ((v1 - v0) * s))
             notes += "$what: its heights stretched ${Render.f(k, 2)} times, all a picture ${maxH.toInt()} px tall holds: a layer ${Render.f(hMin, 2)} mm thick is drawn ${Render.f(hMin * s * k, 1)} px tall (--z-range draws fewer heights, taller)"
         }
@@ -471,7 +504,54 @@ internal class Context(val req: RenderRequest, val index: GcodeIndex) {
             (if (lineWidth == LineWidth.PLASTIC) "filament $diameterWords" else "its width as declared") + ")" + (if (asLines) ", outlined darker" else ", as flat regions with their outlines") +
             "; ${colorWords()}" + (if (d != null) "; the lines within ${Layout.mm(d)} mm of the plane, from the side and lighter (${sd.alongCount})" else "") + onlyWords() + "."
         return Panel(dw, dh, caption, coloring.key(), s, plymeld.check.TechniqueRender.niceBar(u1 - u0), s * k, plymeld.check.TechniqueRender.niceBar(v1 - v0),
+            fit = Fit(u0, v0, u1, v1, s, k),
             draw = { c, ox, oy -> sd.draw(c, coloring::color, { u -> ox + (u - u0) * s }, { vv -> oy + (v1 - vv) * s * k }, asLines, dw, dh, ox, oy) })
+    }
+
+    /** The picture of the print's outside from one side, or in 3D: the nearest bead at each point, shaded as a tube. */
+    fun solidPanel(v: View, notes: MutableList<String>): Panel {
+        val p = when (v) { is OutsideView -> Projection.outside(v.side); is ThreeDView -> Projection.turned(v.turn, v.tilt); else -> error("not a solid view") }
+        val sd = SolidDrawing(this, p)
+        val sv = sd.survey()
+        val pad = maxOf(0.5, 0.03 * maxOf(sv.a1 - sv.a0, sv.b1 - sv.b0))
+        var a0 = sv.a0 - pad; var a1 = sv.a1 + pad; var b0 = sv.b0 - pad; var b1 = sv.b1 + pad
+        forced?.let { a0 = it.a0; b0 = it.b0; a1 = it.a1; b1 = it.b1 }
+        val what = "$name, ${v.title}"
+        // the closest lines: from above, beads side by side; from the side, the layers; in 3D, whichever is closer as seen
+        val pitch = when {
+            p.sideView -> Double.NaN
+            p.uz < 1e-9 -> sv.spacing
+            else -> minOf(sv.spacing.takeIf { !it.isNaN() } ?: Double.MAX_VALUE, (sv.hMin * Math.abs(p.uz)).takeIf { !it.isNaN() } ?: Double.MAX_VALUE).takeIf { it < Double.MAX_VALUE } ?: Double.NaN
+        }
+        val (s, resolvedAcross) = scale(Frame(a0, b0, a1, b1), pitch, what, notes)
+        var k = 1.0
+        if (p.sideView) {
+            k = forced?.k ?: req.heightStretch ?: (if (sv.hMin.isNaN()) 1.0 else maxOf(1.0, Render.LEGIBLE_PX / (sv.hMin * s)))
+            val maxH = if (req.pictureSize != null) req.pictureSize.second.toDouble() else Render.MAX_PX.toDouble()
+            if (forced == null && req.heightStretch == null && (b1 - b0) * s * k > maxH) k = maxOf(1.0, maxH / ((b1 - b0) * s))
+        }
+        val layerPx = if (p.sideView && !sv.hMin.isNaN()) sv.hMin * s * k else Double.NaN
+        val resolved = resolvedAcross && (layerPx.isNaN() || layerPx >= Render.LEGIBLE_PX - 1e-9)
+        if (resolvedAcross && !resolved) notes += "$what: its thinnest layer (${Render.f(sv.hMin, 2)} mm) is ${Render.f(layerPx, 1)} px tall: " +
+            (if (req.allowUnresolved) "drawn anyway (--allow-unresolved-lines)" else "drawn as flat regions with their outlines") + "; --z-range draws fewer heights, taller"
+        val asLines = resolved || req.allowUnresolved
+        val bk = if (p.sideView) k else 1.0
+        require((a1 - a0) * s <= Render.LIMIT_PX && (b1 - b0) * s * bk <= Render.LIMIT_PX) { "$what would be more than ${Render.LIMIT_PX} px on a side: frame less of the print or give a smaller scale" }
+        val dw = maxOf(1, Math.round((a1 - a0) * s).toInt()); val dh = maxOf(1, Math.round((b1 - b0) * s * bk).toInt())
+        // the top of the frame in drawing units (b stretched)
+        val bTop = b0 * bk + (b1 - b0) * bk
+        val buf = sd.draw(sv, a0, bTop, s, bk, dw, dh)
+        val img = sd.image(buf, asLines)
+        val caption = ArrayList<String>()
+        caption += if (v is OutsideView) "$name: the print's outside ${p.words}" else "$name: the print in 3D, ${p.words}"
+        caption += "Its outermost lines: the nearest bead at each point, not a cut; ${Render.f(s, 2)} px per mm" +
+            (if (p.sideView) (if (Math.abs(k - 1) < 1e-9) "; heights in true proportion" else "; heights drawn ${Render.f(k, 2)} times their true size") else "") +
+            "; heights ${Render.f(sv.zLo, 2)} to ${Render.f(sv.zHi, 2)} mm" + (if (req.zRange != null) " (--z-range)" else "") +
+            (if (req.bedWindow != null || req.around != null) "; only the lines in ${if (req.around != null) "--around's square" else "--bed-window"}" else "") + "."
+        caption += (if (asLines) "each line a round bead (bead model), shaded as a tube" else "each color's area flat, with its outline") + "; ${colorWords()}" + onlyWords() + "."
+        return Panel(dw, dh, caption, sd.key(buf, sv), s, plymeld.check.TechniqueRender.niceBar(a1 - a0),
+            if (p.sideView) s * k else Double.NaN, if (p.sideView) plymeld.check.TechniqueRender.niceBar(b1 - b0) else Double.NaN,
+            fit = Fit(a0, b0, a1, b1, s, k), draw = { c, ox, oy -> c.image(img, dw, dh, Math.round(ox).toInt(), Math.round(oy).toInt()) })
     }
 
     fun onlyWords(): String {

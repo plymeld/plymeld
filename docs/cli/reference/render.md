@@ -4,7 +4,7 @@
 
 [Command reference](README.md)
 
-Draw what any g-code file lays down, read from the file alone: its layers from above (--layer, --layer-at-z, --layer-range; the middle layer by default), cuts through it (--cut-z from above; --cut-y, --cut-x, --cut-line, --cut-plane from the side, each line crossing the plane as its bead's cross-section), the lines chosen by object, tool, or feature (--only-...), colored by feature, tool, speed, flow, width, height, fan, temperature, order, or layer time, each line as wide as the plastic it lays, framed round a point (--around, --span) or a window of the bed, at a scale that keeps the closest lines 3 px apart. Every picture's caption says what it shows. Lengths in mm, the first layer 1, tools by the file's own numbers.
+Draw what any g-code file lays down, read from the file alone: its layers from above (--layer, --layer-at-z, --layer-range; the middle layer by default), cuts through it (--cut-z from above; --cut-y, --cut-x, --cut-line, --cut-plane from the side, each line crossing the plane as its bead's cross-section), its outside from a side (--outside) or in 3D (--3d), and two files compared (--compare-with), the lines chosen by object, tool, or feature (--only-...), colored by feature, tool, speed, flow, width, height, fan, temperature, order, or layer time, each line as wide as the plastic it lays, framed round a point (--around, --span) or a window of the bed, at a scale that keeps the closest lines 3 px apart. Every picture's caption says what it shows. Lengths in mm, the first layer 1, tools by the file's own numbers.
 
 Usage: `plymeld render [<options>] <file.gcode>`
 
@@ -24,8 +24,11 @@ Options:
 - `--cut-line=<x0,y0:x1,y1>`: draw the vertical plane along this line on the bed (mm), the first point at the picture's left, height up; repeatable
 - `--cut-plane=<px,py,pz:nx,ny,nz>`: draw any plane, by a point on it (mm) and the direction it faces, seen from the side that direction points to; a level plane facing up is --cut-z; repeatable
 - `--cut-depth=<mm>`: with a cut: also the lines within this distance (mm) of its plane that do not cross it, drawn lighter (from the side in a vertical cut, so a wall the cut follows shows as a wall)
-- `--z-range=<z0..z1>`: with a cut seen from the side: only these heights (mm). Not with layer pictures or --cut-z alone
-- `--height-stretch=<factor>`: with a cut seen from the side: how many times taller than true its heights are drawn (1: true proportions). Default: enough for a layer to be at least 3 px tall; the factor is in the caption
+- `--z-range=<z0..z1>`: with a cut seen from the side, --outside, or --3d: only these heights (mm). Not with layer pictures or --cut-z alone
+- `--height-stretch=<factor>`: with a cut seen from the side or --outside from a side: how many times taller than true its heights are drawn (1: true proportions). Default: enough for a layer to be at least 3 px tall; the factor is in the caption
+- `--outside=<side>`: draw the print's outside seen from this side: front, back, left, right, or top; its outermost lines (the nearest bead at each point), not a cut; repeatable
+- `--3d`: draw the print in 3D, from the front-left above (turn -35, tilt 30 degrees), orthographic, each line a bead shaded as a tube
+- `--3d-from=<turn,tilt>`: with --3d: where it is seen from, in degrees: 0,0 is level from the front, turn goes round to the right, tilt rises (90 is from above); repeatable, one picture each
 - `--only-object=<name>`: only the lines of this object, named as the file names it (--list-objects); repeatable: any of them
 - `--only-part=<name>`: only the lines of this part, named as the file names it; repeatable: any of them. Refused for a file that names no parts
 - `--only-tool=<n>`: only the lines this tool lays, by the file's own tool numbers (T0 is 0); repeatable, or a list: any of them
@@ -35,7 +38,7 @@ Options:
 - `--line-width=plastic|declared|center`: how wide each line is drawn: as wide as the plastic it lays, by the bead model (default; needs the filament's diameter, from the file or its source block), as wide as the file declares (;WIDTH:), or as a thin center line
 - `--show=<mark>`: with a layer picture: add marks: travels, seams, retractions, starts, or tool-changes; repeatable
 - `--layers-below=<n>`: with a layer picture: also the N layers under it, in light gray (default 0)
-- `--bed-window=<x0,y0,x1,y1>`: draw only this rectangle of the bed (mm, in the g-code's coordinates); a cut seen from the side, only where its plane crosses the rectangle. Not with --around
+- `--bed-window=<x0,y0,x1,y1>`: draw only this rectangle of the bed (mm, in the g-code's coordinates); a cut seen from the side, only where its plane crosses the rectangle; --outside and --3d, only the lines in it. Not with --around
 - `--around=<x,y>`: draw only the square of side --span centered on this point of the bed (mm, in the g-code's coordinates, as plymeld's check messages give them); needs --span. Not with --bed-window
 - `--span=<mm>`: the side of the square --around draws (mm); needs --around
 - `--same-frame`: every layer picture of the run in one frame and at one scale, for flipping through a range
@@ -46,6 +49,7 @@ Options:
 - `-o, --output=<dir>`: the directory the pictures go in (default: beside the g-code, its name without .gcode and with .render: part.render for part.gcode); one file a picture, named from its view: layer-0060.png
 - `--format=png|svg`: the pictures' format (default png)
 - `--sheet=<file>`: also every picture of the run in one image, in a grid, each under its title, in the run's --format (a name without a directory goes in the output directory)
+- `--compare-with=<other.gcode>`: each picture as three panels: this file, the other drawn with the same options in the same frame and scale, and where they differ (orange only in this file, blue only in the other, red in both but not alike)
 - `--print-files`: print each written file's path, one a line, and nothing else (notes go to standard error)
 - `--list-features`: print the feature names the file writes, one a line, and draw nothing. Not with an option that draws or writes a picture
 - `--list-objects`: print the object names the file writes, one a line, and draw nothing. Not with an option that draws or writes a picture

@@ -20,6 +20,8 @@ internal class Panel(
     val caption: List<String>, val key: List<KeyItem>,
     val pxPerMm: Double, val barMm: Double,
     val vPxPerMm: Double = Double.NaN, val vBarMm: Double = Double.NaN,
+    /** Its frame and scale, for another file's picture to share (--compare-with); null where it has none to share. */
+    val fit: Fit? = null,
     val draw: (Canvas, Double, Double) -> Unit,
 )
 

@@ -55,10 +55,16 @@ class RenderCommand : CliktCommand(name = "render") {
         .convert { s -> numbers(s, listOf(3, 3)) ?: fail("a point and a direction, PX,PY,PZ:NX,NY,NZ, not '$s'") }.multiple()
     private val cutDepth by option("--cut-depth", metavar = "MM", help = "with a cut: also the lines within this distance (mm) of its plane that do not cross it, drawn lighter (from the side in a vertical cut, so a wall the cut follows shows as a wall)")
         .convert { length(it) ?: fail("a length in mm, not '$it'") }
-    private val zRange by option("--z-range", metavar = "Z0..Z1", help = "with a cut seen from the side: only these heights (mm). Not with layer pictures or --cut-z alone")
+    private val zRange by option("--z-range", metavar = "Z0..Z1", help = "with a cut seen from the side, --outside, or --3d: only these heights (mm). Not with layer pictures or --cut-z alone")
         .convert { s -> Regex("""^\s*([-0-9.]+)\s*(?:mm)?\s*\.\.\s*([-0-9.]+)\s*(?:mm)?\s*$""").find(s)?.let { (it.groupValues[1].toDoubleOrNull() ?: fail("a range of heights Z0..Z1 in mm, not '$s'"))..(it.groupValues[2].toDoubleOrNull() ?: fail("a range of heights Z0..Z1 in mm, not '$s'")) } ?: fail("a range of heights Z0..Z1 in mm (e.g. 2..4.5), not '$s'") }
-    private val heightStretch by option("--height-stretch", metavar = "FACTOR", help = "with a cut seen from the side: how many times taller than true its heights are drawn (1: true proportions). Default: enough for a layer to be at least 3 px tall; the factor is in the caption")
+    private val heightStretch by option("--height-stretch", metavar = "FACTOR", help = "with a cut seen from the side or --outside from a side: how many times taller than true its heights are drawn (1: true proportions). Default: enough for a layer to be at least 3 px tall; the factor is in the caption")
         .convert { it.toDoubleOrNull() ?: fail("a number (1 is true proportions), not '$it'") }
+
+    private val outside by option("--outside", metavar = "SIDE", help = "draw the print's outside seen from this side: front, back, left, right, or top; its outermost lines (the nearest bead at each point), not a cut; repeatable")
+        .choice("front", "back", "left", "right", "top").multiple()
+    private val threeD by option("--3d", help = "draw the print in 3D, from the front-left above (turn -35, tilt 30 degrees), orthographic, each line a bead shaded as a tube").flag()
+    private val threeDFrom by option("--3d-from", metavar = "TURN,TILT", help = "with --3d: where it is seen from, in degrees: 0,0 is level from the front, turn goes round to the right, tilt rises (90 is from above); repeatable, one picture each")
+        .convert { s -> numbers(s, listOf(2))?.let { it[0] to it[1] } ?: fail("a turn and a tilt in degrees, TURN,TILT, not '$s'") }.multiple()
 
     // choosing lines
     private val onlyObject by option("--only-object", metavar = "NAME", help = "only the lines of this object, named as the file names it (--list-objects); repeatable: any of them").multiple()
@@ -82,7 +88,7 @@ class RenderCommand : CliktCommand(name = "render") {
     private val layersBelow by option("--layers-below", metavar = "N", help = "with a layer picture: also the N layers under it, in light gray (default 0)").int()
 
     // framing and size
-    private val bedWindow by option("--bed-window", metavar = "X0,Y0,X1,Y1", help = "draw only this rectangle of the bed (mm, in the g-code's coordinates); a cut seen from the side, only where its plane crosses the rectangle. Not with --around")
+    private val bedWindow by option("--bed-window", metavar = "X0,Y0,X1,Y1", help = "draw only this rectangle of the bed (mm, in the g-code's coordinates); a cut seen from the side, only where its plane crosses the rectangle; --outside and --3d, only the lines in it. Not with --around")
         .convert { s -> s.split(',').map { length(it) ?: fail("four bed coordinates in mm, X0,Y0,X1,Y1, not '$s'") }.also { if (it.size != 4) fail("four bed coordinates in mm, X0,Y0,X1,Y1, not '$s'") }.toDoubleArray() }
     private val around by option("--around", metavar = "X,Y", help = "draw only the square of side --span centered on this point of the bed (mm, in the g-code's coordinates, as plymeld's check messages give them); needs --span. Not with --bed-window")
         .convert { s -> s.split(',').map { length(it) ?: fail("a point X,Y in mm, not '$s'") }.also { if (it.size != 2) fail("a point X,Y in mm, not '$s'") }.let { it[0] to it[1] } }
@@ -99,6 +105,8 @@ class RenderCommand : CliktCommand(name = "render") {
     private val output by option("-o", "--output", metavar = "DIR", help = "the directory the pictures go in (default: beside the g-code, its name without .gcode and with .render: part.render for part.gcode); one file a picture, named from its view: layer-0060.png").path(canBeFile = false)
     private val format by option("--format", metavar = "png|svg", help = "the pictures' format (default png)").choice(*Format.entries.map { it.word }.toTypedArray())
     private val sheet by option("--sheet", metavar = "FILE", help = "also every picture of the run in one image, in a grid, each under its title, in the run's --format (a name without a directory goes in the output directory)").path()
+    private val compareWith by option("--compare-with", metavar = "OTHER.gcode", help = "each picture as three panels: this file, the other drawn with the same options in the same frame and scale, and where they differ (orange only in this file, blue only in the other, red in both but not alike)")
+        .path(mustExist = true, canBeDir = false)
     private val printFiles by option("--print-files", help = "print each written file's path, one a line, and nothing else (notes go to standard error)").flag()
     private val listFeatures by option("--list-features", help = "print the feature names the file writes, one a line, and draw nothing. Not with an option that draws or writes a picture").flag()
     private val listObjects by option("--list-objects", help = "print the object names the file writes, one a line, and draw nothing. Not with an option that draws or writes a picture").flag()
@@ -106,6 +114,7 @@ class RenderCommand : CliktCommand(name = "render") {
     override fun help(context: com.github.ajalt.clikt.core.Context) =
         "Draw what any g-code file lays down, read from the file alone: its layers from above (--layer, --layer-at-z, --layer-range; the middle layer by default), " +
             "cuts through it (--cut-z from above; --cut-y, --cut-x, --cut-line, --cut-plane from the side, each line crossing the plane as its bead's cross-section), " +
+            "its outside from a side (--outside) or in 3D (--3d), and two files compared (--compare-with), " +
             "the lines chosen by object, tool, or feature (--only-...), colored by feature, tool, speed, flow, width, height, fan, temperature, order, or layer time, " +
             "each line as wide as the plastic it lays, framed round a point (--around, --span) or a window of the bed, at a scale that keeps the closest lines 3 px apart. " +
             "Every picture's caption says what it shows. Lengths in mm, the first layer 1, tools by the file's own numbers."
@@ -115,6 +124,8 @@ class RenderCommand : CliktCommand(name = "render") {
             layers = layer.flatten(), layersAtZ = layerAtZ.flatten(), layerRanges = layerRange, layerStep = layerStep,
             cutZ = cutZ.flatten(), cutY = cutY.flatten(), cutX = cutX.flatten(), cutLine = cutLine,
             cutPlane = cutPlane.map { it.copyOfRange(0, 3) to it.copyOfRange(3, 6) }, cutDepth = cutDepth, zRange = zRange, heightStretch = heightStretch,
+            outside = outside, threeD = threeD, threeDFrom = threeDFrom,
+            compareWith = compareWith, compareFacts = compareWith?.let { facts(it) } ?: FileFacts(),
             onlyObject = onlyObject, onlyPart = onlyPart, onlyTool = onlyTool.flatten(), onlyFeature = onlyFeature,
             others = others?.let { o -> Others.entries.first { it.word == o } },
             colorBy = colorBy?.let { ColorBy.of(it) }, lineWidth = lineWidth?.let { w -> LineWidth.entries.first { it.word == w } },
