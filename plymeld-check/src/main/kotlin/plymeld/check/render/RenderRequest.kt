@@ -81,6 +81,13 @@ class RenderRequest(
     /** `--compare-with`: the other file, and what its source block says. */
     val compareWith: Path? = null,
     val compareFacts: FileFacts = FileFacts(),
+    /** `--outline-of`: the model file, and the model as the command placed it (null while it is not read). */
+    val outlineOf: Path? = null,
+    var outline: ModelOutline? = null,
+    /** `--mark-bare`, `--mark-laid-twice`: the pre-print check's measures on each layer drawn ([checkMarks] reads them). */
+    val markBare: Boolean = false,
+    val markLaidTwice: Boolean = false,
+    var checkMarks: ((Collection<Double>) -> List<plymeld.core.check.ModelCheck.LayerMarks>)? = null,
     val listFeatures: Boolean = false,
     val listObjects: Boolean = false,
     val facts: FileFacts = FileFacts(),
@@ -100,7 +107,7 @@ class RenderRequest(
     fun forOther(other: Path, otherFacts: FileFacts) = RenderRequest(other, layers, layersAtZ, layerRanges, layerStep, cutZ, cutY, cutX, cutLine, cutPlane,
         cutDepth, zRange, heightStretch, outside, threeD, threeDFrom, onlyObject, onlyPart, onlyTool, onlyFeature, others, colorBy, lineWidth, show,
         layersBelow, bedWindow, around, span, sameFrame, pxPerMm, pictureSize, allowUnresolved, noAnnotations, outDir, format, sheet, printFiles,
-        null, FileFacts(), listFeatures, listObjects, otherFacts)
+        null, FileFacts(), null, null, false, false, null, listFeatures, listObjects, otherFacts)
     val anyOnly: Boolean get() = onlyObject.isNotEmpty() || onlyPart.isNotEmpty() || onlyTool.isNotEmpty() || onlyFeature.isNotEmpty()
 
     /** The options given that draw or frame a picture, by their names, for a listing to refuse. */
@@ -110,7 +117,8 @@ class RenderRequest(
         "--cut-x".takeIf { cutX.isNotEmpty() }, "--cut-line".takeIf { cutLine.isNotEmpty() }, "--cut-plane".takeIf { cutPlane.isNotEmpty() },
         "--cut-depth".takeIf { cutDepth != null }, "--z-range".takeIf { zRange != null }, "--height-stretch".takeIf { heightStretch != null },
         "--outside".takeIf { outside.isNotEmpty() }, "--3d".takeIf { threeD }, "--3d-from".takeIf { threeDFrom.isNotEmpty() },
-        "--compare-with".takeIf { compareWith != null },
+        "--compare-with".takeIf { compareWith != null }, "--outline-of".takeIf { outlineOf != null }, "--mark-bare".takeIf { markBare },
+        "--mark-laid-twice".takeIf { markLaidTwice },
         "--only-object".takeIf { onlyObject.isNotEmpty() }, "--only-part".takeIf { onlyPart.isNotEmpty() },
         "--only-tool".takeIf { onlyTool.isNotEmpty() }, "--only-feature".takeIf { onlyFeature.isNotEmpty() }, "--others".takeIf { others != null },
         "--color-by".takeIf { colorBy != null }, "--line-width".takeIf { lineWidth != null }, "--show".takeIf { show.isNotEmpty() },
@@ -152,6 +160,11 @@ class RenderRequest(
         zRange?.let { if (it.endInclusive <= it.start) out += "--z-range Z0..Z1 needs Z1 above Z0" }
         if (heightStretch != null && !sideViews) out += "--height-stretch stretches the heights of a picture seen from the side, and the run draws none (layer pictures, --cut-z, --outside top, and --3d have none to stretch): give --cut-y, --cut-x, --cut-line, --cut-plane, or --outside front, back, left, or right with it"
         if (threeDFrom.isNotEmpty() && !threeD) out += "--3d-from sets where --3d is seen from: give --3d with it"
+        if (outlineOf != null && !layerViews && !anyCut) out += "--outline-of draws the model's outline on a layer or a cut, and the run draws neither ${others}: give --layer, --layer-at-z, --layer-range, or a --cut-... option with it"
+        for ((given, name) in listOf(markBare to "--mark-bare", markLaidTwice to "--mark-laid-twice"))
+            if (given && !layerViews) out += "$name marks the check's measures on a layer picture, and the run draws none $others: give --layer, --layer-at-z, or --layer-range with it"
+        if (markBare && outlineOf == null) out += "--mark-bare reads the ground no line covers against the model's cross-section: give the model the file was sliced from with --outline-of"
+        if (markLaidTwice && outlineOf == null) out += "--mark-laid-twice reads the settings the pre-print check reads for the file's object, which plymeld resolves with its model: give the model the file was sliced from with --outline-of"
         if (heightStretch != null && heightStretch <= 0) out += "--height-stretch must be more than 0 (1 is true proportions)"
         for (l in cutLine) if (Math.hypot(l[2] - l[0], l[3] - l[1]) < 1e-9) out += "--cut-line ${l.joinToString(",")}: its two points are one; a line needs two"
         for ((_, n) in cutPlane) if (n.all { Math.abs(it) < 1e-12 }) out += "--cut-plane: its direction is (0, 0, 0), which faces nowhere"

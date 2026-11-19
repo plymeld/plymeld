@@ -105,6 +105,11 @@ class RenderCommand : CliktCommand(name = "render") {
     private val output by option("-o", "--output", metavar = "DIR", help = "the directory the pictures go in (default: beside the g-code, its name without .gcode and with .render: part.render for part.gcode); one file a picture, named from its view: layer-0060.png").path(canBeFile = false)
     private val format by option("--format", metavar = "png|svg", help = "the pictures' format (default png)").choice(*Format.entries.map { it.word }.toTypedArray())
     private val sheet by option("--sheet", metavar = "FILE", help = "also every picture of the run in one image, in a grid, each under its title, in the run's --format (a name without a directory goes in the output directory)").path()
+    private val outlineOf by option("--outline-of", metavar = "MODEL", help = "with a layer picture or a cut: also the model's outline there (a layer at its middle height, a cut on its plane), a thin black line over the lines, never filled. " +
+        "The model is placed as plymeld placed it for the file (from the file's source block); a file without one: as the model file gives it")
+        .path(mustExist = true, canBeDir = false)
+    private val markBare by option("--mark-bare", help = "with a layer picture: mark the ground no line covers, by the pre-print check's own rules and the file's settings (its source block): the widest hole inside the walls and the outline left bare, their sizes in the caption; needs --outline-of").flag()
+    private val markLaidTwice by option("--mark-laid-twice", help = "with a layer picture: mark plastic laid twice, by the pre-print check's own rule and the file's settings (its source block): each spot ringed, its area beside it and the total in the caption; needs --outline-of").flag()
     private val compareWith by option("--compare-with", metavar = "OTHER.gcode", help = "each picture as three panels: this file, the other drawn with the same options in the same frame and scale, and where they differ (orange only in this file, blue only in the other, red in both but not alike)")
         .path(mustExist = true, canBeDir = false)
     private val printFiles by option("--print-files", help = "print each written file's path, one a line, and nothing else (notes go to standard error)").flag()
@@ -115,6 +120,7 @@ class RenderCommand : CliktCommand(name = "render") {
         "Draw what any g-code file lays down, read from the file alone: its layers from above (--layer, --layer-at-z, --layer-range; the middle layer by default), " +
             "cuts through it (--cut-z from above; --cut-y, --cut-x, --cut-line, --cut-plane from the side, each line crossing the plane as its bead's cross-section), " +
             "its outside from a side (--outside) or in 3D (--3d), and two files compared (--compare-with), " +
+            "with the model's outline (--outline-of) and the pre-print check's findings (--mark-bare, --mark-laid-twice) over the lines; " +
             "the lines chosen by object, tool, or feature (--only-...), colored by feature, tool, speed, flow, width, height, fan, temperature, order, or layer time, " +
             "each line as wide as the plastic it lays, framed round a point (--around, --span) or a window of the bed, at a scale that keeps the closest lines 3 px apart. " +
             "Every picture's caption says what it shows. Lengths in mm, the first layer 1, tools by the file's own numbers."
@@ -126,6 +132,7 @@ class RenderCommand : CliktCommand(name = "render") {
             cutPlane = cutPlane.map { it.copyOfRange(0, 3) to it.copyOfRange(3, 6) }, cutDepth = cutDepth, zRange = zRange, heightStretch = heightStretch,
             outside = outside, threeD = threeD, threeDFrom = threeDFrom,
             compareWith = compareWith, compareFacts = compareWith?.let { facts(it) } ?: FileFacts(),
+            outlineOf = outlineOf, markBare = markBare, markLaidTwice = markLaidTwice,
             onlyObject = onlyObject, onlyPart = onlyPart, onlyTool = onlyTool.flatten(), onlyFeature = onlyFeature,
             others = others?.let { o -> Others.entries.first { it.word == o } },
             colorBy = colorBy?.let { ColorBy.of(it) }, lineWidth = lineWidth?.let { w -> LineWidth.entries.first { it.word == w } },
@@ -134,8 +141,66 @@ class RenderCommand : CliktCommand(name = "render") {
             allowUnresolved = allowUnresolved, noAnnotations = noAnnotations,
             outDir = output, format = format?.let { f -> Format.entries.first { it.word == f } } ?: Format.PNG, sheet = sheet, printFiles = printFiles,
             listFeatures = listFeatures, listObjects = listObjects, facts = facts(file))
+        // refused before the model is read and placed
+        req.refusals().takeIf { it.isNotEmpty() }?.let { throw IllegalArgumentException(it.joinToString("\n")) }
+        if (outlineOf != null || markLaidTwice) model(req)
         val r = Render.run(req) { echo(it) }
         for (n in r.notes) echo("note: $n", err = printFiles)
+    }
+
+    /**
+     * The model (--outline-of) placed as the file was sliced, and the pre-print check's readings (--mark-...), both from
+     * the file's source block: its config and plan with the model given, planned again with everything locked (as `slice
+     * --from` does), so the model stands where it stood and the check reads the settings it read. A file without a source
+     * block: the model as its file gives it, and no marks (refused).
+     */
+    private fun model(req: RenderRequest) {
+        val src = sourceBlock(file)
+        val name = file.fileName.toString()
+        val marks = markBare || markLaidTwice
+        if (src == null) {
+            require(!marks) { "${if (markBare) "--mark-bare" else "--mark-laid-twice"} reads the file's settings as the pre-print check does, from its plymeld source block, and $name has none" }
+            val m = outlineOf!!
+            val parts = loadModel(m).flatMap { it.parts }
+            req.outline = plymeld.check.render.ModelOutline(parts, parts.minOf { it.bounds()[2] }, "as the model file places it: $name has no plymeld source block to place it by", m.fileName.toString())
+            return
+        }
+        val models = listOfNotNull(outlineOf)
+        require(models.isNotEmpty()) { "--mark-laid-twice reads the settings the pre-print check reads for the file's object, which plymeld resolves with its model: give the model $name was sliced from with --outline-of" }
+        for (r in src.models) if (models.none { it.fileName.toString() == r.name })
+            echo("note: $name was made from '${r.name}', not ${models.joinToString { "'${it.fileName}'" }}: the outline and marks are of the model given", err = true)
+        val stack = plymeld.config.ConfigStack(plymeld.config.ConfigFiles.bundled() + src.entries + src.plan)
+        val pr = Product(stack, models, null, null, false) { }
+        val plan = pr.decide()
+        val zBase = plan.parts.minOf { it.bounds()[2] }
+        req.outline = plymeld.check.render.ModelOutline(plan.parts, zBase, "placed as plymeld placed it for $name", models.single().fileName.toString())
+        if (!marks) return
+        require(plan.layout.placed.size == 1) { "--mark-bare and --mark-laid-twice read a file of one object; $name lays ${plan.layout.placed.size} (a plate's objects are read one by one by the check, not yet here)" }
+        require(curvedSpec(plan, pr.result.setup, 0) == null) { "--mark-bare and --mark-laid-twice read flat layers; $name's object has curved ones (the check reads them in their own warp, not yet here)" }
+        val setup = pr.result.setup
+        val s = plymeld.model.SliceSettings.of(setup, plymeld.model.Context(0))
+        val zaa = plymeld.core.check.Expectations.forZaa(setup, listOf(plan.layout.objectIndex[0] to plan.parts), zBase, false)
+        val parts = if (markBare) plan.parts else null
+        req.checkMarks = { zs ->
+            val text = Files.readString(file)
+            plymeld.core.check.ModelCheck.marks(text, parts, zBase, zs, zaa = zaa,
+                featureMinMm = (s.minFeatureUm + 2 * s.resolutionUm) / 1000.0, firstLayerInsetMm = s.elephantFootUm / 1000.0,
+                fuzzMm = if (s.fuzzySkin == "none") 0.0 else s.fuzzyThicknessUm / 1000.0, infillMinMm = 2 * s.innerWallWidthUm / 1000.0,
+                slicingTolMm = s.resolutionUm / 1000.0, endOverlap = s.infillWallOverlap)
+        }
+    }
+
+    /** A plymeld g-code's source block, read from its tail; null where it has none. */
+    private fun sourceBlock(path: Path): SourceBlock.Read? {
+        if (path.toString().endsWith(".3mf")) return null
+        val tail = Files.newByteChannel(path).use { ch ->
+            val n = minOf(ch.size(), TAIL_BYTES)
+            ch.position(ch.size() - n)
+            val buf = java.nio.ByteBuffer.allocate(n.toInt()); while (buf.hasRemaining()) { if (ch.read(buf) <= 0) break }
+            String(buf.array(), 0, buf.position(), Charsets.UTF_8)
+        }
+        val at = tail.lastIndexOf(SourceBlock.START)
+        return if (at < 0) null else SourceBlock.read(tail.substring(at), path.fileName.toString())
     }
 
     /** Groups of numbers split by ':' then ',' with the counts [sizes] (lengths may end in "mm"), flattened; null when they do not fit. */
@@ -152,17 +217,8 @@ class RenderCommand : CliktCommand(name = "render") {
 
     /** Each tool's filament diameter and color from a plymeld g-code's source block (its tail); none where it has none. */
     private fun facts(path: Path): FileFacts {
-        if (path.toString().endsWith(".3mf")) return FileFacts()
-        val tail = Files.newByteChannel(path).use { ch ->
-            val n = minOf(ch.size(), TAIL_BYTES)
-            ch.position(ch.size() - n)
-            val buf = java.nio.ByteBuffer.allocate(n.toInt()); while (buf.hasRemaining()) { if (ch.read(buf) <= 0) break }
-            String(buf.array(), 0, buf.position(), Charsets.UTF_8)
-        }
-        val at = tail.lastIndexOf(SourceBlock.START)
-        if (at < 0) return FileFacts()
         return try {
-            val src = SourceBlock.read(tail.substring(at), path.fileName.toString())
+            val src = sourceBlock(path) ?: return FileFacts()
             val stack = plymeld.config.ConfigStack(plymeld.config.ConfigFiles.bundled() + src.entries + src.plan)
             val setup = plymeld.config.ConfigSetup.setup(plymeld.config.Config(stack, emptyList(), null)).setup
             val diameters = HashMap<Int, Double>(); val colors = HashMap<Int, String>()

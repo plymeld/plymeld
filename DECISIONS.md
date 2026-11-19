@@ -2154,8 +2154,16 @@ colors with an outline at every change of color and every step in depth of more 
 other file with the same options, both in the frame that holds the two at the finer scale, and compares them pixel by
 pixel (alike within 24 levels a channel, for an edge's smoothing).
 
-**Consequences.** Layer views, cuts, the outside and 3D views, two files compared, framing, choosing lines, coloring,
-marks, the sheet, PNG and SVG are built; the check's measures marked are decided and not built yet. `render-plate`
+`--mark-bare` and `--mark-laid-twice` are the pre-print check's own readings, not a second measure: ModelCheck.marks runs
+the check's layer reading (the bare-outline, hole, and laid-twice rules) on the layers drawn, with the settings the check
+reads for the object (resolved from the file's source block and the model, planned again with every decision locked as
+`slice --from` does). Both need the model (`--outline-of`): the bare rules read its cross-section, and the settings the
+check reads are the object's. A file of one object on flat layers only: the check reads a plate's objects and a curved
+band each in its own frame, not built here yet, and refused. `--outline-of` cuts the model's triangles by the picture's
+plane; a file without a source block takes the model as its file places it, and says so.
+
+**Consequences.** Every view, framing, choosing lines, coloring, marks, the model's outline and the check's measures,
+the sheet, PNG and SVG are built. `--only-part` is refused for every file plymeld reads today: none names its parts. `render-plate`
 and its pictures are unchanged; the techniques' sample pictures are unchanged (the bead width they read is the same
 number by the same formula). Tests on synthetic g-code only: RenderLayerTest (lines where they lie and nowhere else,
 control: a line left out; widths from the plastic, control: as declared; arcs against the same path in 4000 short lines,
@@ -2168,4 +2176,7 @@ each cut is seen from, control: a line drawn the other way; a level cut meets a 
 control: a higher cut does not meet the layer below; `--cut-depth`; the cut options' refusals), RenderSolidTest (the
 outside from the front shows the front wall's tool, control: from the back the other; from the top the top layer, and 3D
 from straight above draws the same, control: from the front-left above it does not; `--compare-with` marks the line two
-files differ by, control: a file against itself differs nowhere; the refusals).
+files differ by, control: a file against itself differs nowhere; the refusals), RenderMarksTest (on the generated hole
+block sliced with the sample config: the model's outline along the block's sides, control: none without
+`--outline-of`; a wall move laid again marked laid twice and one left out marked bare, control: the file as sliced marks
+neither; the refusals).

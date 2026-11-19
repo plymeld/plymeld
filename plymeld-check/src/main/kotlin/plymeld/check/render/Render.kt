@@ -47,6 +47,9 @@ object Render {
         val written = ArrayList<Path>()
         val pictures = ArrayList<Pair<String, ByteArray>>()
         val frames = if (req.sameFrame) ctx.sharedFrame(views.filterIsInstance<LayerView>()) else null
+        val readMarks = req.checkMarks
+        if ((req.markBare || req.markLaidTwice) && readMarks != null)
+            ctx.layerMarks = readMarks(views.filterIsInstance<LayerView>().map { index.layers[it.layer].z }).associateBy { Math.round(it.z * 1e6) }
         // the other file (--compare-with), read with the same options; its notes said as its own
         val other = req.compareWith?.let { o ->
             require(Files.isRegularFile(o)) { "--compare-with: no such g-code file: $o" }
@@ -140,6 +143,9 @@ internal class Context(val req: RenderRequest, val index: GcodeIndex) {
         const val THIN_SHARE = 0.01
         /** A move laying less than this share of its path's declared width is a taper, not a line beside others (plymeld's choice). */
         const val TAPER_SHARE = 0.5
+        val TWICE = java.awt.Color(0xD0, 0x10, 0xC0)
+        val HOLE = java.awt.Color(0x00, 0xA8, 0xC8)
+        val BARE = java.awt.Color(0xE0, 0x10, 0x10)
     }
     val notes = ArrayList<String>()
     private val name = req.file.fileName.toString()
@@ -404,8 +410,58 @@ internal class Context(val req: RenderRequest, val index: GcodeIndex) {
             "; ${colorWords()}" + top.extraWords() + "."
         if (!index.layerMarkers) caption += "Layers read from the heights the moves are laid at: the file marks none."
         if (top.empty) caption += "No line of this layer is chosen by the --only-... options."
-        return Panel(dw, dh, caption, top.key(), s, plymeld.check.TechniqueRender.niceBar(frame.w), fit = Fit(frame.x0, frame.y0, frame.x1, frame.y1, s, 1.0),
-            draw = { c, ox, oy -> top.draw(c, ox, oy, dw, dh) })
+        val outline = req.outline?.section(0.0, 0.0, l.z - l.height / 2, 0.0, 0.0, 1.0)
+        if (outline != null) caption += outlineWords("the model cut at the layer's middle height, z ${Render.f(l.z - l.height / 2, 3)} mm", outline.size)
+        val mk = layerMarks?.get(Math.round(l.z * 1e6))
+        if (req.markBare || req.markLaidTwice) caption += marksWords(mk)
+        val key = top.key() + overlayKey(outline != null, mk)
+        return Panel(dw, dh, caption, key, s, plymeld.check.TechniqueRender.niceBar(frame.w), fit = Fit(frame.x0, frame.y0, frame.x1, frame.y1, s, 1.0),
+            draw = { c, ox, oy -> top.draw(c, ox, oy, dw, dh); overlayTop(c, { x -> ox + (x - frame.x0) * s }, { y -> oy + (frame.y1 - y) * s }, s, outline, mk) })
+    }
+
+    /** The check's measures on each layer drawn, by its height (in millionths of a mm), when --mark-... asks; read once for the run. */
+    var layerMarks: Map<Long, plymeld.core.check.ModelCheck.LayerMarks>? = null
+
+    private fun outlineWords(where: String, n: Int): String =
+        "The model's outline (${req.outline!!.name}, ${req.outline!!.placedBy}): $where, a thin black line over the lines" + (if (n == 0) "; the plane meets none of it." else ".")
+
+    private fun marksWords(mk: plymeld.core.check.ModelCheck.LayerMarks?): String {
+        if (mk == null) return "Marked: the pre-print check reads no model lines on this layer."
+        val parts = ArrayList<String>()
+        if (req.markLaidTwice) {
+            val sp = mk.twice.spots
+            parts += if (sp.isEmpty()) "laid twice: none" else "laid twice: ${sp.size} spot(s), ${Render.f(sp.sumOf { it.areaMm2 }, 3)} mm² in all, the widest ${Render.f(sp.first().widthMm, 2)} mm (magenta rings)" +
+                (if (mk.twice.capped) "; the reading stopped at its cap, so more lies twice than this counts" else "")
+        }
+        if (req.markBare) {
+            parts += if (mk.holeWidthMm.isNaN()) "bare: no ground uncovered inside the walls" else "bare: the widest ground uncovered inside the walls ${Render.f(mk.holeWidthMm, 2)} mm wide, ${Render.f(mk.holeAreaMm2, 3)} mm² (cyan ring; " +
+                (if (mk.holeWidthMm > mk.holeLimitMm) "a hole the check refuses" else "the check refuses only one wider than ${Render.f(mk.holeLimitMm, 2)} mm") + ")"
+            parts += if (mk.bare.isEmpty()) "no bare outline" else "the outline bare along ${Render.f(mk.bareLongestMm, 2)} mm in its longest stretch (red dots, ${mk.bare.size} points)"
+        }
+        return "Marked, by the pre-print check's own rules with the file's settings: " + parts.joinToString("; ") + "."
+    }
+
+    private fun overlayKey(outline: Boolean, mk: plymeld.core.check.ModelCheck.LayerMarks?): List<KeyItem> {
+        val k = ArrayList<KeyItem>()
+        if (outline) k += KeyItem.Mark({ c, x, y -> c.line(x - 6, y, x + 6, y, 1.5, java.awt.Color.BLACK) }, "the model's outline")
+        if (mk != null && req.markLaidTwice) k += KeyItem.Mark({ c, x, y -> c.circle(x, y, 5.0, null, TWICE, 2.0) }, "laid twice")
+        if (mk != null && req.markBare) { k += KeyItem.Mark({ c, x, y -> c.circle(x, y, 5.0, null, HOLE, 2.0) }, "the widest ground uncovered inside the walls"); k += KeyItem.Mark({ c, x, y -> c.circle(x, y, 2.0, BARE) }, "bare outline") }
+        return k
+    }
+
+    /** The model's outline and the check's marks over a picture seen from above ([sx], [sy]: bed mm to the canvas). */
+    private fun overlayTop(c: Canvas, sx: (Double) -> Double, sy: (Double) -> Double, s: Double, outline: List<DoubleArray>?, mk: plymeld.core.check.ModelCheck.LayerMarks?) {
+        if (outline != null) for (g in outline) c.line(sx(g[0]), sy(g[1]), sx(g[3]), sy(g[4]), 1.5, java.awt.Color.BLACK)
+        if (mk == null) return
+        if (req.markBare) {
+            for (p in mk.bare) c.circle(sx(p[0]), sy(p[1]), 2.0, BARE)
+            if (!mk.holeWidthMm.isNaN()) c.circle(sx(mk.holeX), sy(mk.holeY), maxOf(6.0, mk.holeWidthMm * s / 2 + 3), null, HOLE, 2.0)
+        }
+        if (req.markLaidTwice) for (sp in mk.twice.spots) {
+            val r = maxOf(6.0, sp.widthMm * s / 2 + 3)
+            c.circle(sx(sp.x), sy(sp.y), r, null, TWICE, 2.0)
+            c.text("${Render.f(sp.areaMm2, 3)} mm²", sx(sp.x) + r + 3, sy(sp.y) + 4, 11, true, TWICE)
+        }
     }
 
     /** The picture of a level cut at [v]'s height, seen from above: each bead the plane crosses, as wide as it is there. */
@@ -454,8 +510,10 @@ internal class Context(val req: RenderRequest, val index: GcodeIndex) {
         caption += (if (asLines) "edges darker" else "each feature's area as a flat region with its outline (its lines ${Render.f(spacing, 3)} mm apart need ${Render.f(Render.LEGIBLE_PX / spacing, 1)} px per mm)") +
             "; ${colorWords()}" + (if (d > 0) "; the beads within ${Layout.mm(d)} mm of the plane that it does not cross, lighter" else "") + top.extraWords() + "."
         if (top.empty) caption += "No line crosses this plane" + (if (anyOnlyWords()) " among those the --only-... options choose." else ".")
-        return Panel(dw, dh, caption, top.key(), s, plymeld.check.TechniqueRender.niceBar(frame.w), fit = Fit(frame.x0, frame.y0, frame.x1, frame.y1, s, 1.0),
-            draw = { c, ox, oy -> top.draw(c, ox, oy, dw, dh) })
+        val outline = req.outline?.section(0.0, 0.0, z, 0.0, 0.0, 1.0)
+        if (outline != null) caption += outlineWords("the model cut by the same plane", outline.size)
+        return Panel(dw, dh, caption, top.key() + overlayKey(outline != null, null), s, plymeld.check.TechniqueRender.niceBar(frame.w), fit = Fit(frame.x0, frame.y0, frame.x1, frame.y1, s, 1.0),
+            draw = { c, ox, oy -> top.draw(c, ox, oy, dw, dh); overlayTop(c, { x -> ox + (x - frame.x0) * s }, { y -> oy + (frame.y1 - y) * s }, s, outline, null) })
     }
 
     private fun anyOnlyWords() = req.anyOnly
@@ -503,9 +561,15 @@ internal class Context(val req: RenderRequest, val index: GcodeIndex) {
         caption += "${ids.size} bead section(s): each line crossing the plane drawn as its bead's cross-section where the plane meets it (bead model; " +
             (if (lineWidth == LineWidth.PLASTIC) "filament $diameterWords" else "its width as declared") + ")" + (if (asLines) ", outlined darker" else ", as flat regions with their outlines") +
             "; ${colorWords()}" + (if (d != null) "; the lines within ${Layout.mm(d)} mm of the plane, from the side and lighter (${sd.alongCount})" else "") + onlyWords() + "."
-        return Panel(dw, dh, caption, coloring.key(), s, plymeld.check.TechniqueRender.niceBar(u1 - u0), s * k, plymeld.check.TechniqueRender.niceBar(v1 - v0),
+        val outline = req.outline?.section(pl.px, pl.py, pl.pz, pl.nx, pl.ny, pl.nz)
+        if (outline != null) caption += outlineWords("the model cut by the same plane", outline.size)
+        return Panel(dw, dh, caption, coloring.key() + overlayKey(outline != null, null), s, plymeld.check.TechniqueRender.niceBar(u1 - u0), s * k, plymeld.check.TechniqueRender.niceBar(v1 - v0),
             fit = Fit(u0, v0, u1, v1, s, k),
-            draw = { c, ox, oy -> sd.draw(c, coloring::color, { u -> ox + (u - u0) * s }, { vv -> oy + (v1 - vv) * s * k }, asLines, dw, dh, ox, oy) })
+            draw = { c, ox, oy ->
+                sd.draw(c, coloring::color, { u -> ox + (u - u0) * s }, { vv -> oy + (v1 - vv) * s * k }, asLines, dw, dh, ox, oy)
+                if (outline != null) for (g in outline) c.line(ox + (pl.u(g[0], g[1], g[2]) - u0) * s, oy + (v1 - pl.v(g[0], g[1], g[2])) * s * k,
+                    ox + (pl.u(g[3], g[4], g[5]) - u0) * s, oy + (v1 - pl.v(g[3], g[4], g[5])) * s * k, 1.5, java.awt.Color.BLACK)
+            })
     }
 
     /** The picture of the print's outside from one side, or in 3D: the nearest bead at each point, shaded as a tube. */

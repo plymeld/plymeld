@@ -4,7 +4,7 @@
 
 [Command reference](README.md)
 
-Draw what any g-code file lays down, read from the file alone: its layers from above (--layer, --layer-at-z, --layer-range; the middle layer by default), cuts through it (--cut-z from above; --cut-y, --cut-x, --cut-line, --cut-plane from the side, each line crossing the plane as its bead's cross-section), its outside from a side (--outside) or in 3D (--3d), and two files compared (--compare-with), the lines chosen by object, tool, or feature (--only-...), colored by feature, tool, speed, flow, width, height, fan, temperature, order, or layer time, each line as wide as the plastic it lays, framed round a point (--around, --span) or a window of the bed, at a scale that keeps the closest lines 3 px apart. Every picture's caption says what it shows. Lengths in mm, the first layer 1, tools by the file's own numbers.
+Draw what any g-code file lays down, read from the file alone: its layers from above (--layer, --layer-at-z, --layer-range; the middle layer by default), cuts through it (--cut-z from above; --cut-y, --cut-x, --cut-line, --cut-plane from the side, each line crossing the plane as its bead's cross-section), its outside from a side (--outside) or in 3D (--3d), and two files compared (--compare-with), with the model's outline (--outline-of) and the pre-print check's findings (--mark-bare, --mark-laid-twice) over the lines; the lines chosen by object, tool, or feature (--only-...), colored by feature, tool, speed, flow, width, height, fan, temperature, order, or layer time, each line as wide as the plastic it lays, framed round a point (--around, --span) or a window of the bed, at a scale that keeps the closest lines 3 px apart. Every picture's caption says what it shows. Lengths in mm, the first layer 1, tools by the file's own numbers.
 
 Usage: `plymeld render [<options>] <file.gcode>`
 
@@ -49,6 +49,9 @@ Options:
 - `-o, --output=<dir>`: the directory the pictures go in (default: beside the g-code, its name without .gcode and with .render: part.render for part.gcode); one file a picture, named from its view: layer-0060.png
 - `--format=png|svg`: the pictures' format (default png)
 - `--sheet=<file>`: also every picture of the run in one image, in a grid, each under its title, in the run's --format (a name without a directory goes in the output directory)
+- `--outline-of=<model>`: with a layer picture or a cut: also the model's outline there (a layer at its middle height, a cut on its plane), a thin black line over the lines, never filled. The model is placed as plymeld placed it for the file (from the file's source block); a file without one: as the model file gives it
+- `--mark-bare`: with a layer picture: mark the ground no line covers, by the pre-print check's own rules and the file's settings (its source block): the widest hole inside the walls and the outline left bare, their sizes in the caption; needs --outline-of
+- `--mark-laid-twice`: with a layer picture: mark plastic laid twice, by the pre-print check's own rule and the file's settings (its source block): each spot ringed, its area beside it and the total in the caption; needs --outline-of
 - `--compare-with=<other.gcode>`: each picture as three panels: this file, the other drawn with the same options in the same frame and scale, and where they differ (orange only in this file, blue only in the other, red in both but not alike)
 - `--print-files`: print each written file's path, one a line, and nothing else (notes go to standard error)
 - `--list-features`: print the feature names the file writes, one a line, and draw nothing. Not with an option that draws or writes a picture

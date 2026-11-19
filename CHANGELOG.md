@@ -20,7 +20,10 @@ section the release's version and date.
   from above, each bead it crosses as wide as it is at that height. The whole print: `--outside SIDE` (front, back,
   left, right, or top: the nearest bead at each point) and `--3d` (from the front-left above, or `--3d-from TURN,TILT`),
   each bead shaded as a tube; `--compare-with OTHER.gcode` makes each picture three panels, this file, the other in the
-  same frame and scale, and where they differ. Each line as wide as the plastic it lays (`--line-width
+  same frame and scale, and where they differ. `--outline-of MODEL` draws the model's outline over a layer or a cut,
+  placed as plymeld placed it for the file; `--mark-bare` and `--mark-laid-twice` mark, on a layer, the ground no line
+  covers inside the walls, the outline left bare, and plastic laid twice, by the pre-print check's own rules with the
+  settings in the file's source block (a file of one object on flat layers), their sizes in the caption. Each line as wide as the plastic it lays (`--line-width
   plastic`, the default; `declared`; `center`), colored by `--color-by` feature, tool, speed, flow, width, height, fan,
   temperature, order, or layer-time. `--only-object`, `--only-part`, `--only-tool`, and `--only-feature` choose lines,
   `--others faint` keeps the rest in gray; `--layers-below N` adds the layers under it; `--show` marks travels, seams,

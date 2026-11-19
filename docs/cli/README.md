@@ -288,6 +288,16 @@ each point, not a cut), and `--3d` shows it in 3D from the front-left above, or 
 round to the right of the front, and a tilt up, in degrees).
 
 ```
+plymeld render part.gcode --layer-at-z 12.4 --outline-of part.stl --mark-bare --mark-laid-twice
+```
+
+The model and the check: `--outline-of` draws the model's outline over the lines (a layer at its middle height, a cut
+on its plane), placed where plymeld placed it for the file. `--mark-bare` marks the ground no line covers inside the
+walls and the outline left bare, and `--mark-laid-twice` the plastic laid twice, each by the pre-print check's own
+rules with the settings in the file's source block, their sizes in the caption. They read a file of one object, sliced
+by plymeld, with the model it was sliced from.
+
+```
 plymeld render new.gcode --layer 12 --compare-with old.gcode
 ```
 

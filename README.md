@@ -62,7 +62,7 @@ left without walls), and predicts time and filament.
 
 **Draws any g-code.** `plymeld render` pictures what a g-code file lays down, read from the file alone: any layer,
 any cut through it (each line crossing the plane as its bead's cross-section), its outside from a side or in 3D,
-two files compared, the lines chosen by object, tool, or feature, colored by feature, tool, speed, flow, width, height, fan, temperature,
+two files compared, the model's outline and the check's findings marked over the lines, the lines chosen by object, tool, or feature, colored by feature, tool, speed, flow, width, height, fan, temperature,
 or order, each line as wide as the plastic it lays, framed round a point of the bed, one picture or a sheet of many.
 
 **Calibrates.** `plymeld calibrate` makes melt, flow, first-layer, motion, filament, ironing, and seam plates, in

@@ -340,8 +340,51 @@ object ModelCheck {
      */
     private const val SURFACE_RUN_MM = 1.0
 
-    /** One layer's problems and its laid-twice reading ([DoubledCheck]). */
-    private class LayerOut(val problems: List<String>, val twice: DoubledCheck.Reading, val picture: Picture? = null)
+    /** One layer's problems and its laid-twice reading ([DoubledCheck]); the bare-outline and hole rules' readings, where read. */
+    private class LayerOut(val problems: List<String>, val twice: DoubledCheck.Reading, val picture: Picture? = null,
+                           val bare: Bare? = null, val hole: HoleCheck.Hole? = null, val floor: Double = Double.NaN)
+
+    /**
+     * What the check measures on one layer, for `plymeld render`'s marks: [twice], the laid-twice rule's spots; the hole
+     * rule's widest hole inside the walls ([holeWidthMm] NaN: none) and the bare-outline rule's bare points ([bare], each
+     * x, y) and its longest bare stretch ([bareLongestMm]); NaN and empty where the model was not given (the laid-twice rule
+     * reads the lines alone).
+     */
+    class LayerMarks(val z: Double, val twice: DoubledCheck.Reading, val holeWidthMm: Double, val holeX: Double, val holeY: Double, val holeAreaMm2: Double,
+                     val bare: List<DoubleArray>, val bareLongestMm: Double,
+                     /** The narrowest place a line is laid in, as the rules read it; a hole wider than it and two cells is refused. */
+                     val floorMm: Double = Double.NaN) {
+        /** The widest a hole may be before the check refuses the file for it. */
+        val holeLimitMm: Double get() = floorMm + 2 * HoleCheck.CELL_MM
+    }
+
+    /**
+     * The check's measures on the layers of [text] whose stated heights are among [zs], each read as [checkAll] reads it
+     * (the same rules on the same lines, with the same settings): with [parts] (the model placed as the file was sliced),
+     * the hole and bare-outline rules too; without, the laid-twice rule alone (its floor [featureMinMm], which must then be
+     * given). The other arguments are [checkAll]'s.
+     */
+    fun marks(text: String, parts: List<TriangleSoup>?, zBaseMm: Double, zs: Collection<Double>, tolUm: Long = 100, zaa: ZaaRule? = null,
+              featureMinMm: Double = 0.0, firstLayerInsetMm: Double = 0.0, fuzzMm: Double = 0.0, infillMinMm: Double = Double.MAX_VALUE,
+              slicingTolMm: Double = 0.0, endOverlap: Double = 0.0): List<LayerMarks> {
+        fun wanted(z: Double) = zs.any { Math.abs(it - z) < 1e-6 }
+        if (parts == null) {
+            require(featureMinMm > 0) { "the laid-twice rule's floor (plan.layer.walls.feature.min) is not known" }
+            return layers(text).filter { wanted(it.z) }.map { l ->
+                LayerMarks(l.z, DoubledCheck.read(l.segs, featureMinMm, slicingTolMm, endOverlap, fuzzMm), Double.NaN, Double.NaN, Double.NaN, Double.NaN, emptyList(), 0.0, featureMinMm) }
+        }
+        val sf = Surface(parts, zBaseMm, text, zaaMinMm = zaa?.minMm)
+        val out = ArrayList<LayerMarks>()
+        sf.ready()
+        for ((k, l) in sf.layerLines.withIndex()) {
+            if (!wanted(l.z)) continue
+            val lo = layerProblems(sf, k, tolUm / 1000.0, null, zaa, featureMinMm, if (k == 0) firstLayerInsetMm else 0.0, fuzzMm, infillMinMm, slicingTolMm, endOverlap)
+            val h = lo.hole
+            out += LayerMarks(l.z, lo.twice, h?.widthMm ?: Double.NaN, h?.x ?: Double.NaN, h?.y ?: Double.NaN, h?.areaMm2 ?: Double.NaN, lo.bare?.pts ?: emptyList(), lo.bare?.longest ?: 0.0, lo.floor)
+            sf.release(k)
+        }
+        return out
+    }
     /** A layer's picture, drawn after the layers are read ([checkAll]): its title, the points marked, where it is centered. */
     private class Picture(val title: String, val outPts: List<DoubleArray>, val uncPts: List<DoubleArray>, val cx: Double, val cy: Double,
                           val uncoveredIs: String?)
@@ -352,6 +395,7 @@ object ModelCheck {
         val out = ArrayList<String>()
         val layer = sf.layerLines[k]
         var reading = DoubledCheck.Reading.NONE
+        var bareRead: Bare? = null; var holeRead: HoleCheck.Hole? = null; var floorRead = Double.NaN
         run {
             // the outline the walls must cover (with Z anti-aliasing, reaching out over slopes); "outside" is judged on the
             // cut at the layer's middle, a point of a line lowered onto the model's top excused (below)
@@ -472,6 +516,7 @@ object ModelCheck {
             // layer (the slice's "laid twice" line), a problem only when DoubledCheck.REFUSES; drawn in the layer's picture
             // either way
             reading = DoubledCheck.read(model, floor, slicingTolMm, endOverlap, fuzzMm)
+            bareRead = bare; holeRead = hole; floorRead = floor
             val twice = reading.spots
             val twiceWords = twice.firstOrNull()?.let { s ->
                 "plastic laid twice over a spot ${f(s.widthMm, 2)} mm wide (${f(s.areaMm2, 3)} mm2, at ${f(s.x, 2)}, ${f(s.y, 2)}): " +
@@ -485,10 +530,10 @@ object ModelCheck {
                 // a layer with nothing refused, drawn for its spots laid twice: titled and marked as that
                 val picture = if (out.isEmpty()) Picture("layer at z ${f(layer.z, 3)}: $twiceWords", outPts, uncPts, cx, cy, "the widest spot laid twice")
                     else Picture("layer at z ${f(layer.z, 3)}: ${out.last().substringAfter(": ")}", outPts, uncPts, cx, cy, null)
-                return LayerOut(out, reading, picture)
+                return LayerOut(out, reading, picture, bareRead, holeRead, floorRead)
             }
         }
-        return LayerOut(out, reading)
+        return LayerOut(out, reading, bare = bareRead, hole = holeRead, floor = floorRead)
     }
 
     /**
