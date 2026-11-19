@@ -37,16 +37,17 @@ object Render {
 
     /**
      * Runs [req]: the pictures written ([Result.files]) and the notes. [out] receives each written file's line as the run
-     * goes (the path alone with `--print-files`), and a listing's names.
+     * goes (the path alone with `--print-files`), and a listing's names. The whole-print views are drawn on [threads]
+     * threads (the processors available by default); their pictures are the same bytes whatever the number.
      */
-    fun run(req: RenderRequest, out: (String) -> Unit): Result {
+    fun run(req: RenderRequest, threads: Int = Runtime.getRuntime().availableProcessors(), out: (String) -> Unit): Result {
         val refused = req.refusals()
         require(refused.isEmpty()) { refused.joinToString("\n") }
         require(Files.isRegularFile(req.file)) { "no such g-code file: ${req.file}" }
         val index = GcodeIndex.read(req.file)
         if (req.listing) { list(index, req, out); return Result(emptyList(), emptyList()) }
         require(index.layers.isNotEmpty()) { "${req.file.fileName} lays no plastic: nothing to draw" }
-        val ctx = Context(req, index)
+        val ctx = Context(req, index, threads)
         val views = ctx.views()
         val notes = ArrayList<String>(ctx.notes)
         val dir = req.outDir ?: req.file.toAbsolutePath().resolveSibling(stem(req.file) + ".render")
@@ -62,7 +63,7 @@ object Render {
             require(Files.isRegularFile(o)) { "--compare-with: no such g-code file: $o" }
             val oi = GcodeIndex.read(o)
             require(oi.layers.isNotEmpty()) { "--compare-with: ${o.fileName} lays no plastic: nothing to compare" }
-            Context(req.forOther(o, req.compareFacts), oi).also { notes += it.notes }
+            Context(req.forOther(o, req.compareFacts), oi, threads).also { notes += it.notes }
         }
         fun panelOf(c: Context, v: View, sink: MutableList<String>): Panel = when (v) {
             is LayerView -> { require(v.layer < c.index.layers.size) { "--compare-with: ${c.req.file.fileName} has ${c.index.layers.size} layers, no layer ${v.layer + 1}" }; c.layerPanel(v, frames, sink) }
@@ -142,7 +143,7 @@ internal class Frame(val x0: Double, val y0: Double, val x1: Double, val y1: Dou
 }
 
 /** One run's resolved settings over one indexed file: the views, the lines chosen, the widths and colors. */
-internal class Context(val req: RenderRequest, val index: GcodeIndex) {
+internal class Context(val req: RenderRequest, val index: GcodeIndex, val threads: Int = 1) {
     /** A frame and scale every picture of this context takes (two files compared share one); null: each its own. */
     var forced: Fit? = null
     companion object {
@@ -594,7 +595,11 @@ internal class Context(val req: RenderRequest, val index: GcodeIndex) {
     /** The picture of the print's outside from one side, or in 3D: the nearest bead at each point, shaded as a tube. */
     fun solidPanel(v: View, notes: MutableList<String>): Panel {
         val p = when (v) { is OutsideView -> Projection.outside(v.side); is ThreeDView -> Projection.turned(v.turn, v.tilt); else -> error("not a solid view") }
-        val sd = SolidDrawing(this, p)
+        val sd = SolidDrawing(this, p, threads)
+        try { return solidPanel(v, p, sd, notes) } finally { sd.close() }
+    }
+
+    private fun solidPanel(v: View, p: Projection, sd: SolidDrawing, notes: MutableList<String>): Panel {
         val sv = sd.survey()
         val pad = maxOf(0.5, 0.03 * maxOf(sv.a1 - sv.a0, sv.b1 - sv.b0))
         var a0 = sv.a0 - pad; var a1 = sv.a1 + pad; var b0 = sv.b0 - pad; var b1 = sv.b1 + pad

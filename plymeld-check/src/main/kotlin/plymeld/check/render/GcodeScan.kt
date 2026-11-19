@@ -45,9 +45,11 @@ internal class Lines(private val input: InputStream, startOffset: Long = 0) {
 
 /** Names the file writes (features, objects), numbered in the order they first appear. */
 class Names {
-    private val ids = HashMap<String, Int>()
+    // read by several readers at once (a whole-print view reads pieces of the file on threads), each finding the names
+    // the index already gave ids; a new name is added under the lock
+    private val ids = java.util.concurrent.ConcurrentHashMap<String, Int>()
     val list = ArrayList<String>()
-    fun id(name: String): Int = ids.getOrPut(name) { list += name; list.size - 1 }
+    fun id(name: String): Int = ids[name] ?: synchronized(this) { ids[name] ?: list.size.also { list += name; ids[name] = it } }
     fun find(name: String): Int? = ids[name]
     operator fun get(i: Int): String = list[i]
     val size: Int get() = list.size

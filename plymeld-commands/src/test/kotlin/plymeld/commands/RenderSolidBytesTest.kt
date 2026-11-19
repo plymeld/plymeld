@@ -2,6 +2,10 @@ package plymeld.commands
 
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.shouldBe
+import plymeld.check.render.ColorBy
+import plymeld.check.render.Others
+import plymeld.check.render.Render
+import plymeld.check.render.RenderRequest
 import plymeld.commands.SyntheticGcode.Companion.render
 import java.nio.file.Files
 import java.nio.file.Path
@@ -31,6 +35,25 @@ class RenderSolidBytesTest : StringSpec({
             Files.writeString(out, got.entries.joinToString("\n") { "\"${it.key}\" to \"${it.value}\"," })
         }
         got shouldBe EXPECTED
+    }
+
+    "the whole-print views are the same bytes on one thread and on several" {
+        // 40 layers: five pieces read on threads of their own, as well as bands of rows drawn at once
+        val f = RenderSolidSample.write(dir.resolve("tall.gcode"), 40)
+        fun hashes(threads: Int): List<String> = listOf<(Path) -> RenderRequest>(
+            { o -> RenderRequest(f, threeD = true, noAnnotations = true, outDir = o) },
+            { o -> RenderRequest(f, threeD = true, threeDFrom = listOf(60.0 to 45.0), colorBy = ColorBy.ORDER, noAnnotations = true, outDir = o) },
+            { o -> RenderRequest(f, threeD = true, threeDFrom = listOf(150.0 to -25.0), noAnnotations = true, outDir = o) },
+            { o -> RenderRequest(f, outside = listOf("front"), noAnnotations = true, outDir = o) },
+            { o -> RenderRequest(f, outside = listOf("top"), colorBy = ColorBy.SPEED, onlyTool = listOf(1), others = Others.FAINT, noAnnotations = true, outDir = o) },
+        ).mapIndexed { k, req -> Render.run(req(dir.resolve("threads-$threads-$k")), threads) { }.files.single().let(::sha256) }
+        val one = hashes(1)
+        hashes(3) shouldBe one
+        hashes(8) shouldBe one
+        // and the sample the hashes were recorded from, on one thread and on eight
+        val s = RenderSolidSample.write(dir.resolve("sample-threads.gcode"))
+        for (t in listOf(1, 8)) Render.run(RenderRequest(s, threeD = true, noAnnotations = true, outDir = dir.resolve("sample-$t")), t) { }
+            .files.single().let(::sha256) shouldBe EXPECTED["3d.png"]
     }
 }) {
     companion object {
@@ -72,13 +95,13 @@ object RenderSolidSample {
     )
 
     /**
-     * Six layers 0.2 mm thick over a 12 mm square: a wall loop by tool 0, a ring of arc chords by tool 1 inside it, diagonal
+     * [layers] layers 0.2 mm thick (six by default) over a 12 mm square: a wall loop by tool 0, a ring of arc chords by tool 1 inside it, diagonal
      * fill at alternating angles at two speeds, one line laid twice exactly (a tie in depth everywhere along it), and a
      * ramp rising across the top layer.
      */
-    fun write(p: Path): Path {
+    fun write(p: Path, layers: Int = 6): Path {
         val g = SyntheticGcode()
-        for (k in 1..6) {
+        for (k in 1..layers) {
             val z = 0.2 * k
             g.layer(z, 0.2)
             g.feature("Outer wall", 0.45).tool(0).loop(10.0, 10.0, 22.0, 22.0, 0.45)
@@ -92,7 +115,7 @@ object RenderSolidSample {
             g.feature("Top surface", 0.4).travel(12.0, 13.0).line(20.0, 13.0, 0.4)
             g.travel(12.0, 13.0).line(20.0, 13.0, 0.4)
         }
-        g.raw("G1 X12 Y20 F9000").raw(";TYPE:Ironing").raw("G1 X20 Y20 Z1.4 E0.3 F1200")
+        g.raw("G1 X12 Y20 F9000").raw(";TYPE:Ironing").raw("G1 X20 Y20 Z${String.format(java.util.Locale.ROOT, "%.3f", 0.2 * layers + 0.2)} E0.3 F1200")
         return g.write(p)
     }
 }

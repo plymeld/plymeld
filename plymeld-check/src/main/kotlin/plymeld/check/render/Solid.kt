@@ -64,11 +64,14 @@ internal class Projection(val rx: Double, val ry: Double, val rz: Double, val ux
  * chosen extruding move as a round bead (an ellipse [w] wide and [h] tall seen side on, swept along the move), the
  * nearest bead at each pixel kept, shaded as a tube so neighboring lines read apart. The file is read a run of layers at
  * a time, never whole. Where the lines cannot be resolved, flat colors with each region's outline.
+ *
+ * On [threads] threads: the pieces of a run of layers are read at once (each from its own offset, through the index),
+ * and each piece's beads are drawn by bands of rows at once, each band drawing every bead that reaches it in the same
+ * order. A pixel belongs to one band, which draws into it in the order one thread would, so the picture is the same
+ * bytes whatever the number of threads.
  */
-internal class SolidDrawing(private val ctx: Context, private val p: Projection) {
+internal class SolidDrawing(private val ctx: Context, private val p: Projection, private val threads: Int) {
     private val req = ctx.req
-    /** Layers read at a time (plymeld's choice: a few megabytes of moves). */
-    private val chunk = 64
 
     class Survey(var a0: Double, var b0: Double, var a1: Double, var b1: Double, var lo: Double, var hi: Double, var count: Int,
                  val spacing: Double, val hMin: Double, val zLo: Double, val zHi: Double)
@@ -85,15 +88,69 @@ internal class SolidDrawing(private val ctx: Context, private val p: Projection)
         val mx = (m.x0[i] + m.x1[i]) / 2; val my = (m.y0[i] + m.y1[i]) / 2
         return mx >= w[0] && mx <= w[2] && my >= w[1] && my <= w[3]
     }
-    /** Every kept extruding move in print order, or ([reverse]) in exactly the reverse of print order. */
-    private fun each(reverse: Boolean = false, f: (MoveSet, Int) -> Unit) {
+    /**
+     * Reads the layers drawn a piece at a time, [BATCH] pieces at once on the threads, [work] making each piece's result
+     * from its moves on a thread of its own, then hands the results to [use] one by one in print order, or ([reverse]) in
+     * exactly the reverse of it. The pieces are the same whatever the number of threads.
+     */
+    private fun <R> pieces(reverse: Boolean, work: (MoveSet) -> R, use: (R) -> Unit) {
         val ls = layersToRead()
-        val starts = (ls.indices step chunk).toList()
-        for (k in if (reverse) starts.asReversed() else starts) {
-            val (m, _) = MoveReader.read(ctx.index, ls.subList(k, minOf(ls.size, k + chunk)))
-            if (reverse) { for (i in m.n - 1 downTo 0) if (m.kind[i] == MoveSet.EXTRUDE && kept(m, i)) f(m, i) }
-            else for (i in 0 until m.n) if (m.kind[i] == MoveSet.EXTRUDE && kept(m, i)) f(m, i)
+        val all = (ls.indices step PIECE).map { ls.subList(it, minOf(ls.size, it + PIECE)) }
+        val order = if (reverse) all.asReversed() else all
+        for (b in order.indices step BATCH) {
+            val batch = order.subList(b, minOf(order.size, b + BATCH))
+            val results = ArrayList<R?>(batch.size).also { r -> repeat(batch.size) { r += null } }
+            parallel(batch.size) { j -> results[j] = work(MoveReader.read(ctx.index, batch[j]).first) }
+            for (r in results) use(r!!)
         }
+    }
+
+    /** [body] for 0 until [n], on the threads (at most [threads] at once); on this thread alone where there is one. */
+    private fun parallel(n: Int, body: (Int) -> Unit) {
+        if (threads <= 1 || n <= 1) { for (j in 0 until n) body(j); return }
+        try { pool.submit { java.util.stream.IntStream.range(0, n).parallel().forEach(body) }.get() }
+        catch (e: java.util.concurrent.ExecutionException) { throw e.cause ?: e }
+    }
+    private val pool by lazy { java.util.concurrent.ForkJoinPool(threads) }
+    /** Ends the threads this drawing started. */
+    fun close() { if (threads > 1) pool.shutdown() }
+
+    /** One piece's share of the survey: its extent, values, and count, and its lengths by spacing and by height in print order. */
+    private class Part {
+        var a0 = Double.MAX_VALUE; var b0 = Double.MAX_VALUE; var a1 = -Double.MAX_VALUE; var b1 = -Double.MAX_VALUE
+        var lo = Double.NaN; var hi = Double.NaN; var n = 0
+        var zLo = Double.MAX_VALUE; var zHi = -Double.MAX_VALUE
+        var spBin = IntArray(64); var spLen = DoubleArray(64); var spN = 0
+        var hsBin = IntArray(64); var hsLen = DoubleArray(64); var hsN = 0
+        fun sp(bin: Int, len: Double) { if (spN == spBin.size) { spBin = spBin.copyOf(spN * 2); spLen = spLen.copyOf(spN * 2) }; spBin[spN] = bin; spLen[spN++] = len }
+        fun hs(bin: Int, len: Double) { if (hsN == hsBin.size) { hsBin = hsBin.copyOf(hsN * 2); hsLen = hsLen.copyOf(hsN * 2) }; hsBin[hsN] = bin; hsLen[hsN++] = len }
+    }
+
+    private fun surveyPiece(m: MoveSet): Part {
+        val r = Part()
+        for (i in 0 until m.n) {
+            if (m.kind[i] != MoveSet.EXTRUDE || !kept(m, i)) continue
+            val ch = ctx.chosen(m, i)
+            if (!ch && req.others != Others.FAINT) continue
+            val w = ctx.beadWidth(m, i).takeIf { !it.isNaN() && it > 0 } ?: 0.4
+            val h = ctx.heightOf(m, i).takeIf { !it.isNaN() && it > 0 } ?: 0.2
+            for (end in 0..1) {
+                val x = if (end == 0) m.x0[i] else m.x1[i]; val y = if (end == 0) m.y0[i] else m.y1[i]; val z = if (end == 0) m.z0[i] else m.z1[i]
+                val a = p.a(x, y, z); val b = p.b(x, y, z)
+                r.a0 = minOf(r.a0, a - w); r.a1 = maxOf(r.a1, a + w); r.b0 = minOf(r.b0, b - w - h); r.b1 = maxOf(r.b1, b + w)
+                r.zLo = minOf(r.zLo, z - h); r.zHi = maxOf(r.zHi, z)
+            }
+            if (!ch) continue
+            if (ctx.colorBy != ColorBy.FEATURE && ctx.colorBy != ColorBy.TOOL && ctx.colorBy != ColorBy.ORDER) {
+                val v = ctx.value(m, i, 0); if (!v.isNaN()) { if (r.lo.isNaN() || v < r.lo) r.lo = v; if (r.hi.isNaN() || v > r.hi) r.hi = v }
+            }
+            r.n++
+            val len = m.lengthXY(i)
+            val decl = m.wDecl[i].toDouble()
+            if (decl.isNaN() || w >= Context.TAPER_SHARE * decl) r.sp(Math.round(plymeld.program.Bead.spacing(w, h) * 1000).toInt(), len)
+            r.hs(Math.round(h * 1000).toInt(), len)
+        }
+        return r
     }
 
     /** The first pass: the extent drawn, the gradient's range, and the closest lines (spacing and thinnest layer). */
@@ -101,27 +158,17 @@ internal class SolidDrawing(private val ctx: Context, private val p: Projection)
         var a0 = Double.MAX_VALUE; var b0 = Double.MAX_VALUE; var a1 = -Double.MAX_VALUE; var b1 = -Double.MAX_VALUE
         var lo = Double.NaN; var hi = Double.NaN; var n = 0
         var zLo = Double.MAX_VALUE; var zHi = -Double.MAX_VALUE
-        // spacing and height, length-weighted, in 1-micron bins
+        // spacing and height, length-weighted, in 1-micron bins; each piece's lengths added in print order, so every sum
+        // is made in the same order whatever the number of threads
         val sp = java.util.TreeMap<Int, Double>(); val hs = java.util.TreeMap<Int, Double>()
-        each { m, i ->
-            val ch = ctx.chosen(m, i)
-            if (!ch && req.others != Others.FAINT) return@each
-            val w = ctx.beadWidth(m, i).takeIf { !it.isNaN() && it > 0 } ?: 0.4
-            val h = ctx.heightOf(m, i).takeIf { !it.isNaN() && it > 0 } ?: 0.2
-            for ((x, y, z) in listOf(Triple(m.x0[i], m.y0[i], m.z0[i]), Triple(m.x1[i], m.y1[i], m.z1[i]))) {
-                val a = p.a(x, y, z); val b = p.b(x, y, z)
-                a0 = minOf(a0, a - w); a1 = maxOf(a1, a + w); b0 = minOf(b0, b - w - h); b1 = maxOf(b1, b + w)
-                zLo = minOf(zLo, z - h); zHi = maxOf(zHi, z)
-            }
-            if (!ch) return@each
-            if (ctx.colorBy != ColorBy.FEATURE && ctx.colorBy != ColorBy.TOOL && ctx.colorBy != ColorBy.ORDER) {
-                val v = ctx.value(m, i, 0); if (!v.isNaN()) { if (lo.isNaN() || v < lo) lo = v; if (hi.isNaN() || v > hi) hi = v }
-            }
-            n++
-            val len = m.lengthXY(i)
-            val decl = m.wDecl[i].toDouble()
-            if (decl.isNaN() || w >= Context.TAPER_SHARE * decl) sp.merge(Math.round(plymeld.program.Bead.spacing(w, h) * 1000).toInt(), len, Double::plus)
-            hs.merge(Math.round(h * 1000).toInt(), len, Double::plus)
+        pieces(false, ::surveyPiece) { r ->
+            a0 = minOf(a0, r.a0); a1 = maxOf(a1, r.a1); b0 = minOf(b0, r.b0); b1 = maxOf(b1, r.b1)
+            zLo = minOf(zLo, r.zLo); zHi = maxOf(zHi, r.zHi)
+            if (!r.lo.isNaN() && (lo.isNaN() || r.lo < lo)) lo = r.lo
+            if (!r.hi.isNaN() && (hi.isNaN() || r.hi > hi)) hi = r.hi
+            n += r.n
+            for (j in 0 until r.spN) sp.merge(r.spBin[j], r.spLen[j], Double::plus)
+            for (j in 0 until r.hsN) hs.merge(r.hsBin[j], r.hsLen[j], Double::plus)
         }
         fun low(t: java.util.TreeMap<Int, Double>): Double {
             val total = t.values.sum(); if (total <= 0) return Double.NaN
@@ -184,56 +231,102 @@ internal class SolidDrawing(private val ctx: Context, private val p: Projection)
         val buf = Buffer(bw, bh)
         val reverse = p.dz > 0
         val cull = p.dz != 0.0
-        // the move's place among the chosen moves in print order (counted down when drawing in reverse)
-        var order = if (reverse) sv.count - 1 else 0
         val total = maxOf(1, sv.count - 1)
-        each(reverse) { m, i ->
+        // the chosen moves printed before the piece drawn next (drawing in reverse: counted down from them all)
+        var before = if (reverse) sv.count else 0
+        val bands = (bh + BAND - 1) / BAND
+        pieces(reverse, { m -> beads(m, sv, a0, b1, s, k, reverse) }) { r ->
+            if (reverse) before -= r.chosen
+            if (ctx.colorBy == ColorBy.ORDER) for (j in 0 until r.n) if (r.ord[j] >= 0) r.rgb[j] = Palette.ramp((before + r.ord[j]).toDouble() / total).rgb
+            if (!reverse) before += r.chosen
+            parallel(bands) { band ->
+                val y0 = band * BAND; val y1 = minOf(bh, y0 + BAND) - 1
+                for (j in 0 until r.n) if (r.yHi[j] >= y0 && r.yLo[j] <= y1)
+                    capsule(buf, r.pa[j], r.pb[j], r.qa[j], r.qb[j], r.da[j], r.db[j], r.rx[j], r.ry[j], r.rMm[j], r.rgb[j], r.key[j], reverse, cull, y0, y1)
+            }
+        }
+        return buf
+    }
+    private fun kOf(k: Double) = if (p.sideView) k else 1.0
+
+    /**
+     * One piece's beads as drawn, in the order they are drawn: each move's middle line in pixels and depth, its brush,
+     * color and key entry, its rows, and (colored by order) its place among the piece's chosen moves in print order.
+     */
+    private class Beads(cap: Int) {
+        var n = 0
+        val pa = DoubleArray(cap); val pb = DoubleArray(cap); val qa = DoubleArray(cap); val qb = DoubleArray(cap)
+        val da = DoubleArray(cap); val db = DoubleArray(cap); val rx = DoubleArray(cap); val ry = DoubleArray(cap); val rMm = DoubleArray(cap)
+        val rgb = IntArray(cap); val key = IntArray(cap); val ord = IntArray(cap); val yLo = IntArray(cap); val yHi = IntArray(cap)
+        var chosen = 0
+    }
+
+    private val toolRgb: Map<Int, Int> = ctx.index.tools.associateWith { ctx.toolColor(it).rgb }
+
+    private fun beads(m: MoveSet, sv: Survey, a0: Double, b1: Double, s: Double, k: Double, reverse: Boolean): Beads {
+        var count = 0
+        for (i in 0 until m.n) if (m.kind[i] == MoveSet.EXTRUDE && kept(m, i)) count++
+        val r = Beads(count)
+        // each chosen move's place among the piece's chosen moves, in print order
+        var placed = 0
+        for (step in 0 until m.n) {
+            val i = if (reverse) m.n - 1 - step else step
+            if (m.kind[i] != MoveSet.EXTRUDE || !kept(m, i)) continue
             val ch = ctx.chosen(m, i)
-            if (!ch && req.others != Others.FAINT) return@each
-            val col: Color; val keyId: Int
-            if (!ch) { col = Palette.CONTEXT; keyId = -1 } else {
-                col = when (ctx.colorBy) {
-                    ColorBy.FEATURE -> if (ctx.index.namesFeatures) ctx.featureColor(m.feature[i]) else Palette.UNNAMED
-                    ColorBy.TOOL -> ctx.toolColor(m.tool[i])
-                    ColorBy.ORDER -> Palette.ramp(order.toDouble() / total)
-                    else -> { val v = ctx.value(m, i, 0); if (v.isNaN()) Palette.UNNAMED else Palette.ramp(if (sv.hi > sv.lo) (v - sv.lo) / (sv.hi - sv.lo) else 0.5) }
+            if (!ch && req.others != Others.FAINT) continue
+            val j = r.n
+            if (!ch) { r.rgb[j] = Palette.CONTEXT.rgb; r.key[j] = -1; r.ord[j] = -1 } else {
+                r.rgb[j] = when (ctx.colorBy) {
+                    ColorBy.FEATURE -> (if (ctx.index.namesFeatures) ctx.featureColor(m.feature[i]) else Palette.UNNAMED).rgb
+                    ColorBy.TOOL -> toolRgb[m.tool[i]] ?: ctx.toolColor(m.tool[i]).rgb
+                    ColorBy.ORDER -> 0
+                    else -> { val v = ctx.value(m, i, 0); (if (v.isNaN()) Palette.UNNAMED else Palette.ramp(if (sv.hi > sv.lo) (v - sv.lo) / (sv.hi - sv.lo) else 0.5)).rgb }
                 }
-                keyId = when (ctx.colorBy) { ColorBy.FEATURE -> m.feature[i]; ColorBy.TOOL -> m.tool[i]; else -> 0 }
-                if (reverse) order-- else order++
+                r.key[j] = when (ctx.colorBy) { ColorBy.FEATURE -> m.feature[i]; ColorBy.TOOL -> m.tool[i]; else -> 0 }
+                r.ord[j] = placed++
             }
             val w = ctx.beadWidth(m, i).takeIf { !it.isNaN() && it > 0 } ?: 0.4
             val h = ctx.heightOf(m, i).takeIf { !it.isNaN() && it > 0 } ?: 0.2
             // the bead's center line, half its height under the nozzle
             val ax = m.x0[i]; val ay = m.y0[i]; val az = m.z0[i] - h / 2; val bx = m.x1[i]; val by = m.y1[i]; val bz = m.z1[i] - h / 2
-            val pa = (p.a(ax, ay, az) - a0) * s; val pb = (b1 - p.b(ax, ay, az) * kOf(k)) * s
-            val qa = (p.a(bx, by, bz) - a0) * s; val qb = (b1 - p.b(bx, by, bz) * kOf(k)) * s
-            val da = p.depth(ax, ay, az); val db = p.depth(bx, by, bz)
+            r.pa[j] = (p.a(ax, ay, az) - a0) * s; r.pb[j] = (b1 - p.b(ax, ay, az) * kOf(k)) * s
+            r.qa[j] = (p.a(bx, by, bz) - a0) * s; r.qb[j] = (b1 - p.b(bx, by, bz) * kOf(k)) * s
+            r.da[j] = p.depth(ax, ay, az); r.db[j] = p.depth(bx, by, bz)
             // the brush: half its width across, half its height up (side on), stretched as the heights are
-            val rxp = maxOf(0.5, w / 2 * s)
-            val ryp = maxOf(0.5, (if (p.sideView) h / 2 * k else h / 2 * Math.abs(p.uz) + w / 2 * Math.sqrt(maxOf(0.0, 1 - p.uz * p.uz))) * s)
-            capsule(buf, pa, pb, qa, qb, da, db, rxp, ryp, w / 2, col.rgb, keyId, reverse, cull)
+            r.rx[j] = maxOf(0.5, w / 2 * s)
+            r.ry[j] = maxOf(0.5, (if (p.sideView) h / 2 * k else h / 2 * Math.abs(p.uz) + w / 2 * Math.sqrt(maxOf(0.0, 1 - p.uz * p.uz))) * s)
+            r.rMm[j] = w / 2
+            r.yLo[j] = Math.floor(minOf(r.pb[j], r.qb[j]) - r.ry[j]).toInt(); r.yHi[j] = Math.ceil(maxOf(r.pb[j], r.qb[j]) + r.ry[j]).toInt()
+            r.n++
         }
-        return buf
+        r.chosen = placed
+        // drawn in reverse, the places were counted from the piece's last chosen move: turned to print order
+        if (reverse) for (j in 0 until r.n) if (r.ord[j] >= 0) r.ord[j] = placed - 1 - r.ord[j]
+        return r
     }
-    private fun kOf(k: Double) = if (p.sideView) k else 1.0
 
     companion object {
         /** Neighboring pixels further apart in depth than this (mm) are one surface in front of another: an outline (plymeld's choice). */
         const val DEPTH_STEP_MM = 1.0f
         /** The side of a tile of the depth map, pixels (plymeld's choice: a few hundred pixels read to work out its farthest depth). */
         const val TILE = 16
+        /** Layers read in one piece, and pieces read at once (plymeld's choice: 64 layers in memory at a time, a few megabytes of moves). */
+        const val PIECE = 8
+        const val BATCH = 8
+        /** Rows a band draws, a whole number of tiles so each tile is one band's (plymeld's choice: a 2048 px picture is 64 bands to share out). */
+        const val BAND = 2 * TILE
 
         /**
          * One bead: the ellipse [rx] x [ry] pixels swept from (pa, pb) to (qa, qb), its middle line at depths [da] to [db]
          * (mm), bulging [rMm] toward the viewer at its middle. A pixel takes it where it is nearer than what the pixel
          * shows; [laterFirst]: the moves are drawn in the reverse of print order, so at exactly the same depth it is the
          * one printed first and takes the pixel too. [cull]: tiles whose farthest depth is nearer than the bead can come
-         * there are passed over.
+         * there are passed over. Only rows [rowLo] to [rowHi] are drawn (a band's), each a whole number of tiles.
          */
         internal fun capsule(buf: Buffer, pa: Double, pb: Double, qa: Double, qb: Double, da: Double, db: Double, rx: Double, ry: Double, rMm: Double, rgb: Int, keyId: Int,
-                             laterFirst: Boolean, cull: Boolean) {
+                             laterFirst: Boolean, cull: Boolean, rowLo: Int = 0, rowHi: Int = buf.h - 1) {
             val x0 = maxOf(0, Math.floor(minOf(pa, qa) - rx).toInt()); val x1 = minOf(buf.w - 1, Math.ceil(maxOf(pa, qa) + rx).toInt())
-            val y0 = maxOf(0, Math.floor(minOf(pb, qb) - ry).toInt()); val y1 = minOf(buf.h - 1, Math.ceil(maxOf(pb, qb) + ry).toInt())
+            val y0 = maxOf(rowLo, Math.floor(minOf(pb, qb) - ry).toInt()); val y1 = minOf(rowHi, Math.ceil(maxOf(pb, qb) + ry).toInt())
             if (x0 > x1 || y0 > y1) return
             // in the brush's own frame the ellipse is a circle of radius rx: y scaled by rx / ry
             val sc = rx / ry

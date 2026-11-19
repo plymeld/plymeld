@@ -2161,7 +2161,14 @@ reverse of print order (the top layers first), from below in print order; a coar
 farthest depth drawn, and a bead behind the whole of a tile (its middle line's nearest depth over the stretch beside the
 tile, less its bulge) passes the tile over without reading its pixels. Seen level from a side, print order is not
 nearest first and no tile is passed over: working out a tile's farthest depth again after every bead cost more than it
-saved (the outside of a boat from the front, 1.6 s to 4.8 s). The shading is kept in 256 steps a pixel (a byte, so a
+saved (the outside of a boat from the front, 1.6 s to 4.8 s). The work is shared out over the processors available:
+the file is read in pieces of 8 layers, 8 pieces at once (each from its own offset through the index, so 64 layers are
+in memory at a time as before, and the pieces are the same whatever the number of threads), and each piece's beads are
+drawn by bands of 32 rows at once, every band drawing the beads that reach it in the same order; a pixel belongs to one
+band, which draws into it in the order a single thread would, so the picture is the same bytes on any number of threads
+(no option sets the number: plymeld has none for such work, and the result does not depend on it). Rejected: a buffer
+for each thread merged by depth at the end, a whole picture's buffers again for every thread, which a 256 MB heap does
+not hold at 18 threads. The shading is kept in 256 steps a pixel (a byte, so a
 whole-print picture's buffers stay under 11 bytes a pixel); against the floating shade it replaced, a shaded pixel's
 channel moves by at most one level (the step is 1/510 of the bulge, a quarter of a level at most before rounding), and
 flat pictures are unchanged. `--compare-with` draws the
@@ -2194,4 +2201,6 @@ files differ by, control: a file against itself differs nowhere; the refusals), 
 block sliced with the sample config: the model's outline along the block's sides, control: none without
 `--outline-of`; a wall move laid again marked laid twice and one left out marked bare, control: the file as sliced marks
 neither; the refusals), RenderSolidBytesTest (eight whole-print views of a synthetic print, PNG and SVG, the same bytes
-as recorded from the plain one-pass depth buffer; seen to fail with the tie rule for beads at the same depth taken out).
+as recorded from the plain one-pass depth buffer; seen to fail with the tie rule for beads at the same depth taken out;
+five views of a 40-layer print the same bytes on 1, 3, and 8 threads, seen to fail with the pieces used out of order on
+several threads).
