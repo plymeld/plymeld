@@ -7,7 +7,8 @@ import java.util.Locale
 
 /**
  * `plymeld render`: pictures of what a g-code file lays down, read from the file alone (no slicing, no printer). The file
- * is indexed once ([GcodeIndex]), then each picture reads only the layers it draws ([MoveReader]).
+ * is indexed once ([GcodeIndex]), the whole-print views' first pass made in the same reading ([IndexSurvey]), then each
+ * picture reads only the layers it draws ([MoveReader]).
  *
  * A line is drawn as wide as the plastic it lays by the bead model ([plymeld.program.Bead]): its cross-section is the
  * filament it feeds per mm times the filament's section, on the layer's thickness. The scale resolves lines: by default,
@@ -44,10 +45,13 @@ object Render {
         val refused = req.refusals()
         require(refused.isEmpty()) { refused.joinToString("\n") }
         require(Files.isRegularFile(req.file)) { "no such g-code file: ${req.file}" }
-        val index = GcodeIndex.read(req.file)
+        // the whole-print views' first pass made in the index's own reading
+        val solids = Projection.of(req).takeIf { it.isNotEmpty() && !req.listing }
+        val survey = solids?.let { IndexSurvey(req, it) }
+        val index = GcodeIndex.read(req.file, survey)
         if (req.listing) { list(index, req, out); return Result(emptyList(), emptyList()) }
         require(index.layers.isNotEmpty()) { "${req.file.fileName} lays no plastic: nothing to draw" }
-        val ctx = Context(req, index, threads)
+        val ctx = Context(req, index, threads).also { it.indexSurvey = survey }
         val views = ctx.views()
         val notes = ArrayList<String>(ctx.notes)
         val dir = req.outDir ?: req.file.toAbsolutePath().resolveSibling(stem(req.file) + ".render")
@@ -61,9 +65,11 @@ object Render {
         // the other file (--compare-with), read with the same options; its notes said as its own
         val other = req.compareWith?.let { o ->
             require(Files.isRegularFile(o)) { "--compare-with: no such g-code file: $o" }
-            val oi = GcodeIndex.read(o)
+            val oreq = req.forOther(o, req.compareFacts)
+            val osurvey = solids?.let { IndexSurvey(oreq, it) }
+            val oi = GcodeIndex.read(o, osurvey)
             require(oi.layers.isNotEmpty()) { "--compare-with: ${o.fileName} lays no plastic: nothing to compare" }
-            Context(req.forOther(o, req.compareFacts), oi, threads).also { notes += it.notes }
+            Context(oreq, oi, threads).also { notes += it.notes; it.indexSurvey = osurvey }
         }
         fun panelOf(c: Context, v: View, sink: MutableList<String>): Panel = when (v) {
             is LayerView -> { require(v.layer < c.index.layers.size) { "--compare-with: ${c.req.file.fileName} has ${c.index.layers.size} layers, no layer ${v.layer + 1}" }; c.layerPanel(v, frames, sink) }
@@ -146,11 +152,20 @@ internal class Frame(val x0: Double, val y0: Double, val x1: Double, val y1: Dou
 internal class Context(val req: RenderRequest, val index: GcodeIndex, val threads: Int = 1) {
     /** A frame and scale every picture of this context takes (two files compared share one); null: each its own. */
     var forced: Fit? = null
+    /** The whole-print views' first pass, made while the file was indexed (null: none asked for). */
+    var indexSurvey: IndexSurvey? = null
     companion object {
         /** The share of the length laid in view whose lines do not set the scale: the narrowest (plymeld's choice). */
         const val THIN_SHARE = 0.01
         /** A move laying less than this share of its path's declared width is a taper, not a line beside others (plymeld's choice). */
         const val TAPER_SHARE = 0.5
+        /** A tool's filament diameter from the [stated] diameters (a file's), else [facts] (its source block's). */
+        fun diameterOf(stated: List<Double>, facts: FileFacts, tool: Int): Double? = stated.getOrNull(tool) ?: stated.singleOrNull() ?: facts.diameters[tool]
+        /** A move's thickness: [declared] (NaN: none), else its layer's [layerHeight]; NaN when neither is above 0. */
+        fun heightOf(declared: Double, layerHeight: Double?): Double = declared.takeIf { !it.isNaN() && it > 0 } ?: layerHeight?.takeIf { it > 0 } ?: Double.NaN
+        /** A move's bead width: from [e] mm of filament [d] mm across over [len] mm at thickness [h] by the bead model, else [declared]. */
+        fun beadWidthOf(e: Double, len: Double, d: Double?, h: Double, declared: Double): Double =
+            if (d != null && len > 1e-9 && !h.isNaN()) plymeld.program.Bead.width(e * Math.PI * d * d / 4 / len, h) else declared
         val TWICE = java.awt.Color(0xD0, 0x10, 0xC0)
         val HOLE = java.awt.Color(0x00, 0xA8, 0xC8)
         val BARE = java.awt.Color(0xE0, 0x10, 0x10)
@@ -186,8 +201,7 @@ internal class Context(val req: RenderRequest, val index: GcodeIndex, val thread
 
     // ---- widths
     /** Each tool's filament diameter (mm): the file's own statement, else the source block's. */
-    private fun diameter(tool: Int): Double? =
-        index.diameters.getOrNull(tool) ?: index.diameters.singleOrNull() ?: req.facts.diameters[tool]
+    fun diameter(tool: Int): Double? = diameterOf(index.diameters, req.facts, tool)
     private val anyDiameter = index.tools.isNotEmpty() && index.tools.all { diameter(it) != null }
     private val diameterWords: String = index.tools.mapNotNull { t -> diameter(t)?.let { "T$t ${Layout.mm(it)} mm" } }.distinct().joinToString(", ") +
         (if (index.diameters.isEmpty() && req.facts.source.isNotEmpty()) " (from ${req.facts.source})" else "")
@@ -205,16 +219,10 @@ internal class Context(val req: RenderRequest, val index: GcodeIndex, val thread
     private fun missingTools(): String { val m = index.tools.filter { diameter(it) == null }; return if (m.isEmpty() || m.size == index.tools.size) "" else " for tool(s) ${m.joinToString(", ")}" }
 
     /** The layer thickness a move is laid at: its declared height, else its layer's. */
-    fun heightOf(m: MoveSet, i: Int): Double = m.hDecl[i].toDouble().takeIf { !it.isNaN() && it > 0 } ?: index.layers.getOrNull(m.layer[i])?.height?.takeIf { it > 0 } ?: Double.NaN
+    fun heightOf(m: MoveSet, i: Int): Double = heightOf(m.hDecl[i].toDouble(), index.layers.getOrNull(m.layer[i])?.height)
 
     /** The width (mm) of the bead move [i] lays: from its plastic by the bead model, else as declared; NaN when unknown. */
-    fun beadWidth(m: MoveSet, i: Int): Double {
-        val len = m.lengthXY(i)
-        val d = diameter(m.tool[i])
-        val h = heightOf(m, i)
-        if (d != null && len > 1e-9 && !h.isNaN()) return plymeld.program.Bead.width(m.e[i] * Math.PI * d * d / 4 / len, h)
-        return m.wDecl[i].toDouble()
-    }
+    fun beadWidth(m: MoveSet, i: Int): Double = beadWidthOf(m.e[i], m.lengthXY(i), diameter(m.tool[i]), heightOf(m, i), m.wDecl[i].toDouble())
     /** The width move [i] is drawn at (mm): the bead's or the declared width, as --line-width says; NaN for a center line. */
     fun drawWidth(m: MoveSet, i: Int): Double = when (lineWidth) {
         LineWidth.PLASTIC -> beadWidth(m, i)
@@ -600,7 +608,8 @@ internal class Context(val req: RenderRequest, val index: GcodeIndex, val thread
     }
 
     private fun solidPanel(v: View, p: Projection, sd: SolidDrawing, notes: MutableList<String>): Panel {
-        val sv = sd.survey()
+        // made while the file was indexed, else (what it was made on did not hold) by reading the file again
+        val sv = indexSurvey?.survey(this, p) ?: sd.survey()
         val pad = maxOf(0.5, 0.03 * maxOf(sv.a1 - sv.a0, sv.b1 - sv.b0))
         var a0 = sv.a0 - pad; var a1 = sv.a1 + pad; var b0 = sv.b0 - pad; var b1 = sv.b1 + pad
         forced?.let { a0 = it.a0; b0 = it.b0; a1 = it.a1; b1 = it.b1 }

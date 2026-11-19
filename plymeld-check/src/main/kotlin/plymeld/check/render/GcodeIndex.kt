@@ -75,9 +75,23 @@ class GcodeIndex(
 ) {
     fun layerNumberAtZ(z: Double): Int? = layers.firstOrNull { !it.z.isNaN() && it.z >= z - 1e-9 }?.number
 
+    /**
+     * Sees each extruding move the index reads, after it is counted into its layer: so a view's first pass can be made in
+     * the same reading. [marked]: the layer is one the file marks (a move before the first marker is in a layer read
+     * from the heights, which a file that marks its layers does not have). [diameters]: the filament diameters the file
+     * has stated so far; [layerHeight]: the layer's thickness as known so far (its declared height, else its top less the
+     * top of the layer below; NaN when neither is known yet).
+     */
+    interface Listener {
+        fun begin(features: Names, objects: Names) {}
+        fun extrude(x0: Double, y0: Double, z0: Double, x1: Double, y1: Double, z1: Double, e: Double, s: ScanState, layer: LayerInfo, marked: Boolean,
+                    diameters: List<Double>, layerHeight: Double)
+    }
+
     companion object {
-        fun read(path: Path): GcodeIndex {
+        fun read(path: Path, listener: Listener? = null): GcodeIndex {
             val features = Names(); val objects = Names()
+            listener?.begin(features, objects)
             val scan = GcodeScan(features, objects, null)
             val marked = ArrayList<LayerInfo>()
             // per inferred layer (kept in case the file marks none): extent, moves, time, highest z
@@ -117,8 +131,17 @@ class GcodeIndex(
                     if (s.feature >= 0) namesFeatures = true
                     if (!s.width.isNaN()) declaresWidths = true
                     if (!s.height.isNaN()) declaresHeights = true
-                    if (!scan.sawMarker) { inferredLayer()?.let { stat(it, x0, y0, z0, x1, y1, z1, s, true) }; before += e }
-                    else if (s.layer >= 0) stat(marked[s.layer], x0, y0, z0, x1, y1, z1, s, true)
+                    if (!scan.sawMarker) {
+                        inferredLayer()?.let { l ->
+                            stat(l, x0, y0, z0, x1, y1, z1, s, true)
+                            listener?.extrude(x0, y0, z0, x1, y1, z1, e, s, l, false, diameters, heightSoFar(inferredStats, l))
+                        }
+                        before += e
+                    } else if (s.layer >= 0) {
+                        val l = marked[s.layer]
+                        stat(l, x0, y0, z0, x1, y1, z1, s, true)
+                        listener?.extrude(x0, y0, z0, x1, y1, z1, e, s, l, true, diameters, heightSoFar(marked, l))
+                    }
                 }
                 override fun travel(x0: Double, y0: Double, z0: Double, x1: Double, y1: Double, z1: Double, retract: Boolean, s: ScanState) {
                     if (!scan.sawMarker) inferredLayer()?.let { stat(it, x0, y0, z0, x1, y1, z1, s, false) }
@@ -149,9 +172,16 @@ class GcodeIndex(
                 inferredStats
             }
             // thickness where the file declares none: the top less the top of the layer below (the bed under the first)
-            for ((k, l) in layers.withIndex()) if (l.height.isNaN() && !l.z.isNaN()) l.height = l.z - (if (k == 0) 0.0 else layers[k - 1].z)
+            for ((k, l) in layers.withIndex()) if (l.height.isNaN() && !l.z.isNaN()) l.height = thickness(layers, k)
             return GcodeIndex(path, layers, markers, features, objects, tools.toList(), diameters, colors, namesFeatures, declaresWidths, declaresHeights,
                 if (markers) before else 0.0, scan.st.lineNo)
         }
+
+        /** Layer [k]'s thickness where the file declares none: its top less the top of the layer below (the bed under the first). */
+        private fun thickness(layers: List<LayerInfo>, k: Int): Double = layers[k].z - (if (k == 0) 0.0 else layers[k - 1].z)
+
+        /** Layer [l]'s thickness as known while it is read: declared, else as [thickness] would make it now. */
+        private fun heightSoFar(layers: List<LayerInfo>, l: LayerInfo): Double =
+            if (!l.height.isNaN()) l.height else if (l.z.isNaN()) Double.NaN else thickness(layers, l.index)
     }
 }

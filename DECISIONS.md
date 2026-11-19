@@ -2168,7 +2168,14 @@ drawn by bands of 32 rows at once, every band drawing the beads that reach it in
 band, which draws into it in the order a single thread would, so the picture is the same bytes on any number of threads
 (no option sets the number: plymeld has none for such work, and the result does not depend on it). Rejected: a buffer
 for each thread merged by depth at the end, a whole picture's buffers again for every thread, which a 256 MB heap does
-not hold at 18 threads. The shading is kept in 256 steps a pixel (a byte, so a
+not hold at 18 threads. The first pass a whole-print view needs (the extent it draws as it sees it, the gradient's
+range, the closest lines' spacing and the thinnest layer) is made in the index's own reading, so the file is read once
+before it is drawn rather than twice. The index reads before it knows all the file states, so those sums are made on
+what is known at each move and kept only where that held to the end; the view reads the file again for its first pass
+where a filament diameter is stated after moves of its tool (a settings block at the file's end, as some slicers
+write), where a layer's thickness changed while it was read (a height declared after moves that declare none), where a
+layer counted from is one the view does not read (`--z-range` against a layer's own heights), or for a tool numbered 64
+or more. The shading is kept in 256 steps a pixel (a byte, so a
 whole-print picture's buffers stay under 11 bytes a pixel); against the floating shade it replaced, a shaded pixel's
 channel moves by at most one level (the step is 1/510 of the bulge, a quarter of a level at most before rounding), and
 flat pictures are unchanged. `--compare-with` draws the
@@ -2203,4 +2210,7 @@ block sliced with the sample config: the model's outline along the block's sides
 neither; the refusals), RenderSolidBytesTest (eight whole-print views of a synthetic print, PNG and SVG, the same bytes
 as recorded from the plain one-pass depth buffer; seen to fail with the tie rule for beads at the same depth taken out;
 five views of a 40-layer print the same bytes on 1, 3, and 8 threads, seen to fail with the pieces used out of order on
-several threads).
+several threads), IndexSurveyTest (the first pass made in the index's reading is the view's own pass, bit for bit, for
+every coloring, both line widths, lines chosen and kept, several views, and a file marking no layers, seen to fail with
+the part fan taken at double precision; a diameter stated at the end and a height declared late give none, control: the
+same print stating them first gives one).

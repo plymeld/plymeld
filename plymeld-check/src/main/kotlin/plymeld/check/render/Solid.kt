@@ -31,8 +31,15 @@ internal class Projection(val rx: Double, val ry: Double, val rz: Double, val ux
     fun b(x: Double, y: Double, z: Double) = x * ux + y * uy + z * uz
     /** Distance away from the viewer (along the view). */
     fun depth(x: Double, y: Double, z: Double) = -(x * dx + y * dy + z * dz)
+    /** The same view as [o]: every axis the same. */
+    fun same(o: Projection) = rx == o.rx && ry == o.ry && rz == o.rz && ux == o.ux && uy == o.uy && uz == o.uz && dx == o.dx && dy == o.dy && dz == o.dz && sideView == o.sideView
 
     companion object {
+        /** The views of the whole print [req] asks for (`--outside`, `--3d`), as [Context.views] makes them. */
+        fun of(req: RenderRequest): List<Projection> =
+            req.outside.distinct().filter { it in SIDES }.map { outside(it) } +
+                (if (!req.threeD) emptyList() else if (req.threeDFrom.isEmpty()) listOf(turned(ThreeDView.TURN, ThreeDView.TILT)) else req.threeDFrom.map { (t, u) -> turned(t, u) })
+        private val SIDES = setOf("front", "back", "left", "right", "top")
         /** The viewer looking from [d] (toward the viewer), up as near Z as the view allows. */
         private fun from(dx: Double, dy: Double, dz: Double, side: Boolean, words: String): Projection {
             // right = up x toward with up = Z (level views), or the turn's own right (the top view and tilted ones)
@@ -76,18 +83,9 @@ internal class SolidDrawing(private val ctx: Context, private val p: Projection,
     class Survey(var a0: Double, var b0: Double, var a1: Double, var b1: Double, var lo: Double, var hi: Double, var count: Int,
                  val spacing: Double, val hMin: Double, val zLo: Double, val zHi: Double)
 
-    private fun layersToRead(): List<Int> {
-        val zr = req.zRange
-        return ctx.index.layers.filter { l -> !l.minZ.isNaN() && (zr == null || (l.maxZ >= zr.start && l.minZ - maxOf(l.height, 0.0) <= zr.endInclusive)) }.map { it.index }
-    }
-    private val window: DoubleArray? = req.bedWindow ?: req.around?.let { (x, y) -> val s = req.span!! / 2; doubleArrayOf(x - s, y - s, x + s, y + s) }
-    private fun kept(m: MoveSet, i: Int): Boolean {
-        val zr = req.zRange
-        if (zr != null && (maxOf(m.z0[i], m.z1[i]) < zr.start || minOf(m.z0[i], m.z1[i]) > zr.endInclusive)) return false
-        val w = window ?: return true
-        val mx = (m.x0[i] + m.x1[i]) / 2; val my = (m.y0[i] + m.y1[i]) / 2
-        return mx >= w[0] && mx <= w[2] && my >= w[1] && my <= w[3]
-    }
+    private fun layersToRead(): List<Int> = ctx.index.layers.filter { drawsFrom(req, it) }.map { it.index }
+    private val window: DoubleArray? = windowOf(req)
+    private fun kept(m: MoveSet, i: Int): Boolean = kept(req, window, m.x0[i], m.y0[i], m.z0[i], m.x1[i], m.y1[i], m.z1[i])
     /**
      * Reads the layers drawn a piece at a time, [BATCH] pieces at once on the threads, [work] making each piece's result
      * from its moves on a thread of its own, then hands the results to [use] one by one in print order, or ([reverse]) in
@@ -160,24 +158,17 @@ internal class SolidDrawing(private val ctx: Context, private val p: Projection,
         var zLo = Double.MAX_VALUE; var zHi = -Double.MAX_VALUE
         // spacing and height, length-weighted, in 1-micron bins; each piece's lengths added in print order, so every sum
         // is made in the same order whatever the number of threads
-        val sp = java.util.TreeMap<Int, Double>(); val hs = java.util.TreeMap<Int, Double>()
+        val sp = Hist(); val hs = Hist()
         pieces(false, ::surveyPiece) { r ->
             a0 = minOf(a0, r.a0); a1 = maxOf(a1, r.a1); b0 = minOf(b0, r.b0); b1 = maxOf(b1, r.b1)
             zLo = minOf(zLo, r.zLo); zHi = maxOf(zHi, r.zHi)
             if (!r.lo.isNaN() && (lo.isNaN() || r.lo < lo)) lo = r.lo
             if (!r.hi.isNaN() && (hi.isNaN() || r.hi > hi)) hi = r.hi
             n += r.n
-            for (j in 0 until r.spN) sp.merge(r.spBin[j], r.spLen[j], Double::plus)
-            for (j in 0 until r.hsN) hs.merge(r.hsBin[j], r.hsLen[j], Double::plus)
+            for (j in 0 until r.spN) sp.add(r.spBin[j], r.spLen[j])
+            for (j in 0 until r.hsN) hs.add(r.hsBin[j], r.hsLen[j])
         }
-        fun low(t: java.util.TreeMap<Int, Double>): Double {
-            val total = t.values.sum(); if (total <= 0) return Double.NaN
-            var acc = 0.0
-            for ((k, v) in t) { acc += v; if (acc > Context.THIN_SHARE * total) return k / 1000.0 }
-            return t.lastKey() / 1000.0
-        }
-        if (a0 > a1) { a0 = 0.0; a1 = 10.0; b0 = 0.0; b1 = 10.0; zLo = 0.0; zHi = 1.0 }
-        return Survey(a0, b0, a1, b1, lo, hi, n, low(sp), low(hs), zLo, zHi)
+        return finish(a0, b0, a1, b1, lo, hi, n, sp, hs, zLo, zHi)
     }
 
     /**
@@ -306,6 +297,34 @@ internal class SolidDrawing(private val ctx: Context, private val p: Projection,
     }
 
     companion object {
+        /** Whether a whole-print view reads layer [l]: one that lays plastic, at the heights --z-range keeps. */
+        fun drawsFrom(req: RenderRequest, l: LayerInfo): Boolean {
+            val zr = req.zRange
+            return !l.minZ.isNaN() && (zr == null || (l.maxZ >= zr.start && l.minZ - maxOf(l.height, 0.0) <= zr.endInclusive))
+        }
+        /** The part of the bed --bed-window or --around keeps (x0, y0, x1, y1), or null: all of it. */
+        fun windowOf(req: RenderRequest): DoubleArray? = req.bedWindow ?: req.around?.let { (x, y) -> val s = req.span!! / 2; doubleArrayOf(x - s, y - s, x + s, y + s) }
+        /** Whether a move from (x0, y0, z0) to (x1, y1, z1) is kept: at the heights --z-range keeps, its middle in the [window]. */
+        fun kept(req: RenderRequest, window: DoubleArray?, x0: Double, y0: Double, z0: Double, x1: Double, y1: Double, z1: Double): Boolean {
+            val zr = req.zRange
+            if (zr != null && (maxOf(z0, z1) < zr.start || minOf(z0, z1) > zr.endInclusive)) return false
+            val w = window ?: return true
+            val mx = (x0 + x1) / 2; val my = (y0 + y1) / 2
+            return mx >= w[0] && mx <= w[2] && my >= w[1] && my <= w[3]
+        }
+
+        /** The survey from its sums: the closest lines are those past the narrowest [Context.THIN_SHARE] of the length. */
+        fun finish(a0: Double, b0: Double, a1: Double, b1: Double, lo: Double, hi: Double, n: Int, sp: Hist, hs: Hist, zLo: Double, zHi: Double): Survey {
+            fun low(t: java.util.TreeMap<Int, Double>): Double {
+                val total = t.values.sum(); if (total <= 0) return Double.NaN
+                var acc = 0.0
+                for ((k, v) in t) { acc += v; if (acc > Context.THIN_SHARE * total) return k / 1000.0 }
+                return t.lastKey() / 1000.0
+            }
+            if (a0 > a1) return Survey(0.0, 0.0, 10.0, 10.0, lo, hi, n, low(sp.sorted()), low(hs.sorted()), 0.0, 1.0)
+            return Survey(a0, b0, a1, b1, lo, hi, n, low(sp.sorted()), low(hs.sorted()), zLo, zHi)
+        }
+
         /** Neighboring pixels further apart in depth than this (mm) are one surface in front of another: an outline (plymeld's choice). */
         const val DEPTH_STEP_MM = 1.0f
         /** The side of a tile of the depth map, pixels (plymeld's choice: a few hundred pixels read to work out its farthest depth). */
@@ -423,5 +442,142 @@ internal class SolidDrawing(private val ctx: Context, private val p: Projection,
         }
         if (-1 in seen) k += KeyItem.Swatch(Palette.CONTEXT, "other lines")
         return k
+    }
+}
+
+/**
+ * Lengths by a whole-number bin (a micron), each bin's sum made in the order the lengths come; the bins from 0 to [DENSE]
+ * in an array, any other in a map.
+ */
+internal class Hist {
+    private val sum = DoubleArray(DENSE); private val has = BooleanArray(DENSE)
+    private val other = java.util.TreeMap<Int, Double>()
+    fun add(bin: Int, len: Double) {
+        if (bin in 0 until DENSE) { sum[bin] += len; has[bin] = true } else other.merge(bin, len, Double::plus)
+    }
+    /** The bins in order, as a map ordered by bin. */
+    fun sorted(): java.util.TreeMap<Int, Double> = java.util.TreeMap(other).also { t -> for (b in 0 until DENSE) if (has[b]) t[b] = sum[b] }
+    companion object { const val DENSE = 4096 }
+}
+
+/**
+ * The whole-print views' first pass ([SolidDrawing.survey]) made while the file is indexed, so the file is read once
+ * before it is drawn rather than twice: each extruding move's extent as each view sees it, the gradient's range, and
+ * the lengths by spacing and by thickness, added in print order as the pass made them.
+ *
+ * The index reads the file before it knows all of what the file states, so the sums are made on what is known at each
+ * move and kept only where it held to the end; otherwise [survey] gives null and the view makes its own pass: a filament
+ * diameter the file states after moves of its tool (a settings block at its end), a layer's thickness that changed while
+ * it was read (a height declared after moves that declare none), or a layer the moves were counted from that the view
+ * does not read.
+ */
+internal class IndexSurvey(private val req: RenderRequest, private val projections: List<Projection>) : GcodeIndex.Listener {
+    private lateinit var features: Names
+    private lateinit var objects: Names
+    private val colorBy = req.colorBy ?: ColorBy.FEATURE
+    private val window = SolidDrawing.windowOf(req)
+    private val objectNames = req.onlyObject.toSet(); private val featureNames = req.onlyFeature.toSet(); private val toolIds = req.onlyTool.toSet()
+
+    override fun begin(features: Names, objects: Names) { this.features = features; this.objects = objects }
+
+    /** One reading's sums: the moves of the layers the file marks, or of those read from the moves' heights. */
+    private inner class Sums {
+        val ext = Array(projections.size) { doubleArrayOf(Double.MAX_VALUE, Double.MAX_VALUE, -Double.MAX_VALUE, -Double.MAX_VALUE) }
+        var zLo = Double.MAX_VALUE; var zHi = -Double.MAX_VALUE; var n = 0
+        // the gradient's range; for width, from the plastic and as declared (which one is drawn is known at the end)
+        var lo = Double.NaN; var hi = Double.NaN; var loDecl = Double.NaN; var hiDecl = Double.NaN
+        val sp = Hist(); val hs = Hist()
+        // per layer: moves counted; the thickness a move declaring none took; a chosen move (for the layer's time)
+        val counted = java.util.BitSet(); val chosen = java.util.BitSet(); val heightTaken = HashMap<Int, Double>()
+        // per tool, the filament diameter its moves took (NaN: none known)
+        val diameter = DoubleArray(ScanState.MAX_TOOLS); val took = BooleanArray(ScanState.MAX_TOOLS)
+        var held = true
+    }
+    private val inferred = Sums(); private val marked = Sums()
+    // the diameter each tool takes from the statements read so far, worked out again when they change
+    private var stated: List<Double>? = null
+    private val toolDiameter = DoubleArray(ScanState.MAX_TOOLS)
+    private fun diameterNow(diameters: List<Double>, tool: Int): Double {
+        if (diameters !== stated) { stated = diameters; for (t in toolDiameter.indices) toolDiameter[t] = Context.diameterOf(diameters, req.facts, t) ?: Double.NaN }
+        return toolDiameter[tool]
+    }
+
+    private fun chosen(s: ScanState): Boolean =
+        (objectNames.isEmpty() || (s.obj >= 0 && objects[s.obj] in objectNames)) && (featureNames.isEmpty() || (s.feature >= 0 && features[s.feature] in featureNames)) &&
+            (toolIds.isEmpty() || s.tool in toolIds)
+
+    private fun range(v: Double, lo: Double, hi: Double, set: (Double, Double) -> Unit) {
+        if (v.isNaN()) return
+        set(if (lo.isNaN() || v < lo) v else lo, if (hi.isNaN() || v > hi) v else hi)
+    }
+
+    override fun extrude(x0: Double, y0: Double, z0: Double, x1: Double, y1: Double, z1: Double, e: Double, s: ScanState, layer: LayerInfo, marked: Boolean,
+                         diameters: List<Double>, layerHeight: Double) {
+        if (!SolidDrawing.kept(req, window, x0, y0, z0, x1, y1, z1)) return
+        val ch = chosen(s)
+        if (!ch && req.others != Others.FAINT) return
+        val a = if (marked) this.marked else inferred
+        // a tool numbered beyond those kept here: the view reads the file again
+        if (s.tool !in 0 until ScanState.MAX_TOOLS) { a.held = false; return }
+        val l = layer.index
+        a.counted.set(l)
+        // as a move read later holds them: declared width and height and the rest as single precision
+        val hDecl = s.height.toFloat().toDouble(); val wDecl = s.width.toFloat().toDouble()
+        if (hDecl.isNaN() || hDecl <= 0) {
+            val was = a.heightTaken.putIfAbsent(l, layerHeight)
+            if (was != null && !(was == layerHeight || (was.isNaN() && layerHeight.isNaN()))) a.held = false
+        }
+        val dn = diameterNow(diameters, s.tool)
+        val d: Double? = if (dn.isNaN()) null else dn
+        if (a.took[s.tool]) { if (a.diameter[s.tool].toRawBits() != dn.toRawBits()) a.held = false } else { a.took[s.tool] = true; a.diameter[s.tool] = dn }
+        val len = Math.hypot(x1 - x0, y1 - y0)
+        val hRaw = Context.heightOf(hDecl, layerHeight)
+        val bead = Context.beadWidthOf(e, len, d, hRaw, wDecl)
+        val w = bead.takeIf { !it.isNaN() && it > 0 } ?: 0.4
+        val h = hRaw.takeIf { !it.isNaN() && it > 0 } ?: 0.2
+        for ((k, p) in projections.withIndex()) {
+            val x = a.ext[k]
+            for (end in 0..1) {
+                val px = if (end == 0) x0 else x1; val py = if (end == 0) y0 else y1; val pz = if (end == 0) z0 else z1
+                val pa = p.a(px, py, pz); val pb = p.b(px, py, pz)
+                x[0] = minOf(x[0], pa - w); x[2] = maxOf(x[2], pa + w); x[1] = minOf(x[1], pb - w - h); x[3] = maxOf(x[3], pb + w)
+            }
+        }
+        for (end in 0..1) { val pz = if (end == 0) z0 else z1; a.zLo = minOf(a.zLo, pz - h); a.zHi = maxOf(a.zHi, pz) }
+        if (!ch) return
+        a.chosen.set(l)
+        val speed = (s.f / 60.0).toFloat().toDouble()
+        when (colorBy) {
+            ColorBy.SPEED -> range(speed, a.lo, a.hi) { p, q -> a.lo = p; a.hi = q }
+            ColorBy.FLOW -> range(if (len <= 1e-9) Double.NaN else if (d != null) e * Math.PI * d * d / 4 / len * speed else e / len * speed, a.lo, a.hi) { p, q -> a.lo = p; a.hi = q }
+            ColorBy.WIDTH -> { range(bead, a.lo, a.hi) { p, q -> a.lo = p; a.hi = q }; range(wDecl, a.loDecl, a.hiDecl) { p, q -> a.loDecl = p; a.hiDecl = q } }
+            ColorBy.HEIGHT -> range(hRaw, a.lo, a.hi) { p, q -> a.lo = p; a.hi = q }
+            ColorBy.FAN -> range(s.fan.toFloat() * 100.0, a.lo, a.hi) { p, q -> a.lo = p; a.hi = q }
+            ColorBy.TEMPERATURE -> range(s.temp.toFloat().toDouble(), a.lo, a.hi) { p, q -> a.lo = p; a.hi = q }
+            ColorBy.FEATURE, ColorBy.TOOL, ColorBy.ORDER, ColorBy.LAYER_TIME -> {}
+        }
+        a.n++
+        if (wDecl.isNaN() || w >= Context.TAPER_SHARE * wDecl) a.sp.add(Math.round(plymeld.program.Bead.spacing(w, h) * 1000).toInt(), len)
+        a.hs.add(Math.round(h * 1000).toInt(), len)
+    }
+
+    /** The survey of view [p] for [ctx] (its file's index, its options), or null where what the sums were made on did not hold. */
+    fun survey(ctx: Context, p: Projection): SolidDrawing.Survey? {
+        val k = projections.indexOfFirst { it.same(p) }.takeIf { it >= 0 } ?: return null
+        val index = ctx.index
+        val a = if (index.layerMarkers) marked else inferred
+        if (!a.held) return null
+        var l = a.counted.nextSetBit(0)
+        while (l >= 0) { if (l >= index.layers.size || !SolidDrawing.drawsFrom(req, index.layers[l])) return null; l = a.counted.nextSetBit(l + 1) }
+        for ((layer, h) in a.heightTaken) { val f = index.layers[layer].height; if (!(f == h || (f.isNaN() && h.isNaN()))) return null }
+        for (tool in a.took.indices) if (a.took[tool] && (ctx.diameter(tool) ?: Double.NaN).toRawBits() != a.diameter[tool].toRawBits()) return null
+        var lo = a.lo; var hi = a.hi
+        if (colorBy == ColorBy.WIDTH && ctx.lineWidth == LineWidth.DECLARED) { lo = a.loDecl; hi = a.hiDecl }
+        if (colorBy == ColorBy.LAYER_TIME) {
+            var c = a.chosen.nextSetBit(0)
+            while (c >= 0) { range(index.layers.getOrNull(c)?.nominalS ?: Double.NaN, lo, hi) { p0, q0 -> lo = p0; hi = q0 }; c = a.chosen.nextSetBit(c + 1) }
+        }
+        val x = a.ext[k]
+        return SolidDrawing.finish(x[0], x[1], x[2], x[3], lo, hi, a.n, a.sp, a.hs, a.zLo, a.zHi)
     }
 }
