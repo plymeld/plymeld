@@ -2163,7 +2163,7 @@ tile, less its bulge) passes the tile over without reading its pixels. Seen leve
 nearest first and no tile is passed over: working out a tile's farthest depth again after every bead cost more than it
 saved (the outside of a boat from the front, 1.6 s to 4.8 s). The work is shared out over the processors available:
 the file is read in pieces of 8 layers, 8 pieces at once (each from its own offset through the index, so 64 layers are
-in memory at a time as before, and the pieces are the same whatever the number of threads), and each piece's beads are
+in memory at a time as before, and the pieces are the same whatever the number of threads), and each batch's beads are
 drawn by bands of 32 rows at once, every band drawing the beads that reach it in the same order; a pixel belongs to one
 band, which draws into it in the order a single thread would, so the picture is the same bytes on any number of threads
 (no option sets the number: plymeld has none for such work, and the result does not depend on it). Rejected: a buffer
@@ -2175,7 +2175,9 @@ what is known at each move and kept only where that held to the end; the view re
 where a filament diameter is stated after moves of its tool (a settings block at the file's end, as some slicers
 write), where a layer's thickness changed while it was read (a height declared after moves that declare none), where a
 layer counted from is one the view does not read (`--z-range` against a layer's own heights), or for a tool numbered 64
-or more. The shading is kept in 256 steps a pixel (a byte, so a
+or more. A bead is drawn along each row's span, the columns its stadium (the brush swept along the move) reaches on that
+row worked out exactly, one more each side, and only those pixels tested, not its whole bounding box (a long diagonal
+move's box is mostly empty). The shading is kept in 256 steps a pixel (a byte, so a
 whole-print picture's buffers stay under 11 bytes a pixel); against the floating shade it replaced, a shaded pixel's
 channel moves by at most one level (the step is 1/510 of the bulge, a quarter of a level at most before rounding), and
 flat pictures are unchanged. `--compare-with` draws the
@@ -2213,4 +2215,9 @@ five views of a 40-layer print the same bytes on 1, 3, and 8 threads, seen to fa
 several threads), IndexSurveyTest (the first pass made in the index's reading is the view's own pass, bit for bit, for
 every coloring, both line widths, lines chosen and kept, several views, and a file marking no layers, seen to fail with
 the part fan taken at double precision; a diameter stated at the end and a height declared late give none, control: the
-same print stating them first gives one).
+same print stating them first gives one), CapsuleSpanTest (4000 random beads, of no length, under a pixel, off the
+picture, steep, shallow, and long, and 300 heaps of them with beads at the same depth: the same pixels and values as
+the bounding-box routine drawn in print order, drawn in print order, in reverse, with tiles passed over, and by bands;
+seen to fail with one round end left out of the span; control: in reverse without the same-depth rule, two beads at
+one depth differ), RenderLargeTest (a slow suite: 2500 layers, 15 MB, drawn in 3D in a JVM of its own with a 64 MB
+heap within 30 s, 1.5 s measured; control: a 24 MB heap runs out).

@@ -73,7 +73,7 @@ internal class Projection(val rx: Double, val ry: Double, val rz: Double, val ux
  * a time, never whole. Where the lines cannot be resolved, flat colors with each region's outline.
  *
  * On [threads] threads: the pieces of a run of layers are read at once (each from its own offset, through the index),
- * and each piece's beads are drawn by bands of rows at once, each band drawing every bead that reaches it in the same
+ * and the run's beads are drawn by bands of rows at once, each band drawing every bead that reaches it in the same
  * order. A pixel belongs to one band, which draws into it in the order one thread would, so the picture is the same
  * bytes whatever the number of threads.
  */
@@ -91,7 +91,10 @@ internal class SolidDrawing(private val ctx: Context, private val p: Projection,
      * from its moves on a thread of its own, then hands the results to [use] one by one in print order, or ([reverse]) in
      * exactly the reverse of it. The pieces are the same whatever the number of threads.
      */
-    private fun <R> pieces(reverse: Boolean, work: (MoveSet) -> R, use: (R) -> Unit) {
+    private fun <R> pieces(reverse: Boolean, work: (MoveSet) -> R, use: (R) -> Unit) = batches(reverse, work) { rs -> for (r in rs) use(r) }
+
+    /** As [pieces], each batch's results handed to [use] at once, in print order (or its reverse). */
+    private fun <R> batches(reverse: Boolean, work: (MoveSet) -> R, use: (List<R>) -> Unit) {
         val ls = layersToRead()
         val all = (ls.indices step PIECE).map { ls.subList(it, minOf(ls.size, it + PIECE)) }
         val order = if (reverse) all.asReversed() else all
@@ -99,7 +102,7 @@ internal class SolidDrawing(private val ctx: Context, private val p: Projection,
             val batch = order.subList(b, minOf(order.size, b + BATCH))
             val results = ArrayList<R?>(batch.size).also { r -> repeat(batch.size) { r += null } }
             parallel(batch.size) { j -> results[j] = work(MoveReader.read(ctx.index, batch[j]).first) }
-            for (r in results) use(r!!)
+            use(results.map { it!! })
         }
     }
 
@@ -226,13 +229,16 @@ internal class SolidDrawing(private val ctx: Context, private val p: Projection,
         // the chosen moves printed before the piece drawn next (drawing in reverse: counted down from them all)
         var before = if (reverse) sv.count else 0
         val bands = (bh + BAND - 1) / BAND
-        pieces(reverse, { m -> beads(m, sv, a0, b1, s, k, reverse) }) { r ->
-            if (reverse) before -= r.chosen
-            if (ctx.colorBy == ColorBy.ORDER) for (j in 0 until r.n) if (r.ord[j] >= 0) r.rgb[j] = Palette.ramp((before + r.ord[j]).toDouble() / total).rgb
-            if (!reverse) before += r.chosen
+        batches(reverse, { m -> beads(m, sv, a0, b1, s, k, reverse) }) { rs ->
+            for (r in rs) {
+                if (reverse) before -= r.chosen
+                if (ctx.colorBy == ColorBy.ORDER) for (j in 0 until r.n) if (r.ord[j] >= 0) r.rgb[j] = Palette.ramp((before + r.ord[j]).toDouble() / total).rgb
+                if (!reverse) before += r.chosen
+            }
+            // each band draws the batch's beads that reach it, piece after piece in the order drawn
             parallel(bands) { band ->
                 val y0 = band * BAND; val y1 = minOf(bh, y0 + BAND) - 1
-                for (j in 0 until r.n) if (r.yHi[j] >= y0 && r.yLo[j] <= y1)
+                for (r in rs) for (j in 0 until r.n) if (r.yHi[j] >= y0 && r.yLo[j] <= y1)
                     capsule(buf, r.pa[j], r.pb[j], r.qa[j], r.qb[j], r.da[j], r.db[j], r.rx[j], r.ry[j], r.rMm[j], r.rgb[j], r.key[j], reverse, cull, y0, y1)
             }
         }
@@ -351,35 +357,71 @@ internal class SolidDrawing(private val ctx: Context, private val p: Projection,
             val sc = rx / ry
             val ex = qa - pa; val ey = (qb - pb) * sc
             val l2 = ex * ex + ey * ey
-            for (ty in y0 / TILE..y1 / TILE) for (tx in x0 / TILE..x1 / TILE) {
-                val t = ty * buf.tw + tx
+            val len = Math.sqrt(l2)
+            // each row's span: the columns the bead reaches on it (the stadium's chord at the row's middle, worked out
+            // exactly), one more each side so no pixel the test below takes is left outside; only those are tested
+            val spanLo = IntArray(TILE); val spanHi = IntArray(TILE)
+            val band = DoubleArray(2)
+            for (ty in y0 / TILE..y1 / TILE) {
                 val ya = maxOf(y0, ty * TILE); val yb = minOf(y1, ty * TILE + TILE - 1)
-                val xa = maxOf(x0, tx * TILE); val xb = minOf(x1, tx * TILE + TILE - 1)
-                if (cull && buf.tileEmpty[t] == 0) {
-                    val near = nearest(xa, xb, ya, yb, pa, pb, sc, ex, ey, l2, da, db, rMm)
-                    // the farthest depth as last worked out first: it is never nearer than the true one
-                    if (near > buf.tileFar[t] || near > buf.far(t)) continue
-                }
-                var wrote = false
-                for (y in ya..yb) for (x in xa..xb) {
-                    val cx = x + 0.5 - pa; val cy = (y + 0.5 - pb) * sc
-                    val tt = if (l2 == 0.0) 0.0 else ((cx * ex + cy * ey) / l2).coerceIn(0.0, 1.0)
-                    val ddx = cx - tt * ex; val ddy = cy - tt * ey
-                    val d2 = ddx * ddx + ddy * ddy
-                    if (d2 > rx * rx) continue
-                    val bulge = Math.sqrt(1 - d2 / (rx * rx))
-                    val dep = (da + (db - da) * tt - bulge * rMm).toFloat()
-                    val at = y * buf.w + x
-                    val cur = buf.depth[at]
-                    if (dep < cur || (laterFirst && dep == cur)) {
-                        if (cur == Float.MAX_VALUE) buf.tileEmpty[t]--
-                        buf.depth[at] = dep; buf.color[at] = rgb; buf.key[at] = keyId.toShort()
-                        buf.shade[at] = Math.round(bulge * 255).toInt().toByte()
-                        wrote = true
+                var rowsLo = Int.MAX_VALUE; var rowsHi = Int.MIN_VALUE
+                for (y in ya..yb) {
+                    val k = y - ya
+                    spanLo[k] = 1; spanHi[k] = 0
+                    val cy = (y + 0.5 - pb) * sc
+                    var lo = Double.MAX_VALUE; var hi = -Double.MAX_VALUE
+                    // the round ends
+                    val e0 = rx * rx - cy * cy
+                    if (e0 >= 0) { val r = Math.sqrt(e0); lo = minOf(lo, -r); hi = maxOf(hi, r) }
+                    val e1 = rx * rx - (cy - ey) * (cy - ey)
+                    if (e1 >= 0) { val r = Math.sqrt(e1); lo = minOf(lo, ex - r); hi = maxOf(hi, ex + r) }
+                    // the straight sides: within rx of the middle line, and beside the move, not past its ends
+                    if (l2 > 0) {
+                        band[0] = -Double.MAX_VALUE; band[1] = Double.MAX_VALUE
+                        atMost(band, -ey, rx * len - ex * cy); atMost(band, ey, rx * len + ex * cy)
+                        atMost(band, -ex, cy * ey); atMost(band, ex, l2 - cy * ey)
+                        if (band[0] <= band[1]) { lo = minOf(lo, band[0]); hi = maxOf(hi, band[1]) }
                     }
+                    if (!(lo <= hi)) continue
+                    spanLo[k] = maxOf(x0, Math.floor((lo + pa - 0.5).coerceIn(x0 - 2.0, x1 + 2.0)).toInt() - 1)
+                    spanHi[k] = minOf(x1, Math.ceil((hi + pa - 0.5).coerceIn(x0 - 2.0, x1 + 2.0)).toInt() + 1)
+                    if (spanLo[k] <= spanHi[k]) { rowsLo = minOf(rowsLo, spanLo[k]); rowsHi = maxOf(rowsHi, spanHi[k]) }
                 }
-                if (wrote) buf.tileDirty[t] = true
+                if (rowsLo > rowsHi) continue
+                for (tx in rowsLo / TILE..rowsHi / TILE) {
+                    val t = ty * buf.tw + tx
+                    val xa = maxOf(x0, tx * TILE); val xb = minOf(x1, tx * TILE + TILE - 1)
+                    if (cull && buf.tileEmpty[t] == 0) {
+                        val near = nearest(xa, xb, ya, yb, pa, pb, sc, ex, ey, l2, da, db, rMm)
+                        // the farthest depth as last worked out first: it is never nearer than the true one
+                        if (near > buf.tileFar[t] || near > buf.far(t)) continue
+                    }
+                    var wrote = false
+                    for (y in ya..yb) for (x in maxOf(xa, spanLo[y - ya])..minOf(xb, spanHi[y - ya])) {
+                        val cx = x + 0.5 - pa; val cy = (y + 0.5 - pb) * sc
+                        val tt = if (l2 == 0.0) 0.0 else ((cx * ex + cy * ey) / l2).coerceIn(0.0, 1.0)
+                        val ddx = cx - tt * ex; val ddy = cy - tt * ey
+                        val d2 = ddx * ddx + ddy * ddy
+                        if (d2 > rx * rx) continue
+                        val bulge = Math.sqrt(1 - d2 / (rx * rx))
+                        val dep = (da + (db - da) * tt - bulge * rMm).toFloat()
+                        val at = y * buf.w + x
+                        val cur = buf.depth[at]
+                        if (dep < cur || (laterFirst && dep == cur)) {
+                            if (cur == Float.MAX_VALUE) buf.tileEmpty[t]--
+                            buf.depth[at] = dep; buf.color[at] = rgb; buf.key[at] = keyId.toShort()
+                            buf.shade[at] = Math.round(bulge * 255).toInt().toByte()
+                            wrote = true
+                        }
+                    }
+                    if (wrote) buf.tileDirty[t] = true
+                }
             }
+        }
+
+        /** Narrows [band] (lowest and highest cx) to where a * cx <= b; an empty band where none is. */
+        private fun atMost(band: DoubleArray, a: Double, b: Double) {
+            if (a > 0) band[1] = minOf(band[1], b / a) else if (a < 0) band[0] = maxOf(band[0], b / a) else if (!(b >= 0)) { band[0] = 1.0; band[1] = 0.0 }
         }
 
         /**
@@ -392,11 +434,10 @@ internal class SolidDrawing(private val ctx: Context, private val p: Projection,
                             da: Double, db: Double, rMm: Double): Float {
             var lo = 0.0; var hi = 0.0
             if (l2 != 0.0) {
-                lo = Double.MAX_VALUE; hi = -Double.MAX_VALUE
-                for (cx in doubleArrayOf(xa + 0.5 - pa, xb + 0.5 - pa)) for (cy in doubleArrayOf((ya + 0.5 - pb) * sc, (yb + 0.5 - pb) * sc)) {
-                    val t = (cx * ex + cy * ey) / l2
-                    lo = minOf(lo, t); hi = maxOf(hi, t)
-                }
+                // the four corners' places along the line: across and up each add their own term
+                val ca = (xa + 0.5 - pa) * ex; val cb = (xb + 0.5 - pa) * ex
+                val ra = (ya + 0.5 - pb) * sc * ey; val rb = (yb + 0.5 - pb) * sc * ey
+                lo = (minOf(ca, cb) + minOf(ra, rb)) / l2; hi = (maxOf(ca, cb) + maxOf(ra, rb)) / l2
                 lo = lo.coerceIn(0.0, 1.0); hi = hi.coerceIn(0.0, 1.0)
             }
             val d = minOf(da + (db - da) * lo, da + (db - da) * hi) - rMm

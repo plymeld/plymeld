@@ -18,5 +18,6 @@ plymeld.commands.CurvedIslandBenchyTest   # 134 s in the slow suite, 43 s alone:
 plymeld.commands.IroningReadingsTest      # 33 s
 plymeld.check.CurvedRegionsModelsTest      # 10 s (the 3DBenchy survey; a development report, not a gate on the fast suites)
 plymeld.mesh.LargeMeshTest                # writes a 245 MB STL and a 1.2M-triangle 3MF to check the readers' memory budget
+plymeld.check.render.RenderLargeTest      # writes a 15 MB g-code file and draws it in 3D in a JVM of its own, a 64 MB heap: time and memory budget
 plymeld.ui.WindowRunsTest                 # the window driven: a plate made and a job sliced through its controls (needs a display: CI gives it Xvfb)
 plymeld.ui.WindowDriveTest                # the window driven: every command's form opened from the finder (needs a display: CI gives it Xvfb)
