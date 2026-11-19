@@ -2166,7 +2166,7 @@ nearest first and no tile is passed over: working out a tile's farthest depth ag
 saved (the outside of a boat from the front, 1.6 s to 4.8 s). The work is shared out over the processors available:
 the file is read in pieces of 8 layers, 8 pieces at once (each from its own offset through the index, so 64 layers are
 in memory at a time as before, and the pieces are the same whatever the number of threads), and each batch's beads are
-drawn by bands of 32 rows at once, every band drawing the beads that reach it in the same order; a pixel belongs to one
+drawn by bands of 16 rows (one tile) at once, every band drawing the beads that reach it in the same order; a pixel belongs to one
 band, which draws into it in the order a single thread would, so the picture is the same bytes on any number of threads
 (no option sets the number: plymeld has none for such work, and the result does not depend on it). Rejected: a buffer
 for each thread merged by depth at the end, a whole picture's buffers again for every thread, which a 256 MB heap does
@@ -2177,9 +2177,12 @@ what is known at each move and kept only where that held to the end; the view re
 where a filament diameter is stated after moves of its tool (a settings block at the file's end, as some slicers
 write), where a layer's thickness changed while it was read (a height declared after moves that declare none), where a
 layer counted from is one the view does not read (`--z-range` against a layer's own heights), or for a tool numbered 64
-or more. A bead is drawn along each row's span, the columns its stadium (the brush swept along the move) reaches on that
-row worked out exactly, one more each side, and only those pixels tested, not its whole bounding box (a long diagonal
-move's box is mostly empty). The shading is kept in 256 steps a pixel (a byte, so a
+or more. A bead that runs at least 4 brush widths across and up is drawn along each row's span, the columns its stadium
+(the brush swept along the move) reaches on that row worked out exactly, one more each side, and only those pixels
+tested, not its whole bounding box, which is mostly empty; a shorter or level bead takes whole rows of its box, which
+cost less than its spans (plymeld's choice of 4: spans for every bead drew a boat's 3D view 0.1 s slower, and a 326 MB
+file's 0.3 s faster). A row of tiles the bead is hidden in all through is passed over before its spans are worked
+out. The shading is kept in 256 steps a pixel (a byte, so a
 whole-print picture's buffers stay under 11 bytes a pixel); against the floating shade it replaced, a shaded pixel's
 channel moves by at most one level (the step is 1/510 of the bulge, a quarter of a level at most before rounding), and
 flat pictures are unchanged. `--compare-with` draws the

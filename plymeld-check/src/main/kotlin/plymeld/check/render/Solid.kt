@@ -338,8 +338,16 @@ internal class SolidDrawing(private val ctx: Context, private val p: Projection,
         /** Layers read in one piece, and pieces read at once (plymeld's choice: 64 layers in memory at a time, a few megabytes of moves). */
         const val PIECE = 8
         const val BATCH = 8
-        /** Rows a band draws, a whole number of tiles so each tile is one band's (plymeld's choice: a 2048 px picture is 64 bands to share out). */
-        const val BAND = 2 * TILE
+        /**
+         * Rows a band draws, a whole number of tiles so each tile is one band's (plymeld's choice: a 2048 px picture is 128
+         * bands to share out; at two tiles a band a 3D view of a 326 MB file drew 0.1 s slower).
+         */
+        const val BAND = TILE
+        /**
+         * A bead runs along spans where it runs at least this many brush widths across and up (plymeld's choice: a
+         * 3D view of a boat drew 0.1 s slower with spans for every bead, and a 326 MB file 0.3 s faster).
+         */
+        const val SPAN_BRUSHES = 4.0
 
         /**
          * One bead: the ellipse [rx] x [ry] pixels swept from (pa, pb) to (qa, qb), its middle line at depths [da] to [db]
@@ -362,9 +370,15 @@ internal class SolidDrawing(private val ctx: Context, private val p: Projection,
             // exactly), one more each side so no pixel the test below takes is left outside; only those are tested
             val spanLo = IntArray(TILE); val spanHi = IntArray(TILE)
             val band = DoubleArray(2)
+            // only where the bead runs across and up over several brush widths is its bounding box mostly empty: a
+            // shorter or level one takes whole rows of the box, which cost less than working out its spans
+            val diagonal = Math.abs(qa - pa) > SPAN_BRUSHES * rx && Math.abs(qb - pb) > SPAN_BRUSHES * ry
             for (ty in y0 / TILE..y1 / TILE) {
                 val ya = maxOf(y0, ty * TILE); val yb = minOf(y1, ty * TILE + TILE - 1)
+                // a row of tiles the bead is hidden in all through is passed over before its spans are worked out
+                if (cull && hiddenAll(buf, ty, x0, x1, ya, yb, pa, pb, sc, ex, ey, l2, da, db, rMm)) continue
                 var rowsLo = Int.MAX_VALUE; var rowsHi = Int.MIN_VALUE
+                if (!diagonal) { for (y in ya..yb) { spanLo[y - ya] = x0; spanHi[y - ya] = x1 }; rowsLo = x0; rowsHi = x1 } else
                 for (y in ya..yb) {
                     val k = y - ya
                     spanLo[k] = 1; spanHi[k] = 0
@@ -417,6 +431,18 @@ internal class SolidDrawing(private val ctx: Context, private val p: Projection,
                     if (wrote) buf.tileDirty[t] = true
                 }
             }
+        }
+
+        /** Whether the bead is behind every tile of row [ty] it can reach (columns [x0]..[x1], rows [ya]..[yb]). */
+        private fun hiddenAll(buf: Buffer, ty: Int, x0: Int, x1: Int, ya: Int, yb: Int, pa: Double, pb: Double, sc: Double, ex: Double, ey: Double, l2: Double,
+                              da: Double, db: Double, rMm: Double): Boolean {
+            for (tx in x0 / TILE..x1 / TILE) {
+                val t = ty * buf.tw + tx
+                if (buf.tileEmpty[t] > 0) return false
+                val near = nearest(maxOf(x0, tx * TILE), minOf(x1, tx * TILE + TILE - 1), ya, yb, pa, pb, sc, ex, ey, l2, da, db, rMm)
+                if (!(near > buf.tileFar[t] || near > buf.far(t))) return false
+            }
+            return true
         }
 
         /** Narrows [band] (lowest and highest cx) to where a * cx <= b; an empty band where none is. */
