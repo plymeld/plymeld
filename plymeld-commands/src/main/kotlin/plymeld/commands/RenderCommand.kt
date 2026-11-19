@@ -95,10 +95,10 @@ class RenderCommand : CliktCommand(name = "render") {
     private val span by option("--span", metavar = "MM", help = "the side of the square --around draws (mm); needs --around").convert { length(it) ?: fail("a length in mm, not '$it'") }
     private val sameFrame by option("--same-frame", help = "every layer picture of the run in one frame and at one scale, for flipping through a range").flag()
     private val pxPerMm by option("--px-per-mm", metavar = "N", help = "the scale, pixels per mm. Default: the scale at which the closest lines in view lie at least 3 px apart, " +
-        "the picture between 1000 and 4096 px on its longer side. Not with --picture-size").convert { it.toDoubleOrNull() ?: fail("a number of pixels per mm, not '$it'") }
+        "the picture between 1000 and 4096 px on its longer side (at most 2048 where the lines cannot be set 3 px apart and are drawn as flat regions). Not with --picture-size").convert { it.toDoubleOrNull() ?: fail("a number of pixels per mm, not '$it'") }
     private val pictureSize by option("--picture-size", metavar = "WxH", help = "fit the drawing into W by H pixels, its proportions kept. Not with --px-per-mm")
         .convert { s -> Regex("""^(\d+)[xX](\d+)$""").find(s.trim())?.let { it.groupValues[1].toInt() to it.groupValues[2].toInt() } ?: fail("a size in pixels, WxH (e.g. 1600x1200), not '$s'") }
-    private val allowUnresolved by option("--allow-unresolved-lines", help = "draw lines even where the scale cannot set them 3 px apart (by default such a picture shows each feature's area as a flat region with its outline, and the run names the --span that would resolve them)").flag()
+    private val allowUnresolved by option("--allow-unresolved-lines", help = "draw lines even where the scale cannot set them 3 px apart (by default such a picture shows each feature's area as a flat region with its outline, at most 2048 px on its longer side, and the run names the --span that would resolve them); with this option, up to 4096 px at the default scale").flag()
     private val noAnnotations by option("--no-annotations", help = "the drawing alone: no caption, scale bar, or color key").flag()
 
     // outputs

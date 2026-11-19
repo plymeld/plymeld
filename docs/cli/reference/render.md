@@ -42,9 +42,9 @@ Options:
 - `--around=<x,y>`: draw only the square of side --span centered on this point of the bed (mm, in the g-code's coordinates, as plymeld's check messages give them); needs --span. Not with --bed-window
 - `--span=<mm>`: the side of the square --around draws (mm); needs --around
 - `--same-frame`: every layer picture of the run in one frame and at one scale, for flipping through a range
-- `--px-per-mm=<n>`: the scale, pixels per mm. Default: the scale at which the closest lines in view lie at least 3 px apart, the picture between 1000 and 4096 px on its longer side. Not with --picture-size
+- `--px-per-mm=<n>`: the scale, pixels per mm. Default: the scale at which the closest lines in view lie at least 3 px apart, the picture between 1000 and 4096 px on its longer side (at most 2048 where the lines cannot be set 3 px apart and are drawn as flat regions). Not with --picture-size
 - `--picture-size=<wxh>`: fit the drawing into W by H pixels, its proportions kept. Not with --px-per-mm
-- `--allow-unresolved-lines`: draw lines even where the scale cannot set them 3 px apart (by default such a picture shows each feature's area as a flat region with its outline, and the run names the --span that would resolve them)
+- `--allow-unresolved-lines`: draw lines even where the scale cannot set them 3 px apart (by default such a picture shows each feature's area as a flat region with its outline, at most 2048 px on its longer side, and the run names the --span that would resolve them); with this option, up to 4096 px at the default scale
 - `--no-annotations`: the drawing alone: no caption, scale bar, or color key
 - `-o, --output=<dir>`: the directory the pictures go in (default: beside the g-code, its name without .gcode and with .render: part.render for part.gcode); one file a picture, named from its view: layer-0060.png
 - `--format=png|svg`: the pictures' format (default png)

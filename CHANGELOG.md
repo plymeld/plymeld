@@ -29,8 +29,8 @@ section the release's version and date.
   `--others faint` keeps the rest in gray; `--layers-below N` adds the layers under it; `--show` marks travels, seams,
   retractions, starts, and tool changes. `--around X,Y --span MM` or `--bed-window` frame a part of the bed,
   `--same-frame` one frame for a whole run. The default scale sets the closest lines at least 3 px apart; where it
-  cannot, each feature's area is drawn as a flat region with its outline and the run names the `--span` that would
-  resolve the lines (`--allow-unresolved-lines` draws them anyway; `--px-per-mm` or `--picture-size` set the scale).
+  cannot, each feature's area is drawn as a flat region with its outline, at most 2048 px on its longer side, and the
+  run names the `--span` that would resolve the lines (`--allow-unresolved-lines` draws them anyway; `--px-per-mm` or `--picture-size` set the scale).
   PNG or SVG (`--format`), into `<file>.render/` or `-o DIR`, with `--sheet` for all of a run's pictures in one image
   and `--print-files` for the paths alone; `--list-features` and `--list-objects` print a file's names. Arcs (G2, G3)
   are read; a file plymeld wrote gives its filaments' colors and diameters from its source block. Every caption says

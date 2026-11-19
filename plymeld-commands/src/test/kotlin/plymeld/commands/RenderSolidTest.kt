@@ -71,6 +71,29 @@ class RenderSolidTest : StringSpec({
         diff(top, one(f, "tilted", "--3d", "--3d-from", "-35,30", "--px-per-mm", "20")) shouldBeGreaterThan top.width * top.height / 50
     }
 
+    "lines too close for the largest picture are drawn as flat regions at a moderate size, unless a size is given" {
+        // two lines 0.15 mm apart (beads 0.12 mm wide, 0.05 mm thick) and one 180 mm away: 3 px between the close ones
+        // would make the picture of the three larger than 4096 px
+        val g = SyntheticGcode()
+        g.layer(0.05, 0.05).feature("Outer wall", 0.12).travel(5.0, 10.0).line(25.0, 10.0, 0.12).travel(5.0, 10.15).line(25.0, 10.15, 0.12)
+            .travel(185.0, 10.0).line(205.0, 10.0, 0.12)
+        val f = g.write(dir.resolve("close.gcode"))
+        fun drawn(out: String, vararg a: String): Pair<BufferedImage, List<String>> {
+            val o = dir.resolve(out)
+            val (code, said, err) = render(f.toString(), "--3d", *a, "--no-annotations", "-o", o.toString())
+            code shouldBe 0; err shouldBe emptyList()
+            return png(Files.list(o).use { s -> s.toList().single() }) to said
+        }
+        val (flat, said) = drawn("close-flat")
+        maxOf(flat.width, flat.height) shouldBe 2048
+        said.single { it.startsWith("note:") } shouldContain "flat regions with their outlines, 2048 px on the longer side"
+        said.single { it.startsWith("note:") } shouldContain "--span"
+        // controls: lines drawn anyway take the largest picture; a size given is the size drawn
+        val anyway = drawn("close-anyway", "--allow-unresolved-lines").first
+        maxOf(anyway.width, anyway.height) shouldBe 4096
+        drawn("close-given", "--picture-size", "3000x3000").first.width shouldBe 3000
+    }
+
     "--compare-with marks the one line two files differ by" {
         fun file(name: String, extra: Boolean): Path {
             val g = SyntheticGcode().layer(0.2, 0.2).feature("Outer wall", 0.45).travel(5.0, 10.0).line(25.0, 10.0, 0.45)

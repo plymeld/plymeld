@@ -13,7 +13,8 @@ import java.util.Locale
  * filament it feeds per mm times the filament's section, on the layer's thickness. The scale resolves lines: by default,
  * the scale at which the closest lines in view lie at least [LEGIBLE_PX] pixels apart (beads side by side at their spacing,
  * the bead model's), between a picture [MIN_PX] pixels on its longer side and [MAX_PX]. Where that cannot be done, each
- * feature's area is drawn as a flat region with its outline, and the run says which `--span` would resolve the lines.
+ * feature's area is drawn as a flat region with its outline, at most [FLAT_PX] pixels on its longer side, and the run
+ * says which `--span` would resolve the lines.
  */
 object Render {
     /** The closest lines lie at least this many pixels apart (center to center) for a picture to resolve them. */
@@ -22,6 +23,12 @@ object Render {
     const val MIN_PX = 1000
     /** The largest drawing the default scale makes, pixels on its longer side (plymeld's choice). */
     const val MAX_PX = 4096
+    /**
+     * A drawing at the default scale whose lines cannot be resolved, drawn as flat regions, is at most this many pixels
+     * on its longer side (plymeld's choice: a region and its outline read at half the largest drawing's size, a quarter of
+     * its pixels and of the time to draw them; nothing finer is shown that more pixels would make legible).
+     */
+    const val FLAT_PX = 2048
     /** The largest drawing any scale makes (plymeld's choice): an image this size is about 1 GB in memory. */
     const val LIMIT_PX = 16384
 
@@ -380,15 +387,27 @@ internal class Context(val req: RenderRequest, val index: GcodeIndex) {
         }
         require(longer * s <= Render.LIMIT_PX) { "$what would be ${Math.ceil(longer * s).toInt()} px across at ${Render.f(s, 1)} px per mm, more than ${Render.LIMIT_PX}: frame less of the bed (--around X,Y --span MM, or --bed-window) or give a smaller --px-per-mm" }
         val resolved = spacing.isNaN() || spacing * s >= Render.LEGIBLE_PX - 1e-9
+        var drawn = s
         if (!resolved) {
             val span = Math.floor(Render.MAX_PX * spacing / Render.LEGIBLE_PX)
+            val flat = flatScale(s, longer)
+            drawn = flat ?: s
             notes += "$what: its closest lines lie ${Render.f(spacing, 3)} mm apart and need ${Render.f(Render.LEGIBLE_PX / spacing, 1)} px per mm; " +
                 (if (forced != null) "the scale both files share is ${Render.f(s, 1)}" else if (req.pxPerMm != null || req.pictureSize != null) "the scale given is ${Render.f(s, 1)}" else "at that scale the ${Render.f(longer, 1)} mm frame would be more than ${Render.MAX_PX} px") +
-                (if (req.allowUnresolved) ": lines drawn anyway (--allow-unresolved-lines)" else ": drawn as flat regions with their outlines") +
+                (if (req.allowUnresolved) ": lines drawn anyway (--allow-unresolved-lines)" else ": drawn as flat regions with their outlines" + (if (flat != null) ", ${Render.FLAT_PX} px on the longer side" else "")) +
                 (if (req.pxPerMm != null || req.pictureSize != null) "; --px-per-mm ${Render.f(Math.ceil(Render.LEGIBLE_PX / spacing * 10) / 10, 1)} or more resolves them"
                  else "; --around X,Y --span ${Layout.mm(span)} resolves them")
         }
-        return s to resolved
+        return drawn to resolved
+    }
+
+    /**
+     * The scale a picture drawn as flat regions at the default scale takes: [s] made smaller so the [longer] side (mm, as
+     * drawn) is at most [Render.FLAT_PX] pixels; null where the scale stays (given, shared, lines drawn anyway, or small enough).
+     */
+    fun flatScale(s: Double, longer: Double): Double? {
+        if (forced != null || req.pxPerMm != null || req.pictureSize != null || req.allowUnresolved) return null
+        return if (longer * s > Render.FLAT_PX) Render.FLAT_PX / longer else null
     }
 
     /** The picture of [v]: its layer from above. */
@@ -587,15 +606,18 @@ internal class Context(val req: RenderRequest, val index: GcodeIndex) {
             p.uz < 1e-9 -> sv.spacing
             else -> minOf(sv.spacing.takeIf { !it.isNaN() } ?: Double.MAX_VALUE, (sv.hMin * Math.abs(p.uz)).takeIf { !it.isNaN() } ?: Double.MAX_VALUE).takeIf { it < Double.MAX_VALUE } ?: Double.NaN
         }
-        val (s, resolvedAcross) = scale(Frame(a0, b0, a1, b1), pitch, what, notes)
+        val (s0, resolvedAcross) = scale(Frame(a0, b0, a1, b1), pitch, what, notes)
+        var s = s0
         var k = 1.0
         if (p.sideView) {
             k = forced?.k ?: req.heightStretch ?: (if (sv.hMin.isNaN()) 1.0 else maxOf(1.0, Render.LEGIBLE_PX / (sv.hMin * s)))
             val maxH = if (req.pictureSize != null) req.pictureSize.second.toDouble() else Render.MAX_PX.toDouble()
             if (forced == null && req.heightStretch == null && (b1 - b0) * s * k > maxH) k = maxOf(1.0, maxH / ((b1 - b0) * s))
         }
-        val layerPx = if (p.sideView && !sv.hMin.isNaN()) sv.hMin * s * k else Double.NaN
+        var layerPx = if (p.sideView && !sv.hMin.isNaN()) sv.hMin * s * k else Double.NaN
         val resolved = resolvedAcross && (layerPx.isNaN() || layerPx >= Render.LEGIBLE_PX - 1e-9)
+        // the layers too thin to resolve: flat regions, no larger than such a picture is drawn
+        if (resolvedAcross && !resolved) flatScale(s, maxOf(a1 - a0, (b1 - b0) * k))?.let { s = it; layerPx = sv.hMin * s * k }
         if (resolvedAcross && !resolved) notes += "$what: its thinnest layer (${Render.f(sv.hMin, 2)} mm) is ${Render.f(layerPx, 1)} px tall: " +
             (if (req.allowUnresolved) "drawn anyway (--allow-unresolved-lines)" else "drawn as flat regions with their outlines") + "; --z-range draws fewer heights, taller"
         val asLines = resolved || req.allowUnresolved

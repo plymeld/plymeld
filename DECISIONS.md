@@ -2119,7 +2119,11 @@ thickness. The default scale sets the closest lines in view at least 3 px apart 
 spacing, leaving out a move that lays less than half its path's declared width and then the narrowest 1 % of the length
 laid in view: a scarf's ramp or a line's tapered end, which lie on or into a line rather than beside it), the drawing between 1000 and 4096 px on its longer side; where 3 px cannot be
 had, each feature's area is drawn as a flat region with a darker outline and the run names the `--span` at which the
-lines would resolve; `--allow-unresolved-lines` draws them anyway. Consecutive moves of one color turning
+lines would resolve; `--allow-unresolved-lines` draws them anyway. Such a picture at the default scale is at most 2048
+px on its longer side (plymeld's choice, half the largest drawing's): a region and its outline read at that size, and
+the largest size drew four times the pixels for nothing finer (a 3D view of a boat 110 mm long, 2.8 s at 4096 px, 1.8 s
+at 2048, the whole command); a scale given (`--px-per-mm`, `--picture-size`) or `--allow-unresolved-lines` keeps its own size, and a
+picture seen from the side whose layers alone are too thin to resolve is made no larger either. Consecutive moves of one color turning
 less than 60 degrees are drawn as one stroke, its edge darker and drawn round the stroke as a whole, so neighbors (a
 fill's next pass, a stroke of its own) read apart at their true width; in flat regions each bead is widened by a pixel
 and a half, so lines too close to show close up into one area rather than a pattern of gaps. Arcs are chorded through the

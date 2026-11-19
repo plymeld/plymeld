@@ -139,6 +139,7 @@ class RenderLayerTest : StringSpec({
         wide.first shouldBe 0
         val note = wide.second.single { it.startsWith("note:") }
         note shouldContain "flat regions"
+        note shouldContain "2048 px on the longer side"
         note shouldContain "--span"
         val anyway = render(f.toString(), "--layer", "1", "--bed-window", "0,0,3000,3000", "--allow-unresolved-lines", "-o", dir.resolve("dense-anyway").toString())
         anyway.second.single { it.startsWith("note:") } shouldContain "drawn anyway"
