@@ -134,8 +134,10 @@ internal class SolidDrawing(private val ctx: Context, private val p: Projection)
     class Buffer(val w: Int, val h: Int) {
         val depth = FloatArray(w * h) { Float.MAX_VALUE }
         val color = IntArray(w * h)
-        val key = IntArray(w * h) { -2 }
-        val shade = FloatArray(w * h)
+        /** The key entry (feature or tool id, -1 other lines, -2 nothing), as a short: a picture's buffers stay under 11 bytes a pixel. */
+        val key = ShortArray(w * h) { -2 }
+        /** How near the bead's middle the pixel is, 0..255. */
+        val shade = ByteArray(w * h)
     }
 
     /**
@@ -194,34 +196,35 @@ internal class SolidDrawing(private val ctx: Context, private val p: Projection)
             val dep = (da + (db - da) * t - bulge * rMm).toFloat()
             val at = y * buf.w + x
             if (dep < buf.depth[at]) {
-                buf.depth[at] = dep; buf.color[at] = rgb; buf.key[at] = keyId
-                buf.shade[at] = bulge.toFloat()
+                buf.depth[at] = dep; buf.color[at] = rgb; buf.key[at] = keyId.toShort()
+                buf.shade[at] = Math.round(bulge * 255).toInt().toByte()
             }
         }
     }
 
-    /** The buffer as ARGB: shaded as tubes ([shaded]), else flat with each region's edge darker. */
+    /**
+     * The buffer as ARGB, made in its own color array (the buffer is spent): shaded as tubes ([shaded]), else flat with
+     * each region's edge darker (edges found first, on the colors and depths as drawn).
+     */
     fun image(buf: Buffer, shaded: Boolean): IntArray {
-        val out = IntArray(buf.w * buf.h)
-        for (at in out.indices) {
-            if (buf.depth[at] == Float.MAX_VALUE) continue
-            val c = buf.color[at]
-            val f = if (shaded) 0.55 + 0.5 * buf.shade[at] else 1.0
-            out[at] = (0xFF shl 24) or (scale(c shr 16, f) shl 16) or (scale(c shr 8, f) shl 8) or scale(c, f)
-        }
-        if (!shaded) {
-            val a = out.copyOf()
+        val n = buf.w * buf.h
+        val c = buf.color
+        val edges = if (shaded) null else java.util.BitSet(n).also { e ->
             for (y in 0 until buf.h) for (x in 0 until buf.w) {
-                val at = y * buf.w + x; val pix = a[at]
-                if ((pix ushr 24) == 0) continue
-                // a region's edge: another color beside it, or a step in depth (one surface in front of another)
-                fun step(o: Int) = Math.abs(buf.depth[o] - buf.depth[at]) > DEPTH_STEP_MM
-                val edge = x == 0 || y == 0 || x == buf.w - 1 || y == buf.h - 1 || a[at - 1] != pix || a[at + 1] != pix || a[at - buf.w] != pix || a[at + buf.w] != pix ||
-                    step(at - 1) || step(at + 1) || step(at - buf.w) || step(at + buf.w)
-                if (edge) out[at] = (0xFF shl 24) or (Palette.darker(Color(pix and 0xFFFFFF), 0.55).rgb and 0xFFFFFF)
+                val at = y * buf.w + x
+                if (buf.depth[at] == Float.MAX_VALUE) continue
+                // a region's edge: another color (or nothing) beside it, or a step in depth (one surface in front of another)
+                fun differs(o: Int) = buf.depth[o] == Float.MAX_VALUE || c[o] != c[at] || Math.abs(buf.depth[o] - buf.depth[at]) > DEPTH_STEP_MM
+                if (x == 0 || y == 0 || x == buf.w - 1 || y == buf.h - 1 || differs(at - 1) || differs(at + 1) || differs(at - buf.w) || differs(at + buf.w)) e.set(at)
             }
         }
-        return out
+        for (at in 0 until n) {
+            if (buf.depth[at] == Float.MAX_VALUE) { c[at] = 0; continue }
+            val v = c[at]
+            val f = if (edges != null) (if (edges.get(at)) 0.55 else 1.0) else 0.55 + 0.5 * ((buf.shade[at].toInt() and 0xFF) / 255.0)
+            c[at] = (0xFF shl 24) or (scale(v shr 16, f) shl 16) or (scale(v shr 8, f) shl 8) or scale(v, f)
+        }
+        return c
     }
     private fun scale(c: Int, f: Double) = ((c and 0xFF) * f).toInt().coerceIn(0, 255)
 
@@ -232,7 +235,8 @@ internal class SolidDrawing(private val ctx: Context, private val p: Projection)
 
     fun key(buf: Buffer, sv: Survey): List<KeyItem> {
         val k = ArrayList<KeyItem>()
-        val seen = buf.key.filter { it != -2 }.toSortedSet()
+        val seen = java.util.TreeSet<Int>()
+        for (v in buf.key) if (v.toInt() != -2) seen += v.toInt()
         when (ctx.colorBy) {
             ColorBy.FEATURE -> if (ctx.index.namesFeatures) for (f in seen) if (f >= 0) k += KeyItem.Swatch(ctx.featureColor(f), ctx.index.features[f])
             ColorBy.TOOL -> for (t in seen) if (t >= 0) k += KeyItem.Swatch(ctx.toolColor(t), "T$t")

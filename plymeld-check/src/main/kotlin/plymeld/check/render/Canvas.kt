@@ -80,7 +80,10 @@ internal class Raster(width: Int, height: Int) : Canvas(width, height) {
     }
     override fun text(s: String, x: Double, y: Double, size: Int, bold: Boolean, color: Color) { g.color = color; g.font = font(size, bold); g.drawString(s, x.toFloat(), y.toFloat()) }
     override fun image(argb: IntArray, w: Int, h: Int, x: Int, y: Int) {
-        val im = BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB); im.setRGB(0, 0, w, h, argb, 0, w); g.drawImage(im, x, y, null)
+        // the pixels wrapped, not copied: a whole-print picture's buffer is tens of megabytes
+        val db = java.awt.image.DataBufferInt(argb, argb.size)
+        val r = java.awt.image.Raster.createPackedRaster(db, w, h, w, intArrayOf(0xFF0000, 0xFF00, 0xFF, 0xFF000000.toInt()), null)
+        g.drawImage(BufferedImage(java.awt.image.ColorModel.getRGBdefault(), r, false, null), x, y, null)
     }
     override fun clip(x: Double, y: Double, w: Double, h: Double) { g.clip = java.awt.geom.Rectangle2D.Double(x, y, w, h) }
     override fun unclip() { g.clip = null }
