@@ -817,14 +817,16 @@ object ModelCheck {
 
     /**
      * An arc move (G2 clockwise, G3 counter-clockwise) from (x0, y0) to (x1, y1) about (cx, cy) as chords no longer than
-     * [ARC_CHORD_MM], each passed to [seg]; an arc ending where it starts is a full circle.
+     * [chordMm] ([ARC_CHORD_MM] unless a reader needs them finer, as `plymeld render` does to draw a curve round when
+     * magnified), each passed to [seg]; an arc ending where it starts is a full circle.
      */
-    fun arcChords(x0: Double, y0: Double, x1: Double, y1: Double, cx: Double, cy: Double, cw: Boolean, seg: (Double, Double, Double, Double) -> Unit) {
+    fun arcChords(x0: Double, y0: Double, x1: Double, y1: Double, cx: Double, cy: Double, cw: Boolean, chordMm: Double = ARC_CHORD_MM,
+                  seg: (Double, Double, Double, Double) -> Unit) {
         val r = Math.hypot(x0 - cx, y0 - cy)
         val a0 = Math.atan2(y0 - cy, x0 - cx); val a1 = Math.atan2(y1 - cy, x1 - cx)
         var sweep = if (cw) a0 - a1 else a1 - a0          // the angle traveled, positive
         while (sweep <= 1e-12) sweep += 2 * Math.PI
-        val n = maxOf(1, Math.ceil(sweep * r / ARC_CHORD_MM).toInt())
+        val n = maxOf(1, Math.ceil(sweep * r / chordMm).toInt())
         var px = x0; var py = y0
         for (k in 1..n) {
             val a = a0 + (if (cw) -sweep else sweep) * k / n

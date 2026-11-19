@@ -51,6 +51,7 @@ object UiRegistry {
         Surface("plymeld calibrate seams", FORM),
         Surface("plymeld calibrate seams readings", FORM),
         Surface("plymeld calibrate seams values", FORM),
+        Surface("plymeld render", FORM),
         Surface("plymeld render-plate", FORM),
         Surface("plymeld printer", "the finder: its subcommands each their own form"),
         Surface("plymeld printer watch", FORM),

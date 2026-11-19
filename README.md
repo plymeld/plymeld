@@ -60,6 +60,10 @@ replace them with yours.
 (limits, retraction, travels, tools, start, and end) and against the model (lines outside it, and outlines
 left without walls), and predicts time and filament.
 
+**Draws any g-code.** `plymeld render` pictures what a g-code file lays down, read from the file alone: any layer,
+the lines chosen by object, tool, or feature, colored by feature, tool, speed, flow, width, height, fan, temperature,
+or order, each line as wide as the plastic it lays, framed round a point of the bed, one picture or a sheet of many.
+
 **Calibrates.** `plymeld calibrate` makes melt, flow, first-layer, motion, filament, ironing, and seam plates, in
 the order their results depend on each other; the readings go back in as your filament's and machine's values.
 

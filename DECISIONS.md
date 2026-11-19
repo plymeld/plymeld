@@ -2092,3 +2092,60 @@ before read 0.298 mm² and 0.120 mm; plastic laid twice no more than the control
 with nothing laid twice; the test seen to fail on the code before); SurfaceFillTest (circles on an oval with a square hole
 run on beside both, each narrowed point's cross-section within the reach, none narrower than half a line; control,
 without the reach: none narrowed).
+
+## 65. `plymeld render` draws any g-code, its options held to seven rules (2026-11-19)
+
+**Context.** Every picture of a g-code was a test's or a calibration plate's (`render-plate`, the techniques' sample
+toolpaths, the check's failure pictures), each with its own reader, scale, and words. Looking at a layer, a spot a check
+message names, or a feature of any file meant writing code. A general command needs options a stranger can read without
+the code beside them.
+
+**Decision.** `plymeld render FILE.gcode` draws what a file lays down, from the file alone: no slicing, no printer, any
+slicer's file. Its options follow seven rules. (1) One option, one meaning: no option takes two kinds of value, and no
+value has a language beyond a list, a range (`A..B`), or a point (`X,Y`). (2) The name says what the number is: a layer
+number and a height never share an option (`--layer` against `--layer-at-z`, as `slice` has `--pause-at-layer` and
+`--pause-at-z`). (3) Three families told apart by their first word: a view option makes a picture (`--layer...`), an
+`--only-...` option chooses lines, everything else styles or frames every picture of the run. (4) Order never matters.
+(5) Nothing is silently ignored: an option that applies to no picture asked for is refused, naming it and what it needs,
+and two that cannot both hold are refused, naming both; a default the file cannot honor falls back and says so (a file
+naming no features is drawn in one color, with a note), where the same value asked for explicitly is refused. (6) Units
+and numbering are fixed and in the help: lengths in mm (a bare number or `5mm`), the first layer 1, tools by the file's
+own numbers. (7) Every caption states exactly what was drawn: the layer and its height and thickness, the side it is
+seen from, the scale, the frame, and how lines are drawn, colored, chosen, and marked.
+
+A line is as wide as the plastic it lays: the bead model's cross-section (one definition, `plymeld.program.Bead`, which
+the techniques' sample pictures now use too) from the filament the move feeds, on its declared height or its layer's
+thickness. The default scale sets the closest lines in view at least 3 px apart (beads side by side at the bead model's
+spacing, leaving out a move that lays less than half its path's declared width and then the narrowest 1 % of the length
+laid in view: a scarf's ramp or a line's tapered end, which lie on or into a line rather than beside it), the drawing between 1000 and 4096 px on its longer side; where 3 px cannot be
+had, each feature's area is drawn as a flat region with a darker outline and the run names the `--span` at which the
+lines would resolve; `--allow-unresolved-lines` draws them anyway. Consecutive moves of one color turning
+less than 60 degrees are drawn as one stroke, its edge darker and drawn round the stroke as a whole, so neighbors (a
+fill's next pass, a stroke of its own) read apart at their true width; in flat regions each bead is widened by a pixel
+and a half, so lines too close to show close up into one area rather than a pattern of gaps. Arcs are chorded through the
+check's own arc code (`ModelCheck.arcChords`) to within half a micron of the curve. The file is streamed: read once
+to index its layers (each layer's byte offset and the reader's state there), then each picture reads only the layers it
+draws. A
+file plymeld wrote gives its filaments' colors and diameters from its source block. Pictures go to `<file>.render/` (the
+file's name without `.gcode`), one file a view named from it (`layer-0060.png`); PNG by default, SVG on request, from
+the same drawing code.
+
+**Rejected.** Growing `render-plate` into the general command: its pictures are built for one plate's layout (a front
+by temperature, an isometric labeled from the plate's page); it stays as it is and may become views of `render` later.
+One `--view` option with a small language (`--view layer:60`, `--view cut:y=110`): every view's values in one string,
+read by rules a stranger has to learn. Accepting a layer or a height in one option (`--layer 60` or `--layer 12.4mm`):
+a number alone could be either. A fixed scale or picture size: a large part's layer drawn too coarse for its lines to
+read, aliased into patterns that look like defects. Drawing lines at a share of their width so neighbors read apart (the
+sample pictures' way): the gaps shown are not in the print; a darker edge keeps the true width. The strict minimum
+spacing for the scale: a scarf's ramp, laid on the wall at nearly no width, asked for 800 px per mm on a 30 mm part.
+Reading the whole file into memory: a file of hundreds of megabytes would need gigabytes for its moves.
+
+**Consequences.** Layer views, framing, choosing lines, coloring, marks, the sheet, PNG and SVG are built; cuts, the
+outside and 3D views, two files compared, and the check's measures marked are decided and not built yet. `render-plate`
+and its pictures are unchanged; the techniques' sample pictures are unchanged (the bead width they read is the same
+number by the same formula). Tests on synthetic g-code only: RenderLayerTest (lines where they lie and nowhere else,
+control: a line left out; widths from the plastic, control: as declared; arcs against the same path in 4000 short lines,
+fewer than 0.1 % of pixels differing, control: a half circle, and the test seen to fail with the arc reader taken out;
+the lines `--only-object` chooses; the legibility rule's regions and `--span`; a file that marks no layers and names
+nothing; `--layer-at-z`; the sheet; the same bytes for the same options, PNG and SVG), RenderRefusalTest (every refusal,
+naming its options; control: each option accepted where it applies).
