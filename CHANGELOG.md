@@ -400,6 +400,11 @@ section the release's version and date.
   measure does (`method.quality.seam.scarf_share` of a point seam's); counted as a point seam's, a move to a less-seen
   point looked worth more than it was.
 
+- `plan.mechanism.motion.speed.factor`: every printing speed plymeld decides, times this, for a slower (or faster) print
+  without changing each speed: 75% for a print where finish matters more than time. Travels and retractions keep their
+  speeds; above 100% no speed goes past the machine's printing speed. The filament's melt cap, the minimum layer time
+  and the time prediction read the speeds scaled. Bundled 100%; set it for an object or a part as any plan value.
+
 ## [0.20261109.1] - 2026-11-09
 
 ### Added
