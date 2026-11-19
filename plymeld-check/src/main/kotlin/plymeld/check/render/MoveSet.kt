@@ -40,6 +40,9 @@ class MoveSet {
         n++
     }
 
+    /** Every move of [o] after this set's own, in its order. */
+    fun addAll(o: MoveSet) { for (i in 0 until o.n) addFrom(o, i, o.x0[i], o.y0[i], o.z0[i], o.x1[i], o.y1[i], o.z1[i], o.e[i]) }
+
     fun lengthXY(i: Int): Double = Math.hypot(x1[i] - x0[i], y1[i] - y0[i])
 
     companion object { const val EXTRUDE: Byte = 0; const val TRAVEL: Byte = 1; const val WIPE: Byte = 2 }
@@ -50,11 +53,14 @@ class MarkSet {
     var n = 0; private set
     var kind = ByteArray(64); var x = DoubleArray(64); var y = DoubleArray(64); var z = DoubleArray(64)
     var layer = IntArray(64); var tool = IntArray(64); var obj = IntArray(64); var feature = IntArray(64)
-    fun add(k: Byte, px: Double, py: Double, pz: Double, t: Int, s: ScanState) {
+    fun add(k: Byte, px: Double, py: Double, pz: Double, t: Int, s: ScanState) = put(k, px, py, pz, s.layer, t, s.obj, s.feature)
+    private fun put(k: Byte, px: Double, py: Double, pz: Double, l: Int, t: Int, o: Int, f: Int) {
         if (n == kind.size) { val c = n * 2; kind = kind.copyOf(c); x = x.copyOf(c); y = y.copyOf(c); z = z.copyOf(c); layer = layer.copyOf(c); tool = tool.copyOf(c); obj = obj.copyOf(c); feature = feature.copyOf(c) }
-        kind[n] = k; x[n] = px; y[n] = py; z[n] = pz; layer[n] = s.layer; tool[n] = t; obj[n] = s.obj; feature[n] = s.feature
+        kind[n] = k; x[n] = px; y[n] = py; z[n] = pz; layer[n] = l; tool[n] = t; obj[n] = o; feature[n] = f
         n++
     }
+    /** Every mark of [o] after this set's own, in its order. */
+    fun addAll(o: MarkSet) { for (i in 0 until o.n) put(o.kind[i], o.x[i], o.y[i], o.z[i], o.layer[i], o.tool[i], o.obj[i], o.feature[i]) }
     companion object { const val RETRACT: Byte = 0; const val TOOL_CHANGE: Byte = 1 }
 }
 
@@ -98,6 +104,32 @@ object MoveReader {
             }
             GcodeFile.open(index.path, first.offset).use { scan.run(Lines(it, first.offset), sink, index.layers[r.last].endOffset) }
         }
+        return moves to marks
+    }
+
+    /** Layers read in one piece where several are read at once (plymeld's choice, as a whole-print view reads them). */
+    private const val PIECE = 8
+
+    /**
+     * As [read], on [threads] threads: [layers] read in pieces of [PIECE] at once, each from its own offset through the
+     * index, and put together in order, so the moves and marks are those one reading gives. Each piece holds only what
+     * [keep] passes, and a few pieces per thread are held at a time.
+     */
+    fun read(index: GcodeIndex, layers: Collection<Int>, threads: Int, keep: ((Double, Double, Double, Double, Double, Double) -> Boolean)? = null): Pair<MoveSet, MarkSet> {
+        val sorted = layers.filter { it in index.layers.indices }.distinct().sorted()
+        if (threads <= 1 || sorted.size <= PIECE) return read(index, sorted, keep)
+        val pieces = sorted.chunked(PIECE)
+        val moves = MoveSet(); val marks = MarkSet()
+        val pool = java.util.concurrent.ForkJoinPool(threads)
+        try {
+            for (b in pieces.indices step 2 * threads) {
+                val batch = pieces.subList(b, minOf(pieces.size, b + 2 * threads))
+                val got = arrayOfNulls<Pair<MoveSet, MarkSet>>(batch.size)
+                try { pool.submit { java.util.stream.IntStream.range(0, batch.size).parallel().forEach { got[it] = read(index, batch[it], keep) } }.get() }
+                catch (e: java.util.concurrent.ExecutionException) { throw e.cause ?: e }
+                for (g in got) { moves.addAll(g!!.first); marks.addAll(g.second) }
+            }
+        } finally { pool.shutdown() }
         return moves to marks
     }
 }

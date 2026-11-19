@@ -553,7 +553,7 @@ internal class Context(val req: RenderRequest, val index: GcodeIndex, val thread
         val d = req.cutDepth
         val layers = index.layers.filter { l -> !l.minZ.isNaN() && (zr == null || (l.maxZ >= zr.start && l.minZ - maxOf(l.height, 0.0) <= zr.endInclusive)) }.map { it.index }
         val margin = (d ?: 0.0) + 1.0
-        val (m, _) = MoveReader.read(index, layers) { x0, y0, z0, x1, y1, z1 ->
+        val (m, _) = MoveReader.read(index, layers, threads) { x0, y0, z0, x1, y1, z1 ->
             val a = pl.dist(x0, y0, z0); val b = pl.dist(x1, y1, z1); a * b <= 0 || minOf(Math.abs(a), Math.abs(b)) <= margin }
         val sd = SectionDrawing(this, m, v, d)
         val ext = sd.extent()

@@ -2149,7 +2149,9 @@ swept along the line and cut by the plane (an affine image of the section, so a 
 wide as the plane meets it); a line meeting the plane at less than 3 degrees runs along it and is drawn only within
 `--cut-depth`, from the side. A cut seen from the side has its heights stretched so the thinnest layer crossed is at
 least 3 px tall (the factor in the caption); a level cut (`--cut-z`) is seen from above, each bead whose height range it
-crosses drawn as wide as the bead is at that height, whichever layer laid it.
+crosses drawn as wide as the bead is at that height, whichever layer laid it. A cut seen from the side reads every
+layer it may cross, in pieces of 8 layers on the processors available, put together in print order: the moves one
+reading gives, the picture the same bytes on any number of threads.
 
 The outside (`--outside`) and 3D (`--3d`) views are orthographic and drawn into a depth buffer: every chosen move a
 round bead swept along it (as wide as its plastic, as tall as its layer, stretched as the heights are), the nearest kept
@@ -2211,8 +2213,8 @@ block sliced with the sample config: the model's outline along the block's sides
 `--outline-of`; a wall move laid again marked laid twice and one left out marked bare, control: the file as sliced marks
 neither; the refusals), RenderSolidBytesTest (eight whole-print views of a synthetic print, PNG and SVG, the same bytes
 as recorded from the plain one-pass depth buffer; seen to fail with the tie rule for beads at the same depth taken out;
-five views of a 40-layer print the same bytes on 1, 3, and 8 threads, seen to fail with the pieces used out of order on
-several threads), IndexSurveyTest (the first pass made in the index's reading is the view's own pass, bit for bit, for
+five views and a cut of a 40-layer print, and of the same print marking no layers, the same bytes on 1, 3, and 8
+threads, seen to fail with the pieces used out of order on several threads, for the views and for the cut), IndexSurveyTest (the first pass made in the index's reading is the view's own pass, bit for bit, for
 every coloring, both line widths, lines chosen and kept, several views, and a file marking no layers, seen to fail with
 the part fan taken at double precision; a diameter stated at the end and a height declared late give none, control: the
 same print stating them first gives one), CapsuleSpanTest (4000 random beads, of no length, under a pixel, off the

@@ -38,18 +38,23 @@ class RenderSolidBytesTest : StringSpec({
     }
 
     "the whole-print views are the same bytes on one thread and on several" {
-        // 40 layers: five pieces read on threads of their own, as well as bands of rows drawn at once
-        val f = RenderSolidSample.write(dir.resolve("tall.gcode"), 40)
-        fun hashes(threads: Int): List<String> = listOf<(Path) -> RenderRequest>(
-            { o -> RenderRequest(f, threeD = true, noAnnotations = true, outDir = o) },
-            { o -> RenderRequest(f, threeD = true, threeDFrom = listOf(60.0 to 45.0), colorBy = ColorBy.ORDER, noAnnotations = true, outDir = o) },
-            { o -> RenderRequest(f, threeD = true, threeDFrom = listOf(150.0 to -25.0), noAnnotations = true, outDir = o) },
-            { o -> RenderRequest(f, outside = listOf("front"), noAnnotations = true, outDir = o) },
-            { o -> RenderRequest(f, outside = listOf("top"), colorBy = ColorBy.SPEED, onlyTool = listOf(1), others = Others.FAINT, noAnnotations = true, outDir = o) },
-        ).mapIndexed { k, req -> Render.run(req(dir.resolve("threads-$threads-$k")), threads) { }.files.single().let(::sha256) }
-        val one = hashes(1)
-        hashes(3) shouldBe one
-        hashes(8) shouldBe one
+        // 40 layers: five pieces read on threads of their own, as well as bands of rows drawn at once; and the same print
+        // marking no layers, its layers read from the moves' heights in each piece
+        for (markers in listOf(true, false)) {
+            val f = RenderSolidSample.write(dir.resolve("tall-$markers.gcode"), 40, markers)
+            fun hashes(threads: Int): List<String> = listOf<(Path) -> RenderRequest>(
+                { o -> RenderRequest(f, threeD = true, noAnnotations = true, outDir = o) },
+                { o -> RenderRequest(f, threeD = true, threeDFrom = listOf(60.0 to 45.0), colorBy = ColorBy.ORDER, noAnnotations = true, outDir = o) },
+                { o -> RenderRequest(f, threeD = true, threeDFrom = listOf(150.0 to -25.0), noAnnotations = true, outDir = o) },
+                { o -> RenderRequest(f, outside = listOf("front"), noAnnotations = true, outDir = o) },
+                { o -> RenderRequest(f, outside = listOf("top"), colorBy = ColorBy.SPEED, onlyTool = listOf(1), others = Others.FAINT, noAnnotations = true, outDir = o) },
+                // a cut from the side reads every layer, in pieces on the threads
+                { o -> RenderRequest(f, cutY = listOf(16.0), colorBy = ColorBy.ORDER, noAnnotations = true, outDir = o) },
+            ).mapIndexed { k, req -> Render.run(req(dir.resolve("threads-$markers-$threads-$k")), threads) { }.files.single().let(::sha256) }
+            val one = hashes(1)
+            hashes(3) shouldBe one
+            hashes(8) shouldBe one
+        }
         // and the sample the hashes were recorded from, on one thread and on eight
         val s = RenderSolidSample.write(dir.resolve("sample-threads.gcode"))
         for (t in listOf(1, 8)) Render.run(RenderRequest(s, threeD = true, noAnnotations = true, outDir = dir.resolve("sample-$t")), t) { }
@@ -99,8 +104,8 @@ object RenderSolidSample {
      * fill at alternating angles at two speeds, one line laid twice exactly (a tie in depth everywhere along it), and a
      * ramp rising across the top layer.
      */
-    fun write(p: Path, layers: Int = 6): Path {
-        val g = SyntheticGcode()
+    fun write(p: Path, layers: Int = 6, markers: Boolean = true): Path {
+        val g = SyntheticGcode(markers = markers)
         for (k in 1..layers) {
             val z = 0.2 * k
             g.layer(z, 0.2)
