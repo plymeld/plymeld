@@ -9,7 +9,7 @@ The catalog ([Catalog.kt](../../plymeld-check/src/test/kotlin/plymeld/check/cata
 models built in code, each with a stable name and a line saying what it is for: one technique, or one known weakness
 (a lens growing from one line to two, a stroke about as wide as two lines become three, a web between a hole and the side, a thin ridge, a sliver of one filament on
 another's face, an inlay on a leaning face, small teeth hanging off a second part's edge, slivers of one filament ending inside another's area, seams on a cylinder and a post, an overhang ladder, bridges, sloped and
-domed tops, a stepped top whose fills of several kinds share edges, a small pillar, holes and pins). Each is sliced with a rig (the machine and plan values over the slicing
+domed tops, an oval's top laid in round rings, a stepped top whose fills of several kinds share edges, a small pillar, holes and pins). Each is sliced with a rig (the machine and plan values over the slicing
 tests' setup) under a few rows of settings that matter to it, the first always the rig as it is.
 
 It is for catching side effects during development, not for judging a printer. `CatalogTest` slices every model
@@ -31,8 +31,8 @@ The models' own limits stay with their techniques' tests (`WallsByWidthTest`, `T
 `SpeckNearPartTest`), which build their models from the catalog. `CatalogTest` holds the pre-print check: every
 model passes it under every row, or is refused only as its entry names. A named refusal is a finding not yet fixed;
 the test turns red when it goes, and the entry is updated with the fix. It also holds the outer wall of the models made
-of straight sides and true arcs (the block, posts, cylinder, holes, pins, fins, decks, slopes, dome, pillar and the
-two-color piece) to no move shorter than the slicing tolerance and no kink, and the outer wall of the models of narrow
+of straight sides and true arcs (the block, posts, cylinder, holes, pins, fins, decks, slopes, dome, oval, pillar and
+the two-color piece) to no move shorter than the slicing tolerance and no kink, and the outer wall of the models of narrow
 islands laid by their beads (the lenses, wedge, strip, ring, blob, letter E, pointed blob, bent stroke and teeth) to no
 zigzag (a tip's line runs in and turns back, and a square end's corners are run into, by design, so their kinks are
 held by the baseline, as are the other features).

@@ -159,6 +159,15 @@ section the release's version and date.
 
 ### Fixed
 
+- A top or bottom in round rings (`concentric-inside-out`) no longer leaves a dashed slit along its edge. Where the rings
+  run along a wall (an oval's sides and ends, a cylinder's edge), each arc stopped where its center met the edge of the
+  area, and a wedge of ground between the ring inside it and the wall, up to nearly a line wide, was laid by nothing.
+  Each ring now runs on past its arc there, its line narrowed to the ground left (its own reach into the wall a share of
+  its own width, `plan.layer.infill.wall_overlap`), down to half a line; two arcs it runs between become one line, and a
+  ring that fits all round narrowed becomes whole. Where a ring crosses the wall steeply, its arc ends as before. On an
+  oval top 78 by 41 mm, the ground left bare on the top layer went from 7.5 mm² (128 spots at least 0.1 mm wide, the
+  widest 0.28 mm) to 0.4 mm² (none at least 0.1 mm wide), with nothing laid twice; a path with a narrowed stretch is
+  written as straight moves, not fitted to arcs.
 - A line no longer runs out along a short dead end at a junction and back. Where a thin area too small to keep all its
   forks kept two of them, they were the two longest of those it was cutting, which could be a short trunk beside two
   longer forks: its line ran down the trunk and back. It now keeps its own two longest forks. And where a narrow island

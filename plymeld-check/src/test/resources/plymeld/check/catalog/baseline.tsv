@@ -910,6 +910,56 @@ letter E	base	walls.shortest_path_mm	23.507
 letter E	base	walls.uncovered_mm2	0.9835
 letter E	base	walls.uncovered_wider_than_floor_mm2	0.0000
 letter E	base	walls.uncovered_widest_mm	0.099
+oval top in rings	base	check.problems	0
+oval top in rings	base	feature.Bottom surface.length_mm	458.06
+oval top in rings	base	feature.Bottom surface.paths	3
+oval top in rings	base	feature.Brim.length_mm	259.50
+oval top in rings	base	feature.Brim.paths	10
+oval top in rings	base	feature.Inner wall.length_mm	340.26
+oval top in rings	base	feature.Inner wall.paths	6
+oval top in rings	base	feature.Internal solid infill.length_mm	2353.81
+oval top in rings	base	feature.Internal solid infill.paths	6
+oval top in rings	base	feature.Outer wall.length_mm	355.46
+oval top in rings	base	feature.Outer wall.paths	6
+oval top in rings	base	feature.Prime line.length_mm	30.00
+oval top in rings	base	feature.Prime line.paths	1
+oval top in rings	base	feature.Top surface.length_mm	870.02
+oval top in rings	base	feature.Top surface.paths	41
+oval top in rings	base	filament.T0_mm	143.07
+oval top in rings	base	filament_mm	143.07
+oval top in rings	base	laid_twice.area_mm2	0.000
+oval top in rings	base	laid_twice.layers	0
+oval top in rings	base	laid_twice.spots	0
+oval top in rings	base	laid_twice.widest_mm	0.000
+oval top in rings	base	lines.outer_kinks	0
+oval top in rings	base	lines.outer_zigzags	0
+oval top in rings	base	lines.tiny_moves	5
+oval top in rings	base	lines.tiny_moves.outer_wall	0
+oval top in rings	base	seams.count	6
+oval top in rings	base	seams.jog_mm	0.000
+oval top in rings	base	seams.point	6
+oval top in rings	base	seams.scar_mm2	0.234
+oval top in rings	base	seams.scarf	0
+oval top in rings	base	strings.restart_starved_mm	215.00
+oval top in rings	base	strings.retractions	53
+oval top in rings	base	strings.travel_mm	685.54
+oval top in rings	base	strings.unretracted_across_tops_mm	0.54
+oval top in rings	base	strings.unretracted_over_air_mm	4.25
+oval top in rings	base	strings.unretracted_shown_mm	4.79
+oval top in rings	base	strings.unretracted_travels	19
+oval top in rings	base	strings.visible_restarts	43
+oval top in rings	base	time_s	74.8
+oval top in rings	base	walls.doubled_mm2	0.1660
+oval top in rings	base	walls.largest_shift_mm	0.000
+oval top in rings	base	walls.layers	1
+oval top in rings	base	walls.outside_farthest_mm	0.000
+oval top in rings	base	walls.outside_mm2	0.0000
+oval top in rings	base	walls.paths	43
+oval top in rings	base	walls.shortest_move_mm	0.003
+oval top in rings	base	walls.shortest_path_mm	2.015
+oval top in rings	base	walls.uncovered_mm2	0.3216
+oval top in rings	base	walls.uncovered_wider_than_floor_mm2	0.0000
+oval top in rings	base	walls.uncovered_widest_mm	0.040
 overhang ladder	base	check.problems	0
 overhang ladder	base	feature.Bottom surface.length_mm	506.19
 overhang ladder	base	feature.Bottom surface.paths	1

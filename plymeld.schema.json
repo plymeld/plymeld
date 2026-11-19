@@ -4405,7 +4405,7 @@
                   ]
                 },
                 "pattern": {
-                  "description": "INHERITED: top surface pattern (concentric-outside-in: loops following the outline, each the one outside it moved in; concentric-inside-out: round rings around the surface's middle, arcs where a full circle does not fit)",
+                  "description": "INHERITED: top surface pattern (concentric-outside-in: loops following the outline, each the one outside it moved in; concentric-inside-out: round rings around the surface's middle, arcs where a full circle does not fit, each running on past its arc along a wall, narrowed to the ground left there down to half a line)",
                   "enum": [
                     "monotonic",
                     "rectilinear",
@@ -4518,7 +4518,7 @@
                   ]
                 },
                 "wall_overlap": {
-                  "description": "how far an interior line's end reaches into the walls past bead contact, as a share of its width (a line end touches a wall only with its rounded cap); where two fills of a layer share an edge, the one that owns it (a top, a bottom, a bridge, internal solid, sparse, in that order) lays its lines against the edge as against a wall, and the other's line ends reach as far into the owner's lines; a variable-width wall's line in a thin area, where it ends against a wall's turn (two wall lines becoming one), reaches in as far, and a leftover between walls gets the narrowest line only where that line reaches into them no further than this share of its width a side — a multiplier (0.15 or 15%); or a formula (= ...)",
+                  "description": "how far an interior line's end reaches into the walls past bead contact, as a share of its width (a line end touches a wall only with its rounded cap); where two fills of a layer share an edge, the one that owns it (a top, a bottom, a bridge, internal solid, sparse, in that order) lays its lines against the edge as against a wall, and the other's line ends reach as far into the owner's lines; a variable-width wall's line in a thin area, where it ends against a wall's turn (two wall lines becoming one), reaches in as far, and a leftover between walls gets the narrowest line only where that line reaches into them no further than this share of its width a side; a concentric-inside-out ring narrowed along a wall reaches into it this share of its own width, and at half a line over the ring inside it by up to this share — a multiplier (0.15 or 15%); or a formula (= ...)",
                   "type": [
                     "string",
                     "number"
@@ -6553,7 +6553,7 @@
                   ]
                 },
                 "pattern": {
-                  "description": "INHERITED: top surface pattern (concentric-outside-in: loops following the outline, each the one outside it moved in; concentric-inside-out: round rings around the surface's middle, arcs where a full circle does not fit)",
+                  "description": "INHERITED: top surface pattern (concentric-outside-in: loops following the outline, each the one outside it moved in; concentric-inside-out: round rings around the surface's middle, arcs where a full circle does not fit, each running on past its arc along a wall, narrowed to the ground left there down to half a line)",
                   "enum": [
                     "monotonic",
                     "rectilinear",
@@ -6666,7 +6666,7 @@
                   ]
                 },
                 "wall_overlap": {
-                  "description": "how far an interior line's end reaches into the walls past bead contact, as a share of its width (a line end touches a wall only with its rounded cap); where two fills of a layer share an edge, the one that owns it (a top, a bottom, a bridge, internal solid, sparse, in that order) lays its lines against the edge as against a wall, and the other's line ends reach as far into the owner's lines; a variable-width wall's line in a thin area, where it ends against a wall's turn (two wall lines becoming one), reaches in as far, and a leftover between walls gets the narrowest line only where that line reaches into them no further than this share of its width a side — a multiplier (0.15 or 15%); or a formula (= ...)",
+                  "description": "how far an interior line's end reaches into the walls past bead contact, as a share of its width (a line end touches a wall only with its rounded cap); where two fills of a layer share an edge, the one that owns it (a top, a bottom, a bridge, internal solid, sparse, in that order) lays its lines against the edge as against a wall, and the other's line ends reach as far into the owner's lines; a variable-width wall's line in a thin area, where it ends against a wall's turn (two wall lines becoming one), reaches in as far, and a leftover between walls gets the narrowest line only where that line reaches into them no further than this share of its width a side; a concentric-inside-out ring narrowed along a wall reaches into it this share of its own width, and at half a line over the ring inside it by up to this share — a multiplier (0.15 or 15%); or a formula (= ...)",
                   "type": [
                     "string",
                     "number"
@@ -8820,7 +8820,7 @@
                   ]
                 },
                 "pattern": {
-                  "description": "INHERITED: top surface pattern (concentric-outside-in: loops following the outline, each the one outside it moved in; concentric-inside-out: round rings around the surface's middle, arcs where a full circle does not fit)",
+                  "description": "INHERITED: top surface pattern (concentric-outside-in: loops following the outline, each the one outside it moved in; concentric-inside-out: round rings around the surface's middle, arcs where a full circle does not fit, each running on past its arc along a wall, narrowed to the ground left there down to half a line)",
                   "enum": [
                     "monotonic",
                     "rectilinear",
@@ -8933,7 +8933,7 @@
                   ]
                 },
                 "wall_overlap": {
-                  "description": "how far an interior line's end reaches into the walls past bead contact, as a share of its width (a line end touches a wall only with its rounded cap); where two fills of a layer share an edge, the one that owns it (a top, a bottom, a bridge, internal solid, sparse, in that order) lays its lines against the edge as against a wall, and the other's line ends reach as far into the owner's lines; a variable-width wall's line in a thin area, where it ends against a wall's turn (two wall lines becoming one), reaches in as far, and a leftover between walls gets the narrowest line only where that line reaches into them no further than this share of its width a side — a multiplier (0.15 or 15%); or a formula (= ...)",
+                  "description": "how far an interior line's end reaches into the walls past bead contact, as a share of its width (a line end touches a wall only with its rounded cap); where two fills of a layer share an edge, the one that owns it (a top, a bottom, a bridge, internal solid, sparse, in that order) lays its lines against the edge as against a wall, and the other's line ends reach as far into the owner's lines; a variable-width wall's line in a thin area, where it ends against a wall's turn (two wall lines becoming one), reaches in as far, and a leftover between walls gets the narrowest line only where that line reaches into them no further than this share of its width a side; a concentric-inside-out ring narrowed along a wall reaches into it this share of its own width, and at half a line over the ring inside it by up to this share — a multiplier (0.15 or 15%); or a formula (= ...)",
                   "type": [
                     "string",
                     "number"

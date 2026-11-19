@@ -291,6 +291,11 @@ object Models {
      */
     val steppedTop by lazy { join(box(CX - 9, CY - 6, 0.0, CX + 9, CY + 6, 3.0), box(CX - 9, CY - 6, 3.0, CX + 3, CY + 6, 3.2),
         box(CX - 9, CY - 6, 3.2, CX - 3, CY + 6, 5.0)) }
+    /**
+     * An oval 24 by 14 mm (an ellipse of 180 sides), 1.2 mm tall: a top whose round rings (concentric-inside-out) run along
+     * its sides and round its ends, nearly parallel to the walls there.
+     */
+    val ovalTop by lazy { prism(ellipse(CX, CY, 12.0, 7.0, n = 180), 0.0, 1.2) }
     /** A cylinder 12 mm across, 2 mm tall, under a dome 4 mm high (a cap of a sphere 13 mm across). */
     val domedTop by lazy {
         val n = 96

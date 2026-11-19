@@ -96,14 +96,14 @@ class CatalogTest : StringSpec({
 
     /*
      * A model whose outline is straight sides and true arcs (a block, posts, a cylinder, round holes and pins, fins, decks,
-     * slopes, a dome) gives its outer wall no move shorter than the slicing tolerance and no kink: the outline is simplified
+     * slopes, a dome, an oval) gives its outer wall no move shorter than the slicing tolerance and no kink: the outline is simplified
      * to the tolerance and its walls are its offsets, nothing in them turns back. The narrow islands laid by their beads
      * (decision 28: a tip's line runs in and back by design), two parts' meeting and the infill's links along an outline are
      * held by the baseline only.
      */
     "the outer wall of a model of straight sides and true arcs: no move shorter than the tolerance, no kink" {
-        val plain = listOf("block", "smooth cylinder", "cornered post", "overhang ladder", "bridges", "sloped top", "domed top", "small pillar",
-            "holes", "pins", "two-color piece")
+        val plain = listOf("block", "smooth cylinder", "cornered post", "overhang ladder", "bridges", "sloped top", "domed top", "oval top in rings",
+            "small pillar", "holes", "pins", "two-color piece")
         val wrong = ArrayList<String>()
         for ((e, row) in units) if (e.name in plain) {
             val v = run().getValue(e.name to row.name).values

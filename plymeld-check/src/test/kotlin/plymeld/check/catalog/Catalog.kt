@@ -45,6 +45,8 @@ object Catalog {
     private fun walls(name: String, purpose: String, parts: () -> List<TriangleSoup>, read: WallRead = WallRead(0.25, 1.0)) =
         Entry(name, purpose, Slicing.WALLS, parts, walls = read)
     private fun webWindow(web: Double) = WallRead(0.25, 1.0, window = WallCoverage.Window(CX - 1.2, CY - 3.0 - web - 0.1, CX + 1.2, CY - 2.7))
+    /** The oval's top layer alone (0.2 mm layers: its middle at 1.1 mm), on 0.02 mm cells (at the walls' 5 microns the oval's grid is 23 million cells). */
+    val OVAL_TOP_LAYER = WallRead(1.05, 1.2, cellMm = 0.02)
 
     val entries: List<Entry> = listOf(
         // walls by local width
@@ -112,6 +114,8 @@ object Catalog {
             Slicing.ONE_TOOL, { listOf(Models.steppedTop) }),
         Entry("domed top", "a dome on a cylinder: top surfaces shrinking to a point", Slicing.ONE_TOOL, { listOf(Models.domedTop) },
             rows = listOf(BASE, Row("flat tops ironed", listOf("plan.faces.flat_top.technique" to "ironing")))),
+        Entry("oval top in rings", "an oval's top in round rings (concentric-inside-out) running along its walls: no bare wedge between the rings and the walls",
+            Slicing.TWO_TOOLS, { listOf(Models.ovalTop) }, walls = OVAL_TOP_LAYER, extra = listOf("plan.layer.top.pattern" to "concentric-inside-out")),
         // small layers, holes and pins
         Entry("small pillar", "a pillar 3 mm across: short layers (the minimum layer time) and small loops", Slicing.ONE_TOOL, { listOf(Models.smallPillar) },
             rows = listOf(BASE, Row("no slowdown", listOf("hardware.filament.test-pla.cooling.slowdown.enabled" to false)))),

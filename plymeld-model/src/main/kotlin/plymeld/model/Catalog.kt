@@ -283,7 +283,7 @@ object Catalog {
         s("plan.layer.top.line.width", INTENT, LENGTH, "top surface line width")
         s("plan.layer.infill.angle", INTENT, ANGLE, "infill line direction")
         s("plan.layer.infill.chord_tolerance", INTENT, LENGTH, "curved infill chord tolerance")
-        s("plan.layer.infill.wall_overlap", INTENT, FRACTION, "how far infill reaches into the walls, as a share of its width; a thin area's center line ending against a wall loop's turn reaches in as far, and a leftover between walls gets the narrowest line only where that line reaches into them no further than this share of its width a side")
+        s("plan.layer.infill.wall_overlap", INTENT, FRACTION, "how far infill reaches into the walls, as a share of its width; a thin area's center line ending against a wall loop's turn reaches in as far, and a leftover between walls gets the narrowest line only where that line reaches into them no further than this share of its width a side; a concentric-inside-out ring narrowed along a wall reaches into it this share of its own width, and at half a line over the ring inside it by up to this share")
         s("plan.layer.infill.anchor_length.max", INTENT, LENGTH, "longest walk along the boundary that joins two infill lines: another slicer's (investigation); unset = plymeld's rule, three line spacings")
         // speeds: visible lines are capped by a speed of their own,
         // hidden ones print at the machine's fastest move; every move is capped by the melt rate

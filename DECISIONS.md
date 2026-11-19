@@ -2108,3 +2108,56 @@ Tests: JunctionStubTest (a cell 0.52 by 0.58 mm between walls, laid by its cente
 a stub 0.1 mm long at its corner, laid by its beads: no line turning back, nothing bare wider than the floor, each
 line's `withStubs` turning back where the stub was; controls, each rule off, lay the stub out and back; the test seen to
 fail with each rule taken out); ThinRidgeTest seen to fail with the dot rule reading the line without its stubs.
+
+## 64. A ring of a concentric-inside-out surface runs on past its arc along a wall, narrowed to the ground left (2026-11-19)
+
+**Context.** A top in round rings (`concentric-inside-out`) printed a dashed slit along its edge. Each circle is cut
+where its center leaves the area a line's center may lie in (bead contact with the walls, then the line-end overlap,
+decision 54), and where the walls run nearly along the rings (an oval's sides and ends, a cylinder's edge) the arc inside
+the last one cut was left as the line nearest the wall: between its bead and the wall lay a sawtooth of wedges, each from
+nothing to nearly a spacing wide, that no line covered. On a user's oval top 78 by 41 mm (0.44 mm lines), its top layer
+read 7.5 mm² bare beside the walls in 244 spots, 128 at least 0.1 mm wide, the widest 0.28 mm where the rings run tangent
+to the wall. The pre-print check passed it (its hole rule leaves out ground a surface line borders, decision 30).
+
+**Decision.** Each circle runs on past where its arc ends, its line narrowed to its own bead's cross-section (taken
+across the circle) within the ground a line may lay plastic on (the area grown by the line's reach past the walls,
+`Planner.reachUm`, less the slicing tolerance, the wall known no closer), its center moved to that part's middle: the
+circle's bead with what lies past the walls' reach shaved off, so it lays nothing over the ring inside it beyond what two
+neighboring lines share. A narrower line reaches into the wall the line-end overlap's share of its own width
+(`plan.layer.infill.wall_overlap`, as the walls' narrow lines and the laid-twice rule read it). It runs on while that is
+at least half a line (the hatch's own bound for slivers), and where the ground is narrower than half a line by no more
+than half a line's end overlap, at half a line reaching over the ring inside it by the difference, as a line end reaches
+into what it meets. Where it runs round to its next arc the two are one line; round the whole circle, the circle is
+whole (and is joined with the rings beside it into one path, as whole rings are); where its band reaches the ground with no arc of its circle
+there (past an oval's tip), it is a piece of its own. A free end is narrowed until its round end reaches past that ground
+by no more than the slicing tolerance, the points before it no wider than the next by more than twice the tolerance (the
+file lays a move at its ends' mean width); points are taken a quarter of a line apart, more where the width changes
+faster (at most 16 between two, a work bound). Where a circle crosses the wall steeply its round end already fits and the
+arc ends as before, as a hatch line's. Claude's choices: the quarter-line step and the 16-point bound (work bounds, not
+print values); half a line is the planner's sliver bound, the overlap and tolerance are settings.
+
+**Rejected.** A loop round the surface's edge, the circles laid against it: the same wedges, one line in. Filling the
+wedges afterward with lines of their own: a short line per wedge (hundreds on the oval), each a start and a stop on the
+top. Running each cut circle on along the wall at its full width: up to a whole line laid over the ring inside it where
+the two come close. Reaching a narrowed line as far into the wall as the full line (its end overlap of the full width):
+the catalog's oval read specks of plastic laid twice all along its walls by the measure that reads the overlap of each
+line's own width. Narrowing to the tool's narrowest line (`plan.layer.walls.line.width.min`, three quarters of the bore
+as a stand-in) instead of half a line: it stops each run where the wedge is still about 0.19 mm wide on the oval (computed
+from the bead model, not measured), and that setting is the variable-width walls'. Fitting arcs to a path's runs of one width in the writer (so a
+narrowed ring keeps its arcs): a change to every variable-width wall's file, outside this fix.
+
+**Consequences.** The user's oval, its top layer by the measure above: bare 7.5 to 0.40 mm², spots at least 0.1 mm wide 128
+to none, at least 0.2 mm 11 to none, the widest 0.28 to 0.08 mm; the check passes, nothing laid twice, time 93.0 to 93.1
+min, filament 6080 to 6081 mm, seams 2268 as before. A path with a narrowed stretch is written as straight moves, not
+fitted to arcs (the writer fits only a path of one width); a run of whole rings that a narrowed ring joins is too: the
+file 4.10 to 4.30 MB. The same oval with a monotonic top reads 2.35 mm² bare, 36 spots at least 0.1 mm, the widest 0.23
+mm, where its lines run nearly along the wall: line patterns leave the same wedge where they run along a wall, not
+changed here. The regression cases: unchanged (none lays this pattern). The catalog: a new model, an oval 24 by 14 mm
+with its top in rings (its top layer read by the walls' measure on 0.02 mm cells: the whole oval on the walls' 5-micron
+cells ran the catalog out of memory); no other measure moves. Tests: RingTopTest (a quarter of the catalog's oval, its
+top layer by WallCoverage against the model's cut: 0.087 mm² uncovered, hairlines where beads meet, the widest 0.020 mm,
+within 0.15 mm² and a quarter line; control, its narrowed moves left out: 0.293 mm², the widest 0.120 mm, as the code
+before read 0.298 mm² and 0.120 mm; plastic laid twice no more than the control's but for hairlines; the check passes
+with nothing laid twice; the test seen to fail on the code before); SurfaceFillTest (circles on an oval with a square hole
+run on beside both, each narrowed point's cross-section within the reach, none narrower than half a line; control,
+without the reach: none narrowed).

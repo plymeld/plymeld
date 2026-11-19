@@ -1324,13 +1324,23 @@ object Planner {
                             .map { if (it.closed) SurfaceFill.Piece(seamAtBack(Polygon(it.xy)).xy, true) else it }, 2 * spacing))
                         paths.add(ToolPath(feature, pc.xy, pc.closed, width, h, sequence = ringSeq++))
                     "archimedeanchords" -> for (pl in SurfaceFill.archimedeanChords(clipped(), spacing, 2 * width)) paths.add(ToolPath(feature, pl, false, width, h))
-                    // circles around the piece's middle, arcs where they do not fit (contact placement, as the chords; SurfaceFill.circles)
-                    // a whole circle (its last point its first) joins the circles beside it, as the outside-in rings do
-                    "concentric-inside-out" -> for (pc in SurfaceFill.joined(SurfaceFill.circles(clipped(), spacing, 2 * width).map { pl ->
-                            val n = pl.size / 2
-                            if (n > 3 && pl[0] == pl[2 * n - 2] && pl[1] == pl[2 * n - 1]) SurfaceFill.Piece(pl.copyOf(2 * n - 2), true) else SurfaceFill.Piece(pl, false) }, 2 * spacing))
-                        paths.add(ToolPath(feature, pc.xy, if (pc.closed) false else pc.closed, width, h, sequence = ringSeq++).let { tp ->
-                            if (pc.closed) ToolPath(feature, pc.xy + longArrayOf(pc.xy[0], pc.xy[1]), false, width, h, sequence = tp.sequence) else tp })
+                    // circles around the piece's middle, arcs where they do not fit (contact placement, as the chords; SurfaceFill.circles),
+                    // each running on past its arc beside a wall it runs along, narrowed to what lies within its reach past the
+                    // region's edge (reachUm; beside a fill that owns the edge, up to that fill's plastic less this line's reach),
+                    // less the slicing tolerance (the wall is known no closer: run along it at its reach, the line read as laid
+                    // over the wall in specks a few microns wide all along); a whole circle joins the circles beside it, as the
+                    // outside-in rings do
+                    "concentric-inside-out" -> {
+                        val ru = reachUm(width, h, s.infillWallOverlap)
+                        val reach = Offset.offset(region, ru - s.resolutionUm).let { g -> if (beside == null || g.isEmpty()) g else
+                            Booleans.difference(g, beside(s.resolutionUm - ru)) }
+                        for (pc in SurfaceFill.joined(SurfaceFill.circles(clipped(), spacing, 2 * width, width, reach, s.infillWallOverlap, s.resolutionUm), 2 * spacing, width)) {
+                            // a whole circle laid as an open path round to its start
+                            val xy = if (pc.closed) pc.xy + longArrayOf(pc.xy[0], pc.xy[1]) else pc.xy
+                            val ws = pc.widths?.let { if (pc.closed) it + it[0] else it }
+                            paths.add(ToolPath(feature, xy, false, width, h, widths = ws, sequence = ringSeq++))
+                        }
+                    }
                     else -> error("${feature.label} pattern '$pattern' is not implemented yet (line patterns, concentric-outside-in, concentric-inside-out, archimedeanchords)")
                 }
             }
