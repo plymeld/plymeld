@@ -85,11 +85,14 @@ internal class SolidDrawing(private val ctx: Context, private val p: Projection)
         val mx = (m.x0[i] + m.x1[i]) / 2; val my = (m.y0[i] + m.y1[i]) / 2
         return mx >= w[0] && mx <= w[2] && my >= w[1] && my <= w[3]
     }
-    private fun each(f: (MoveSet, Int) -> Unit) {
+    /** Every kept extruding move in print order, or ([reverse]) in exactly the reverse of print order. */
+    private fun each(reverse: Boolean = false, f: (MoveSet, Int) -> Unit) {
         val ls = layersToRead()
-        for (k in ls.indices step chunk) {
+        val starts = (ls.indices step chunk).toList()
+        for (k in if (reverse) starts.asReversed() else starts) {
             val (m, _) = MoveReader.read(ctx.index, ls.subList(k, minOf(ls.size, k + chunk)))
-            for (i in 0 until m.n) if (m.kind[i] == MoveSet.EXTRUDE && kept(m, i)) f(m, i)
+            if (reverse) { for (i in m.n - 1 downTo 0) if (m.kind[i] == MoveSet.EXTRUDE && kept(m, i)) f(m, i) }
+            else for (i in 0 until m.n) if (m.kind[i] == MoveSet.EXTRUDE && kept(m, i)) f(m, i)
         }
     }
 
@@ -130,7 +133,11 @@ internal class SolidDrawing(private val ctx: Context, private val p: Projection)
         return Survey(a0, b0, a1, b1, lo, hi, n, low(sp), low(hs), zLo, zHi)
     }
 
-    /** What a pixel shows: its color and the key entry it stands for (feature or tool; -2 none). */
+    /**
+     * What a pixel shows: its color and the key entry it stands for (feature or tool; -2 none). Over the pixels, a coarse
+     * map of tiles [TILE] pixels square, each holding the farthest depth drawn in it, so a bead behind all of a tile is
+     * passed over without reading the tile's pixels.
+     */
     class Buffer(val w: Int, val h: Int) {
         val depth = FloatArray(w * h) { Float.MAX_VALUE }
         val color = IntArray(w * h)
@@ -138,17 +145,49 @@ internal class SolidDrawing(private val ctx: Context, private val p: Projection)
         val key = ShortArray(w * h) { -2 }
         /** How near the bead's middle the pixel is, 0..255. */
         val shade = ByteArray(w * h)
+        /** Tiles across and down. */
+        val tw = (w + TILE - 1) / TILE; val th = (h + TILE - 1) / TILE
+        /** Each tile's farthest depth drawn, as last worked out: never nearer than the true one (depths only come nearer). */
+        val tileFar = FloatArray(tw * th) { Float.MAX_VALUE }
+        /** Each tile's pixels nothing is drawn in yet: while any is left, the tile hides nothing. */
+        val tileEmpty = IntArray(tw * th).also { e ->
+            for (ty in 0 until th) for (tx in 0 until tw) e[ty * tw + tx] = (minOf(w, (tx + 1) * TILE) - tx * TILE) * (minOf(h, (ty + 1) * TILE) - ty * TILE)
+        }
+        /** Tiles drawn in since their farthest depth was worked out. */
+        val tileDirty = BooleanArray(tw * th)
+
+        /** Tile [t]'s farthest depth, worked out again where it was drawn in since. */
+        fun far(t: Int): Float {
+            if (tileEmpty[t] > 0) return Float.MAX_VALUE
+            if (tileDirty[t]) {
+                val tx = t % tw; val ty = t / tw
+                var f = -Float.MAX_VALUE
+                for (y in ty * TILE until minOf(h, (ty + 1) * TILE)) { val row = y * w; for (x in tx * TILE until minOf(w, (tx + 1) * TILE)) f = maxOf(f, depth[row + x]) }
+                tileFar[t] = f; tileDirty[t] = false
+            }
+            return tileFar[t]
+        }
     }
 
     /**
      * The second pass: every kept move drawn into a buffer [bw] x [bh] pixels; (a, b) maps to the pixel ((a - a0) s,
      * (b1 - b k) s) with b stretched [k] times where it is height.
+     *
+     * Nearest first: seen from above, the moves are drawn in exactly the reverse of print order (the top layers first),
+     * from below in print order, so the beads in front fill the tiles early and those behind them are passed over. Seen
+     * level from a side, print order is not nearest first, and no tile is passed over (working out a tile's farthest
+     * depth again after each bead drawn in it cost more than it saved: the outside of a boat from the front took three
+     * times as long). The picture does not depend on the order: each pixel shows the nearest bead, and of beads at
+     * exactly the same depth the one printed first, whichever order they are drawn in.
      */
     fun draw(sv: Survey, a0: Double, b1: Double, s: Double, k: Double, bw: Int, bh: Int): Buffer {
         val buf = Buffer(bw, bh)
-        var order = 0
+        val reverse = p.dz > 0
+        val cull = p.dz != 0.0
+        // the move's place among the chosen moves in print order (counted down when drawing in reverse)
+        var order = if (reverse) sv.count - 1 else 0
         val total = maxOf(1, sv.count - 1)
-        each { m, i ->
+        each(reverse) { m, i ->
             val ch = ctx.chosen(m, i)
             if (!ch && req.others != Others.FAINT) return@each
             val col: Color; val keyId: Int
@@ -160,7 +199,7 @@ internal class SolidDrawing(private val ctx: Context, private val p: Projection)
                     else -> { val v = ctx.value(m, i, 0); if (v.isNaN()) Palette.UNNAMED else Palette.ramp(if (sv.hi > sv.lo) (v - sv.lo) / (sv.hi - sv.lo) else 0.5) }
                 }
                 keyId = when (ctx.colorBy) { ColorBy.FEATURE -> m.feature[i]; ColorBy.TOOL -> m.tool[i]; else -> 0 }
-                order++
+                if (reverse) order-- else order++
             }
             val w = ctx.beadWidth(m, i).takeIf { !it.isNaN() && it > 0 } ?: 0.4
             val h = ctx.heightOf(m, i).takeIf { !it.isNaN() && it > 0 } ?: 0.2
@@ -172,33 +211,84 @@ internal class SolidDrawing(private val ctx: Context, private val p: Projection)
             // the brush: half its width across, half its height up (side on), stretched as the heights are
             val rxp = maxOf(0.5, w / 2 * s)
             val ryp = maxOf(0.5, (if (p.sideView) h / 2 * k else h / 2 * Math.abs(p.uz) + w / 2 * Math.sqrt(maxOf(0.0, 1 - p.uz * p.uz))) * s)
-            capsule(buf, pa, pb, qa, qb, da, db, rxp, ryp, w / 2, col.rgb, keyId)
+            capsule(buf, pa, pb, qa, qb, da, db, rxp, ryp, w / 2, col.rgb, keyId, reverse, cull)
         }
         return buf
     }
     private fun kOf(k: Double) = if (p.sideView) k else 1.0
 
-    private fun capsule(buf: Buffer, pa: Double, pb: Double, qa: Double, qb: Double, da: Double, db: Double, rx: Double, ry: Double, rMm: Double, rgb: Int, keyId: Int) {
-        val x0 = maxOf(0, Math.floor(minOf(pa, qa) - rx).toInt()); val x1 = minOf(buf.w - 1, Math.ceil(maxOf(pa, qa) + rx).toInt())
-        val y0 = maxOf(0, Math.floor(minOf(pb, qb) - ry).toInt()); val y1 = minOf(buf.h - 1, Math.ceil(maxOf(pb, qb) + ry).toInt())
-        if (x0 > x1 || y0 > y1) return
-        // in the brush's own frame the ellipse is a circle of radius rx: y scaled by rx / ry
-        val sc = rx / ry
-        val ex = qa - pa; val ey = (qb - pb) * sc
-        val l2 = ex * ex + ey * ey
-        for (y in y0..y1) for (x in x0..x1) {
-            val cx = x + 0.5 - pa; val cy = (y + 0.5 - pb) * sc
-            val t = if (l2 == 0.0) 0.0 else ((cx * ex + cy * ey) / l2).coerceIn(0.0, 1.0)
-            val ddx = cx - t * ex; val ddy = cy - t * ey
-            val d2 = ddx * ddx + ddy * ddy
-            if (d2 > rx * rx) continue
-            val bulge = Math.sqrt(1 - d2 / (rx * rx))
-            val dep = (da + (db - da) * t - bulge * rMm).toFloat()
-            val at = y * buf.w + x
-            if (dep < buf.depth[at]) {
-                buf.depth[at] = dep; buf.color[at] = rgb; buf.key[at] = keyId.toShort()
-                buf.shade[at] = Math.round(bulge * 255).toInt().toByte()
+    companion object {
+        /** Neighboring pixels further apart in depth than this (mm) are one surface in front of another: an outline (plymeld's choice). */
+        const val DEPTH_STEP_MM = 1.0f
+        /** The side of a tile of the depth map, pixels (plymeld's choice: a few hundred pixels read to work out its farthest depth). */
+        const val TILE = 16
+
+        /**
+         * One bead: the ellipse [rx] x [ry] pixels swept from (pa, pb) to (qa, qb), its middle line at depths [da] to [db]
+         * (mm), bulging [rMm] toward the viewer at its middle. A pixel takes it where it is nearer than what the pixel
+         * shows; [laterFirst]: the moves are drawn in the reverse of print order, so at exactly the same depth it is the
+         * one printed first and takes the pixel too. [cull]: tiles whose farthest depth is nearer than the bead can come
+         * there are passed over.
+         */
+        internal fun capsule(buf: Buffer, pa: Double, pb: Double, qa: Double, qb: Double, da: Double, db: Double, rx: Double, ry: Double, rMm: Double, rgb: Int, keyId: Int,
+                             laterFirst: Boolean, cull: Boolean) {
+            val x0 = maxOf(0, Math.floor(minOf(pa, qa) - rx).toInt()); val x1 = minOf(buf.w - 1, Math.ceil(maxOf(pa, qa) + rx).toInt())
+            val y0 = maxOf(0, Math.floor(minOf(pb, qb) - ry).toInt()); val y1 = minOf(buf.h - 1, Math.ceil(maxOf(pb, qb) + ry).toInt())
+            if (x0 > x1 || y0 > y1) return
+            // in the brush's own frame the ellipse is a circle of radius rx: y scaled by rx / ry
+            val sc = rx / ry
+            val ex = qa - pa; val ey = (qb - pb) * sc
+            val l2 = ex * ex + ey * ey
+            for (ty in y0 / TILE..y1 / TILE) for (tx in x0 / TILE..x1 / TILE) {
+                val t = ty * buf.tw + tx
+                val ya = maxOf(y0, ty * TILE); val yb = minOf(y1, ty * TILE + TILE - 1)
+                val xa = maxOf(x0, tx * TILE); val xb = minOf(x1, tx * TILE + TILE - 1)
+                if (cull && buf.tileEmpty[t] == 0) {
+                    val near = nearest(xa, xb, ya, yb, pa, pb, sc, ex, ey, l2, da, db, rMm)
+                    // the farthest depth as last worked out first: it is never nearer than the true one
+                    if (near > buf.tileFar[t] || near > buf.far(t)) continue
+                }
+                var wrote = false
+                for (y in ya..yb) for (x in xa..xb) {
+                    val cx = x + 0.5 - pa; val cy = (y + 0.5 - pb) * sc
+                    val tt = if (l2 == 0.0) 0.0 else ((cx * ex + cy * ey) / l2).coerceIn(0.0, 1.0)
+                    val ddx = cx - tt * ex; val ddy = cy - tt * ey
+                    val d2 = ddx * ddx + ddy * ddy
+                    if (d2 > rx * rx) continue
+                    val bulge = Math.sqrt(1 - d2 / (rx * rx))
+                    val dep = (da + (db - da) * tt - bulge * rMm).toFloat()
+                    val at = y * buf.w + x
+                    val cur = buf.depth[at]
+                    if (dep < cur || (laterFirst && dep == cur)) {
+                        if (cur == Float.MAX_VALUE) buf.tileEmpty[t]--
+                        buf.depth[at] = dep; buf.color[at] = rgb; buf.key[at] = keyId.toShort()
+                        buf.shade[at] = Math.round(bulge * 255).toInt().toByte()
+                        wrote = true
+                    }
+                }
+                if (wrote) buf.tileDirty[t] = true
             }
+        }
+
+        /**
+         * A depth no pixel of the bead within columns [xa]..[xb] and rows [ya]..[yb] is nearer than, as the pixels work
+         * theirs out: the middle line's nearest depth over the stretch of it those pixels lie beside (its place along the
+         * line is linear in the pixel's position, so the rectangle's corners bound it), less the bulge, less a margin far
+         * wider than the rounding of the pixels' own sums.
+         */
+        private fun nearest(xa: Int, xb: Int, ya: Int, yb: Int, pa: Double, pb: Double, sc: Double, ex: Double, ey: Double, l2: Double,
+                            da: Double, db: Double, rMm: Double): Float {
+            var lo = 0.0; var hi = 0.0
+            if (l2 != 0.0) {
+                lo = Double.MAX_VALUE; hi = -Double.MAX_VALUE
+                for (cx in doubleArrayOf(xa + 0.5 - pa, xb + 0.5 - pa)) for (cy in doubleArrayOf((ya + 0.5 - pb) * sc, (yb + 0.5 - pb) * sc)) {
+                    val t = (cx * ex + cy * ey) / l2
+                    lo = minOf(lo, t); hi = maxOf(hi, t)
+                }
+                lo = lo.coerceIn(0.0, 1.0); hi = hi.coerceIn(0.0, 1.0)
+            }
+            val d = minOf(da + (db - da) * lo, da + (db - da) * hi) - rMm
+            return (d - 1e-9 * (1 + Math.abs(da) + Math.abs(db) + rMm)).toFloat()
         }
     }
 
@@ -227,11 +317,6 @@ internal class SolidDrawing(private val ctx: Context, private val p: Projection)
         return c
     }
     private fun scale(c: Int, f: Double) = ((c and 0xFF) * f).toInt().coerceIn(0, 255)
-
-    companion object {
-        /** Neighboring pixels further apart in depth than this (mm) are one surface in front of another: an outline (plymeld's choice). */
-        const val DEPTH_STEP_MM = 1.0f
-    }
 
     fun key(buf: Buffer, sv: Survey): List<KeyItem> {
         val k = ArrayList<KeyItem>()

@@ -2150,7 +2150,17 @@ crosses drawn as wide as the bead is at that height, whichever layer laid it.
 The outside (`--outside`) and 3D (`--3d`) views are orthographic and drawn into a depth buffer: every chosen move a
 round bead swept along it (as wide as its plastic, as tall as its layer, stretched as the heights are), the nearest kept
 at each pixel and shaded as a tube, the file read a run of 64 layers at a time; where the lines cannot be resolved, flat
-colors with an outline at every change of color and every step in depth of more than 1 mm. `--compare-with` draws the
+colors with an outline at every change of color and every step in depth of more than 1 mm. Each pixel shows the
+nearest bead, and of beads at exactly the same depth the one printed first, so the picture does not depend on the order
+the beads are drawn in. They are drawn nearest first where print order allows it: seen from above, in exactly the
+reverse of print order (the top layers first), from below in print order; a coarse map of 16 px tiles holds each tile's
+farthest depth drawn, and a bead behind the whole of a tile (its middle line's nearest depth over the stretch beside the
+tile, less its bulge) passes the tile over without reading its pixels. Seen level from a side, print order is not
+nearest first and no tile is passed over: working out a tile's farthest depth again after every bead cost more than it
+saved (the outside of a boat from the front, 1.6 s to 4.8 s). The shading is kept in 256 steps a pixel (a byte, so a
+whole-print picture's buffers stay under 11 bytes a pixel); against the floating shade it replaced, a shaded pixel's
+channel moves by at most one level (the step is 1/510 of the bulge, a quarter of a level at most before rounding), and
+flat pictures are unchanged. `--compare-with` draws the
 other file with the same options, both in the frame that holds the two at the finer scale, and compares them pixel by
 pixel (alike within 24 levels a channel, for an edge's smoothing).
 
@@ -2179,4 +2189,5 @@ from straight above draws the same, control: from the front-left above it does n
 files differ by, control: a file against itself differs nowhere; the refusals), RenderMarksTest (on the generated hole
 block sliced with the sample config: the model's outline along the block's sides, control: none without
 `--outline-of`; a wall move laid again marked laid twice and one left out marked bare, control: the file as sliced marks
-neither; the refusals).
+neither; the refusals), RenderSolidBytesTest (eight whole-print views of a synthetic print, PNG and SVG, the same bytes
+as recorded from the plain one-pass depth buffer; seen to fail with the tie rule for beads at the same depth taken out).
