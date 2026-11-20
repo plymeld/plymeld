@@ -2101,7 +2101,7 @@ message names, or a feature of any file meant writing code. A general command ne
 the code beside them.
 
 **Decision.** `plymeld render FILE.gcode` draws what a file lays down, from the file alone: no slicing, no printer, any
-slicer's file. Its options follow seven rules. (1) One option, one meaning: no option takes two kinds of value, and no
+file, plymeld's or not. Its options follow seven rules. (1) One option, one meaning: no option takes two kinds of value, and no
 value has a language beyond a list, a range (`A..B`), or a point (`X,Y`). (2) The name says what the number is: a layer
 number and a height never share an option (`--layer` against `--layer-at-z`, as `slice` has `--pause-at-layer` and
 `--pause-at-z`). (3) Three families told apart by their first word: a view option makes a picture (`--layer...`), an
@@ -2121,8 +2121,8 @@ laid in view: a scarf's ramp or a line's tapered end, which lie on or into a lin
 had, each feature's area is drawn as a flat region with a darker outline and the run names the `--span` at which the
 lines would resolve; `--allow-unresolved-lines` draws them anyway. Such a picture at the default scale is at most 2048
 px on its longer side (plymeld's choice, half the largest drawing's): a region and its outline read at that size, and
-the largest size drew four times the pixels for nothing finer (a 3D view of a boat 110 mm long, 2.8 s at 4096 px, 1.8 s
-at 2048, the whole command); a scale given (`--px-per-mm`, `--picture-size`) or `--allow-unresolved-lines` keeps its own size, and a
+the largest size drew four times the pixels for nothing finer (a whole-print 3D view's command took about two thirds of
+the time at 2048 px); a scale given (`--px-per-mm`, `--picture-size`) or `--allow-unresolved-lines` keeps its own size, and a
 picture seen from the side whose layers alone are too thin to resolve is made no larger either. Consecutive moves of one color turning
 less than 60 degrees are drawn as one stroke, its edge darker and drawn round the stroke as a whole, so neighbors (a
 fill's next pass, a stroke of its own) read apart at their true width; in flat regions each bead is widened by a pixel
@@ -2163,7 +2163,7 @@ reverse of print order (the top layers first), from below in print order; a coar
 farthest depth drawn, and a bead behind the whole of a tile (its middle line's nearest depth over the stretch beside the
 tile, less its bulge) passes the tile over without reading its pixels. Seen level from a side, print order is not
 nearest first and no tile is passed over: working out a tile's farthest depth again after every bead cost more than it
-saved (the outside of a boat from the front, 1.6 s to 4.8 s). The work is shared out over the processors available:
+saved (an outside view from the front took three times as long). The work is shared out over the processors available:
 the file is read in pieces of 8 layers, 8 pieces at once (each from its own offset through the index, so 64 layers are
 in memory at a time as before, and the pieces are the same whatever the number of threads), and each batch's beads are
 drawn by bands of 16 rows (one tile) at once, every band drawing the beads that reach it in the same order; a pixel belongs to one
@@ -2174,14 +2174,14 @@ not hold at 18 threads. The first pass a whole-print view needs (the extent it d
 range, the closest lines' spacing and the thinnest layer) is made in the index's own reading, so the file is read once
 before it is drawn rather than twice. The index reads before it knows all the file states, so those sums are made on
 what is known at each move and kept only where that held to the end; the view reads the file again for its first pass
-where a filament diameter is stated after moves of its tool (a settings block at the file's end, as some slicers
-write), where a layer's thickness changed while it was read (a height declared after moves that declare none), where a
+where a filament diameter is stated after moves of its tool (a settings block at the file's
+end), where a layer's thickness changed while it was read (a height declared after moves that declare none), where a
 layer counted from is one the view does not read (`--z-range` against a layer's own heights), or for a tool numbered 64
 or more. A bead that runs at least 4 brush widths across and up is drawn along each row's span, the columns its stadium
 (the brush swept along the move) reaches on that row worked out exactly, one more each side, and only those pixels
 tested, not its whole bounding box, which is mostly empty; a shorter or level bead takes whole rows of its box, which
-cost less than its spans (plymeld's choice of 4: spans for every bead drew a boat's 3D view 0.1 s slower, and a 326 MB
-file's 0.3 s faster). A row of tiles the bead is hidden in all through is passed over before its spans are worked
+cost less than its spans (plymeld's choice of 4: spans for every bead drew a small print's 3D view slower, and a large
+file's faster). A row of tiles the bead is hidden in all through is passed over before its spans are worked
 out. The shading is kept in 256 steps a pixel (a byte, so a
 whole-print picture's buffers stay under 11 bytes a pixel); against the floating shade it replaced, a shaded pixel's
 channel moves by at most one level (the step is 1/510 of the bulge, a quarter of a level at most before rounding), and

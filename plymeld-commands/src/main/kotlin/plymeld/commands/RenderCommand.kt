@@ -32,7 +32,7 @@ import java.nio.file.Path
  * cannot both hold, is refused, naming them); lengths in mm, the first layer 1, tools by the file's own numbers.
  */
 class RenderCommand : CliktCommand(name = "render") {
-    private val file by argument("FILE.gcode", help = "the g-code file to draw (any slicer's; also a .gcode.3mf)").path(mustExist = true, canBeDir = false)
+    private val file by argument("FILE.gcode", help = "the g-code file to draw (plymeld's or any other; also a .gcode.3mf)").path(mustExist = true, canBeDir = false)
 
     // views
     private val layer by option("--layer", metavar = "N", help = "draw layer N from above; the first layer is 1; repeatable, or a list (5,10,20). With no view option at all: the middle layer")

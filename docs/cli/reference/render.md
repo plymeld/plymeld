@@ -10,7 +10,7 @@ Usage: `plymeld render [<options>] <file.gcode>`
 
 Arguments:
 
-- `<file.gcode>`: the g-code file to draw (any slicer's; also a .gcode.3mf)
+- `<file.gcode>`: the g-code file to draw (plymeld's or any other; also a .gcode.3mf)
 
 Options:
 

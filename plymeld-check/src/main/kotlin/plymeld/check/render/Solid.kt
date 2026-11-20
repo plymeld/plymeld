@@ -217,8 +217,8 @@ internal class SolidDrawing(private val ctx: Context, private val p: Projection,
      * Nearest first: seen from above, the moves are drawn in exactly the reverse of print order (the top layers first),
      * from below in print order, so the beads in front fill the tiles early and those behind them are passed over. Seen
      * level from a side, print order is not nearest first, and no tile is passed over (working out a tile's farthest
-     * depth again after each bead drawn in it cost more than it saved: the outside of a boat from the front took three
-     * times as long). The picture does not depend on the order: each pixel shows the nearest bead, and of beads at
+     * depth again after each bead drawn in it cost more than it saved: an outside view from the front took three times
+     * as long). The picture does not depend on the order: each pixel shows the nearest bead, and of beads at
      * exactly the same depth the one printed first, whichever order they are drawn in.
      */
     fun draw(sv: Survey, a0: Double, b1: Double, s: Double, k: Double, bw: Int, bh: Int): Buffer {
@@ -340,12 +340,12 @@ internal class SolidDrawing(private val ctx: Context, private val p: Projection,
         const val BATCH = 8
         /**
          * Rows a band draws, a whole number of tiles so each tile is one band's (plymeld's choice: a 2048 px picture is 128
-         * bands to share out; at two tiles a band a 3D view of a 326 MB file drew 0.1 s slower).
+         * bands to share out; at two tiles a band a large file's 3D view drew slower).
          */
         const val BAND = TILE
         /**
          * A bead runs along spans where it runs at least this many brush widths across and up (plymeld's choice: a
-         * 3D view of a boat drew 0.1 s slower with spans for every bead, and a 326 MB file 0.3 s faster).
+         * small print's 3D view drew slower with spans for every bead, and a large file's faster).
          */
         const val SPAN_BRUSHES = 4.0
 
