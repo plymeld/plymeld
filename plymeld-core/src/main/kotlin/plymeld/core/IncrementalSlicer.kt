@@ -1032,8 +1032,8 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         require((setX == null) == (setY == null)) {
             "plan.mechanism.purge.tower.${if (setX == null) "y" else "x"} is set without plan.mechanism.purge.tower.${if (setX == null) "x" else "y"}: set both, or neither for a tower beside the object" }
         val t = if (setX != null) build(um("plan.mechanism.purge.tower.x"), um("plan.mechanism.purge.tower.y")) else {
-            // beside the object, where its first layer holds as the object's does: a tower placed at the bed's corner, far from
-            // the object, peeled there twice (the bed's height off its middle). Its right, back, left, then front, centered
+            // beside the object, where its first layer holds as the object's does: at a bed's corner, far from the object, the
+            // bed's height can differ from its middle's and a first layer hold less. Its right, back, left, then front, centered
             // on the object along that side (moved along it to stay on the bed), [gap] clear of the object and its brim
             val gap = um("plan.mechanism.purge.tower.gap")
             // the object's brim where the planner lays one (Planner: outer_only, a width above 0)
