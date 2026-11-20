@@ -541,8 +541,11 @@ object PoseDecision {
             }
             if (bedContact) { contact += area; for (k in 0 until 3) contactPts.add(doubleArrayOf(c[o + 3 * k].toDouble(), c[o + 3 * k + 1].toDouble())) }
             else if (down > 0) {
-                // the face's center, relative to the posed object's corner and bottom (the frame of a spot's region)
-                val cx = (c[o] + c[o + 3] + c[o + 6]) / 3.0 - b[0]; val cy = (c[o + 1] + c[o + 4] + c[o + 7]) / 3.0 - b[1]; val cz = zc - zMin
+                // the face's center, relative to the posed object's corner and bottom (the frame of a spot's region), summed in
+                // double precision: a sum of three floats rounds to a float, and a level face on its region's top (the box's
+                // own top, from the same vertices) read up to a few tenths of a micron above it, outside the box and unheld
+                val cx = (c[o].toDouble() + c[o + 3] + c[o + 6]) / 3.0 - b[0]; val cy = (c[o + 1].toDouble() + c[o + 4] + c[o + 7]) / 3.0 - b[1]
+                val cz = (c[o + 2].toDouble() + c[o + 5] + c[o + 8]) / 3.0 - zMin
                 val a = if (insertsPosed.any { it.covers(cx, cy, cz) }) 0.0 else area * overAir(o)
                 val lockedAt = if (!anyLocked || cz <= firstLayer + 1e-6 || a <= 0) -1 else lockedPosed.indexOfFirst { it.second.contains(cx, cy, cz) }
                 val blockedHere = a > 0 && blockedPosed.any { it.contains(cx, cy, cz) }
@@ -1335,36 +1338,40 @@ object PoseDecision {
          * locked spot's proposals are requirements sharing one requirement, so one order of it is always chosen. Their
          * outcomes' differences are kept for the linearised cost ([Coordinated.supportStats]).
          */
-        // the cantilever check: a region's reach over air from its lowest layer, cached by pose, region, and layer height
+        // the cantilever check: a region's reach over air from its lowest layer and each level face of it higher up
+        // (Cantilever.readings), cached by pose, region, reading, and layer height
         val posedOf0 = HashMap<String, Pair<TriangleSoup, DoubleArray>>()
         val reachOf = HashMap<String, Cantilever.Reach?>()
         // the reach by pose, region, and layer height, the height in 0.05 mm buckets: the search tries up to nine heights per pose,
         // and a region's lowest layer reaches the same over air to within a fraction of a layer (a cut per bucket, not per height)
         fun reachBucket(layerMm: Double) = Math.max(0.05, Math.round(layerMm / 0.05) * 0.05)
-        fun reachKey(pose: Pose, r: OverhangRegion, layerMm: Double) = "${pose.label}|${r.index}|${Math.round(reachBucket(layerMm) * 1e4)}"
-        /** The reach of every region of [regions] in [pose] at [layerMm] not yet known, cut in ONE sweep of the posed model (a Benchy has 176 regions). */
+        // each region read where Cantilever.readings says (its lowest layer, and each level face of it higher up), [j] the reading
+        fun reachKey(pose: Pose, r: OverhangRegion, j: Int, layerMm: Double) = "${pose.label}|${r.index}|$j|${Math.round(reachBucket(layerMm) * 1e4)}"
+        /** The reach of every reading of every region of [regions] in [pose] at [layerMm] not yet known, cut in ONE sweep of the posed model (a Benchy has 176 regions). */
         fun reachAll(pose: Pose, regions: List<OverhangRegion>, layerMm0: Double) {
             val layerMm = reachBucket(layerMm0)
-            val todo = regions.filter { reachKey(pose, it, layerMm) !in reachOf }
+            val todo = regions.flatMap { r -> Cantilever.readings(r).mapIndexed { j, g -> Triple(r, j, g) } }.filter { (r, j, _) -> reachKey(pose, r, j, layerMm) !in reachOf }
             if (todo.isEmpty()) return
             val (posed, b) = posedOf0.getOrPut(pose.label) { pose.apply(soup).let { it to it.bounds() } }
-            val cuttable = todo.filter { layerMm > 0 && it.region.fromMm >= layerMm - 1e-9 }
-            for (r in todo - cuttable.toSet()) reachOf[reachKey(pose, r, layerMm)] = null
+            val cuttable = todo.filter { (_, _, g) -> layerMm > 0 && g.fromMm >= layerMm - 1e-9 }
+            for ((r, j, _) in todo - cuttable.toSet()) reachOf[reachKey(pose, r, j, layerMm)] = null
             if (cuttable.isEmpty()) return
             // the areas by height, shared with the survey's and held within a bound (Cantilever.areas)
-            val areaAt = Cantilever.areas(posed, cuttable.flatMap { listOf(Cantilever.belowZ(b, it.region, layerMm), Cantilever.layerZ(b, it.region, layerMm)) })
-            for (r in cuttable) reachOf[reachKey(pose, r, layerMm)] =
-                Cantilever.reach(areaAt.getValue(Cantilever.layerZ(b, r.region, layerMm)), areaAt.getValue(Cantilever.belowZ(b, r.region, layerMm)), b, r.region)
-        }
-        fun cantileverReach(pose: Pose, r: OverhangRegion, layerMm: Double): Cantilever.Reach? {
-            reachAll(pose, listOf(r), layerMm)
-            return reachOf[reachKey(pose, r, layerMm)]
+            val areaAt = Cantilever.areas(posed, cuttable.flatMap { (_, _, g) -> listOf(Cantilever.belowZ(b, g, layerMm), Cantilever.layerZ(b, g, layerMm)) })
+            for ((r, j, g) in cuttable) reachOf[reachKey(pose, r, j, layerMm)] =
+                Cantilever.reach(areaAt.getValue(Cantilever.layerZ(b, g, layerMm)), areaAt.getValue(Cantilever.belowZ(b, g, layerMm)), b, g)
         }
         fun isCantilever(reach: Cantilever.Reach?) = reach != null && reach.reachMm > f.overhang.widthMm + 1e-9 &&
             (!reach.bridged || (f.bridgeMaxSpanMm != null && 2 * reach.reachMm > f.bridgeMaxSpanMm + 1e-9))
+        /** The region's reach: the first of its readings that is a cantilever, else its lowest layer's. */
+        fun cantileverReach(pose: Pose, r: OverhangRegion, layerMm: Double): Cantilever.Reach? {
+            reachAll(pose, listOf(r), layerMm)
+            val all = Cantilever.readings(r).indices.map { reachOf[reachKey(pose, r, it, layerMm)] }
+            return all.firstOrNull { isCantilever(it) } ?: all[0]
+        }
         /** Why nothing but support can lay a region whose reach [isCantilever]: a cantilever, or a bridge past the filament's span. */
-        fun cantileverWords(reach: Cantilever.Reach) = if (!reach.bridged)
-            "a cantilever: its lowest layer reaches %.1f mm over air, anchored on one side only, which nothing but support can lay".format(Locale.ROOT, reach.reachMm)
+        fun cantileverWords(reach: Cantilever.Reach, r: OverhangRegion) = if (!reach.bridged)
+            "a cantilever: ${reach.layerWords(r.region)} reaches %.1f mm over air, anchored on one side only, which nothing but support can lay".format(Locale.ROOT, reach.reachMm)
             else "a bridge spanning about %.0f mm, past the filament's bridging limit of %.0f mm (hardware.filament.bridge.span.max): nothing holds its middle".format(Locale.ROOT, 2 * reach.reachMm, f.bridgeMaxSpanMm!!)
         fun supportProposals(pose: Pose, h: Double?, sample: Measure, under: String): List<Coordination.Use> {
             if (!f.supportSearched && f.lockedSpots.isEmpty()) return emptyList()
@@ -1398,7 +1405,7 @@ object PoseDecision {
                 val reach = cantileverReach(pose, r, hReach)
                 val cant = isCantilever(reach)
                 add("${r.id} at ${hh?.let { Control.fmt(it) } ?: "the settings'"} mm", r.region, false, r.standsOn, r.standsOnMm, r.columnMm, r.areaMm2, r.columnMm3, r.baseMm2, r.severityMm2,
-                    r.words + (if (cant) "; " + cantileverWords(reach!!) + ": required" else ""),
+                    r.words + (if (cant) "; " + cantileverWords(reach!!, r) + ": required" else ""),
                     "support's survey: the faces needing support under flat layers of ${hh?.let { Control.fmt(it) + " mm" } ?: "the settings' height"}, clustered where they share a vertex",
                     if (cant) "cantilever:${r.id}" else null)
             }
@@ -1511,8 +1518,8 @@ object PoseDecision {
         fun surfaceTechniqueWords(m: Measure) = if (!weighIroning) "" else if (SurfaceTechnique.IRONING in m.surfaceTechniques) " · ironing" else " · flat tops as laid"
         fun label(p: Pose, m: Measure) = (if (several) "${p.label} · ${m.plan.label}" else p.label) + surfaceTechniqueWords(m)
         fun sealedNote(m: Measure) = if (m.sealedMm2 > 0.005) " (%.1f mm² of it inside a sealed cavity)".format(Locale.ROOT, m.sealedMm2) else ""
-        // the hard check before the weights: an overhang region whose lowest layer
-        // reaches past a line width over air and is anchored on one side only (a cantilever, Cantilever.reach) that no
+        // the hard check before the weights: an overhang region whose lowest layer (or a level face of it higher up,
+        // Cantilever.readings) reaches past a line width over air and is anchored on one side only (a cantilever, Cantilever.reach) that no
         // support spot holds cannot be laid, whatever its score. Only where the search surveys the overhangs (support
         // decided per overhang); locked on, everything is held; locked off, the plan says what prints over air. Applied to
         // the FINAL set (rejectedFinal): the coarse first pass carries no support yet (the joint search proposes it per
@@ -1538,7 +1545,7 @@ object PoseDecision {
             for (r in unheld) {
                 val reach = cantileverReach(p, r, Math.round(layerAtRegion(m, r, b[2]) * 1e4) / 1e4) ?: continue
                 if (isCantilever(reach))
-                    return ("${r.id} (${r.region.words}) reaches %.1f mm over air from its lowest layer (at %.2f, %.2f): " + cantileverWords(reach).replace("a cantilever:", "a cantilever no technique holds up:") +
+                    return ("${r.id} (${r.region.words}) reaches %.1f mm over air from ${reach.layerWords(r.region)} (at %.2f, %.2f): " + cantileverWords(reach, r).replace("a cantilever:", "a cantilever no technique holds up:") +
                         "; a line more than one line width (%.2f mm) past the layer below touches nothing (support would hold it; a bridge needs anchors on two sides within the filament's span)")
                         .format(Locale.ROOT, reach.reachMm, reach.x, reach.y, f.overhang.widthMm)
             }
@@ -2202,16 +2209,18 @@ object PoseDecision {
             return Math.max(0.05, Math.round(h / 0.05) * 0.05)
         }
         val out = ArrayList<String>()
+        val bridgeLimit = f.bridgeMaxSpanMm
+        fun unheld(reach: Cantilever.Reach) = reach.reachMm > f.overhang.widthMm + 1e-9 && (!reach.bridged || (bridgeLimit != null && 2 * reach.reachMm > bridgeLimit + 1e-9))
         for ((h, rs) in regions.groupBy { layerOf(it) }) {
-            val cuttable = rs.filter { it.region.fromMm >= h - 1e-9 }
-            if (cuttable.isEmpty()) continue
-            val areaAt = Cantilever.areas(posed, cuttable.flatMap { listOf(Cantilever.belowZ(b, it.region, h), Cantilever.layerZ(b, it.region, h)) })
-            for (r in cuttable) {
-                val reach = Cantilever.reach(areaAt.getValue(Cantilever.layerZ(b, r.region, h)), areaAt.getValue(Cantilever.belowZ(b, r.region, h)), b, r.region) ?: continue
-                val bridgeLimit = f.bridgeMaxSpanMm
-                if (reach.reachMm <= f.overhang.widthMm + 1e-9 || (reach.bridged && (bridgeLimit == null || 2 * reach.reachMm <= bridgeLimit + 1e-9))) continue
+            // every reading of each region (Cantilever.readings) that is cut above the first layer
+            val reads = rs.associateWith { r -> Cantilever.readings(r).filter { it.fromMm >= h - 1e-9 } }
+            if (reads.values.all { it.isEmpty() }) continue
+            val areaAt = Cantilever.areas(posed, reads.values.flatten().flatMap { listOf(Cantilever.belowZ(b, it, h), Cantilever.layerZ(b, it, h)) })
+            for ((r, gs) in reads) {
+                val reach = gs.mapNotNull { g -> Cantilever.reach(areaAt.getValue(Cantilever.layerZ(b, g, h)), areaAt.getValue(Cantilever.belowZ(b, g, h)), b, g) }
+                    .firstOrNull { unheld(it) } ?: continue
                 out += "support is off (plan.support.enabled = false), and ${r.id} (${r.region.words}) has nothing under it: " +
-                    (if (!reach.bridged) "a cantilever, its lowest layer reaching %.1f mm over air from one side only (at %.2f, %.2f)".format(Locale.ROOT, reach.reachMm, reach.x, reach.y)
+                    (if (!reach.bridged) "a cantilever, ${reach.layerWords(r.region)} reaching %.1f mm over air from one side only (at %.2f, %.2f)".format(Locale.ROOT, reach.reachMm, reach.x, reach.y)
                     else "a bridge spanning about %.0f mm, past the filament's bridging limit of %.0f mm (hardware.filament.bridge.span.max; at %.2f, %.2f)".format(Locale.ROOT, 2 * reach.reachMm, bridgeLimit!!, reach.x, reach.y)) +
                     // a cantilever with wave overhangs on (wave overhang, support, or nothing) is grown from its supported side
                     (if (!reach.bridged && wave) "; it will be laid as wave overhangs grown from its supported side (plan.faces.under.technique), with no support under it"

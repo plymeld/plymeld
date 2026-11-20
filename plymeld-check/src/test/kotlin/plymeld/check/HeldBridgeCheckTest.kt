@@ -17,6 +17,8 @@ import java.util.Locale
  *    problems;
  *  - control: along the arm (along y), each line starting on the bar: nothing found;
  *  - control: one line along the bar's side, 0.2 mm out from it (its bead on the bar's edge): nothing found;
+ *  - a line ending beside a ledge of the model in the same layer, the ledge itself over air: found; control: the same line
+ *    reaching onto the bar: nothing found;
  *  - control: across the arm with support's interface under it, one layer of gap below: nothing found;
  *  - control: across the arm with support under it but a plate of the model between the support and the arm (the support
  *    holds the plate, not the arm): found;
@@ -59,6 +61,13 @@ class HeldBridgeCheckTest : StringSpec({
         held(file(layer(1.2, path("Bridge", listOf(doubleArrayOf(106.3, 108.2), doubleArrayOf(111.7, 108.2)))))).shouldBeEmpty()
         // and the same line 1 mm further out is
         held(file(layer(1.2, path("Bridge", listOf(doubleArrayOf(106.3, 109.2), doubleArrayOf(111.7, 109.2)))))).size shouldBe 1
+    }
+    // the model's own material beside an end in the same layer holds nothing when it too starts in that layer: a ledge along
+    // the bar's side (y 108..110), level with the arm's underside, over air; a line from just past the ledge out along the arm
+    "the model in the same layer beside an end, itself over air, does not hold it; control: the same line from the bar is held" {
+        val ledge = testBox(100f, 108f, 1f, 120f, 110f, 2f)
+        held(file(layer(1.2, path("Bridge", listOf(doubleArrayOf(109.0, 110.2), doubleArrayOf(109.0, 119.7))))), listOf(bar, arm, ledge)).size shouldBe 1
+        held(file(layer(1.2, path("Bridge", listOf(doubleArrayOf(109.0, 107.2), doubleArrayOf(109.0, 119.7))))), listOf(bar, arm, ledge)).shouldBeEmpty()
     }
     "control: support's interface under the arm one layer down, one layer of gap: held" {
         held(file(support(0.8), layer(1.0, ""), layer(1.2, across))).shouldBeEmpty()

@@ -1,6 +1,8 @@
 package plymeld.commands
 
+import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.StringSpec
+import plymeld.config.ConfigStack
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -77,12 +79,40 @@ class CantileverBridgeTest : StringSpec({
     // a roof on two posts, and a slab under the roof's middle held by the roof alone: its first layer has nothing beside or under it
     val hangingStl = "solid hanging\n" + prism(box(0.0, 6.0, 0.0, 10.0), 0.0, 6.0) + prism(box(30.0, 36.0, 0.0, 10.0), 0.0, 6.0) +
         prism(box(0.0, 36.0, 0.0, 10.0), 6.0, 7.2) + prism(box(12.0, 24.0, 2.0, 8.0), 4.0, 6.0) + "endsolid hanging\n"
+    /**
+     * A solid extruded along y from [y0] to [y1] over the profile [xz] (x, z pairs, counter-clockwise seen from -y), its
+     * ends fanned from the profile's point [fan] (one that sees every other), as ASCII STL facets.
+     */
+    fun extruded(xz: List<Pair<Double, Double>>, y0: Double, y1: Double, fan: Int): String {
+        val sb = StringBuilder()
+        fun facet(a: DoubleArray, b: DoubleArray, c: DoubleArray) { sb.append("facet normal 0 0 0\nouter loop\n"); for (v in listOf(a, b, c)) sb.append("vertex ${v[0]} ${v[1]} ${v[2]}\n"); sb.append("endloop\nendfacet\n") }
+        fun p(i: Int, y: Double) = doubleArrayOf(xz[i].first, y, xz[i].second)
+        val n = xz.size
+        for (k in 1 until n - 1) { val i = (fan + k) % n; val j = (fan + k + 1) % n
+            facet(p(fan, y0), p(i, y0), p(j, y0)); facet(p(fan, y1), p(j, y1), p(i, y1)) }
+        for (i in 0 until n) { val j = (i + 1) % n; facet(p(i, y0), p(j, y1), p(j, y0)); facet(p(i, y0), p(i, y1), p(j, y1)) }
+        return sb.toString()
+    }
+    // a block on the bed (x 0..10, 7 mm tall), a ramp whose underside rises from the bed at x 10 to 5.06 mm up at x 25 (18.6
+    // degrees from level, too flat to hold itself up), and an arm 30 mm long from x 25 whose underside is level 5.06 mm up
+    // over air: the ramp's and the arm's undersides share their edge, one overhang region reaching down to the bed (5.06
+    // mm: three of it summed as floats read 0.16 µm above the float itself, above the region's top)
+    val rampArmStl = "solid ramp\n" + extruded(listOf(0.0 to 0.0, 10.0 to 0.0, 25.0 to 5.06, 55.0 to 5.06, 55.0 to 7.0, 0.0 to 7.0), 0.0, 8.0, 5) + "endsolid ramp\n"
+    // the control: the ramp alone, no level underside over air
+    val rampStl = "solid ramp\n" + extruded(listOf(0.0 to 0.0, 10.0 to 0.0, 25.0 to 5.06, 25.0 to 7.0, 0.0 to 7.0), 0.0, 8.0, 4) + "endsolid ramp\n"
     val d: Path = Files.createTempDirectory("plymeld-cantilever-bridge").also { d ->
         Files.writeString(d.resolve("hw.toml"), hardware)
         Files.writeString(d.resolve("off.toml"), "[plan.support]\nenabled = \"false\"\n")
         Files.writeString(d.resolve("arms.stl"), armsStl)
         Files.writeString(d.resolve("span.stl"), spanStl)
         Files.writeString(d.resolve("hanging.stl"), hangingStl)
+        Files.writeString(d.resolve("ramparm.stl"), rampArmStl)
+        Files.writeString(d.resolve("ramp.stl"), rampStl)
+        // the layers left to the search (the pose stays as given), so support is decided per overhang; weights that
+        // would rather print no support than pay for it, so support goes where it is required
+        Files.writeString(d.resolve("free.toml"), hardware.replace("technique.flat.layer.height = \"0.2 mm\"\n", "").replace("technique.flat.heights = \"one\"\n", "") +
+            "\n[method.search]\nlayer.heights = \"3\"\n")
+        Files.writeString(d.resolve("thrifty.toml"), "[job.priorities]\nquality = \"1\"\nmaterial = \"50\"\n")
     }
     /** Slices [model] through the command (the pre-print check included); its status, its output, and the g-code. */
     fun slice(model: String, supportOff: Boolean = true): Triple<Int, String, String> {
@@ -147,5 +177,27 @@ class CantileverBridgeTest : StringSpec({
         offWords shouldContain "rest on nothing at either end"
         // control: the arms, each held at the bar, are not said
         slice("arms.stl").second.contains("rest on nothing") shouldBe false
+    }
+
+    // An overhang region is a cluster of faces needing support; one whose lowest point lies on the bed was never read as a
+    // cantilever (its lowest layer stands on the bed), however far its higher layers hang: a ramp rising from the bed into
+    // an arm level over air was weighed like any droop, and weights that would rather pay no plastic left the arm unheld
+    "an arm level over air at the top of a ramp rising from the bed is a cantilever, supported whatever the weights; control: the ramp alone is weighed" {
+        fun plan(model: String) = Product(ConfigStack.load(listOf("free.toml", "thrifty.toml"), emptyList(), d), listOf(d.resolve(model)), null) { }.decide()
+        /** The plan's support figures: the area needing support, and how much of it is held up. */
+        fun figures(p: plymeld.core.decide.Plan): Pair<Double, Double> {
+            val text = p.describe()
+            val m = Regex("([0-9.]+) mm² of the ([0-9.]+) mm² needing support is held up").find(text) ?: error("no support figures in: $text")
+            return m.groupValues[2].toDouble() to m.groupValues[1].toDouble()
+        }
+        val (need, held) = figures(plan("ramparm.stl"))
+        withClue("the arm's underside (30 x 8 mm) and the ramp's need support: $need mm², $held of it held") {
+            (need > 240.0) shouldBe true
+            held shouldBe need
+        }
+        // the ramp alone has no level underside over air: weighed, and these weights leave it unheld
+        val (rampNeed, rampHeld) = figures(plan("ramp.stl"))
+        (rampNeed > 0.0) shouldBe true
+        rampHeld shouldBe 0.0
     }
 })

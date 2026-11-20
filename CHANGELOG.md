@@ -52,6 +52,15 @@ section the release's version and date.
   support with no part of the model between (a line's end held where printed material lies under it or one line width
   past it). A warning line of the slice says the layer, how many lines and how long, and where the longest lies, with a
   picture of the layer; the file is not refused for it.
+- With support decided per overhang, an underside level over air that a gently sloping underside leads up to from the
+  bed is now supported whatever the weights, as any overhang hanging off one side further than a line width is. The
+  faces needing support form one overhang region where they meet, and a region was read for hanging off one side at its
+  lowest layer alone; one rising from the bed was not read at all, and the level underside at its top, however far it
+  reached over air, was left to the weights. A region is now read at its lowest layer and at each level face of it
+  higher up.
+- The plan's figure for the overhang area support holds up counts the level faces on top of an overhang region: a face
+  whose height a single-precision number holds only roughly read its middle a fraction of a micron above the region's
+  top, outside the support spot under it, and was counted as unheld, in the figure and in the weights' droop.
 
 ## [0.20261120.0] - 2026-11-20
 

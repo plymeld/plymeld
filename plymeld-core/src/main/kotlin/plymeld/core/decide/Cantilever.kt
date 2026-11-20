@@ -9,9 +9,9 @@ import plymeld.mesh.TriangleSoup
 
 /**
  * The hard check before the weights: a bead with nothing under it that no
- * technique holds up cannot be laid, whatever its score. An overhang region's lowest layer is cut from the posed model
- * and read against the model's cross-section just below it: how far its material over air lies from that section is
- * its REACH. Within one line width a line still touches the layer below (how much of it may hang clean is the quality
+ * technique holds up cannot be laid, whatever its score. An overhang region's lowest layer (and the lowest layer of each
+ * level face of it higher up, [readings]) is cut from the posed model and read against the model's cross-section just
+ * below it: how far its material over air lies from that section is its REACH. Within one line width a line still touches the layer below (how much of it may hang clean is the quality
  * rule, [plymeld.model.Overhang.stepMm]); beyond it the line lies entirely over air, and only a bridge, anchored on two
  * sides, can lay it. A region reaching past a line width that is anchored on one side only is a CANTILEVER: a candidate
  * leaving one unheld is rejected ([PoseDecision.decideWithTechnique]; support holds it, a locked spot too). Lines over
@@ -25,8 +25,25 @@ object Cantilever {
     /** How far the anchor search follows the layer before giving up (mm): longer than any bed. */
     private const val MAX_SPAN_MM = 1000.0
 
-    /** How far the region's lowest layer reaches over air (mm), where (mm, the posed model's frame), and whether that point is anchored on two sides at least 90 deg apart. */
-    class Reach(val reachMm: Double, val x: Double, val y: Double, val bridged: Boolean)
+    /**
+     * Where a region's reach is read: its lowest layer, and the lowest layer of each level face of it higher up
+     * ([OverhangRegion.flatFromMm]), each as the region's box from that height. A region is a cantilever where any reading
+     * is. A cluster of faces is one region however it rises: a ramp from the bed into an underside level over air higher up
+     * is one, and read at its lowest layer alone (on the bed: not read at all) the level underside would never be.
+     */
+    fun readings(r: OverhangRegion): List<Coordination.Volume.Region> = listOf(r.region) +
+        r.flatFromMm.map { Coordination.Volume.Region(it, r.region.toMm, r.region.x0, r.region.x1, r.region.y0, r.region.y1) }
+
+    /**
+     * How far the region's layer read ([readings]) reaches over air (mm), where (mm, the posed model's frame), whether that
+     * point is anchored on two sides at least 90 deg apart, and the height the reading starts at ([fromMm], above the posed
+     * model's bottom).
+     */
+    class Reach(val reachMm: Double, val x: Double, val y: Double, val bridged: Boolean, val fromMm: Double = Double.NaN) {
+        /** The layer read, in words: the region's lowest, or a level face of it higher up. */
+        fun layerWords(r: Coordination.Volume.Region): String =
+            if (fromMm.isNaN() || fromMm <= r.fromMm + 1e-6) "its lowest layer" else "its level underside %.2f mm up".format(java.util.Locale.ROOT, fromMm)
+    }
 
     /**
      * Region [r] (relative to the posed model's corner [b], as the survey gives it) of the posed model [p], its lowest
@@ -107,7 +124,7 @@ object Cantilever {
             }
         }
         val f = far ?: return null
-        if (f[2].isInfinite()) return Reach(f[2], f[0], f[1], false)
+        if (f[2].isInfinite()) return Reach(f[2], f[0], f[1], false, r.fromMm)
         // anchors: from the farthest point, in each direction along the layer until it leaves the layer or reaches the
         // section below; bridged when two anchors lie at least a right angle apart
         val hits = ArrayList<Double>()
@@ -123,7 +140,7 @@ object Cantilever {
             }
         }
         val bridged = hits.any { h1 -> hits.any { h2 -> apart(h1, h2) >= Math.PI / 2 - 1e-9 } }
-        return Reach(f[2], f[0], f[1], bridged)
+        return Reach(f[2], f[0], f[1], bridged, r.fromMm)
     }
 
     private fun apart(a: Double, b: Double): Double { var d = Math.abs(a - b) % (2 * Math.PI); if (d > Math.PI) d = 2 * Math.PI - d; return d }
