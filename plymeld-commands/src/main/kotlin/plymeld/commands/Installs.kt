@@ -229,9 +229,9 @@ object Installs {
                         '0', '\u0000' -> {
                             Files.createDirectories(target.parent)
                             Files.write(target, data)
-                            if (mode and "100".toInt(8) != 0) try {
-                                Files.setPosixFilePermissions(target, Files.getPosixFilePermissions(target) + setOf(PosixFilePermission.OWNER_EXECUTE, PosixFilePermission.GROUP_EXECUTE, PosixFilePermission.OTHERS_EXECUTE))
-                            } catch (_: UnsupportedOperationException) { }
+                            // the archive's own permissions, not the process's umask (an update under umask 002 left the
+                            // files group-writable where the tar had them rw-r--r-- / rwxr-xr-x)
+                            try { Files.setPosixFilePermissions(target, permissions(mode)) } catch (_: UnsupportedOperationException) { }
                             out.add(target)
                         }
                         else -> { }                                                   // links and the rest: none in plymeld's tar
@@ -239,6 +239,14 @@ object Installs {
                 }
             }
             return out
+        }
+
+        /** The POSIX permissions of a tar entry's [mode] (its low nine bits: owner, group, others; read, write, execute). */
+        fun permissions(mode: Int): Set<PosixFilePermission> {
+            val order = listOf(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE, PosixFilePermission.OWNER_EXECUTE,
+                PosixFilePermission.GROUP_READ, PosixFilePermission.GROUP_WRITE, PosixFilePermission.GROUP_EXECUTE,
+                PosixFilePermission.OTHERS_READ, PosixFilePermission.OTHERS_WRITE, PosixFilePermission.OTHERS_EXECUTE)
+            return order.filterIndexed { k, _ -> mode and (1 shl (8 - k)) != 0 }.toSet()
         }
 
         /** Runs the unpacked executable's `--version` and returns its version, or throws. */
@@ -265,11 +273,13 @@ object Installs {
                 log("downloading $name")
                 download("$root/$name", got)
                 if (!sha256(got).equals(sum, ignoreCase = true)) error("the download's checksum does not match the published one: nothing was changed")
+                log("checksum matches the published one (sha256 ${sum.take(12)}...)")
                 val staged = work.resolve("plymeld")
                 val files = unpack(got, staged)
                 val exe = staged.resolve("plymeld").takeIf { Files.isRegularFile(it) } ?: error("the download holds no plymeld executable: nothing was changed")
                 val v = versionOf(exe)
                 if (v != version) error("the download is plymeld $v, not $version (a release published meanwhile?): nothing was changed; run `plymeld update` again")
+                log("the new executable says it is plymeld $v")
                 replace(staged, files, folder)
                 log("plymeld $version installed in $folder")
             } finally {
