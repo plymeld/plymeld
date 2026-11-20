@@ -192,16 +192,14 @@ section the release's version and date.
   area, and a wedge of ground between the ring inside it and the wall, up to nearly a line wide, was laid by nothing.
   Each ring now runs on past its arc there, its line narrowed to the ground left (its own reach into the wall a share of
   its own width, `plan.layer.infill.wall_overlap`), down to half a line; two arcs it runs between become one line, and a
-  ring that fits all round narrowed becomes whole. Where a ring crosses the wall steeply, its arc ends as before. On the
-  test catalog's oval (`RingTopTest`), the widest spot left bare on a quarter of its top layer is 0.02 mm, against
-  0.12 mm without the narrowed lines, with nothing laid twice; a path with a narrowed stretch is written as straight
-  moves, not fitted to arcs.
+  ring that fits all round narrowed becomes whole. Where a ring crosses the wall steeply, its arc ends as before. Nothing
+  is laid twice where the rings run on; a path with a narrowed stretch is written as straight moves, not fitted to arcs.
 - A line no longer runs out along a short dead end at a junction and back. Where a thin area too small to keep all its
   forks kept two of them, they were the two longest of those it was cutting, which could be a short trunk beside two
   longer forks: its line ran down the trunk and back. It now keeps its own two longest forks. And where a narrow island
   laid by its width has a short piece from a junction of its middle line to a dead end, covering nothing the line through
   the junction does not, the piece is now left out instead of joined, so the line no longer runs out along it and back.
-  The lines in the small corners of the bundled Benchy and test plate follow their corners' longest forks. A dot of one
+  The lines in small corners follow their corners' longest forks. A dot of one
   part beside another, left out on the object's surface, is still judged on its line as it would have been joined with
   those dead ends, the lines that rule was set on.
 - A narrow island's outer line no longer runs out to a short tip's end and back where that covers nothing its own line
@@ -278,8 +276,9 @@ section the release's version and date.
 - A hole of an area was sometimes read as another area's: a hole whose first corner touched a smaller area beside it (a
   sliver a micron wide, as the space between two walls' lines can leave) was given to that area, and the area that does
   hold it was taken to have none. Variable-width walls then laid lines up to 0.9 mm wide along the middle of that whole
-  area, over the infill, and none where they were needed: on a block with a plate of a second filament buried in it,
-  such lines over the infill, and the web between the block's side and the plate's end left bare. A hole now goes to the smallest area that holds it, judged at its first
+  area, over the infill, and none where they were needed: where a part of a second filament lies buried in an object,
+  such lines over the infill, and the web between the object's side and the buried part's end left bare. A hole now goes
+  to the smallest area that holds it, judged at its first
   corner not on that area's edge.
 - A model could now and then be cut wrong where the mesh was sliced on several threads at once (a slice's own parallel
   work, the pre-print check's, or several slices in one process, as in the window): every thread wrote each cut
@@ -334,9 +333,9 @@ section the release's version and date.
   width hovered at the width two walls need (its outline a little uneven, as a sliced curved face is), the wall loop came
   and went along it: a string of closed loops a millimetre or so long overlapping each other across the whole width, and
   fragments between them; where the loop ended, the single line started short of it, leaving a notch; a stretch of a
-  ridge between two loops, 1.2 mm of it 0.75 mm wide, was laid as a 0.4 mm stub across it (the line's corner forks were
-  pruned first, then its trunk read as a fork of its own and went too); and on an object of several parts, a short line
-  at such a ridge's end was dropped as a "speck" beside the other part, leaving 0.9 mm of a 0.78 mm ridge with no line.
+  ridge between two loops could be laid as a short stub across it (the line's corner forks were pruned first, then its
+  trunk read as a fork of its own and went too); and on an object of several parts, a short line at such a ridge's end
+  was dropped as a "speck" beside the other part, leaving the ridge's end with no line.
   Now pieces of a loop joined by an area at most the slicing tolerance a side narrower than the loop needs are one loop
   (`method.slicing.tolerance`); a loop piece shorter than `plan.layer.walls.transition_length` gives way to the line
   running through it; a line ending against a loop's turn reaches into it as an interior line's end does
@@ -347,7 +346,7 @@ section the release's version and date.
   side; narrower, it is left empty); and a line of no length (its ends on one point) is not written, saving a restart
   and a retraction for nothing.
 - A line is never laid where the area is narrower than `plan.layer.walls.feature.min`, however short the stretch: a
-  line 0.3 mm wide was printed through a gap 0.1 mm wide between a model's face and another part's tip, into that
+  line 0.3 mm wide was laid through a gap 0.1 mm wide between a model's face and another part's tip, into that
   part's place; it now stops either side of the gap, and two lines' ends are not joined across such a place. A small
   area whose skeleton's forks all read as corners (its junction several points a few microns apart) keeps a line
   through its two longest forks (it got a line a few microns long); a "speck" beside
@@ -371,15 +370,15 @@ section the release's version and date.
   model's. An object printed with several tools takes the strictest cone among them: the narrowest angle and the lowest
   tip. A value the tool sets still wins over its model's, and one it sets alone takes the other from the model.
 - A dead feed: with `plan.mechanism.motion.steady.share` set, a line of no length (a thin area's center line whose
-  points come out as one, at sharp tips) was capped to a speed of 0 and written `G1 F0`, at which a printer stopped the
-  print, beside a preheat comment of "NaN s"; and the pre-print check passed the file. Such a line is no longer capped.
+  points come out as one, at sharp tips) was capped to a speed of 0 and written `G1 F0`, a feed a printer may stop the
+  print at, beside a preheat comment of "NaN s"; and the pre-print check passed the file. Such a line is no longer capped.
   The writer now fails the slice at any line holding such a number (the same rule as the send's), the templates' lines
   included, rather than write it; a feed above 0 that rounds to F0 is written F1. The pre-print check refuses such a
   line too, and a NaN or Infinity where plymeld's comments hold a number.
 - On an object of several parts, what counts as another part beside a part's lines (for a seam pressed against one, and
   for a speck of outer wall left out in front of one) is the other parts as laid. It was the object's outline less the
   part, which is closed (`method.slicing.close_gaps`) and so left hairline slivers along a round open edge that read as
-  another part there (along `ScarfCoveredTest`'s round base, 18 of the 97 points of its open outer wall).
+  another part there.
 - A region's speed and acceleration caps (`mechanism.motion.speed.max` and `.acceleration.max` under
   `plan.object.<key>.region.<key>`) apply to an object printed in several filaments, alone or on a plate, and to the other
   objects on such a plate; they were ignored there.
@@ -396,8 +395,8 @@ section the release's version and date.
 - Least-visible seams are planned up the whole wall, not layer by layer. Each layer's seam stayed in line with the one
   below rather than pay the move to a better place on its own, so a seam drawn to the front by a feature low on the
   wall ran up the front face above it to the top. Planned over all the layers a loop continues through, the move is
-  paid once where it costs least: on `SeamColumnTest`'s round column with a slot in its front, the seams above the slot
-  go to the back, in one line, not up the front face. Least-visible placement also counts a scarf seam's blemish as the seam
+  paid once where it costs least: on a round column with a slot in its front, the seams above the slot go to the back,
+  in one line, not up the front face. Least-visible placement also counts a scarf seam's blemish as the seam
   measure does (`method.quality.seam.scarf_share` of a point seam's); counted as a point seam's, a move to a less-seen
   point looked worth more than it was.
 - `plymeld update` on the Linux command line's download gives the new files the permissions the download holds
