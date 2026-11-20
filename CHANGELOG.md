@@ -19,7 +19,6 @@ section the release's version and date.
   spots, their area, the layers holding one, and the widest (its layer, place, width, area, and the two kinds of line),
   with a picture of each such layer among the check's pictures. It does not refuse the file for them: the planner still
   lays some plastic twice itself, in places on ordinary models.
-
 - A curved island over an object of parts in several filaments or settings (`plan.object.<key>.island.<key>`): every
   part inside the island follows its layers, each laid by its own filament, settings, and tool in its turn of the layer,
   the parts meeting in the island's layers as they do in flat ones. Each island layer is a layer among the flat ones: its
@@ -85,6 +84,10 @@ section the release's version and date.
   the object's whole top, all its parts together, so a part's face that another part covers is not lowered onto; on a
   plate each object as its own setting says, on its own layers. A lowered line is never thinner than the thinnest layer
   (`hardware.tool.<key>.layer.height.min`) of any tool the object's parts print with.
+- `plan.mechanism.motion.speed.factor`: every printing speed plymeld decides, times this, for a slower (or faster) print
+  without changing each speed: 75% for a print where finish matters more than time. Travels and retractions keep their
+  speeds; above 100% no speed goes past the machine's printing speed. The filament's melt cap, the minimum layer time
+  and the time prediction read the speeds scaled. Bundled 100%; set it for an object or a part as any plan value.
 
 ### Changed
 
@@ -349,7 +352,6 @@ section the release's version and date.
   for a speck of outer wall left out in front of one) is the other parts as laid. It was the object's outline less the
   part, which is closed (`method.slicing.close_gaps`) and so left hairline slivers along a round open edge that read as
   another part there (along `ScarfCoveredTest`'s round base, 18 of the 97 points of its open outer wall).
-
 - A region's speed and acceleration caps (`mechanism.motion.speed.max` and `.acceleration.max` under
   `plan.object.<key>.region.<key>`) apply to an object printed in several filaments, alone or on a plate, and to the other
   objects on such a plate; they were ignored there.
@@ -370,11 +372,9 @@ section the release's version and date.
   go to the back, in one line, not up the front face. Least-visible placement also counts a scarf seam's blemish as the seam
   measure does (`method.quality.seam.scarf_share` of a point seam's); counted as a point seam's, a move to a less-seen
   point looked worth more than it was.
-
-- `plan.mechanism.motion.speed.factor`: every printing speed plymeld decides, times this, for a slower (or faster) print
-  without changing each speed: 75% for a print where finish matters more than time. Travels and retractions keep their
-  speeds; above 100% no speed goes past the machine's printing speed. The filament's melt cap, the minimum layer time
-  and the time prediction read the speeds scaled. Bundled 100%; set it for an object or a part as any plan value.
+- `plymeld update` on the Linux command line's download gives the new files the permissions the download holds
+  (rwxr-xr-x for the executable, rw-r--r-- for its libraries), where it gave them the shell's default (group-writable
+  under a umask of 002). It says each check as it passes: the checksum, and the new executable's version.
 
 ## [0.20261109.1] - 2026-11-09
 

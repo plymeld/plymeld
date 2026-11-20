@@ -46,8 +46,9 @@ class InstallsTest : StringSpec({
         files.map { into.relativize(it).toString() } shouldContainExactlyInAnyOrder listOf("plymeld", "libjava.so")
         Files.readAllBytes(into.resolve("libjava.so")).size shouldBe 700
         if (linux) {
-            (PosixFilePermission.OWNER_EXECUTE in Files.getPosixFilePermissions(into.resolve("plymeld"))) shouldBe true
-            (PosixFilePermission.OWNER_EXECUTE in Files.getPosixFilePermissions(into.resolve("libjava.so"))) shouldBe false
+            // the archive's own permissions exactly, whatever the process's umask (002 left them group-writable)
+            Files.getPosixFilePermissions(into.resolve("plymeld")) shouldBe java.nio.file.attribute.PosixFilePermissions.fromString("rwxr-xr-x")
+            Files.getPosixFilePermissions(into.resolve("libjava.so")) shouldBe java.nio.file.attribute.PosixFilePermissions.fromString("rw-r--r--")
             Installs.Tar.versionOf(into.resolve("plymeld")) shouldBe "0.20991231.0"
         }
         Files.write(tar, tarGz(listOf("../evil" to "x".toByteArray())))
@@ -105,6 +106,9 @@ class InstallsTest : StringSpec({
             Installs.Tar.versionOf(folder.resolve("plymeld")) shouldBe "0.20991231.0"
             Files.readString(folder.resolve("libjava.so")) shouldBe "new lib"
             said.last() shouldContain "installed in $folder"
+            // each check said as it passes
+            said.any { it.startsWith("checksum matches the published one") } shouldBe true
+            said.any { it == "the new executable says it is plymeld 0.20991231.0" } shouldBe true
         } finally { server.stop(0); dir.toFile().deleteRecursively() }
     }
 
