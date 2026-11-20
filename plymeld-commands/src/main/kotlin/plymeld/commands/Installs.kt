@@ -20,14 +20,20 @@ import java.util.zip.GZIPInputStream
  * - A **Velopack install** (the Windows installer and portable zip, the Linux AppImage): Velopack has no JVM SDK, so
  *   this is plymeld's own client of the two things Velopack defines and documents: the release feed (read through
  *   [UpdateFeed]) and the updater binary installed beside the app (`Update.exe` on Windows, `UpdateNix` inside the
- *   AppImage), whose `apply --waitPid PID --package FILE` installs a downloaded package once that process has exited.
+ *   AppImage, run from a copy outside it: [updaterOutside]), whose `apply --waitPid PID --package FILE` installs a
+ *   downloaded package once that process has exited.
  * - The **Linux command line's tar** (`plymeld-linux-x64.tar.gz`, unpacked anywhere): its files are replaced in place
  *   ([Tar]), the download checked against the checksum published beside it and the new executable's own `--version`.
  * - Anything else (a build from source, run on a JVM) is not updated by plymeld.
  */
 object Installs {
-    /** A Velopack install this executable belongs to: its id, the installed version and channel, the updater, and [root], the folder everything of it is under. */
-    class Velopack(val id: String, val version: String, val channel: String, val updater: Path, val packages: Path, val portable: Boolean, val root: Path)
+    /**
+     * A Velopack install this executable belongs to: its id, the installed version and channel, the updater, and [root],
+     * the folder everything of it is under. [appImage]: the install is an AppImage, whose files (the updater among them)
+     * are readable only while the AppImage runs.
+     */
+    class Velopack(val id: String, val version: String, val channel: String, val updater: Path, val packages: Path, val portable: Boolean, val root: Path,
+                   val appImage: Boolean = false)
 
     class Manifest(val id: String, val version: String, val channel: String?)
 
@@ -59,7 +65,7 @@ object Installs {
         } else {
             val updater = here.resolve("UpdateNix").takeIf { Files.isRegularFile(it) } ?: return null
             if (env["APPIMAGE"].isNullOrEmpty()) return null
-            Velopack(m.id, m.version, m.channel ?: "linux", updater, Path.of("/var/tmp/velopack", m.id, "packages"), true, here)
+            Velopack(m.id, m.version, m.channel ?: "linux", updater, Path.of("/var/tmp/velopack", m.id, "packages"), true, here, appImage = true)
         }
     }
 
@@ -113,12 +119,32 @@ object Installs {
 
     /**
      * Hands the package to the updater and returns the started process: `apply --waitPid PID --package FILE` waits for
-     * this process to exit, installs, and (unless [restart] is false: `--norestart`) starts the window. The caller exits.
+     * [waitFor] to exit (this process, or the install's own executable that ran it and exits after it: [lastToExit]),
+     * installs, and (unless [restart] is false: `--norestart`) starts the window. The caller exits.
      */
-    fun apply(install: Velopack, pkg: Path, restart: Boolean = true): Process {
-        val cmd = mutableListOf(install.updater.toString(), "apply", "--waitPid", ProcessHandle.current().pid().toString(), "--package", pkg.toString())
+    fun apply(install: Velopack, pkg: Path, restart: Boolean = true, waitFor: ProcessHandle = lastToExit(install.root)): Process {
+        val updater = if (install.appImage) updaterOutside(install) else install.updater
+        val cmd = mutableListOf(updater.toString(), "apply", "--waitPid", waitFor.pid().toString(), "--package", pkg.toString())
         if (!restart) cmd.add("--norestart")
-        return ProcessBuilder(cmd).directory(install.updater.parent.toFile()).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
+        return ProcessBuilder(cmd).directory(updater.parent.toFile()).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
+    }
+
+    /**
+     * An AppImage's updater, copied out of it to run: the AppImage's files are readable only while the AppImage runs,
+     * and the updater outlives it (it waits for the AppImage's programs to exit, then replaces the AppImage file), so run
+     * from inside it the updater stops as the AppImage exits, before it has changed anything. The copy goes beside the
+     * install's packages ([Velopack.packages]' folder, under `updater/usr/bin/`, replaced at each update), with the
+     * install's `sq.version`: the updater finds the install from a `usr/bin/` folder holding it and the AppImage from
+     * `$APPIMAGE`, which it inherits.
+     */
+    fun updaterOutside(install: Velopack): Path {
+        val bin = install.packages.toAbsolutePath().parent.resolve("updater").resolve("usr").resolve("bin")
+        Files.createDirectories(bin)
+        val copy = bin.resolve(install.updater.fileName.toString())
+        Files.copy(install.updater, copy, StandardCopyOption.REPLACE_EXISTING)
+        try { Files.setPosixFilePermissions(copy, Tar.permissions("755".toInt(8))) } catch (_: UnsupportedOperationException) { }
+        Files.copy(install.updater.resolveSibling("sq.version"), bin.resolve("sq.version"), StandardCopyOption.REPLACE_EXISTING)
+        return copy
     }
 
     fun sha1(p: Path): String = digest(p, "SHA-1")
@@ -134,16 +160,39 @@ object Installs {
         fun describe(): String = "process ${handle.pid()}: $command" + (started?.let { ", started $it" } ?: "")
     }
 
+    /** [info]'s executable, absolute and normalized, or null when the system does not say. */
+    private fun exeOf(info: ProcessHandle.Info): Path? =
+        info.command().orElse(null)?.let { try { Path.of(it).toAbsolutePath().normalize() } catch (_: Exception) { null } }
+
+    /** Whether [h]'s executable is under [base] (absolute and normalized). */
+    private fun runsFrom(h: ProcessHandle, base: Path): Boolean = exeOf(h.info())?.startsWith(base) == true
+
     /**
-     * The processes other than this one whose executable is under [root] (a window, a `printer watch` in a terminal, a
-     * second window). On Windows a running program's files cannot be replaced, so an update waits for them or stops them.
+     * The processes that ran [self] and wait for it, nearest first, as long as each runs from under [root]: the window's
+     * executable of the install, which runs a command given to it by running the install's command line. They exit
+     * right after [self], so they are neither other processes holding the install ([running]) nor what an update waits
+     * for in [self]'s place.
      */
-    fun running(root: Path, all: () -> List<ProcessHandle> = { ProcessHandle.allProcesses().toList() }, self: Long = ProcessHandle.current().pid()): List<Running> {
+    fun launchers(root: Path, self: ProcessHandle = ProcessHandle.current()): List<ProcessHandle> {
         val base = root.toAbsolutePath().normalize()
+        return generateSequence(self.parent().orElse(null)) { it.parent().orElse(null) }.takeWhile { it.isAlive && runsFrom(it, base) }.toList()
+    }
+
+    /** The process an update of the install at [root] waits for: the outermost of [self]'s [launchers], or [self]. */
+    fun lastToExit(root: Path, self: ProcessHandle = ProcessHandle.current()): ProcessHandle = launchers(root, self).lastOrNull() ?: self
+
+    /**
+     * The processes other than [self] and its [launchers] whose executable is under [root] (a window, a `printer watch`
+     * in a terminal, a second window). On Windows a running program's files cannot be replaced, so an update waits for
+     * them or stops them.
+     */
+    fun running(root: Path, all: () -> List<ProcessHandle> = { ProcessHandle.allProcesses().toList() }, self: ProcessHandle = ProcessHandle.current()): List<Running> {
+        val base = root.toAbsolutePath().normalize()
+        val mine = (launchers(root, self) + self).map { it.pid() }.toSet()
         return all().mapNotNull { h ->
-            if (h.pid() == self) return@mapNotNull null
+            if (h.pid() in mine) return@mapNotNull null
             val info = h.info()
-            val exe = info.command().orElse(null)?.let { try { Path.of(it).toAbsolutePath().normalize() } catch (_: Exception) { null } } ?: return@mapNotNull null
+            val exe = exeOf(info) ?: return@mapNotNull null
             if (!exe.startsWith(base)) return@mapNotNull null
             val args = info.arguments().orElse(null)?.joinToString(" ")
             Running(h, exe.fileName.toString() + (args?.takeIf { it.isNotEmpty() }?.let { " $it" } ?: ""), info.startInstant().orElse(null))

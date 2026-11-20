@@ -7,17 +7,20 @@ import plymeld.config.UserDirs
 
 /**
  * `plymeld update`: installs the newest release over this one ([Installs]): a Velopack install (the Windows installer
- * or portable zip, the AppImage) through Velopack's updater as this command exits; the Linux command line's tar in
- * place. Other plymeld processes running from a Windows install lock its files: the update is refused, naming them,
- * unless `--stop-others` stops them first.
+ * or portable zip, the AppImage, whose window's executable runs this command through the command line inside it)
+ * through Velopack's updater as this command exits; the Linux command line's tar in place. Each install updates itself
+ * alone. Other plymeld processes running from a Windows install lock its files: the update is refused, naming them,
+ * unless `--stop-others` stops them first; the install's window executable that ran this command is not one of them
+ * ([Installs.launchers]).
  */
 class UpdateCommand : CliktCommand(name = "update") {
     private val stopOthers by option("--stop-others", help = "stop the other plymeld processes running from this install first (a window, a command in another terminal): on Windows their files cannot be replaced while they run").flag()
 
     override fun help(context: com.github.ajalt.clikt.core.Context) =
-        "Install the newest plymeld release over this one. An install from the Windows installer, the portable zip or the AppImage is updated by its " +
-            "updater as this command exits (the window included); the Linux command line's own download (plymeld-linux-x64.tar.gz) has its files " +
-            "replaced in place, the download checked against the checksum published with it and the new executable's --version. " +
+        "Install the newest plymeld release over this one. Each install updates itself alone. An install from the Windows installer, the portable zip " +
+            "or the AppImage (`plymeld.AppImage update`) is updated by its updater as this command exits (the window included); the Linux command line's " +
+            "own download (plymeld-linux-x64.tar.gz) has its files replaced in place, the download checked against the checksum published with it and " +
+            "the new executable's --version. " +
             "On Windows, other plymeld processes running from the install are named and the update refused, unless --stop-others stops them. " +
             "A build from source is not updated. Whether plymeld only says a newer release is out: `plymeld updates`."
 

@@ -45,6 +45,32 @@ class NativeSmokeCoverageTest : StringSpec({
     "the smoke run names no command the model does not have (the window's own command line apart)" {
         cases.filter { it !in lines && it != "plymeld-ui" }.shouldBeEmpty()
     }
+    // the window's executable runs the command line's commands (plymeld-ui's Launch.kt): held to --version, a command of
+    // the tree, --help, and a refusal of an argument it does not know
+    // (kind, the arguments): `ok "plymeld-ui" NAME ARGS... [&& ...]`, `refused "plymeld-ui" NAME "PATTERN" ARGS...`
+    fun windowCases(text: String): List<Pair<String, List<String>>> {
+        fun words(s: String) = s.substringBefore("&&").trim().split(Regex("\\s+"))
+        return Regex("""(?m)^\s*ok\s+"plymeld-ui"\s+\S+\s+(.*)$""").findAll(text).map { "ok" to words(it.groupValues[1]) }.toList() +
+            Regex("""(?m)^\s*refused\s+"plymeld-ui"\s+\S+\s+"(?:[^"\\]|\\.)*"\s+(.*)$""").findAll(text).map { "refused" to words(it.groupValues[1]) }.toList()
+    }
+    fun windowHeld(text: String): Set<String> {
+        val tops = CommandModel.read().root.subcommands.map { it.name }.toSet()
+        return windowCases(text).mapNotNull { (kind, args) ->
+            when {
+                kind == "ok" && args.firstOrNull() == "--version" -> "version"
+                kind == "ok" && args.firstOrNull() == "--help" -> "help"
+                kind == "ok" && args.firstOrNull() in tops -> "command"
+                kind == "refused" && args.firstOrNull()?.startsWith("--no-such") == true -> "unknown"
+                else -> null
+            }
+        }.toSet()
+    }
+    "the window's executable is held to --version, a command, --help, and refusing an unknown argument" {
+        windowHeld(script) shouldBe setOf("version", "command", "help", "unknown")
+        // control: a case taken out is missed
+        windowHeld(script.lines().filterNot { it.contains("window-unknown") }.joinToString("\n")) shouldBe setOf("version", "command", "help")
+    }
+
     "control: the reading finds the cases, loops included, and would miss a command with none" {
         cases shouldContain "plymeld render"
         cases shouldContain "plymeld calibrate seams values"

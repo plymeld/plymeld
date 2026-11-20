@@ -2,7 +2,8 @@
 
 plymeld is one program, `plymeld`, with a command for each job: set up, slice, see why, calibrate, and talk to the
 printer. This page shows how the commands fit together. The [command reference](reference/README.md) lists every
-command and option, and `plymeld <command> --help` prints the same for one command.
+command and option, and `plymeld <command> --help` prints the same for one command. The Linux AppImage runs every
+command too: `./plymeld.AppImage <command>` is `plymeld <command>`.
 
 ## Set up
 
@@ -182,9 +183,9 @@ plymeld update
 plymeld update --stop-others
 ```
 
-`plymeld update` installs the newest release over this one, whatever the setting above. An install from the Windows
-installer, the portable zip or the AppImage is updated by its own updater as the command exits, the window included.
-The Linux command line's download (`plymeld-linux-x64.tar.gz`) has its files replaced where you unpacked it, once the
+`plymeld update` installs the newest release over this one, whatever the setting above, and each install updates
+itself alone. An install from the Windows installer, the portable zip or the AppImage (`./plymeld.AppImage update`)
+is updated by its own updater as the command exits, the window included. The Linux command line's download (`plymeld-linux-x64.tar.gz`) has its files replaced where you unpacked it, once the
 download matches the checksum published with it and the new `plymeld --version` says the expected version; otherwise
 nothing is changed. On Windows a running program's files cannot be replaced, so when other plymeld processes are
 running from the install (a window, a command in another terminal) the update names them and stops;

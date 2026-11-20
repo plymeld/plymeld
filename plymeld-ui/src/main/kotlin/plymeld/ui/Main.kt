@@ -21,16 +21,29 @@ import java.nio.file.Files
 import java.nio.file.Path
 
 /**
- * plymeld-ui: the window on a job (the arguments are listed in main), empty when started with
- * no arguments. Besides the window:
+ * plymeld-ui: the window on a job (its options: [Launch.options]), empty when started with no arguments; given a
+ * command of the command line (or `--version`) first, the command line beside it runs that command ([Launch]). Besides
+ * the window:
  *   plymeld-ui --bench [--gcode FILE | --segments N] [--size WxH] [--frames N] [--png OUT.png]   the 3D view's speed (Bench)
  *   plymeld-ui --bench-edit -cf FILE... -m FILE [--height MM]      the edit cycle timed (open, slice, lock a layer height, slice again)
  *   plymeld-ui --gl-info [--gl-platform x11|wayland]
  */
 fun main(args: Array<String>) {
-    // Velopack's install, update, and uninstall hooks (Updates.kt): the command line's PATH entry (CliPath.kt), then exit at
-    // once, as the updater waits for it
-    if (Updates.isHook(args)) { CliPath.hook(args); return }
+    when (val a = Launch.decide(args.toList())) {
+        // Velopack's install, update, and uninstall hooks (Updates.kt): the command line's PATH entry (CliPath.kt), then
+        // exit at once, as the updater waits for it
+        Launch.Action.Hook -> { CliPath.hook(args); return }
+        is Launch.Action.CommandLine -> kotlin.system.exitProcess(commandLine(a.args))
+        Launch.Action.Help -> {
+            val exe = plymeld.commands.Installs.currentExe()
+            val cli = Launch.commandLine(exe)
+            val status = if (cli != null) Launch.run(cli, listOf("--help")) else { System.err.println(Launch.missing(exe)); 0 }
+            println(); print(Launch.usage()); System.out.flush()
+            kotlin.system.exitProcess(status)
+        }
+        is Launch.Action.Refused -> { System.err.println("plymeld: ${a.message}"); kotlin.system.exitProcess(1) }
+        Launch.Action.Window -> { }
+    }
     // `plymeld update` run from the window's finder would wait on the window itself: there, the bar installs updates
     System.setProperty(plymeld.commands.UpdateCommand.IN_WINDOW, "true")
     // A native executable has no java.home, and Skiko's AWT bridge loads ${java.home}/lib/libjawt.so
@@ -38,10 +51,13 @@ fun main(args: Array<String>) {
     // library there. A JVM run has its java.home and is left alone.
     if (System.getProperty("java.home") == null) ProcessHandle.current().info().command().orElse(null)
         ?.let { Path.of(it).toAbsolutePath().parent?.toString() }?.let { System.setProperty("java.home", it) }
-    fun opt(name: String): String? = args.indexOf(name).takeIf { it >= 0 && it + 1 < args.size }?.let { args[it + 1] }
-    fun opts(name: String): List<String> = args.indices.filter { args[it] == name && it + 1 < args.size }.map { args[it + 1] }
+    // each option read is one Launch declares (Launch.option refuses one it does not), so the help and the refusal of an
+    // unknown argument cover exactly what is read here
+    fun opt(name: String): String? = Launch.option(name).name.let { n -> args.indexOf(n).takeIf { it >= 0 && it + 1 < args.size }?.let { args[it + 1] } }
+    fun opts(name: String): List<String> = Launch.option(name).name.let { n -> args.indices.filter { args[it] == n && it + 1 < args.size }.map { args[it + 1] } }
+    fun flag(name: String): Boolean = Launch.option(name).name in args
     val platform = opt("--gl-platform")
-    if ("--gl-info" in args) { GlContext.open(platform).use { println(it.describe) }; return }
+    if (flag("--gl-info")) { GlContext.open(platform).use { println(it.describe) }; return }
     // --icons DIR: the logo written out (SVG, PNGs, .ico) for the README, the desktop entry, and the installers (Logo.kt)
     opt("--icons")?.let { dir -> for (p in Logo.writeIcons(Path.of(dir))) println("icon: $p"); return }
     val (w, h) = (opt("--size") ?: "1600x1000").split('x').map { it.toInt() }
@@ -50,13 +66,13 @@ fun main(args: Array<String>) {
     //   [--tab model|plan|layers] [--why] [--console]: what the window shows first (a screenshot of the Plan tab, the drawer, the console)
     //   [--theme dark|light]: the colors (otherwise the theme last chosen in the window, kept in plymeld's config folder)
     // With no arguments at all (a shortcut, the installed app) the window opens empty, waiting for a model.
-    if ("--bench" !in args) {
+    if (!flag("--bench")) {
         // started with no console (the Windows executable is a GUI program; a shortcut; a double-click): what the
         // program and the JDK print goes to a log file beside the window's other files, not nowhere
-        if (System.console() == null && opt("--screenshot") == null && "--bench-edit" !in args) logToFile()
+        if (System.console() == null && opt("--screenshot") == null && !flag("--bench-edit")) logToFile()
         Ink.load(); opt("--theme")?.let { Ink.dark = it != "light" }
         // --bench-edit [--height MM]: the edit cycle timed through the window's own path (open, slice, lock a layer height, slice again)
-        if ("--bench-edit" in args) { BenchEdit.run(opts("-cf").ifEmpty { JobState.LastJob.read()?.configFiles ?: emptyList() }, opts("-m"), opt("--machine"), platform, opt("--height") ?: "0.16"); return }
+        if (flag("--bench-edit")) { BenchEdit.run(opts("-cf").ifEmpty { JobState.LastJob.read()?.configFiles ?: emptyList() }, opts("-m"), opt("--machine"), platform, opt("--height") ?: "0.16"); return }
         // a model alone: with the last job's config files (a convenience the window keeps; missing files and plan files left
         // out, the model's own plan file added: JobState.configsFor), or with none
         val (cfs, startNotes) = if (opts("-cf").isNotEmpty()) opts("-cf") to emptyList()
@@ -64,18 +80,18 @@ fun main(args: Array<String>) {
         val look: (JobState) -> Unit = { j ->
             val s = j.viewer
             opt("--view")?.let { v -> s.preset(Camera.View.valueOf(v.uppercase())) }
-            if ("--ortho" in args) s.useOrthographic(true)
-            if ("--single" in args) s.useSingleLayer(true)
+            if (flag("--ortho")) s.useOrthographic(true)
+            if (flag("--single")) s.useSingleLayer(true)
             opt("--layers")?.let { r -> val (lo, hi) = r.split(':').map { it.toInt() - 1 }; s.setLayers(lo, hi) }
             opt("--color")?.let { c -> if (c == "tool") j.colorByTool() else s.useColorBy(ColorBy.valueOf(c.uppercase())) }
-            if ("--travels" in args) s.useTravels(true)
+            if (flag("--travels")) s.useTravels(true)
             opt("--moves")?.let { s.moveTo(it.toInt()) }
         }
         //   [--find WORDS]: the finder open with WORDS typed
         //   [--link WORDS]: a step's link followed once the job is in (WindowUi.follow: "Turn or move", "Another printer", ...)
         //   [--pick-machine KEY]: step 2's choice of machine picked (WindowUi.pickMachine), for a picture of the job on it
-        window(cfs, opts("-m"), opt("--machine"), "--slice" in args, opt("--screenshot")?.let { Path.of(it) }, w, h, platform,
-            opt("--tab")?.let { StageTab.valueOf(it.uppercase()) } ?: StageTab.MODEL, "--why" in args, "--console" in args, look, opt("--find"), opt("--setting"), opt("--lock-height"), "--ask-printer" in args, opt("--tray")?.let { TrayTab.valueOf(it.uppercase()) },
+        window(cfs, opts("-m"), opt("--machine"), flag("--slice"), opt("--screenshot")?.let { Path.of(it) }, w, h, platform,
+            opt("--tab")?.let { StageTab.valueOf(it.uppercase()) } ?: StageTab.MODEL, flag("--why"), flag("--console"), look, opt("--find"), opt("--setting"), opt("--lock-height"), flag("--ask-printer"), opt("--tray")?.let { TrayTab.valueOf(it.uppercase()) },
             opt("--link"), opt("--pick-machine"), startNotes)
         return
     }
@@ -220,6 +236,13 @@ private fun key(s: ViewerState, e: KeyEvent): Boolean {
         else -> return false
     }
     return true
+}
+
+/** A command of the command line, run by the command line beside this executable ([Launch]); its exit status, or 1 where there is none. */
+private fun commandLine(args: List<String>): Int {
+    val exe = plymeld.commands.Installs.currentExe()
+    val cli = Launch.commandLine(exe) ?: run { System.err.println(Launch.missing(exe)); return 1 }
+    return Launch.run(cli, args)
 }
 
 /**

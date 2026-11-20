@@ -11,7 +11,9 @@
 #
 #   check <plymeld executable> [--window <plymeld-ui executable>] [dir]
 #     run every case with that executable (the native command line, or any launcher of it), and with --window the
-#     window's own command line (--icons); exit 1 when any case fails. CI and the release run it on what they build.
+#     window's executable as a command line (--version, a command, --help, update, an unknown argument refused, its own
+#     --icons; it runs the command line beside it, so the window's executable is checked where it is packaged); exit 1
+#     when any case fails. CI and the release run it on what they build.
 #   trace [dir]
 #     run every case on the JVM (`./gradlew :plymeld-cli:installDist` first) under GraalVM's tracing agent, merging what
 #     they reach into the command line's metadata; once with a display and once without where there is one, so both of
@@ -257,8 +259,18 @@ if [ "$mode" = trace ] && [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then
   (failed=(); unset DISPLAY WAYLAND_DISPLAY; run_all; [ ${#failed[@]} -eq 0 ]) || failed+=("without a display: the failures above")
 fi
 if [ -n "$window" ]; then
-  # the window's own command line: its icons, drawn and written without opening a window
+  # the window's executable as the command line: what an install that starts only the window (the AppImage, the Windows
+  # launcher) runs. A command, --version, and --help go to the command line beside it; an argument it does not know is
+  # refused; its own --icons draws and writes the logo. None of these opens a window, so each is stopped after two
+  # minutes where GNU timeout is there: a window opened fails the case instead of waiting for someone to close it.
   run=("$window")
+  [ ${#limit[@]} -eq 0 ] || limit=(timeout 120)
+  ok "plymeld-ui" window-version --version && text window-version "^plymeld version "
+  ok "plymeld-ui" window-command config -cf "$config" hardware.machine && text window-command "example-corexy"
+  ok "plymeld-ui" window-help --help && text window-help "^Usage: plymeld " && text window-help "^Window options:"
+  # `update` is the install's own command line's, never the window's refusal (the window's finder points to its bar)
+  refused "plymeld-ui" window-update "updates\.invalid|not an install plymeld can update" update
+  refused "plymeld-ui" window-unknown "no such command or window option: --no-such-option" --no-such-option
   ok "plymeld-ui" window-icons --icons "$W/icons" && picture window-icons "$work/icons/plymeld-256.png"
 fi
 

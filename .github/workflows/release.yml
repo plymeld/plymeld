@@ -73,7 +73,8 @@ jobs:
           for f in plymeld-cli/build/native/*; do case "$f" in *.txt) ;; *) if [ -d "$f" ]; then mkdir -p "$pack/${f##*/}"; cp -an "$f"/. "$pack/${f##*/}/"; else cp -an "$f" "$pack/"; fi ;; esac; done
       # every command, run by the executables as they ship: the tar's command line (its own folder, as the tar holds it),
       # and the AppImage's command line and window (the package folder, where the command line uses the window's copies
-      # of the libraries both load)
+      # of the libraries both load); the window's executable, which the AppImage starts, held to running commands through
+      # the command line beside it, as the AppImage runs them
       - name: Every command, run by the tar's command line
         run: tools/native-smoke.sh check plymeld-cli/build/native/plymeld "$RUNNER_TEMP/smoke-tar"
       - name: Every command, run by the AppImage's command line and window
@@ -164,7 +165,8 @@ jobs:
           Copy-Item "$env:RUNNER_TEMP\ui\bin\*" "$win\bin"
           Copy-Item "$env:RUNNER_TEMP\cli\*.exe", "$env:RUNNER_TEMP\cli\*.dll" "$win\cli"
           Copy-Item -Recurse "$env:RUNNER_TEMP\cli\lib" "$win\cli\lib"
-      # every command, run by the executables the installer and the portable zip carry (Git's bash runs the script)
+      # every command, run by the executables the installer and the portable zip carry (Git's bash runs the script); the
+      # window's executable held to running commands through the command line under cli\, as the launcher runs them
       - name: Every command, run by the command line and the window
         shell: bash
         run: |

@@ -61,6 +61,18 @@ section the release's version and date.
 - The plan's figure for the overhang area support holds up counts the level faces on top of an overhang region: a face
   whose height a single-precision number holds only roughly read its middle a fraction of a micron above the region's
   top, outside the support spot under it, and was counted as unheld, in the figure and in the weights' droop.
+- The AppImage runs every command: `./plymeld.AppImage --version`, `./plymeld.AppImage slice ...`, and
+  `./plymeld.AppImage update` run the command line it holds, with the same arguments, input, output, and exit status,
+  where they opened the window (and printed nothing). Its `update` updates the AppImage through its own updater, and
+  leaves the command line's download (`plymeld-linux-x64.tar.gz`) as it was, as that download's `plymeld update`
+  leaves the AppImage; the window's program that started it is not counted as another plymeld process running from the
+  install, and the updater waits for it to exit. The same holds for the Windows window's program (`plymeld-ui.exe`),
+  whose output shows where it is redirected. `--help` prints the command line's help and the window's own options.
+- The window's program refuses an argument it does not know, naming it, with exit status 1, where it ignored it and
+  opened the window.
+- An AppImage installs the update it downloads (from the window's bar or `update`). Velopack's updater ran from inside
+  the AppImage, whose files are readable only while it runs, and stopped as the AppImage exited, before it had changed
+  anything; it now runs from a copy beside the downloaded packages (`/var/tmp/velopack/plymeld/updater/`).
 
 ## [0.20261120.0] - 2026-11-20
 

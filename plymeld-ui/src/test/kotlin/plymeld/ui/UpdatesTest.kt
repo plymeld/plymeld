@@ -63,7 +63,7 @@ class UpdatesTest : StringSpec({
             Files.writeString(dir.resolve("Update.exe"), "")
             val i = Installs.velopack(exe, emptyMap(), "Windows 11").shouldNotBeNull()
             i.id shouldBe "plymeld"; i.version shouldBe "0.0.1"; i.channel shouldBe "win"; i.updater shouldBe dir.resolve("Update.exe")
-            i.packages shouldBe dir.resolve("packages"); i.portable shouldBe false
+            i.packages shouldBe dir.resolve("packages"); i.portable shouldBe false; i.appImage shouldBe false
             Files.writeString(dir.resolve(".portable"), "")
             Installs.velopack(exe, emptyMap(), "Windows 11").shouldNotBeNull().portable shouldBe true
             // the command line, a folder below (current\cli\plymeld.exe): the same install, its root the install's
@@ -84,7 +84,7 @@ class UpdatesTest : StringSpec({
             Files.writeString(bin.resolve("UpdateNix"), "")
             Installs.velopack(exe, emptyMap(), "Linux").shouldBeNull()                          // not run as an AppImage
             val i = Installs.velopack(exe, mapOf("APPIMAGE" to "/home/x/plymeld.AppImage"), "Linux").shouldNotBeNull()
-            i.updater shouldBe bin.resolve("UpdateNix"); i.channel shouldBe "linux"; i.portable shouldBe true
+            i.updater shouldBe bin.resolve("UpdateNix"); i.channel shouldBe "linux"; i.portable shouldBe true; i.appImage shouldBe true
         } finally { dir.wipe() }
     }
 
