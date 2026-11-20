@@ -78,7 +78,9 @@ object Walls {
      *        center line running through it, unless no center line reaches it (an isolated pin: then it keeps its loop);
      *      - a center line's end against a loop's bead reaches into it by [endOverlap] of its width past bead contact, as an
      *        interior line's end does into the walls (plan.layer.infill.wall_overlap): where two lines become one, the
-     *        single line meets the loop's turn with no gap.
+     *        single line meets the loop's turn with no gap; and where a line laid between two loops runs on to meet a third
+     *        across its way (a narrow stretch where an inner loop turns away behind one of the two), it meets that one so,
+     *        in an island wide enough for its walls somewhere.
      *  4. A narrow island, an island (an outer polygon and its holes) where the set walls nowhere all fit (the innermost loop
      *     has no fit region in it), is laid instead by bead count from its local width ([Beads]: as many lines across each
      *     place as its width holds, each between [minBeadUm] and [maxBeadUm], the width shared among them); steps 1 to 3 are
@@ -104,7 +106,11 @@ object Walls {
                 /** False: a loop's fit keeps the necks its mitred shrink cut ([necksJoined]; a test's control). */
                 joinNecks: Boolean = true,
                 /** False: two loops of a level facing each other across a pinch are not cut apart ([apart]; a test's control). */
-                loopsApart: Boolean = true): LayerWalls {
+                loopsApart: Boolean = true,
+                /** False: a center line's end reaches into a wall only where the wall's nearest point is ahead of it ([reachInto]; a test's control). */
+                reachAhead: Boolean = true,
+                /** False: a loop widened at a slit keeps no point before the slit along an edge ([shareSlits]; a test's control). */
+                slitsAnchored: Boolean = true): LayerWalls {
         val so = spacing(outerWidthUm, layerHeightUm)
         val si = spacing(innerWidthUm, layerHeightUm)
         // each loop's fit region (where its bead fits: its strict pieces, each an outer polygon and its holes) and its looser fit
@@ -161,6 +167,15 @@ object Walls {
             }
         }
         val sample = maxOf(MIN_SAMPLE_UM, minFeatureUm / 2)
+        // the narrow islands (where the set walls nowhere all fit: the innermost loop has no fit region in them; step 4)
+        val last = if (loops > 0) fits.getOrNull(loops - 1) else null
+        val islands = plymeld.geom.Polygons.group(outline)
+        fun inIsland(o: Polygon, hs: List<Polygon>, x: Long, y: Long) = plymeld.geom.Polygons.contains(o, x, y) && hs.none { plymeld.geom.Polygons.contains(it, x, y) }
+        val narrow = if (loops <= 0) emptyList() else islands.filter { (o, hs) -> last == null || last.strict.none { piece -> inIsland(o, hs, piece[0].x(0), piece[0].y(0)) } }
+        // a center line's end reads on along its way to a wall across it only in an island wide enough for its walls
+        // somewhere: a narrow island's walls are judged against its beads as they were laid ([narrowBeads])
+        fun readsAhead(c: CenterLine): Boolean { val m = c.xy.size / 4 * 2
+            return reachAhead && narrow.none { (o, hs) -> inIsland(o, hs, c.xy[m], c.xy[m + 1]) } }
         // the thin pieces' lines, kept from the first build for the second (the pieces a kept tiny loop does not change)
         val pieceLines = HashMap<PieceKey, PieceLines>()
         /** The walls with the tiny pieces left out except those [keep] names (loop index, piece index); and what their loops' bands leave. */
@@ -223,7 +238,7 @@ object Walls {
             val center = if (thin.isEmpty()) emptyList() else centerLines(thin, minBeadUm, minFeatureUm, maxBeadUm, minLengthFactor, transitionUm, outline,
                 interiorMinUm = minBeadUm - 2 * interiorOverlap, keepWiderUm = minFeatureUm + 2 * toleranceUm, endOverlap = endOverlap, surface = surface,
                 pieceCache = pieceLines)
-            return LayerWalls(walls, thick, if (covered.isEmpty()) center else center.map { c -> carried(c) { reachInto(it, covered, endOverlap, sample) } }) to left
+            return LayerWalls(walls, thick, if (covered.isEmpty()) center else center.map { c -> carried(c) { reachInto(it, covered, endOverlap, sample, readsAhead(it)) } }) to left
         }
         val firstBuilt = build(emptySet()); val first = firstBuilt.first
         // a tiny piece left out where no center line took its place keeps its loop (a pin too small for a loop of length
@@ -240,12 +255,8 @@ object Walls {
         // slits between loops shared by the loops beside them (shareSlits, after the narrow islands are decided: a narrow
         // island's beads are judged against its walls as laid above, unshared)
         val interiorMin = minBeadUm - 2 * maxOf(innerWidthUm - si, Math.round(endOverlap * minBeadUm))
-        if (loops <= 0) return shareSlits(outline, laid0, left0, outerWidthUm, innerWidthUm, so, si, interiorMin, maxBeadUm, toleranceUm, sample) { _, _ -> false }
-        val last = fits.getOrNull(loops - 1)
-        val islands = plymeld.geom.Polygons.group(outline)
-        fun inIsland(o: Polygon, hs: List<Polygon>, x: Long, y: Long) = plymeld.geom.Polygons.contains(o, x, y) && hs.none { plymeld.geom.Polygons.contains(it, x, y) }
-        val narrow = islands.filter { (o, hs) -> last == null || last.strict.none { piece -> inIsland(o, hs, piece[0].x(0), piece[0].y(0)) } }
-        if (narrow.isEmpty()) return shareSlits(outline, laid0, left0, outerWidthUm, innerWidthUm, so, si, interiorMin, maxBeadUm, toleranceUm, sample) { _, _ -> false }
+        if (loops <= 0) return shareSlits(outline, laid0, left0, outerWidthUm, innerWidthUm, so, si, interiorMin, maxBeadUm, toleranceUm, sample, slitsAnchored) { _, _ -> false }
+        if (narrow.isEmpty()) return shareSlits(outline, laid0, left0, outerWidthUm, innerWidthUm, so, si, interiorMin, maxBeadUm, toleranceUm, sample, slitsAnchored) { _, _ -> false }
         val laid = laid0
         val islandBeads = HashMap<Polygon, List<CenterLine>>()
         val params = Beads.Params(Beads.Rule(outerWidthUm.toDouble(), innerWidthUm.toDouble(), loops, layerHeightUm * (1 - Math.PI / 4),
@@ -276,7 +287,7 @@ object Walls {
         fun inTaken(x: Long, y: Long) = taken.any { (o, hs) -> inIsland(o, hs, x, y) }
         // the slits between loops shared everywhere but in the islands laid by their beads (a narrow island whose beads were
         // not taken keeps its walls, judged unshared above, and shares their slits as every other island does)
-        val shared = shareSlits(outline, laid0, left0, outerWidthUm, innerWidthUm, so, si, interiorMin, maxBeadUm, toleranceUm, sample) { x, y ->
+        val shared = shareSlits(outline, laid0, left0, outerWidthUm, innerWidthUm, so, si, interiorMin, maxBeadUm, toleranceUm, sample, slitsAnchored) { x, y ->
             if (!keptWallsShared) narrow.any { (o, hs) -> inIsland(o, hs, x, y) } else taken.isNotEmpty() && inTaken(x, y) }
         if (taken.isEmpty()) return shared
         // (each kept loop with its widths, where a slit is shared)
@@ -480,9 +491,16 @@ object Walls {
     /**
      * [c] with each open end that stops against the walls' beads ([covered]: their bands, out to bead contact) reaching into
      * them by [overlap] of its width past contact, toward the nearest point of the band: the end within [slackUm] (the
-     * skeleton's sampling) of half its width from a band is one such. Ends at the outline, and closed lines, stay as they are.
+     * skeleton's sampling) of half its width from a band is one such. Where that nearest point lies beside the end and a band
+     * lies within the same reach straight out from each side of it (a line laid between two walls, its sides on their bands;
+     * not a line along the outline), the end reaches on along its own way into a band whose edge that
+     * way crosses within the same reach, facing it (crossed within 60 deg of head on): a line between a face's outer wall
+     * and a buried part's, meeting the inner wall that turns away from the face behind the part (stopped at bead contact,
+     * its round end leaves a pocket 0.1 to 0.15 mm wide behind the outer wall, which [shareSlits] reads as a slit beside the
+     * outer wall). Ends at the outline, and closed lines, stay as they are. [ahead]:
+     * false, only the nearest point is read (a test's control).
      */
-    private fun reachInto(c: CenterLine, covered: List<Polygon>, overlap: Double, slackUm: Long): CenterLine {
+    private fun reachInto(c: CenterLine, covered: List<Polygon>, overlap: Double, slackUm: Long, ahead: Boolean = true): CenterLine {
         val n = c.xy.size / 2
         if (n < 2 || (c.xy[0] == c.xy[2 * n - 2] && c.xy[1] == c.xy[2 * n - 1])) return c
         fun target(k: Int): LongArray? {
@@ -503,10 +521,43 @@ object Walls {
             }
             if (best > reach || best <= 0.0) return null
             // the band ahead of the end, not beside it (a line thinning out between two walls ends with them at its sides)
-            if (((bx - ex) * tx + (by - ey) * ty) / (best * tl) < END_AHEAD_COS) return null
-            val ext = best - half + overlap * c.widths[k]
+            if (((bx - ex) * tx + (by - ey) * ty) / (best * tl) >= END_AHEAD_COS) {
+                val ext = best - half + overlap * c.widths[k]
+                if (ext <= 0.0) return null
+                return longArrayOf(Math.round(ex + (bx - ex) / best * ext), Math.round(ey + (by - ey) / best * ext))
+            }
+            if (!ahead) return null
+            // the nearest band is beside the end: a line laid between two walls that runs on to meet a third across its way
+            // (a narrow stretch between two loops ending where an inner loop turns away behind one of them). Read straight on
+            // from the end: a band whose edge the line's own way crosses within reach, facing it (crossed within 60 deg of head
+            // on: not a side wall the line runs along or that closes in on it at a slant), is the wall it ends against. Only a
+            // line with a wall each side of its end (a band within reach straight out from each side): a line along the
+            // outline, the outer line of a narrow tip, ends as it did
+            val ux = tx / tl; val uy = ty / tl
+            /** How far along (vx, vy) from the end the way first enters a band, crossing its edge within 60 deg of head on. */
+            fun entering(vx: Double, vy: Double): Double {
+                var first = Double.MAX_VALUE
+                for (p in covered) for (e in 0 until p.size) {
+                    val ax = p.x(e).toDouble(); val ay = p.y(e).toDouble(); val qx = p.x((e + 1) % p.size).toDouble(); val qy = p.y((e + 1) % p.size).toDouble()
+                    if (maxOf(ax, qx) < ex - reach || minOf(ax, qx) > ex + reach || maxOf(ay, qy) < ey - reach || minOf(ay, qy) > ey + reach) continue
+                    val dx = qx - ax; val dy = qy - ay; val el = Math.hypot(dx, dy)
+                    if (el == 0.0) continue
+                    // end + s v meets the edge a + r d: s = cross(a - end, d) / cross(v, d), r = cross(a - end, v) / cross(v, d);
+                    // entering the band (its inside left of each edge: outer rings counter-clockwise, holes clockwise) only
+                    val den = vx * dy - vy * dx
+                    if (den >= 0.0 || -den / el < END_AHEAD_COS) continue
+                    val s = ((ax - ex) * dy - (ay - ey) * dx) / den
+                    val r = ((ax - ex) * vy - (ay - ey) * vx) / den
+                    if (s > 0.0 && r in 0.0..1.0 && s < first) first = s
+                }
+                return first
+            }
+            if (entering(-uy, ux) > reach || entering(uy, -ux) > reach) return null
+            val along = entering(ux, uy)
+            if (along > reach) return null
+            val ext = along - half + overlap * c.widths[k]
             if (ext <= 0.0) return null
-            return longArrayOf(Math.round(ex + (bx - ex) / best * ext), Math.round(ey + (by - ey) / best * ext))
+            return longArrayOf(Math.round(ex + ux * ext), Math.round(ey + uy * ext))
         }
         val a = target(0); val b = target(n - 1)
         if (a == null && b == null) return c
@@ -527,10 +578,13 @@ object Walls {
      * that holds some of the infill region is that region's corner, not a slit. A loop takes no more of a slit than its own
      * stretch facing it across the slit is away, measured straight (a lens-shaped loop's two sides converge toward its ends,
      * where the normal meets the other side at a slant). Read every [stepUm] along a loop's edges near another loop;
-     * a loop unchanged anywhere (within [toleranceUm]) is the same polygon, with no widths.
+     * a loop unchanged anywhere (within [toleranceUm]) is the same polygon, with no widths. Along an edge, a loop keeps its
+     * edge's start, each point beside a slit, the first point past one and the last point before one: it widens and moves
+     * over one step where a slit begins and ends, and keeps its place and width elsewhere ([anchored]: false, no point is kept
+     * before a slit, a test's control: a slit near the far end of a long edge widens and slants the loop along all of it).
      */
     private fun shareSlits(outline: List<Polygon>, laid: LayerWalls, leftover: List<Polygon>, outerWidthUm: Long, innerWidthUm: Long, outerSpacingUm: Long, innerSpacingUm: Long,
-                           interiorMinUm: Long, maxBeadUm: Long, toleranceUm: Long, stepUm: Long, skip: (Long, Long) -> Boolean): LayerWalls {
+                           interiorMinUm: Long, maxBeadUm: Long, toleranceUm: Long, stepUm: Long, anchored: Boolean, skip: (Long, Long) -> Boolean): LayerWalls {
         val walls = laid.walls
         if (walls.isEmpty() || interiorMinUm <= toleranceUm) return laid
         // every loop's edges: (level, loop, edge) and the loop's arc length at the edge's start
@@ -634,6 +688,8 @@ object Walls {
             val ownGap = 2 * w + interiorMinUm
             val xs = ArrayList<Long>(); val ws = ArrayList<Long>()
             var any = false
+            // the last point read and left out for having no slit (on the loop, at its own width): kept where a slit follows it
+            var pendX = 0L; var pendY = 0L; var pend = false
             for (e in 0 until p.size) {
                 val f = (e + 1) % p.size
                 val ax = p.x(e).toDouble(); val ay = p.y(e).toDouble(); val bx = p.x(f).toDouble(); val by = p.y(f).toDouble()
@@ -685,12 +741,18 @@ object Walls {
                     val mx = px + nx * (gl - gr) / 4; val my = py + ny * (gl - gr) / 4
                     val nw = minOf(w + (gl + gr) / 2, maxBeadUm.toDouble())
                     if (gl > 0 || gr > 0) any = true
-                    // an edge with no slit keeps its own vertex only
-                    if (q > 0 && gl == 0.0 && gr == 0.0 && (ws.lastOrNull() ?: 0L) == width(k)) continue
+                    // an edge with no slit keeps its own vertex only; and where a slit begins along it, the last point read
+                    // before it, so the line widens and moves over one step at the slit, not along the whole stretch from the
+                    // edge's start (else a loop beside a slit at the far end of a long edge is laid wider and slanting over all of it)
+                    if (q > 0 && gl == 0.0 && gr == 0.0 && (ws.lastOrNull() ?: 0L) == width(k)) { pendX = Math.round(px); pendY = Math.round(py); pend = true; continue }
+                    if (anchored && pend && (gl > 0 || gr > 0)) { xs.add(pendX); xs.add(pendY); ws.add(width(k)) }
+                    pend = false
                     xs.add(Math.round(mx)); xs.add(Math.round(my)); ws.add(Math.round(nw))
                 }
             }
             if (!any) continue
+            // (and the last edge's point before the loop's first, where that has a slit)
+            if (anchored && pend && ws[0] != width(k)) { xs.add(pendX); xs.add(pendY); ws.add(width(k)) }
             // simplified to the tolerance as any line, as a closed path (first point repeated)
             val c = simplified(CenterLine((xs + listOf(xs[0], xs[1])).toLongArray(), (ws + listOf(ws[0])).toLongArray()), toleranceUm)
             val m = c.xy.size / 2 - 1
@@ -733,8 +795,9 @@ object Walls {
     }
     /**
      * A center line's end stops against a wall's bead "ahead" of it when the nearest point of the bead's band lies within
-     * 60 deg of the way the line runs out (cos 60 deg): the skeleton's last step at a pruned fork can lean that far. A
-     * geometric threshold, plymeld's choice, not a print value.
+     * 60 deg of the way the line runs out (cos 60 deg): the skeleton's last step at a pruned fork can lean that far; or, where
+     * the nearest point lies beside it, when the line's way crosses the band's edge within 60 deg of head on. A geometric
+     * threshold, plymeld's choice, not a print value.
      */
     private const val END_AHEAD_COS = 0.5
 
@@ -806,7 +869,7 @@ object Walls {
     private const val NARROW_HOLE_UM2 = 10_000.0
     private const val NARROW_DOUBLED_MAX_UM2 = 200_000.0
     private const val NARROW_WIDE_SLACK_UM2 = 2_000.0
-    private const val NARROW_WIDEST_UM = 105.0
+    internal const val NARROW_WIDEST_UM = 105.0
     private const val NARROW_OUTSIDE_UM = 90.0
     private const val NARROW_DOUBLED_SLACK_UM2 = 60_000.0
 

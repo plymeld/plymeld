@@ -9,6 +9,20 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Fixed
+
+- A part of another filament buried just behind a face no longer moves the face's outer wall. Where the area in front of
+  it is too narrow for all its walls (its two outer walls and a line between them) and the inner walls turn away from the
+  face to run behind the part, the line between the outer walls stopped short of that turn: its round end left a pocket
+  0.1 to 0.15 mm wide behind the outer wall at each end of the part. It now runs on into the inner wall it meets across its way,
+  reaching into it as a line's end reaches into a wall (`plan.layer.infill.wall_overlap`), as it already did where the
+  wall's nearest point lay ahead of it. And a wall loop widened where a slit too narrow for a line lies beside it no
+  longer widens along the whole of a long edge: it widens and moves over one step where the slit begins and ends. The
+  pocket read as such a slit, and the face's outer wall was laid up to 0.045 mm wider and up to 0.023 mm further in,
+  slanting along the whole face from one end of the part to the other on every layer the part spans, with a step at its
+  end: the wall stepped in at the layer where the part begins and out at the layer after it ends, and sideways at the
+  part's end on every layer between.
+
 ## [0.20261120.0] - 2026-11-20
 
 ### Added
