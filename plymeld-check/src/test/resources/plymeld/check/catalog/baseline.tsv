@@ -230,7 +230,7 @@ buried fin 0.5 mm	base	feature.Internal Bridge.length_mm	366.40
 buried fin 0.5 mm	base	feature.Internal Bridge.paths	2
 buried fin 0.5 mm	base	feature.Internal solid infill.length_mm	4595.70
 buried fin 0.5 mm	base	feature.Internal solid infill.paths	26
-buried fin 0.5 mm	base	feature.Outer wall.length_mm	1856.78
+buried fin 0.5 mm	base	feature.Outer wall.length_mm	1856.77
 buried fin 0.5 mm	base	feature.Outer wall.paths	61
 buried fin 0.5 mm	base	feature.Prime tower.length_mm	15097.28
 buried fin 0.5 mm	base	feature.Prime tower.paths	47
@@ -262,7 +262,7 @@ buried fin 0.5 mm	base	strings.unretracted_over_air_mm	0.46
 buried fin 0.5 mm	base	strings.unretracted_shown_mm	1.43
 buried fin 0.5 mm	base	strings.unretracted_travels	81
 buried fin 0.5 mm	base	strings.visible_restarts	18
-buried fin 0.5 mm	base	time_s	267.7
+buried fin 0.5 mm	base	time_s	267.6
 cornered post	base	check.problems	0
 cornered post	base	feature.Bottom surface.length_mm	82.99
 cornered post	base	feature.Bottom surface.paths	1
@@ -605,13 +605,13 @@ exposed wedge	sliver at the surface to its neighbor	time_s	322.4
 finger inside a second part	base	check.problems	0
 finger inside a second part	base	feature.Bottom surface.length_mm	28.46
 finger inside a second part	base	feature.Bottom surface.paths	3
-finger inside a second part	base	feature.Inner wall.length_mm	2271.25
+finger inside a second part	base	feature.Inner wall.length_mm	2271.64
 finger inside a second part	base	feature.Inner wall.paths	138
 finger inside a second part	base	feature.Internal Bridge.length_mm	66.55
 finger inside a second part	base	feature.Internal Bridge.paths	3
 finger inside a second part	base	feature.Internal solid infill.length_mm	797.06
 finger inside a second part	base	feature.Internal solid infill.paths	78
-finger inside a second part	base	feature.Outer wall.length_mm	1675.05
+finger inside a second part	base	feature.Outer wall.length_mm	1672.59
 finger inside a second part	base	feature.Outer wall.paths	140
 finger inside a second part	base	feature.Prime tower.length_mm	15309.53
 finger inside a second part	base	feature.Prime tower.paths	47
@@ -619,9 +619,9 @@ finger inside a second part	base	feature.Sparse infill.length_mm	153.63
 finger inside a second part	base	feature.Sparse infill.paths	15
 finger inside a second part	base	feature.Top surface.length_mm	88.70
 finger inside a second part	base	feature.Top surface.paths	3
-finger inside a second part	base	filament.T0_mm	131.98
-finger inside a second part	base	filament.T1_mm	152.42
-finger inside a second part	base	filament_mm	284.40
+finger inside a second part	base	filament.T0_mm	131.85
+finger inside a second part	base	filament.T1_mm	152.21
+finger inside a second part	base	filament_mm	284.07
 finger inside a second part	base	laid_twice.area_mm2	0.000
 finger inside a second part	base	laid_twice.layers	0
 finger inside a second part	base	laid_twice.spots	0
@@ -633,17 +633,17 @@ finger inside a second part	base	lines.tiny_moves.outer_wall	4
 finger inside a second part	base	seams.count	210
 finger inside a second part	base	seams.jog_mm	0.000
 finger inside a second part	base	seams.point	210
-finger inside a second part	base	seams.scar_mm2	3.085
+finger inside a second part	base	seams.scar_mm2	3.081
 finger inside a second part	base	seams.scarf	0
 finger inside a second part	base	strings.restart_starved_mm	360.00
 finger inside a second part	base	strings.retractions	229
-finger inside a second part	base	strings.travel_mm	5215.61
+finger inside a second part	base	strings.travel_mm	5219.04
 finger inside a second part	base	strings.unretracted_across_tops_mm	0.00
 finger inside a second part	base	strings.unretracted_over_air_mm	0.46
 finger inside a second part	base	strings.unretracted_shown_mm	0.46
 finger inside a second part	base	strings.unretracted_travels	197
 finger inside a second part	base	strings.visible_restarts	72
-finger inside a second part	base	time_s	265.2
+finger inside a second part	base	time_s	263.2
 holes	base	check.problems	0
 holes	base	feature.Bottom surface.length_mm	429.99
 holes	base	feature.Bottom surface.paths	11
@@ -696,7 +696,7 @@ inlay on a leaning face	base	feature.Internal Bridge.length_mm	173.44
 inlay on a leaning face	base	feature.Internal Bridge.paths	3
 inlay on a leaning face	base	feature.Internal solid infill.length_mm	690.10
 inlay on a leaning face	base	feature.Internal solid infill.paths	12
-inlay on a leaning face	base	feature.Outer wall.length_mm	4293.03
+inlay on a leaning face	base	feature.Outer wall.length_mm	4292.17
 inlay on a leaning face	base	feature.Outer wall.paths	133
 inlay on a leaning face	base	feature.Prime tower.length_mm	10187.18
 inlay on a leaning face	base	feature.Prime tower.paths	72
@@ -704,9 +704,9 @@ inlay on a leaning face	base	feature.Sparse infill.length_mm	2014.94
 inlay on a leaning face	base	feature.Sparse infill.paths	97
 inlay on a leaning face	base	feature.Top surface.length_mm	224.61
 inlay on a leaning face	base	feature.Top surface.paths	1
-inlay on a leaning face	base	filament.T0_mm	472.69
+inlay on a leaning face	base	filament.T0_mm	472.51
 inlay on a leaning face	base	filament.T1_mm	180.79
-inlay on a leaning face	base	filament_mm	653.48
+inlay on a leaning face	base	filament_mm	653.30
 inlay on a leaning face	base	laid_twice.area_mm2	0.000
 inlay on a leaning face	base	laid_twice.layers	0
 inlay on a leaning face	base	laid_twice.spots	0
@@ -718,7 +718,7 @@ inlay on a leaning face	base	lines.tiny_moves.outer_wall	1
 inlay on a leaning face	base	seams.count	141
 inlay on a leaning face	base	seams.jog_mm	5.704
 inlay on a leaning face	base	seams.point	141
-inlay on a leaning face	base	seams.scar_mm2	2.575
+inlay on a leaning face	base	seams.scar_mm2	2.573
 inlay on a leaning face	base	seams.scarf	0
 inlay on a leaning face	base	strings.restart_starved_mm	330.00
 inlay on a leaning face	base	strings.retractions	327
@@ -738,7 +738,7 @@ inlay on a leaning face	support	feature.Internal Bridge.length_mm	173.44
 inlay on a leaning face	support	feature.Internal Bridge.paths	3
 inlay on a leaning face	support	feature.Internal solid infill.length_mm	690.10
 inlay on a leaning face	support	feature.Internal solid infill.paths	12
-inlay on a leaning face	support	feature.Outer wall.length_mm	4293.03
+inlay on a leaning face	support	feature.Outer wall.length_mm	4292.17
 inlay on a leaning face	support	feature.Outer wall.paths	133
 inlay on a leaning face	support	feature.Prime tower.length_mm	10187.18
 inlay on a leaning face	support	feature.Prime tower.paths	72
@@ -750,9 +750,9 @@ inlay on a leaning face	support	feature.Support.length_mm	14.84
 inlay on a leaning face	support	feature.Support.paths	10
 inlay on a leaning face	support	feature.Top surface.length_mm	224.61
 inlay on a leaning face	support	feature.Top surface.paths	1
-inlay on a leaning face	support	filament.T0_mm	473.28
+inlay on a leaning face	support	filament.T0_mm	473.10
 inlay on a leaning face	support	filament.T1_mm	181.34
-inlay on a leaning face	support	filament_mm	654.62
+inlay on a leaning face	support	filament_mm	654.43
 inlay on a leaning face	support	laid_twice.area_mm2	0.000
 inlay on a leaning face	support	laid_twice.layers	0
 inlay on a leaning face	support	laid_twice.spots	0
@@ -764,7 +764,7 @@ inlay on a leaning face	support	lines.tiny_moves.outer_wall	1
 inlay on a leaning face	support	seams.count	141
 inlay on a leaning face	support	seams.jog_mm	5.704
 inlay on a leaning face	support	seams.point	141
-inlay on a leaning face	support	seams.scar_mm2	2.575
+inlay on a leaning face	support	seams.scar_mm2	2.573
 inlay on a leaning face	support	seams.scarf	0
 inlay on a leaning face	support	strings.restart_starved_mm	360.00
 inlay on a leaning face	support	strings.retractions	350
@@ -1096,13 +1096,13 @@ pins	base	time_s	214.1
 plate behind a leaning face	base	check.problems	0
 plate behind a leaning face	base	feature.Bottom surface.length_mm	65.14
 plate behind a leaning face	base	feature.Bottom surface.paths	1
-plate behind a leaning face	base	feature.Inner wall.length_mm	3186.36
+plate behind a leaning face	base	feature.Inner wall.length_mm	3187.20
 plate behind a leaning face	base	feature.Inner wall.paths	195
 plate behind a leaning face	base	feature.Internal Bridge.length_mm	60.24
 plate behind a leaning face	base	feature.Internal Bridge.paths	1
 plate behind a leaning face	base	feature.Internal solid infill.length_mm	903.70
 plate behind a leaning face	base	feature.Internal solid infill.paths	13
-plate behind a leaning face	base	feature.Outer wall.length_mm	2444.95
+plate behind a leaning face	base	feature.Outer wall.length_mm	2444.46
 plate behind a leaning face	base	feature.Outer wall.paths	98
 plate behind a leaning face	base	feature.Prime tower.length_mm	18096.42
 plate behind a leaning face	base	feature.Prime tower.paths	60
@@ -1110,9 +1110,9 @@ plate behind a leaning face	base	feature.Sparse infill.length_mm	124.76
 plate behind a leaning face	base	feature.Sparse infill.paths	6
 plate behind a leaning face	base	feature.Top surface.length_mm	73.19
 plate behind a leaning face	base	feature.Top surface.paths	1
-plate behind a leaning face	base	filament.T0_mm	242.37
+plate behind a leaning face	base	filament.T0_mm	242.38
 plate behind a leaning face	base	filament.T1_mm	116.38
-plate behind a leaning face	base	filament_mm	358.75
+plate behind a leaning face	base	filament_mm	358.76
 plate behind a leaning face	base	laid_twice.area_mm2	0.000
 plate behind a leaning face	base	laid_twice.layers	0
 plate behind a leaning face	base	laid_twice.spots	0
@@ -1124,7 +1124,7 @@ plate behind a leaning face	base	lines.tiny_moves.outer_wall	0
 plate behind a leaning face	base	seams.count	98
 plate behind a leaning face	base	seams.jog_mm	7.438
 plate behind a leaning face	base	seams.point	98
-plate behind a leaning face	base	seams.scar_mm2	0.076
+plate behind a leaning face	base	seams.scar_mm2	0.070
 plate behind a leaning face	base	seams.scarf	0
 plate behind a leaning face	base	strings.restart_starved_mm	180.00
 plate behind a leaning face	base	strings.retractions	159
@@ -1134,16 +1134,16 @@ plate behind a leaning face	base	strings.unretracted_over_air_mm	0.45
 plate behind a leaning face	base	strings.unretracted_shown_mm	0.45
 plate behind a leaning face	base	strings.unretracted_travels	215
 plate behind a leaning face	base	strings.visible_restarts	36
-plate behind a leaning face	base	time_s	426.7
-plate behind a leaning face	base	walls.doubled_mm2	0.2871
+plate behind a leaning face	base	time_s	426.5
+plate behind a leaning face	base	walls.doubled_mm2	0.2938
 plate behind a leaning face	base	walls.largest_shift_mm	1.307
 plate behind a leaning face	base	walls.layers	5
-plate behind a leaning face	base	walls.outside_farthest_mm	0.020
-plate behind a leaning face	base	walls.outside_mm2	0.0138
+plate behind a leaning face	base	walls.outside_farthest_mm	0.015
+plate behind a leaning face	base	walls.outside_mm2	0.0126
 plate behind a leaning face	base	walls.paths	36
 plate behind a leaning face	base	walls.shortest_move_mm	0.013
 plate behind a leaning face	base	walls.shortest_path_mm	1.634
-plate behind a leaning face	base	walls.uncovered_mm2	20.7876
+plate behind a leaning face	base	walls.uncovered_mm2	20.7793
 plate behind a leaning face	base	walls.uncovered_wider_than_floor_mm2	19.0268
 plate behind a leaning face	base	walls.uncovered_widest_mm	2.220
 pointed blob	base	check.problems	0
@@ -1199,7 +1199,7 @@ ridge, dipped	base	feature.Inner wall.length_mm	706.54
 ridge, dipped	base	feature.Inner wall.paths	140
 ridge, dipped	base	feature.Internal solid infill.length_mm	1860.55
 ridge, dipped	base	feature.Internal solid infill.paths	33
-ridge, dipped	base	feature.Outer wall.length_mm	944.69
+ridge, dipped	base	feature.Outer wall.length_mm	944.12
 ridge, dipped	base	feature.Outer wall.paths	108
 ridge, dipped	base	feature.Prime line.length_mm	30.00
 ridge, dipped	base	feature.Prime line.paths	1
@@ -1207,8 +1207,8 @@ ridge, dipped	base	feature.Sparse infill.length_mm	53.59
 ridge, dipped	base	feature.Sparse infill.paths	20
 ridge, dipped	base	feature.Top surface.length_mm	180.95
 ridge, dipped	base	feature.Top surface.paths	3
-ridge, dipped	base	filament.T0_mm	62.98
-ridge, dipped	base	filament_mm	62.98
+ridge, dipped	base	filament.T0_mm	62.95
+ridge, dipped	base	filament_mm	62.95
 ridge, dipped	base	laid_twice.area_mm2	0.000
 ridge, dipped	base	laid_twice.layers	0
 ridge, dipped	base	laid_twice.spots	0
@@ -1220,11 +1220,11 @@ ridge, dipped	base	lines.tiny_moves.outer_wall	10
 ridge, dipped	base	seams.count	164
 ridge, dipped	base	seams.jog_mm	9.181
 ridge, dipped	base	seams.point	164
-ridge, dipped	base	seams.scar_mm2	9.844
+ridge, dipped	base	seams.scar_mm2	9.733
 ridge, dipped	base	seams.scarf	0
 ridge, dipped	base	strings.restart_starved_mm	220.00
 ridge, dipped	base	strings.retractions	105
-ridge, dipped	base	strings.travel_mm	962.21
+ridge, dipped	base	strings.travel_mm	962.31
 ridge, dipped	base	strings.unretracted_across_tops_mm	0.00
 ridge, dipped	base	strings.unretracted_over_air_mm	5.04
 ridge, dipped	base	strings.unretracted_shown_mm	5.04
@@ -1240,7 +1240,7 @@ ridge, dipped, beside a second part	base	feature.Internal Bridge.length_mm	27.12
 ridge, dipped, beside a second part	base	feature.Internal Bridge.paths	5
 ridge, dipped, beside a second part	base	feature.Internal solid infill.length_mm	1964.25
 ridge, dipped, beside a second part	base	feature.Internal solid infill.paths	39
-ridge, dipped, beside a second part	base	feature.Outer wall.length_mm	1605.98
+ridge, dipped, beside a second part	base	feature.Outer wall.length_mm	1605.22
 ridge, dipped, beside a second part	base	feature.Outer wall.paths	166
 ridge, dipped, beside a second part	base	feature.Prime tower.length_mm	20100.38
 ridge, dipped, beside a second part	base	feature.Prime tower.paths	66
@@ -1248,9 +1248,9 @@ ridge, dipped, beside a second part	base	feature.Sparse infill.length_mm	178.96
 ridge, dipped, beside a second part	base	feature.Sparse infill.paths	35
 ridge, dipped, beside a second part	base	feature.Top surface.length_mm	125.48
 ridge, dipped, beside a second part	base	feature.Top surface.paths	3
-ridge, dipped, beside a second part	base	filament.T0_mm	209.11
-ridge, dipped, beside a second part	base	filament.T1_mm	148.01
-ridge, dipped, beside a second part	base	filament_mm	357.12
+ridge, dipped, beside a second part	base	filament.T0_mm	209.08
+ridge, dipped, beside a second part	base	filament.T1_mm	148.00
+ridge, dipped, beside a second part	base	filament_mm	357.08
 ridge, dipped, beside a second part	base	laid_twice.area_mm2	0.000
 ridge, dipped, beside a second part	base	laid_twice.layers	0
 ridge, dipped, beside a second part	base	laid_twice.spots	0
@@ -1260,19 +1260,19 @@ ridge, dipped, beside a second part	base	lines.outer_zigzags	1
 ridge, dipped, beside a second part	base	lines.tiny_moves	68
 ridge, dipped, beside a second part	base	lines.tiny_moves.outer_wall	18
 ridge, dipped, beside a second part	base	seams.count	239
-ridge, dipped, beside a second part	base	seams.jog_mm	16.436
+ridge, dipped, beside a second part	base	seams.jog_mm	16.867
 ridge, dipped, beside a second part	base	seams.point	239
-ridge, dipped, beside a second part	base	seams.scar_mm2	10.705
+ridge, dipped, beside a second part	base	seams.scar_mm2	10.622
 ridge, dipped, beside a second part	base	seams.scarf	0
 ridge, dipped, beside a second part	base	strings.restart_starved_mm	305.00
 ridge, dipped, beside a second part	base	strings.retractions	243
-ridge, dipped, beside a second part	base	strings.travel_mm	9447.34
+ridge, dipped, beside a second part	base	strings.travel_mm	9447.49
 ridge, dipped, beside a second part	base	strings.unretracted_across_tops_mm	1.20
 ridge, dipped, beside a second part	base	strings.unretracted_over_air_mm	0.60
 ridge, dipped, beside a second part	base	strings.unretracted_shown_mm	1.80
 ridge, dipped, beside a second part	base	strings.unretracted_travels	295
 ridge, dipped, beside a second part	base	strings.visible_restarts	61
-ridge, dipped, beside a second part	base	time_s	404.8
+ridge, dipped, beside a second part	base	time_s	404.0
 ridge, flat	base	check.problems	0
 ridge, flat	base	feature.Bottom surface.length_mm	74.74
 ridge, flat	base	feature.Bottom surface.paths	1
@@ -1439,7 +1439,7 @@ ridge, wobbly	base	feature.Bottom surface.length_mm	74.74
 ridge, wobbly	base	feature.Bottom surface.paths	1
 ridge, wobbly	base	feature.Brim.length_mm	196.31
 ridge, wobbly	base	feature.Brim.paths	10
-ridge, wobbly	base	feature.Inner wall.length_mm	449.46
+ridge, wobbly	base	feature.Inner wall.length_mm	449.49
 ridge, wobbly	base	feature.Inner wall.paths	21
 ridge, wobbly	base	feature.Internal solid infill.length_mm	945.00
 ridge, wobbly	base	feature.Internal solid infill.paths	22
@@ -1476,11 +1476,11 @@ ridge, wobbly	base	time_s	143.5
 ridge, wobbly, beside a second part	base	check.problems	0
 ridge, wobbly, beside a second part	base	feature.Bottom surface.length_mm	74.76
 ridge, wobbly, beside a second part	base	feature.Bottom surface.paths	1
-ridge, wobbly, beside a second part	base	feature.Inner wall.length_mm	679.54
+ridge, wobbly, beside a second part	base	feature.Inner wall.length_mm	679.62
 ridge, wobbly, beside a second part	base	feature.Inner wall.paths	37
 ridge, wobbly, beside a second part	base	feature.Internal solid infill.length_mm	847.97
 ridge, wobbly, beside a second part	base	feature.Internal solid infill.paths	16
-ridge, wobbly, beside a second part	base	feature.Outer wall.length_mm	814.41
+ridge, wobbly, beside a second part	base	feature.Outer wall.length_mm	814.42
 ridge, wobbly, beside a second part	base	feature.Outer wall.paths	33
 ridge, wobbly, beside a second part	base	feature.Prime tower.length_mm	7831.74
 ridge, wobbly, beside a second part	base	feature.Prime tower.paths	30
@@ -1489,16 +1489,16 @@ ridge, wobbly, beside a second part	base	feature.Sparse infill.paths	4
 ridge, wobbly, beside a second part	base	feature.Top surface.length_mm	89.61
 ridge, wobbly, beside a second part	base	feature.Top surface.paths	3
 ridge, wobbly, beside a second part	base	filament.T0_mm	109.54
-ridge, wobbly, beside a second part	base	filament.T1_mm	58.96
-ridge, wobbly, beside a second part	base	filament_mm	168.50
+ridge, wobbly, beside a second part	base	filament.T1_mm	58.97
+ridge, wobbly, beside a second part	base	filament_mm	168.51
 ridge, wobbly, beside a second part	base	laid_twice.area_mm2	0.000
 ridge, wobbly, beside a second part	base	laid_twice.layers	0
 ridge, wobbly, beside a second part	base	laid_twice.spots	0
 ridge, wobbly, beside a second part	base	laid_twice.widest_mm	0.000
 ridge, wobbly, beside a second part	base	lines.outer_kinks	0
 ridge, wobbly, beside a second part	base	lines.outer_zigzags	0
-ridge, wobbly, beside a second part	base	lines.tiny_moves	46
-ridge, wobbly, beside a second part	base	lines.tiny_moves.outer_wall	11
+ridge, wobbly, beside a second part	base	lines.tiny_moves	52
+ridge, wobbly, beside a second part	base	lines.tiny_moves.outer_wall	17
 ridge, wobbly, beside a second part	base	seams.count	34
 ridge, wobbly, beside a second part	base	seams.jog_mm	7.371
 ridge, wobbly, beside a second part	base	seams.point	34
@@ -1506,7 +1506,7 @@ ridge, wobbly, beside a second part	base	seams.scar_mm2	0.724
 ridge, wobbly, beside a second part	base	seams.scarf	0
 ridge, wobbly, beside a second part	base	strings.restart_starved_mm	65.00
 ridge, wobbly, beside a second part	base	strings.retractions	78
-ridge, wobbly, beside a second part	base	strings.travel_mm	3769.66
+ridge, wobbly, beside a second part	base	strings.travel_mm	3769.65
 ridge, wobbly, beside a second part	base	strings.unretracted_across_tops_mm	0.40
 ridge, wobbly, beside a second part	base	strings.unretracted_over_air_mm	0.45
 ridge, wobbly, beside a second part	base	strings.unretracted_shown_mm	0.85
@@ -1558,27 +1558,27 @@ ring	base	walls.uncovered_widest_mm	0.020
 sliver tips inside a second part	base	check.problems	0
 sliver tips inside a second part	base	feature.Bottom surface.length_mm	38.54
 sliver tips inside a second part	base	feature.Bottom surface.paths	1
-sliver tips inside a second part	base	feature.Inner wall.length_mm	1785.70
+sliver tips inside a second part	base	feature.Inner wall.length_mm	1786.43
 sliver tips inside a second part	base	feature.Inner wall.paths	118
 sliver tips inside a second part	base	feature.Internal solid infill.length_mm	544.36
 sliver tips inside a second part	base	feature.Internal solid infill.paths	11
-sliver tips inside a second part	base	feature.Outer wall.length_mm	1059.36
+sliver tips inside a second part	base	feature.Outer wall.length_mm	1059.16
 sliver tips inside a second part	base	feature.Outer wall.paths	52
 sliver tips inside a second part	base	feature.Prime tower.length_mm	8417.42
 sliver tips inside a second part	base	feature.Prime tower.paths	27
 sliver tips inside a second part	base	feature.Top surface.length_mm	72.60
 sliver tips inside a second part	base	feature.Top surface.paths	1
-sliver tips inside a second part	base	filament.T0_mm	81.32
-sliver tips inside a second part	base	filament.T1_mm	98.87
-sliver tips inside a second part	base	filament_mm	180.19
+sliver tips inside a second part	base	filament.T0_mm	81.33
+sliver tips inside a second part	base	filament.T1_mm	98.85
+sliver tips inside a second part	base	filament_mm	180.18
 sliver tips inside a second part	base	laid_twice.area_mm2	0.000
 sliver tips inside a second part	base	laid_twice.layers	0
 sliver tips inside a second part	base	laid_twice.spots	0
 sliver tips inside a second part	base	laid_twice.widest_mm	0.000
 sliver tips inside a second part	base	lines.outer_kinks	0
 sliver tips inside a second part	base	lines.outer_zigzags	0
-sliver tips inside a second part	base	lines.tiny_moves	14
-sliver tips inside a second part	base	lines.tiny_moves.outer_wall	0
+sliver tips inside a second part	base	lines.tiny_moves	40
+sliver tips inside a second part	base	lines.tiny_moves.outer_wall	26
 sliver tips inside a second part	base	seams.count	78
 sliver tips inside a second part	base	seams.jog_mm	0.000
 sliver tips inside a second part	base	seams.point	78
@@ -1592,7 +1592,7 @@ sliver tips inside a second part	base	strings.unretracted_over_air_mm	0.46
 sliver tips inside a second part	base	strings.unretracted_shown_mm	0.46
 sliver tips inside a second part	base	strings.unretracted_travels	123
 sliver tips inside a second part	base	strings.visible_restarts	28
-sliver tips inside a second part	base	time_s	158.0
+sliver tips inside a second part	base	time_s	162.0
 sloped top	base	check.problems	0
 sloped top	base	feature.Bottom surface.length_mm	317.17
 sloped top	base	feature.Bottom surface.paths	1
@@ -1854,7 +1854,7 @@ speck beside a part	base	feature.Internal Bridge.length_mm	837.54
 speck beside a part	base	feature.Internal Bridge.paths	3
 speck beside a part	base	feature.Internal solid infill.length_mm	2379.57
 speck beside a part	base	feature.Internal solid infill.paths	11
-speck beside a part	base	feature.Outer wall.length_mm	1714.32
+speck beside a part	base	feature.Outer wall.length_mm	1714.00
 speck beside a part	base	feature.Outer wall.paths	72
 speck beside a part	base	feature.Prime tower.length_mm	3500.11
 speck beside a part	base	feature.Prime tower.paths	25
@@ -1862,9 +1862,9 @@ speck beside a part	base	feature.Sparse infill.length_mm	1170.73
 speck beside a part	base	feature.Sparse infill.paths	36
 speck beside a part	base	feature.Top surface.length_mm	1157.27
 speck beside a part	base	feature.Top surface.paths	3
-speck beside a part	base	filament.T0_mm	326.36
-speck beside a part	base	filament.T1_mm	75.14
-speck beside a part	base	filament_mm	401.50
+speck beside a part	base	filament.T0_mm	326.34
+speck beside a part	base	filament.T1_mm	75.10
+speck beside a part	base	filament_mm	401.44
 speck beside a part	base	laid_twice.area_mm2	0.000
 speck beside a part	base	laid_twice.layers	0
 speck beside a part	base	laid_twice.spots	0
@@ -1878,15 +1878,15 @@ speck beside a part	base	seams.jog_mm	0.000
 speck beside a part	base	seams.point	120
 speck beside a part	base	seams.scar_mm2	3.660
 speck beside a part	base	seams.scarf	0
-speck beside a part	base	strings.restart_starved_mm	145.00
-speck beside a part	base	strings.retractions	114
+speck beside a part	base	strings.restart_starved_mm	155.00
+speck beside a part	base	strings.retractions	116
 speck beside a part	base	strings.travel_mm	3711.20
 speck beside a part	base	strings.unretracted_across_tops_mm	0.00
 speck beside a part	base	strings.unretracted_over_air_mm	0.46
 speck beside a part	base	strings.unretracted_shown_mm	0.46
-speck beside a part	base	strings.unretracted_travels	161
-speck beside a part	base	strings.visible_restarts	29
-speck beside a part	base	time_s	193.5
+speck beside a part	base	strings.unretracted_travels	159
+speck beside a part	base	strings.visible_restarts	31
+speck beside a part	base	time_s	193.6
 stepped top	base	check.problems	0
 stepped top	base	feature.Bottom surface.length_mm	361.09
 stepped top	base	feature.Bottom surface.paths	1
@@ -2091,15 +2091,15 @@ two blobs and a neck	base	strings.unretracted_shown_mm	4.15
 two blobs and a neck	base	strings.unretracted_travels	39
 two blobs and a neck	base	strings.visible_restarts	13
 two blobs and a neck	base	time_s	72.5
-two blobs and a neck	base	walls.doubled_mm2	0.9475
+two blobs and a neck	base	walls.doubled_mm2	0.9488
 two blobs and a neck	base	walls.largest_shift_mm	0.227
 two blobs and a neck	base	walls.layers	9
 two blobs and a neck	base	walls.outside_farthest_mm	0.065
-two blobs and a neck	base	walls.outside_mm2	0.1913
+two blobs and a neck	base	walls.outside_mm2	0.1912
 two blobs and a neck	base	walls.paths	45
 two blobs and a neck	base	walls.shortest_move_mm	0.008
 two blobs and a neck	base	walls.shortest_path_mm	1.550
-two blobs and a neck	base	walls.uncovered_mm2	0.6653
+two blobs and a neck	base	walls.uncovered_mm2	0.6676
 two blobs and a neck	base	walls.uncovered_wider_than_floor_mm2	0.0000
 two blobs and a neck	base	walls.uncovered_widest_mm	0.089
 two-color piece	base	check.problems	0
@@ -2189,53 +2189,53 @@ two-color piece	purge into infill	time_s	131.3
 web 1.0 mm	base	check.problems	0
 web 1.0 mm	base	feature.Bottom surface.length_mm	13.62
 web 1.0 mm	base	feature.Bottom surface.paths	4
-web 1.0 mm	base	feature.Brim.length_mm	203.56
+web 1.0 mm	base	feature.Brim.length_mm	204.04
 web 1.0 mm	base	feature.Brim.paths	10
 web 1.0 mm	base	feature.Inner wall.length_mm	1236.88
 web 1.0 mm	base	feature.Inner wall.paths	102
 web 1.0 mm	base	feature.Internal solid infill.length_mm	241.89
 web 1.0 mm	base	feature.Internal solid infill.paths	54
-web 1.0 mm	base	feature.Outer wall.length_mm	685.55
+web 1.0 mm	base	feature.Outer wall.length_mm	685.09
 web 1.0 mm	base	feature.Outer wall.paths	22
 web 1.0 mm	base	feature.Prime line.length_mm	30.00
 web 1.0 mm	base	feature.Prime line.paths	1
 web 1.0 mm	base	feature.Top surface.length_mm	47.27
 web 1.0 mm	base	feature.Top surface.paths	6
-web 1.0 mm	base	filament.T0_mm	43.87
-web 1.0 mm	base	filament_mm	43.87
+web 1.0 mm	base	filament.T0_mm	43.86
+web 1.0 mm	base	filament_mm	43.86
 web 1.0 mm	base	laid_twice.area_mm2	0.000
 web 1.0 mm	base	laid_twice.layers	0
 web 1.0 mm	base	laid_twice.spots	0
 web 1.0 mm	base	laid_twice.widest_mm	0.000
 web 1.0 mm	base	lines.outer_kinks	0
 web 1.0 mm	base	lines.outer_zigzags	0
-web 1.0 mm	base	lines.tiny_moves	26
+web 1.0 mm	base	lines.tiny_moves	17
 web 1.0 mm	base	lines.tiny_moves.outer_wall	0
 web 1.0 mm	base	seams.count	23
 web 1.0 mm	base	seams.jog_mm	4.811
 web 1.0 mm	base	seams.point	23
-web 1.0 mm	base	seams.scar_mm2	2.572
+web 1.0 mm	base	seams.scar_mm2	2.085
 web 1.0 mm	base	seams.scarf	0
 web 1.0 mm	base	strings.restart_starved_mm	95.00
 web 1.0 mm	base	strings.retractions	74
-web 1.0 mm	base	strings.travel_mm	621.21
+web 1.0 mm	base	strings.travel_mm	621.20
 web 1.0 mm	base	strings.unretracted_across_tops_mm	0.34
-web 1.0 mm	base	strings.unretracted_over_air_mm	4.37
-web 1.0 mm	base	strings.unretracted_shown_mm	4.70
+web 1.0 mm	base	strings.unretracted_over_air_mm	4.39
+web 1.0 mm	base	strings.unretracted_shown_mm	4.72
 web 1.0 mm	base	strings.unretracted_travels	124
 web 1.0 mm	base	strings.visible_restarts	19
-web 1.0 mm	base	time_s	94.2
-web 1.0 mm	base	walls.doubled_mm2	0.7876
+web 1.0 mm	base	time_s	93.0
+web 1.0 mm	base	walls.doubled_mm2	0.6429
 web 1.0 mm	base	walls.largest_shift_mm	0.228
 web 1.0 mm	base	walls.layers	9
-web 1.0 mm	base	walls.outside_farthest_mm	0.025
-web 1.0 mm	base	walls.outside_mm2	0.1652
+web 1.0 mm	base	walls.outside_farthest_mm	0.015
+web 1.0 mm	base	walls.outside_mm2	0.0965
 web 1.0 mm	base	walls.paths	36
 web 1.0 mm	base	walls.shortest_move_mm	0.013
 web 1.0 mm	base	walls.shortest_path_mm	1.550
-web 1.0 mm	base	walls.uncovered_mm2	0.0772
+web 1.0 mm	base	walls.uncovered_mm2	0.2800
 web 1.0 mm	base	walls.uncovered_wider_than_floor_mm2	0.0000
-web 1.0 mm	base	walls.uncovered_widest_mm	0.020
+web 1.0 mm	base	walls.uncovered_widest_mm	0.120
 web 1.6 mm	base	check.problems	0
 web 1.6 mm	base	feature.Bottom surface.length_mm	13.61
 web 1.6 mm	base	feature.Bottom surface.paths	4
@@ -2245,14 +2245,14 @@ web 1.6 mm	base	feature.Inner wall.length_mm	1348.38
 web 1.6 mm	base	feature.Inner wall.paths	111
 web 1.6 mm	base	feature.Internal solid infill.length_mm	301.86
 web 1.6 mm	base	feature.Internal solid infill.paths	72
-web 1.6 mm	base	feature.Outer wall.length_mm	699.76
+web 1.6 mm	base	feature.Outer wall.length_mm	699.72
 web 1.6 mm	base	feature.Outer wall.paths	22
 web 1.6 mm	base	feature.Prime line.length_mm	30.00
 web 1.6 mm	base	feature.Prime line.paths	1
 web 1.6 mm	base	feature.Top surface.length_mm	53.94
 web 1.6 mm	base	feature.Top surface.paths	8
-web 1.6 mm	base	filament.T0_mm	46.61
-web 1.6 mm	base	filament_mm	46.61
+web 1.6 mm	base	filament.T0_mm	46.60
+web 1.6 mm	base	filament_mm	46.60
 web 1.6 mm	base	laid_twice.area_mm2	0.000
 web 1.6 mm	base	laid_twice.layers	0
 web 1.6 mm	base	laid_twice.spots	0
@@ -2264,26 +2264,26 @@ web 1.6 mm	base	lines.tiny_moves.outer_wall	0
 web 1.6 mm	base	seams.count	22
 web 1.6 mm	base	seams.jog_mm	0.000
 web 1.6 mm	base	seams.point	22
-web 1.6 mm	base	seams.scar_mm2	1.424
+web 1.6 mm	base	seams.scar_mm2	1.259
 web 1.6 mm	base	seams.scarf	0
 web 1.6 mm	base	strings.restart_starved_mm	90.00
 web 1.6 mm	base	strings.retractions	92
 web 1.6 mm	base	strings.travel_mm	716.47
 web 1.6 mm	base	strings.unretracted_across_tops_mm	1.12
-web 1.6 mm	base	strings.unretracted_over_air_mm	4.36
-web 1.6 mm	base	strings.unretracted_shown_mm	5.48
+web 1.6 mm	base	strings.unretracted_over_air_mm	4.39
+web 1.6 mm	base	strings.unretracted_shown_mm	5.51
 web 1.6 mm	base	strings.unretracted_travels	135
 web 1.6 mm	base	strings.visible_restarts	18
-web 1.6 mm	base	time_s	96.0
+web 1.6 mm	base	time_s	95.8
 web 1.6 mm	base	walls.doubled_mm2	0.0907
 web 1.6 mm	base	walls.largest_shift_mm	0.043
 web 1.6 mm	base	walls.layers	9
-web 1.6 mm	base	walls.outside_farthest_mm	0.016
-web 1.6 mm	base	walls.outside_mm2	0.1159
+web 1.6 mm	base	walls.outside_farthest_mm	0.015
+web 1.6 mm	base	walls.outside_mm2	0.0966
 web 1.6 mm	base	walls.paths	54
 web 1.6 mm	base	walls.shortest_move_mm	0.001
 web 1.6 mm	base	walls.shortest_path_mm	0.770
-web 1.6 mm	base	walls.uncovered_mm2	0.7299
+web 1.6 mm	base	walls.uncovered_mm2	0.7532
 web 1.6 mm	base	walls.uncovered_wider_than_floor_mm2	0.0000
 web 1.6 mm	base	walls.uncovered_widest_mm	0.139
 web 2.2 mm	base	check.problems	0

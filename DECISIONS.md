@@ -1087,6 +1087,9 @@ block changed.
 **Consequences.** WallsByWidthTest's web 1.0: widest bare 0.120 to 0.020 mm; the block control unchanged byte for byte.
 Open: a pocket 0.13 mm wide where three lines meet at the end of a web 1.6 mm wide's center line (no slit: three sides).
 
+Amended by 66: an outer wall takes no share of a slit; an inner loop beside one takes all of it, and the web 1.0's slit
+between its two outer walls stays.
+
 ## 35. The scarf seams decision 32 gave up are covered seams, point seams by decision 22 (2026-11-15)
 
 **Context.** Decision 32 put the fall in scarf seams down to loops with nothing under them taking a corner. Counted per outer loop, with the alignment of 32 on and off: the loops that lost their scarf are small
@@ -2227,7 +2230,7 @@ seen to fail with one round end left out of the span; control: in reverse withou
 one depth differ), RenderLargeTest (a slow suite: 2500 layers, 15 MB, drawn in 3D in a JVM of its own with a 64 MB
 heap within 30 s, 1.5 s measured; control: a 24 MB heap runs out).
 
-## 66. A line between two walls meets a third across its way as a line meets a wall; a loop widens only beside its slit (2026-11-20)
+## 66. A line between two walls meets a third across its way as a line meets a wall; a loop widens only beside its slit; an outer wall shares no slit (2026-11-20)
 
 A fix to two rules that the code fell short of: decision 26's (a center line's end against a loop reaches into it by
 `plan.layer.infill.wall_overlap` of its width past bead contact) and decision 34's (two loops share a slit too narrow
@@ -2256,6 +2259,14 @@ face on every layer the part spans, with a step at its end, and back to its plac
   were, so its beads are judged against the same walls as before.
 - Along a loop's edge, shareSlits keeps the last point read before a slit as well as the first after it: the loop widens
   and moves over one step (the skeleton's sampling) where a slit begins and ends, and keeps its place and width elsewhere.
+- An outer wall is never widened or moved for a slit (amends 34). The outer wall is the level-0 loop, the wall seen from
+  outside: round the outline's outer edge and round each of its holes alike (a hole's surface is seen through the hole),
+  a narrow island's outer loop laid by its beads included (its widths are its own construction's, never a slit's). It
+  keeps the width and place the walls gave it along a face, whatever lies behind it. An inner loop beside a slit whose
+  line across is an outer wall takes the whole slit (all of it wider, half of it nearer, its other edge in place, within
+  `plan.layer.walls.line.width.max` and its own facing stretch as before); two inner loops share one half each as before.
+  What the inner lines cannot take stays a slit inside the part, and the pre-print check's hole rule judges it: where only
+  outer walls cross an area (a web about two lines wide between a hole and the side), the whole slit between them.
 - The catalog's wall reading measures the shift between layers only at the points inside its window (a long move reaching
   out of a fixed window was read out to its far end, against the other layer's moves inside the window: a move one layer
   ends at a point the other runs straight through read as a shift of millimeters).
@@ -2283,7 +2294,17 @@ buried fin, exposed wedge, speck, finger, and ridges). Where line ends moved, pa
 2.2 mm has one more retraction on most layers (87 to 98) and 1.7 s more, the steep and pointed ridges one more each,
 the inlay two fewer, the web 1.0 mm four fewer. Read on along its way in a narrow island too, a line made that island's
 walls measure better than its beads on the wedge's first layer, which then kept walls that leave its tip's outline bare
-(the pre-print check refused it): hence only in wide islands. Still open: the line behind the face's outer wall
+(the pre-print check refused it): hence only in wide islands. The outer wall's rule: BuriedPartFaceTest's face wall with
+the pocket left behind it (line ends as before) keeps one width and one distance from the face exactly, against 0.023
+and 0.045 mm with the outer wall sharing (control); the web 1.0 mm's two outer walls leave its slit (widest uncovered
+0.020 to 0.120 mm, nothing wider than the floor, no problem from the pre-print check; plastic outside 0.165 to 0.097 mm²
+and laid twice 0.79 to 0.64 mm²), held now to the floor as the web 1.6 mm is; the 1.6 and 2.2 mm webs and decision 34's
+lens pass as before. Outer walls that took a share are laid at their own width: a little less filament on the finger,
+inlay, ridges, speck, and webs; the sliver tips' outer wall keeps the points its outline's offset gives it closer than the
+slicing tolerance (26 moves; a loop that shared a slit was rebuilt and simplified to the tolerance, which merged them),
+and its predicted time is 4 s longer; the wobbly ridge beside a second part has six more such moves on its outer wall.
+Seams moved with the outer walls' points: seam scar lower on the webs and dipped ridges, the dipped ridge beside a second
+part's jogs 0.4 mm longer in all; the speck model two more retractions. Still open: the line behind the face's outer wall
 changes from an inner wall to the narrow area's center line where a buried part begins (its face-side edge in place,
 its middle about 0.02 mm further in, 0.03 mm wider); a shared slit's widening still changes width over one step. The
 buried part's underside is not a surface of the object (the regions are classified against the whole object, all its
