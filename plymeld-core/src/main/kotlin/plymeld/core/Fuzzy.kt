@@ -5,9 +5,8 @@ import java.util.SplittableRandom
 /**
  * Fuzzy skin ("classic" noise, displacement mode): a closed wall loop is re-sampled at random
  * spacing around `pointDistUm`, and each new point is pushed along the loop's normal by a random
- * amount in [-thickness, +thickness]. Behavior measured from QIDIStudio on a test model: offsets
- * spread evenly over ±fuzzy_skin_thickness, point spacing median ≈ the point distance. Which loops
- * each mode fuzzes has no test.
+ * amount in [-thickness, +thickness]: offsets spread evenly over ±fuzzy_skin_thickness, point spacing median ≈ the point
+ * distance. Which loops each mode fuzzes has no test.
  *
  * Deterministic: the random stream is seeded from the layer and loop, so a re-slice (or an
  * incremental re-run after an unrelated setting change) gives identical g-code.

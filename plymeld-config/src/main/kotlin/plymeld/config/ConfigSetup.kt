@@ -377,7 +377,7 @@ object ConfigSetup {
                 // default; a placeholder).
                 // plymeld's choice: a strand can leave the opening thinner than it (pushed less while moving), and three
                 // quarters of the bore stays wider than a layer is thick at the usual half-bore layer, so it is still a
-                // flattened bead; the whole bore left ledges under 0.4 mm unprinted on a 0.4 mm nozzle
+                // flattened bead; the whole bore would leave ledges narrower than it unprinted
                 val narrowE = hw("tool", site.tool, "line.width.min") ?: hw("tool", site.tool, "bore")
                 val narrowest = hw("tool", site.tool, "line.width.min")?.let { e -> c.quantity(e, Dimension.LENGTH, site) to "derived from the tool's narrowest line (${e.key}, ${e.source})" }
                     ?: hw("tool", site.tool, "bore")?.let { e -> c.quantity(e, Dimension.LENGTH, site) * STAND_IN_NARROWEST to
@@ -387,7 +387,7 @@ object ConfigSetup {
                     set("plan.layer.walls.line.width.min", w, "$from: the narrowest line")
                     // half the line (plymeld's choice): an area at the model's surface from half the narrowest line thick gets
                     // that line, over-full by at most twice; at the full line, ledges and frame edges thinner than the bore
-                    // (a two-color Benchy's cabin) were left unprinted, their outline with no wall. Between walls the
+                    // (a two-color Benchy's cabin) would be left unprinted, their outline with no wall. Between walls the
                     // narrowest line itself (less its flanks) is the floor: there an over-full line overlaps the walls (Walls.arachne)
                     set("plan.layer.walls.feature.min", w / 2, "$from: half that line; an area at the model's surface thinner gets nothing (one of at least half the line gets the line)")
                     set("plan.layer.walls.length_factor.min", 2.0, "$from: a line shorter than two widths is a dot")

@@ -13,12 +13,10 @@ import plymeld.geom.Polygon
  *     that anything could stand under: a strip is kept only where the overhang stacked over a column's
  *     width of height around it is at least that wide ([dropSpecks]; plan.support.column.width,
  *     unset = a tree tip, two support lines). A sloped face is a stack of thin per-layer strips, so it is
- *     judged as its stack, never strip by strip: the "skip small overhangs" opening judged each layer's
- *     strip, which on a slope is one layer's advance wide, and dropped nearly every sloped overhang
- *     (removed); a per-line filter dropped every tree tip's interface and the
- *     columns under small faces (reverted). What this drops: specks (an engraved letter's
- *     ceiling a fraction of a line wide, 21 of them in one print's show face) and faces narrower than a
- *     column, which get no support at all. A locked spot (a region's support = "always") is never filtered; a blocked box (support = "never") gets none.
+ *     judged as its stack, never strip by strip: an opening that judges each layer's strip, which on a slope is one
+ *     layer's advance wide, would drop nearly every sloped overhang; a per-line filter would drop every tree tip's
+ *     interface and the columns under small faces. What this drops: specks (a narrow engraved groove's
+ *     ceiling a fraction of a line wide) and faces narrower than a column, which get no support at all. A locked spot (a region's support = "always") is never filtered; a blocked box (support = "never") gets none.
  *  2. Support standing on the model kept clear of it ([clearAboveModel]).
  */
 /** [walls]: outlines printed as support loops before the lines (the tree's branches). */
@@ -108,14 +106,14 @@ object Supports {
     }
 
     /**
-     * The overhang pieces nothing could stand under, dropped (plan.support.column.width; the "support dabs" of a
-     * 30-part model's review): layer k's overhang is kept only where the downward faces ([faces]: each
+     * The overhang pieces nothing could stand under, dropped (plan.support.column.width: no dabs of support under
+     * specks): layer k's overhang is kept only where the downward faces ([faces]: each
      * layer beyond the one below, no step allowed; given for the layers whose overhang is not empty) of every layer
      * within [widthUm] of height above and below it, taken together, are at least [widthUm] across (their opening by
      * half that width). A sloped face's overhang is a comb of per-layer strips, each one layer's advance less the step
      * wide, with the step zones between them; its downward faces stacked over a column's width of height are the
      * face's own footprint, so a face flatter than the overhang limit is kept whole (judge the column, not the
-     * strip). What never stacks up is dropped: a speck (an engraved letter's ceiling a
+     * strip). What never stacks up is dropped: a speck (a narrow engraved groove's ceiling a
      * fraction of a line wide, one layer), and a face narrower than [widthUm] everywhere, under which no column that
      * wide can be laid. The layers run in parallel; each result is a subset of its input.
      */

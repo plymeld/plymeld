@@ -16,8 +16,8 @@ import plymeld.model.SliceSettings
  * there is taken out by area. The catalog's teeth (Models.TEETH: triangles about two lines across, a side bulging out): the
  * walls' loop fits each only as a scrap shorter than the transition length, a center line in its place, so the walls hand
  * most of the tooth to infill, a piece whose first point (a mitred tip) lies a few hundredths past the tooth's apex. Taken out
- * by that first point alone, the piece stayed, and a bridge (the tooth hangs over air) or solid infill was laid across the
- * tooth's own beads: on a test slice 14 spots laid twice, a bridge or solid infill over an outer wall, up to 0.51 mm wide.
+ * by that first point alone, the piece stays, and a bridge (the tooth hangs over air) or solid infill is laid across the
+ * tooth's own beads: plastic laid twice, a bridge or solid infill over an outer wall.
  *  - each tooth, with the walls of the catalog's walls rig: its loop is laid by its beads, and nothing inside it is handed to
  *    infill; control: taken out by first point (Walls.arachne innerTakenByArea = false), 0.33 and 0.29 mm² of the first
  *    two teeth are (at least 0.2 mm² required);

@@ -10,7 +10,7 @@ package plymeld.gcode
  *
  * Expressions: numbers, "strings", identifiers, name[i], + - * / %, comparisons, and/or/not
  * (also && || !), min(), max(), int(), and parentheses. Integer / integer is INTEGER division
- * — confirmed from QIDIStudio output: `24/20` renders as 1 (F720 = 12/1*60).
+ * — `24/20` renders as 1 (F720 = 12/1*60).
  *
  * An unknown name is an error, never an empty string: a silently blank temperature in start
  * g-code is exactly the kind of defect that ships.

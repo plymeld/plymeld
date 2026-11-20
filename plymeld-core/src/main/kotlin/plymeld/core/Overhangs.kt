@@ -67,8 +67,8 @@ object Overhangs {
      * [plymeld.program.OverhangSpeed.from] for that line, where the slow-down starts. An outer wall vertex: its own share.
      * An inner loop's vertex, d from the outer wall: overhanging when the outer wall overhangs at its nearest point on any
      * outer wall edge within d + [outerWidthUm] / 2 of it (the outer bead it presses against), so an inner loop's corner
-     * behind an overhanging end counts as on that end even where a held-up side lies as near (a helix island's
-     * inner corner lay 0.42 mm from its overhanging end and 0.43 mm from its held-up side). [loops]: the layer's wall
+     * behind an overhanging end counts as on that end even where a held-up side lies as near (in a small island an inner
+     * corner can lie as near its held-up side as its overhanging end). [loops]: the layer's wall
      * loops, wall by wall. Null when no outer wall vertex on the layer overhangs (or there is no outer wall): then every
      * point is taken as held up.
      */

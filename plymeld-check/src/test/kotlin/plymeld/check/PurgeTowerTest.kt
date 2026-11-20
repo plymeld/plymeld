@@ -12,7 +12,7 @@ import java.util.Locale
 private fun len(p: ToolPath): Double { var l = 0.0; val m = p.xy.size / 2; val segs = if (p.closed) m else m - 1
     for (k in 0 until segs) { val j = (k + 1) % m; l += Math.hypot((p.xy[2 * j] - p.xy[2 * k]).toDouble(), (p.xy[2 * j + 1] - p.xy[2 * k + 1]).toDouble()) }; return l / 1000.0 }
 
-/** Multi-color step 4: the purge tower's geometry, with values from the Flash Studio settings of a 4-color print (30 mm³, 35 mm wide). */
+/** Multi-color step 4: the purge tower's geometry (TEST VALUES: a 30 mm³ purge, a tower 35 mm wide). */
 class PurgeTowerTest : StringSpec({
     val tops = LongArray(20) { 200L * (it + 1) }                    // 0.2 mm layers
     val changes = IntArray(20) { if (it < 15) (if (it % 3 == 0) 3 else 1) else 0 }.also { it[5] = 0 }
@@ -56,7 +56,7 @@ class PurgeTowerTest : StringSpec({
         shouldThrow<IllegalArgumentException> { t.layer(15, 0) }
     }
 
-    // ---- compact layout: 0.08 mm layers and a 0.28 mm max gap, as in that Flash Studio settings block ----
+    // ---- compact layout: 0.08 mm layers and a 0.28 mm max gap (TEST VALUES) ----
     val tops8 = LongArray(120) { 80L * (it + 1) }
     val changes8 = IntArray(120) { if (it % 7 == 0) 2 else if (it % 5 == 0) 1 else 0 }.also { it[119] = 1 }
     val compact = PurgeTower(165_000, 204_365, 35_000, 30.0, 400, 4_070, changes8, tops8, compact = true, maxGapUm = 280)

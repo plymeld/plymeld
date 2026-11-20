@@ -16,10 +16,10 @@ import java.io.StringWriter
  * A move inside a line whose plastic the file's E (5 decimals) rounds to nothing is merged into the next move where its
  * point lies within the slicing tolerance of the straight move that replaces the two, not written as "E0": a reader takes
  * a move without plastic for a travel, and the line is broken in two there. A scarf seam's closing
- * pass over a narrow loop ends in short segments at a sliver of the line's width; written as "E0" moves they broke the pass,
- * and the pre-print check's laid-twice rule (DoubledCheck) read the pass's last stretch as a line of its own, at the line's
- * full width (a path's widest plastic per mm is its stated width), over the loop's start: on a two-filament test slice 40 of
- * its 92 spots, "outer wall laid over outer wall", 0.25 to 0.62 mm wide, where nothing lay twice.
+ * pass over a narrow loop ends in short segments at a sliver of the line's width; written as "E0" moves they would break
+ * the pass, and the pre-print check's laid-twice rule (DoubledCheck) would read the pass's last stretch as a line of its
+ * own, at the line's full width (a path's widest plastic per mm is its stated width), over the loop's start: "outer wall
+ * laid over outer wall" where nothing lies twice.
  *
  * The case, built by hand: one layer 0.2 mm thick of a 10 mm box, an outer loop 0.44 mm wide round it and on along its first
  * side for 2 mm, as a scarf's closing pass (one path), narrowing to 0.05 mm by 0.5 mm along it, with two segments of 5 µm there

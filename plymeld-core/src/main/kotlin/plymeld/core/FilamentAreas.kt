@@ -73,17 +73,16 @@ object FilamentAreas {
      * shrunk by half that and grown back), where it touches another filament's area, goes to that
      * neighbor (the one it shares the most border with), with the gap between them ([withGap]; [bridgeGap] false: without,
      * a test's control). Printed in its own filament it would print as
-     * nothing, and the model there would be missing (seen on a multi-color model over 0.7 mm of height: a 0.32 mm tongue
-     * of one part under another's edge left a strip 2.8 mm long unprinted, found by the g-code read-back
-     * check); the neighbor's walls now run along the true outline. Thin pieces with no
+     * nothing, and the model there would be missing (a thin tongue of one part under another's edge would leave a strip
+     * unprinted); the neighbor's walls run along the true outline. Thin pieces with no
      * neighbor (a part's own sharp edge in the air) stay; so do crumbs smaller than a line's square.
      *
      * [objectArea]: the object's whole area on the layer (every part's), given when a sliver lying along the object's outer
      * surface stays its own (plan.layer.sliver.at_surface = own): the part of a sliver along the surface ([alongSurface])
      * stays, laid by its own filament where a line fits and left empty where none does, and only the rest goes over.
-     * Handed over, its neighbor's plastic showed in the wrong color on the surface, and the neighbor's outline stepped out
-     * over the layer below where nothing was modeled to (one part's wall laid over the first 0.14 mm of a wedge of another
-     * filament leaning out over its face). Null: every sliver goes over. [filamentOf]: the filament of a key of [bySpool] (a settings
+     * Handed over, its neighbor's plastic would show in the neighbor's color on the surface, and the neighbor's outline
+     * would step out over the layer below where nothing is modeled (one part's wall laid over the thin start of a wedge of
+     * another filament leaning out over its face). Null: every sliver goes over. [filamentOf]: the filament of a key of [bySpool] (a settings
      * group's spool): a sliver beside another group of its own filament goes over wherever it lies, the same color either way.
      */
     fun handOverSlivers(bySpool: Map<String, List<Polygon>>, minWidthUm: Long, objectArea: List<Polygon>? = null,
@@ -107,7 +106,7 @@ object FilamentAreas {
             val thin = if (fits.isEmpty()) region else Booleans.difference(region, fits)
             for (outer in thin.filter { it.signedArea2() > 0 }) {
                 // the piece with its own holes (a thin ring keeps its hole: handed over as an outline alone it
-                // filled the two-color Benchy's chimney, 7 mm2 a layer)
+                // would fill the two-color Benchy's chimney, 7 mm2 a layer)
                 val piece = Booleans.intersection(thin, listOf(outer))
                 if (area(piece) < minArea) continue
                 val to = neighbor(piece, sp) ?: continue
@@ -127,11 +126,10 @@ object FilamentAreas {
     /**
      * [merged] (a neighbor's area with a sliver [give] handed to it) with the gaps between the sliver and the area it joined
      * closed: a gap narrower than twice [TOUCH_UM] within twice that of the sliver, where no [others] area lies. The sliver
-     * counted as touching its neighbor across such a gap ([neighbor]), and the gap (the parts sliced one by one meet a few
-     * microns apart) went over with it; left out, it was a crack in the neighbor's own area, a few microns wide and a few
-     * tenths of a millimetre long, a hole of its own or opening onto the neighbor's edge, and the neighbor's walls laid a
-     * loop round it, three or four lines over each other at its end (on a test slice: up to 0.8 mm² laid twice
-     * at one crack).
+     * counts as touching its neighbor across such a gap ([neighbor]), and the gap (the parts sliced one by one meet a few
+     * microns apart) goes over with it; left out, it would be a crack in the neighbor's own area, a few microns wide and a
+     * few tenths of a millimeter long, a hole of its own or opening onto the neighbor's edge, and the neighbor's walls would
+     * lay a loop round it, three or four lines over each other at its end (SliverTipTest).
      */
     private fun withGap(merged: List<Polygon>, give: List<Polygon>, others: List<Polygon>): List<Polygon> {
         var x0 = Long.MAX_VALUE; var y0 = Long.MAX_VALUE; var x1 = Long.MIN_VALUE; var y1 = Long.MIN_VALUE

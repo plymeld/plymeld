@@ -170,8 +170,8 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
         lineOf.clear()
         // each extrusion's object (null: outside any object, e.g. the purge tower), for the cooling gap; a curved island's
         // layer is a stack of its own (the object's name and the island's), whose layer above is the island's next, however
-        // many flat layers come between (read as the object's, each small island layer was slowed to the minimum
-        // layer time as if its next landed straight on it; the 3DBenchy with a bow island took 2.2 min longer)
+        // many flat layers come between (read as the object's, each small island layer would be slowed to the minimum
+        // layer time as if its next landed straight on it)
         val pathObject = HashMap<Extrude, String?>()
         run {
             // a one-object program has no object markers: its object from the start
@@ -204,10 +204,10 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
         // layer's rest after them, the layers between, the next layer's paths before them) counts, at the unslowed
         // speeds (a lower bound, so the slow-down never falls short); each object's paths in the layer are slowed by its
         // own factor (a pin's 5 mm beside a base's 600 s does not slow the base). An object with no next layer counts as
-        // if one followed at once (its top layer slowed as before).
+        // if one followed at once (its top layer slowed).
         // Each object's factors: [hidden lines, visible lines] (VISIBLE). plan.mechanism.cooling.slowdown.style = "even" scales every
-        // line by one factor, as before; "hidden_first" (a gap found reviewing a slice: the pin heads'
-        // outer walls slowed to a different speed every layer while their inner walls kept 100-260 mm/s) takes the time from
+        // line by one factor; "hidden_first" (with one factor, a small part's outer walls change speed every layer, which
+        // shows as banding, while its inner walls keep their own) takes the time from
         // the hidden lines first, each down to the minimum speed, and slows the visible lines only for what is still missing.
         val slowOf = HashMap<LayerStart, Map<String?, DoubleArray>>()
         // the seconds a layer start still falls short of its objects' minimum layer time with its factors applied (the most
@@ -253,8 +253,7 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                     val target = (o?.let { perObject[it.substringBefore(ISLAND_STACK)] } ?: plate).slowDownLayerTimeS
                     slow[o] = if (s.coolingSlowdown == "even") slowFactor(eoa, gap, target).let { doubleArrayOf(it, it) }
                     // hidden_first: what belongs to no object (the prime tower's purge) gets no factor of its own (with one,
-                    // it was slowed for its own minimum as well, and the layer overshot: the C5 two-color Benchy's top, 10.4
-                    // s a layer against 8 s); it is hidden, so it is part of each object's hidden lines, the
+                    // it would be slowed for its own minimum as well, and the layer would overshoot its minimum); it is hidden, so it is part of each object's hidden lines, the
                     // first to give time, and takes the objects' factor below
                     else if (o == null) doubleArrayOf(1.0, 1.0) else {
                         // the object's own paths in the layer from its first, hidden and visible, and the tower's paths
@@ -456,9 +455,9 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 // of the retraction happens first, the rest spread over the wipe).
                 retractedMm = len
                 // a wall loop's wipe inside it (hardware.filament.retract.wipe.inward), the outer wall's and the inner walls':
-                // along the outer wall, the wipe's last ooze lay on the visible face; at the end of the wall beside it
-                // (laid after the outer one, inner_outer_inner), the retraction stood 0.4 mm behind the face, in line
-                // with the seam layer after layer, and showed through as a column of scars. Stepping inward, all of the
+                // along the outer wall, the wipe's last ooze would lie on the visible face; at the end of the wall beside it
+                // (laid after the outer one, inner_outer_inner), the retraction would stand a line behind the face, in line
+                // with the seam layer after layer, and show through as a column of scars. Stepping inward, all of the
                 // retraction is spread over the wipe, none of it standing where the loop ended
                 val inward = s.wipeInward && (lp.closed || lp.ofLoop) && (lp.feature == "Outer wall" || lp.feature == "Inner wall")
                 val pre = if (inward) 0.0 else len * s.retractBeforeWipe
@@ -531,7 +530,7 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
         /**
          * A closed outer wall after a retracted travel: the point a line inside its seam where the head comes down, restores
          * there, and moves onto the seam with nothing pushed (hardware.filament.retract.return.inside), or null: restored at the
-         * seam, the retraction's push left a blob on the visible face where a scarf seam's ramp starts thinnest. Flat walls and a
+         * seam, the retraction's push leaves a blob on the visible face where a scarf seam's ramp starts thinnest. Flat walls and a
          * scarf's ramp only (whose top is the layer's): a loop lowered as a whole (Z anti-aliasing) has its top below the layer,
          * and the move onto its start would travel below the layer.
          */
@@ -629,10 +628,9 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 // settings its last line was laid with; then its lift), and travels, lifted, routed and cleared like any other
                 // travel, to where the incoming filament's first line starts (its purge on the tower, or its first line on a
                 // part): the change is made there, never standing on what the outgoing filament just laid (made where the last
-                // line ended, every change of a plate of two filaments stood on its last object's face, and that object came out
-                // strung and blobbed). Where no line follows directly (a wait, a pause, a swap by hand) or the head's place is
+                // line ended, every change would stand on the last object's face, stringing and blobbing it). Where no line follows directly (a wait, a pause, a swap by hand) or the head's place is
                 // not known (the print's first selection), it is made where the head is, retracted.
-                // Then the tool-changer sequence observed in the Creator 5's own slicer output (Flash Studio's): the old tool
+                // Then the tool-changer sequence the tool changer's own slicer writes for it: the old tool
                 // to its idle temperature, the swap, wait for the new tool. Afterwards the head's position is unknown, so the
                 // incoming line rises first and comes down at its start (see Extrude).
                 val sIn = s
@@ -739,8 +737,8 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                     // this object's temperature for this layer: waited for on a first layer (adhesion), set on the way after
                     // an arched bridge's top layer printed as usual (LayerStart.printTemp): the print temperature, waited for when it
                     // is a rise (a thin top layer would otherwise be laid while the nozzle heats)
-                    // the bridge temperature on the arched bridge's own layers only (it was the
-                    // whole object's from its second layer, and the helix's bottom ring, printed cooler, broke off): waited for both
+                    // the bridge temperature on the arched bridge's own layers only (as the whole object's from its second
+                    // layer, it would print the rest of the object cooler, weakening its bonds): waited for both
                     // ways, so the nozzle is already cooler when the first strand goes over air and hot again for the wall above
                     val bridgeTemp = s.bridgeTempC?.takeIf { objectNow in bridgeObjects }
                     val want = if (first) s.nozzleTempFirstC else if (printTempLayer) s.nozzleTempC else if (bridgeLayer) bridgeTemp ?: s.nozzleTempC else s.nozzleTempC
@@ -913,7 +911,7 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                     continue
                 }
                 // overhangs: the speed graded per segment by its overhang share (OverhangSpeed); the
-                // wall keeps its label, as Flash Studio's does. A segment hanging past the line below
+                // wall keeps its own label. A segment hanging past the line below
                 // prints at the conditions the filament's overhang share holds at: no faster than its
                 // overhang speed, with the part fan at its overhang fan (back to the layer's after)
                 val ps = pathSettings[p] ?: s
@@ -1281,7 +1279,7 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
 
     /** A feature's own speed, before the print-speed factor ([speedFor]). */
     private fun ownFeatureSpeed(s: SliceSettings, feature: String, first: Boolean): Double = when {
-        // the tower's first layer holds to the bed like the model's (a tower laid at the hidden speed there came loose)
+        // the tower's first layer holds to the bed like the model's (laid at the hidden speed, a first layer holds less well)
         feature == "Prime tower" -> if (first) Math.min(s.towerSpeed, s.firstLayerSpeed) else s.towerSpeed
         feature == "Ironing" -> s.ironingSpeed
         // a bridge on the first layer (layers that follow an arch's underside: its first layer over the hollow is in the
@@ -1337,9 +1335,9 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
     }
 
     /**
-     * min(outer wall speed × width × height, filament max volumetric speed). Once rendered 12 on a
-     * test model, matching QIDIStudio's rendered start block (a comparison test removed). The rule
-     * itself is inferred from that one data point — flagged, not established.
+     * min(outer wall speed × width × height, filament max volumetric speed): the value a start template's
+     * outer-wall volumetric speed variable is given. The rule is inferred, not documented by any maker — flagged, not
+     * established.
      */
     private fun outerWallVolumetric(): Template.Value {
         val v = s.visibleSpeed * s.outerWallWidthUm / 1000.0 * s.layerHeightUm / 1000.0

@@ -17,7 +17,7 @@ class FilamentAreasTest : StringSpec({
     val a = listOf(rect(0, 0, 10, 10))      // 100 mm²
     val b = listOf(rect(5, 0, 10, 10))      // 100 mm², 50 mm² of it over a
 
-    // a 10 x 10 body and, along its bottom edge, a 0.3 mm strip of another filament (as seen on a multi-color model)
+    // a 10 x 10 body and, along its bottom edge, a 0.3 mm strip of another filament
     fun um(x: Long, y: Long, w: Long, h: Long) = Polygon(longArrayOf(x, y, x + w, y, x + w, y + h, x, y + h))
     val body = listOf(um(0, 300, 10_000, 10_000))
     val strip = listOf(um(0, 0, 10_000, 300))

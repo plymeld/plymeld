@@ -232,9 +232,8 @@ object OrcaImport {
         val notes = ArrayList<String>()
         // Each filament in its own nozzle (a tool changer: not single-extruder multi-material, a
         // nozzle per filament) with an AUTOMATIC map: the saved map is not what gets printed.
-        // The user's C5 project saved 1,1,1,1 while Flash Studio's g-code from the same setup used
-        // 1,2,3,4 (CREATOR-TEST.3mf vs the color-blender print), so the saved map is
-        // stale there; filament N goes in tool N, as that one sliced file did.
+        // A tool changer's project can save 1,1,1,1 while the g-code its slicer writes from the same setup uses
+        // 1,2,3,4, so the saved map is stale there; filament N goes in tool N, as the sliced file does.
         val autoOwnNozzle = nTools > 1 && nFil <= nTools && c["single_extruder_multi_material"] == "0" &&
             (c["filament_map_mode"] ?: "").startsWith("Auto")
         if (autoOwnNozzle && fmap != null && (0 until nFil).any { fmap.getOrNull(it)?.toInt() != it + 1 })

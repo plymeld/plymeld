@@ -61,16 +61,16 @@ object Seams {
      * [p] rotated to start at its seam ([cornerDeg] null: no corners, only alignment, else the back). [below]: the seams
      * (x, y in µm, pairs) of the same wall's loops on the layer below that lie under [p]; empty: none to align with. [overhangs]: per vertex, whether
      * it lies on an edge that hangs over the layer below ([Overhangs.seamOverhangs]); null: all held up. Held-up points are
-     * preferred over overhanging ones before every other preference (a helix whose every loop started at
-     * its overhanging end printed a row of beads there); among them the rules above. A loop with no held-up point at all
+     * preferred over overhanging ones before every other preference (a loop started at its overhanging end leaves a
+     * bead there, layer after layer); among them the rules above. A loop with no held-up point at all
      * keeps them as if none overhung.
      */
     fun place(p: Polygon, cornerDeg: Double?, spanUm: Double, below: LongArray = LongArray(0), overhangs: BooleanArray? = null, back: Boolean = false,
               /**
                * plan.seam = least_visible: the held-up point the seam measure counts least: its visibility by
                * the map [vis] times [cornerShare] where it is a corner (a turn of at least [cornerDeg] across [spanUm]: seam_scar's corner
-               * credit, so the placement and the measure agree; a 30-part model's QR cells, small squares on one face,
-               * took mid-edge seams by visibility alone and the smooth rule then scarfed 917 of them); ties (within TIE_V) to the point
+               * credit, so the placement and the measure agree; small square cells on one face would take mid-edge seams
+               * by visibility alone, and the smooth rule would then scarf every one); ties (within TIE_V) to the point
                * the viewer sees least first, then to a corner, then to the seam below, then the back.
                */
               leastVisible: Boolean = false, vis: plymeld.core.decide.Visibility? = null, cornerShare: Double = 1.0,
@@ -204,8 +204,8 @@ object Seams {
         // it; costed as a scarf, a covered point read as seen as the ramp's most-seen point and the placement avoided it)
         val point = BooleanArray(n) { i -> rampUm <= 0 || (rampOffCorners && corner[i]) || covered?.invoke(p.x(i), p.y(i)) == true }
         // a scarf seam is seen along its ramp, not at its start alone: the most-seen point of the [rampUm] the loop runs on
-        // from the start. Judged at the start alone, seams started hidden in a small pocket another part fills and their 10 mm
-        // ramps ran out onto the face beside it
+        // from the start. Judged at the start alone, a seam would start hidden in a small pocket another part fills and its
+        // ramp would run out onto the face beside it
         val seen = if (rampUm <= 0) vs else DoubleArray(n) { i ->
             if (point[i]) vs[i] else {
                 var worst = vs[i]; var run = 0.0; var j = i
@@ -339,9 +339,8 @@ object Seams {
      * the path through the layers' points that costs least in all: each point its cost as seam_scar charges it (how much it
      * is seen x its blemish, [costsOf]), each move from the point below its jog (its length x the line width, times how much
      * the new point is seen; none within a line), the run's first move from the nearest of the seams placed below it
-     * ([below]: x, y pairs; none = no move). Placed layer by layer instead, a seam stayed in line with the one below on a
-     * face fully seen rather than pay the move once: on a test print's plain round wall, 70 layers on its front face for
-     * one move of 90 mm to the back.
+     * ([below]: x, y pairs; none = no move). Placed layer by layer instead, a seam would stay in line with the one below on
+     * a face fully seen rather than pay the move once (on a plain round wall, layer after layer on its front face).
      */
     private fun planColumn(run: List<Pair<Int, Int>>, loops: List<List<List<Polygon>>>, below: LongArray, cornerDeg: Double?,
                            overhangs: List<List<List<BooleanArray>>?>?, spanUm: (Int, Int) -> Double, vis: plymeld.core.decide.Visibility,
@@ -360,7 +359,7 @@ object Seams {
                 val cheapest = pts.sortedBy { c.seen[it] * c.blem[it] }.take(PLAN_CANDIDATES / 8)
                 val idx = (pts.filterIndexed { k, _ -> k % step == 0 } + cheapest).distinct().toIntArray()
                 // [place]'s tie-breaks as costs too small to outweigh a real difference: the point seen least, then a corner,
-                // then the back (else near-equal points went to whichever came first, and the plan overrode the tie-breaks)
+                // then the back (else near-equal points go to whichever comes first, and the plan overrides the tie-breaks)
                 val top = idx.maxOf { c.seen[it] * c.blem[it] }.coerceAtLeast(1e-9)
                 val yMin = idx.minOf { p.y(it) }; val ySpan = (idx.maxOf { p.y(it) } - yMin).coerceAtLeast(1).toDouble()
                 Layer(p, idx, DoubleArray(idx.size) { k -> val v = idx[k]

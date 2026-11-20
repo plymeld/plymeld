@@ -25,8 +25,8 @@ import java.nio.file.Path
  * `withHead()`): every test here sets its value ONLY in a config file and reads the effect only from what plymeld produces
  * (the plan's decisions, the g-code, a refusal), with a control that fails if the value is ignored.
  *
- * The tests marked "fixed" each guard a bug that a code review found: each failed on the code that had it, its control
- * passing. A new known bug may be gated, run with an environment variable, and ungated with its fix.
+ * The tests marked "fixed" each guard a fault: each fails on code that has it, its control passing. A known fault may be
+ * gated, run with an environment variable, and ungated with its fix.
  */
 class ConfiguredValueReachesTest : StringSpec({
 
@@ -72,7 +72,7 @@ class ConfiguredValueReachesTest : StringSpec({
         layer.height.max = "= tool.bore * 0.75"
     """.trimIndent() + "\n" + head + "\n"
 
-    /** The head's shape (as the user's Creator 5 config gives it), with the nozzle's height [heightMm]. */
+    /** The head's shape (TEST VALUES), with the nozzle's height [heightMm]. */
     fun head(heightMm: Double) = "head.nozzle.angle = \"45 deg\"\nhead.nozzle.height = \"$heightMm mm\"\nhead.size.x = \"90 mm\"\nhead.size.y = \"75 mm\"\nhead.nozzle.x = \"70 mm\"\nhead.nozzle.y = \"40 mm\""
 
     /** Every search locked so only the value under test can change the result. */
@@ -135,7 +135,7 @@ class ConfiguredValueReachesTest : StringSpec({
         withClue("control: every part on tool 3") {
             shouldThrow<Exception> { product(d, listOf("hw.toml", "locks.toml", "all3.toml"), listOf(model)).decide() }.message!! shouldContain "no head.nozzle.angle and head.nozzle.height for toolhead 3"
         }
-        // the bug: supports on tool 1 (the object's tool: its first part's), strip on tool 3: tool 3's missing cone is never asked for
+        // the fault: supports on tool 1 (the object's tool: its first part's), strip on tool 3: tool 3's missing cone is never asked for
         withClue("supports on tool 1, the strip on tool 3") {
             shouldThrow<Exception> { product(d, listOf("hw.toml", "locks.toml", "mixed.toml"), listOf(model)).decide() }.message!! shouldContain "no head.nozzle.angle and head.nozzle.height for toolhead 3"
         }

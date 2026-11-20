@@ -8,8 +8,8 @@ import java.util.Locale
 /**
  * Where the purge tower stands, end to end on the two-color Benchy (a machine of the bundled `flashforge-c5` model, two
  * tools): with plan.mechanism.purge.tower.x and .y unset, beside the object, within a tower's width of it and at least
- * plan.mechanism.purge.tower.gap clear of it and its brim (a tower at the bed's corner, far from the object, peeled off
- * there twice). Control: with them set, where they say. And the tower's first layer, its brim included, no faster than
+ * plan.mechanism.purge.tower.gap clear of it and its brim (its first layer where the object's holds, not at a far corner of
+ * the bed). Control: with them set, where they say. And the tower's first layer, its brim included, no faster than
  * plan.mechanism.purge.tower.first_layer.speed, the object's first layer at its own speed. Read back from the g-code TEXT.
  */
 class TowerPlacementTest : StringSpec({

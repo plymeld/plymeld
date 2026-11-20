@@ -11,8 +11,7 @@ import java.util.Locale
 /**
  * A narrow solid region without holes gets loops along its outline, widths adjusted to fill it
  *. Crossed by the hatch, such a region is mostly line ends, each a wedge of
- * air or a connector laid on the wall (testplate pillars and slot strips: overfill near the surface
- * 15.7 -> 6.7 mm2 at z 4, a deposition check against the model).
+ * air or a connector laid on the wall (the testplate's pillars and slot strips).
  */
 class NarrowSolidLoopTest : StringSpec({
     val s = SliceSettings.of(testSetup())

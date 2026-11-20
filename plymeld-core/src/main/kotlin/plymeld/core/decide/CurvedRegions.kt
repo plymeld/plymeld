@@ -187,8 +187,8 @@ object CurvedRegions {
         var best: Island? = null
         var bestLayer = Double.POSITIVE_INFINITY
         val stop = maxOf(p.stepMm, p.minStartMm, c.zLoMm - SCAN_BELOW_MM)
-        // the starts, top down, each worked out on its own (in parallel: they share only the read-only survey; one
-        // large model's caps took ~370 s on one thread) and then judged in this order, so the choice and its ties are as before
+        // the starts, top down, each worked out on its own (in parallel: they share only the read-only survey; a large
+        // model's caps take minutes on one thread) and then judged in this order, so the choice and its ties are the same
         val starts = ArrayList<Double>()
         run { var zs = c.zHiMm - p.stepMm; while (zs >= stop) { starts += zs; zs -= p.stepMm } }
         val islands = arrayOfNulls<Any>(starts.size)
@@ -199,8 +199,8 @@ object CurvedRegions {
                 is Island -> {
                     if (s.layerMm < bestLayer) bestLayer = s.layerMm
                     // the most stair-step removed from its top (Island.gainMm3: what the decision weighs, estimated on the grid); of
-                    // starts removing as much, the thinnest own layers. Chosen by the cap followed most, one model's caps took starts
-                    // whose own layers (0.29 mm against flat 0.08) stepped more than they saved, and no island removed any
+                    // starts removing as much, the thinnest own layers. Chosen by the cap followed most, a cap could take a start
+                    // whose own layers (far thicker than the flat ones) step more than they save, and the island remove none
                     if (s.layerMm <= maxLayerMm + 1e-9 && (best == null || s.gainMm3 > best.gainMm3 + 1e-9 ||
                             (s.gainMm3 > best.gainMm3 - 1e-9 && s.layerMm < best.layerMm - 1e-9))) best = s
                 }

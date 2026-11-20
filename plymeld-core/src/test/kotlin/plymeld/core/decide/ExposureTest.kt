@@ -52,8 +52,8 @@ class ExposureTest : StringSpec({
         seen(shell, 0) shouldBe 0.0
         seen(block, 2_000) shouldBe 0.0
         // material entered within the show-through depth but left past it hides the seam, never less than nothing (
-        // a shell 1.6 to 2.0 mm out, left by the ray's step at 2.125 mm, read 1 - 2.125 / 2 < 0, and the least-visible
-        // placement sought such points out: one model's base seam scar summed to -9.2 mm²): the one level ray straight out
+        // a shell 1.6 to 2.0 mm out, left by the ray's step at 2.125 mm, would read 1 - 2.125 / 2 < 0, and the least-visible
+        // placement would seek such points out): the one level ray straight out
         // (4 directions around, the wall faces one) reads 0; control: the thin shell ending within the depth shows through
         val past = rect(21.6, 0.0, 22.0, 20.0)
         fun level(front: Polygon) = exposure(listOf(a, front), Exposure.Sample(4, 1, 0.0, 20_000, 250, 2_000)).at(25, mm(20.0), mm(10.0), 1.0, 0.0)

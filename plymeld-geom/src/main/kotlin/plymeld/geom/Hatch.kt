@@ -73,8 +73,8 @@ object Hatch {
      * gap is shorter than [beadUm], the line's width, so their round ends, both laid against that corner, would lie over
      * each other by beadUm less the gap; laid through, the line's center comes off [region] by its farthest point's
      * distance from the region's edge, and the two are made one where that is less than the ends' overlap (each the
-     * thickness of plastic laid twice: the lesser is laid). Found on a test slice's first layer: a bottom surface's diagonal
-     * line passing a wall loop's corner was cut 34 microns short of it, and its two ends lay over each other 0.25 mm wide.
+     * thickness of plastic laid twice: the lesser is laid). A bottom surface's diagonal line passing a wall loop's corner,
+     * cut a few tens of microns short of it, would lay its two ends over each other a quarter of a millimeter wide.
      * The region's edges near a gap are read once for it; the line's distance from them is sampled every grid unit along
      * the gap (a distance changes by at most what the point moves, so the farthest is read to within a unit).
      */

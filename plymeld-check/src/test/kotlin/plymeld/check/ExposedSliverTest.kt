@@ -19,31 +19,31 @@ import plymeld.model.SliceSettings
  * models' faces from their own formulas, never the slicer's reading of the mesh (the models are prisms along Y, so every
  * layer's faces are the same along it). Layers 0.08 mm (TEST VALUES, as the other slicing tests').
  *
- *  - the exposed wedge: a white block (part B, filament 2, T1) whose front face leans back at 62.5 deg from level, and above
- *    z 1.49 mm (a layer's middle then falls where the wedge is 0.13 mm wide, under feature.min) a gray wedge (part A, filament 1, T0) on that face, leaning out over it at 55 deg from level, so it starts at
- *    zero width on the white's face and the object's surface runs from the white's face onto the gray's. By default (own):
- *    no white line's bead (anywhere along the front, y 101 to 109) stands out of the white's face by more than [ALLOW]; the
- *    white's front edge never steps out from one layer to the next (its face leans back) by more than [ALLOW], from the
- *    second layer on (the first is drawn in); the gray lays a line inside the wedge (read at y = 105) on every layer
+ *  - the exposed wedge: a block (part B, filament 2, T1) whose front face leans back at 62.5 deg from level, and above
+ *    z 1.49 mm (a layer's middle then falls where the wedge is 0.13 mm wide, under feature.min) a wedge (part A, filament 1, T0) on that face, leaning out over it at 55 deg from level, so it starts at
+ *    zero width on the block's face and the object's surface runs from the block's face onto the wedge's. By default (own):
+ *    no block line's bead (anywhere along the front, y 101 to 109) stands out of the block's face by more than [ALLOW]; the
+ *    block's front edge never steps out from one layer to the next (its face leans back) by more than [ALLOW], from the
+ *    second layer on (the first is drawn in); the wedge's filament lays a line inside the wedge (read at y = 105) on every layer
  *    where the wedge, at the layer's middle, is as wide as the walls surely lay a line in (plan.layer.walls.feature.min and
  *    the slicing tolerance a side), and none where it is narrower than feature.min less the tolerance a side (left empty).
- *    Control: with at_surface = neighbor (the earlier behavior) the white's beads stand out over the wedge's place and
+ *    Control: with at_surface = neighbor the block's beads stand out over the wedge's place and
  *    step out, and these readings fail;
- *  - a buried sliver: a white block beside a gray one, a gray fin 0.1 mm thick in the white against the gray, inside the
- *    object: it still goes to the white, whose wall then reaches the gray block's face. Control: a fin 0.5 mm thick stays gray
- *    (it is no sliver), and the white's wall stops at the fin;
+ *  - a buried sliver: block B beside block A, a fin of A's filament 0.1 mm thick in B against A, inside the
+ *    object: it still goes to B, whose wall then reaches block A's face. Control: a fin 0.5 mm thick stays A's
+ *    (it is no sliver), and B's wall stops at the fin;
  *  - the pre-print check (ModelCheck with each part's tool, as `slice` runs it): the default's file reads back with no
- *    problem; the neighbor file, read as the default's (no hand-over allowed on the surface), is refused for the white over
- *    the wedge, and read with the neighbor's own allowance it passes; white lines planted along the wedge on the default's
+ *    problem; the neighbor file, read as the default's (no hand-over allowed on the surface), is refused for the block over
+ *    the wedge, and read with the neighbor's own allowance it passes; block lines planted along the wedge on the default's
  *    file are refused: one inside the wedge (both tool rules), and one whose middle lies within the check's tolerance of
- *    the white's face but whose bead covers the wedge to the gray's front (the surface rule alone; the rule reading a
+ *    the block's face but whose bead covers the wedge to the wedge's front (the surface rule alone; the rule reading a
  *    line's middle passes it).
  */
 class ExposedSliverTest : StringSpec({
     // the catalog's exposed wedge (Models.exposedWedge) and its frame
     val z0 = Models.WEDGE_Z0; val top = Models.WEDGE_TOP
-    fun white(z: Double) = Models.wedgeWhite(z)
-    fun gray(z: Double) = Models.wedgeGray(z)
+    fun face(z: Double) = Models.blockFace(z)
+    fun wedgeFront(z: Double) = Models.wedgeFront(z)
     val wedgeParts = Models.exposedWedge
 
     /** One object of [parts] (spools: A, and C when given, filament 1; B filament 2) written through Job, [extra] over the test setup ([Slicing.SLIVER]). */
@@ -97,8 +97,8 @@ class ExposedSliverTest : StringSpec({
         val res = s.resolutionUm / 1000.0; val fmin = s.minFeatureUm / 1000.0
         val fails = ArrayList<String>(); val table = ArrayList<String>()
         val cuts = crossings(w).groupBy { it.layerZ }
-        // the white's lines along the object's front (away from the prism's ends, y 100 and 110), anywhere along it
-        val whiteLines = lines(w).filter { it.tool == "T1" }.mapNotNull { l ->
+        // the block's lines along the object's front (away from the prism's ends, y 100 and 110), anywhere along it
+        val blockLines = lines(w).filter { it.tool == "T1" }.mapNotNull { l ->
             // the part of the line within y 101..109
             val (ya, yb) = minOf(l.y0, l.y1) to maxOf(l.y0, l.y1)
             if (yb < 101.0 || ya > 109.0) return@mapNotNull null
@@ -110,20 +110,20 @@ class ExposedSliverTest : StringSpec({
         for ((z, cs) in cuts.toSortedMap()) {
             val mid = cs[0].mid
             if (mid > top) continue
-            // the object's front lines: within 1.5 mm of the white's face
-            val grays = cs.filter { it.tool == "T0" && it.x < white(mid) + 1.5 }
-            val wedge = if (mid > z0) white(mid) - gray(mid) else 0.0
-            // the white's frontmost plastic on the layer: its lines' least x less half their width
-            val front = whiteLines[z].orEmpty().filter { minOf(it.x0, it.x1) < white(mid) + 1.5 }.minOfOrNull { minOf(it.x0, it.x1) - it.w / 2 } ?: Double.NaN
-            table += String.format(java.util.Locale.ROOT, "z %.2f: white face %.3f, wedge %.3f wide (front %.3f); white lines' front %.3f; gray lines %s", z, white(mid), wedge,
-                if (mid > z0) gray(mid) else Double.NaN, front, grays.joinToString { String.format(java.util.Locale.ROOT, "%.3f w %.3f", it.x, it.w) })
-            if (!front.isNaN() && front < white(mid) - ALLOW) fails += "z $z: a white bead stands ${white(mid) - front} mm out of the white's face"
-            if (!front.isNaN() && !lastFront.isNaN() && lastFront - front > ALLOW) fails += "z $z: the white's front steps out ${lastFront - front} mm"
+            // the object's front lines: within 1.5 mm of the block's face
+            val wedgeLines = cs.filter { it.tool == "T0" && it.x < face(mid) + 1.5 }
+            val wedge = if (mid > z0) face(mid) - wedgeFront(mid) else 0.0
+            // the block's frontmost plastic on the layer: its lines' least x less half their width
+            val front = blockLines[z].orEmpty().filter { minOf(it.x0, it.x1) < face(mid) + 1.5 }.minOfOrNull { minOf(it.x0, it.x1) - it.w / 2 } ?: Double.NaN
+            table += String.format(java.util.Locale.ROOT, "z %.2f: block face %.3f, wedge %.3f wide (front %.3f); block lines' front %.3f; wedge lines %s", z, face(mid), wedge,
+                if (mid > z0) wedgeFront(mid) else Double.NaN, front, wedgeLines.joinToString { String.format(java.util.Locale.ROOT, "%.3f w %.3f", it.x, it.w) })
+            if (!front.isNaN() && front < face(mid) - ALLOW) fails += "z $z: a block bead stands ${face(mid) - front} mm out of the block's face"
+            if (!front.isNaN() && !lastFront.isNaN() && lastFront - front > ALLOW) fails += "z $z: the block's front steps out ${lastFront - front} mm"
             // the first layer's outline is drawn in (hardware.plate.first_layer.squish): the steps are read from the second on
             if (!front.isNaN() && z > cuts.keys.min()) lastFront = front
-            if (mid > z0 && wedge >= fmin + 2 * res && grays.none { it.x > gray(mid) - ALLOW && it.x < white(mid) + ALLOW })
-                fails += "z $z: no gray line in a wedge $wedge mm wide"
-            if (mid > z0 && wedge < fmin - 2 * res && grays.isNotEmpty()) fails += "z $z: a gray line in a wedge $wedge mm wide"
+            if (mid > z0 && wedge >= fmin + 2 * res && wedgeLines.none { it.x > wedgeFront(mid) - ALLOW && it.x < face(mid) + ALLOW })
+                fails += "z $z: no wedge line in a wedge $wedge mm wide"
+            if (mid > z0 && wedge < fmin - 2 * res && wedgeLines.isNotEmpty()) fails += "z $z: a wedge line in a wedge $wedge mm wide"
         }
         return Reading(fails, table)
     }
@@ -131,11 +131,11 @@ class ExposedSliverTest : StringSpec({
     val own by lazy { write(wedgeParts) }
     val neighbor by lazy { write(wedgeParts, "plan.layer.sliver.at_surface" to "neighbor") }
 
-    "the exposed wedge: no white over it, the white's front steps out no more than its face, the gray from its first line; control: neighbor fails" {
+    "the exposed wedge: no block line over it, the block's front steps out no more than its face, the wedge's from its first line; control: neighbor fails" {
         val r = read(own)
         println("default (own):\n  " + r.table.joinToString("\n  "))
         r.failures.shouldBeEmpty()
-        // probed: the wedge has layers on both sides of the thin-line threshold, and gray lines
+        // probed: the wedge has layers on both sides of the thin-line threshold, and wedge lines
         (crossings(own).count { it.tool == "T0" } > 10) shouldBe true
         val n = read(neighbor)
         println("control (neighbor):\n  " + n.table.joinToString("\n  ") + "\n  failures: " + n.failures)
@@ -152,7 +152,7 @@ class ExposedSliverTest : StringSpec({
             featureMinMm = (s.minFeatureUm + 2 * s.resolutionUm) / 1000.0, surfaceHandOverMm = surfaceHandOverMm)
     }
 
-    "the check: the default's file passes; the neighbor's is refused unless read with its allowance; a planted white line on the wedge is refused" {
+    "the check: the default's file passes; the neighbor's is refused unless read with its allowance; a planted block line on the wedge is refused" {
         val p = problems(own)
         println("own: $p")
         p.shouldBeEmpty()
@@ -161,11 +161,11 @@ class ExposedSliverTest : StringSpec({
         asOwn.any { "surface laid by the wrong tool" in it } shouldBe true
         val allowance = SliceSettings.of(neighbor.setup).sliverHandOverUm / 1000.0
         problems(neighbor, surfaceHandOverMm = allowance).filter { "wrong tool" in it }.shouldBeEmpty()
-        // planted: a white (T1) outer wall 0.44 mm wide along the wedge on a layer where it is wider than [wedge], its middle at
+        // planted: a block (T1) outer wall 0.44 mm wide along the wedge on a layer where it is wider than [wedge], its middle at
         // [x] of the layer's middle
         fun plant(wedge: Double, x: (Double) -> Double): String {
             val lines = own.g.lines()
-            val layerZ = crossings(own).map { it.layerZ }.distinct().first { z -> val mid = z - 0.04; mid > z0 && white(mid) - gray(mid) > wedge }
+            val layerZ = crossings(own).map { it.layerZ }.distinct().first { z -> val mid = z - 0.04; mid > z0 && face(mid) - wedgeFront(mid) > wedge }
             val at = lines.indexOfFirst { it.startsWith(";Z:") && Math.abs(it.removePrefix(";Z:").trim().toDouble() - layerZ) < 1e-6 }
             // the layer's first extruding move by T1 (the tool in force), and the feature and width it is laid with
             var tool = ""; var type = ""; var width = ""; var e1 = -1
@@ -184,31 +184,31 @@ class ExposedSliverTest : StringSpec({
                 "G1 X%.3f Y109 E0.112".format(java.util.Locale.ROOT, gx), "G1 X${coord(lines[e1], 'X')} Y${coord(lines[e1], 'Y')} F6000", type, width) +
                 lines.subList(e1 + 1, lines.size)).joinToString("\n")
         }
-        // in the wedge (0.6 mm wide), its middle 0.2 mm in from the gray's front: both tool rules refuse it
-        val inside = problems(own, plant(0.6) { gray(it) + 0.2 })
+        // in the wedge (0.6 mm wide), its middle 0.2 mm in from the wedge's front: both tool rules refuse it
+        val inside = problems(own, plant(0.6) { wedgeFront(it) + 0.2 })
         println("planted in the wedge: $inside")
         inside.any { "surface laid by the wrong tool" in it } shouldBe true
-        // its middle 0.05 mm out of the white's face, within the check's tolerance of the white, its bead over the whole
-        // wedge (0.2 mm wide) to the gray's front: the tool rule that reads a line's middle passes it, the surface rule does not
-        val edge = problems(own, plant(0.2) { white(it) - 0.05 })
-        println("planted at the white's face: $edge")
+        // its middle 0.05 mm out of the block's face, within the check's tolerance of the block, its bead over the whole
+        // wedge (0.2 mm wide) to the wedge's front: the tool rule that reads a line's middle passes it, the surface rule does not
+        val edge = problems(own, plant(0.2) { face(it) - 0.05 })
+        println("planted at the block's face: $edge")
         edge.any { "printed by the wrong tool" in it } shouldBe false
         edge.any { "surface laid by the wrong tool" in it } shouldBe true
     }
 
     "a buried sliver still goes to its neighbor; control: a fin wide enough for a line stays its own" {
-        /** A white block, a gray block beside it, and a gray fin [t] mm thick in the white against the gray, inside the object (the catalog's buried fin). */
+        /** Block B, block A beside it, and a fin of A's filament [t] mm thick in B against A, inside the object (the catalog's buried fin). */
         fun buried(t: Double) = Catalog.write(Catalog.byName("buried fin $t mm"))
-        /** On the fin's layers, how far the white's lines reach toward the gray block (their back edge at the cut), the least. */
+        /** On the fin's layers, how far B's lines reach toward block A (their back edge at the cut), the least. */
         fun reach(w: Written) = crossings(w).filter { it.mid in 0.5..1.5 && it.tool == "T1" }.groupBy { it.layerZ }.values.minOf { cs -> cs.maxOf { it.back } }
         val thin = reach(buried(0.1)); val wide = reach(buried(0.5))
-        println("the white's reach on the fin's layers: fin 0.1 mm ${thin}, fin 0.5 mm $wide (the gray block's face at 50)")
+        println("B's reach on the fin's layers: fin 0.1 mm ${thin}, fin 0.5 mm $wide (block A's face at 50)")
         thin shouldBeGreaterThan 50.0 - ALLOW
         wide shouldBeLessThan 49.5 + ALLOW
     }
 }) {
     companion object {
-        /** How far a reading may differ from the model (mm): rounding of the slice and the file. Claude's choice. */
+        /** How far a reading may differ from the model (mm): rounding of the slice and the file. plymeld's choice. */
         const val ALLOW = 0.03
         /** The model's own lines (not the purge tower, brim, or support). */
         val MODEL = setOf("Outer wall", "Inner wall", "Overhang wall", "Sparse infill", "Internal solid infill", "Solid infill",

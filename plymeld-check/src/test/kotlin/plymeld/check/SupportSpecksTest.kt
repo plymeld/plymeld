@@ -11,7 +11,7 @@ import plymeld.geom.Booleans
 import plymeld.geom.Polygon
 
 /**
- * plan.support.column.width (Supports.dropSpecks; the "support dabs" of a 30-part model's review): an
+ * plan.support.column.width (Supports.dropSpecks: no dabs of support under specks): an
  * overhang is kept only where the overhang stacked over a column's width of height around it is at least that wide.
  * Judged as a stack, a sloped face (thin strips, one per layer) keeps all its support; a one-layer speck a fraction of
  * a line wide gets none; a flat fin narrower than a column gets none, a wider one

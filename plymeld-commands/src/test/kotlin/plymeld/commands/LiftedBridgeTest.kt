@@ -611,7 +611,7 @@ class LiftedBridgeTest : StringSpec({
         segs(g2).map { it.layer }.toSet().size shouldBeGreaterThan 56
         segs(g2).map { it.layer }.toSet().size shouldBeLessThan segs(g).map { it.layer }.toSet().size
     }
-    // plan.technique.bridge.layer.height (the double helix: its wall at 0.1 mm, its arches at 0.2): the stack's pillars in 0.1 mm
+    // plan.technique.bridge.layer.height (a wall at 0.1 mm, its arches at 0.2): the stack's pillars in 0.1 mm
     // layers, its strips' in 0.2 mm ones (each layer's height from the file's own ;HEIGHT); control: a lone lifted bridge with a
     // layer height of its own is refused (it shares the object's layers)
     "two lifted bridges with a layer height of their own: the pillars at the object's 0.1 mm, the strips at 0.2; the check passing; control: a lone bridge refuses one" {
@@ -632,10 +632,10 @@ class LiftedBridgeTest : StringSpec({
     }
     // A strip on supports off the layer grid: 6.05 mm pillars print to 6.0 on this 0.2 mm grid (a layer holds what
     // is at or under its middle), so the strip is printed 0.05 mm lower than the model has it, resting on them. Its model, lifted
-    // for slicing, must move with it: left where the model has it, it sat off the grid and its 1.2 mm came out as six layers and
-    // a sliver (the double helix's strips: 0.22 mm as two of 0.11; the arches: a 0.12 mm last layer). 6.1 mm pillars, a layer's
-    // middle exactly: the slicer prints them to 6.2, so the strip moves up 0.1 (taken as 6.0, its first layer was laid at the
-    // pillars' own last). Each layer's height from the file's ;HEIGHT. Control: a 1.3 mm strip, which no 0.2 mm grid divides,
+    // for slicing, must move with it: left where the model has it, it would sit off the grid and its 1.2 mm would come out as
+    // six layers and a sliver. 6.1 mm pillars, a layer's
+    // middle exactly: the slicer prints them to 6.2, so the strip moves up 0.1 (taken as 6.0, its first layer would be laid at
+    // the pillars' own last). Each layer's height from the file's ;HEIGHT. Control: a 1.3 mm strip, which no 0.2 mm grid divides,
     // does show another height.
     "a strip on supports off the layer grid prints in whole layers: 1.2 mm as six of 0.2; control: 1.3 mm cannot" {
         fun offGrid(t: Double, h: Double, name: String): List<Double> {

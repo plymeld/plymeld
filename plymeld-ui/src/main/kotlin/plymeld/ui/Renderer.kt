@@ -345,7 +345,7 @@ out vec3 gPos; out float gW; out float gH; flat out uint gF; out vec4 gCol;
 void main(){ gPos = aPos; gW = aW; gH = aH; gF = aF; gCol = aCol; gl_Position = vec4(aPos, 1.0); }"""
         // Each segment a six-sided prism round its center line: the bead's cross-section, the line width across and the
         // layer height tall (a flattened hexagon), lit from near the eye, its ends closed, half a width longer at each end
-        // so corners close. Real geometry, so it reads right from every angle: flat strips facing the eye showed round
+        // so corners close. Real geometry, so it reads right from every angle: flat strips facing the eye would show round
         // discs a line width across at corners seen end-on.
         private const val PATH_GS = """#version 330 core
 layout(lines_adjacency) in; layout(triangle_strip, max_vertices = 36) out;

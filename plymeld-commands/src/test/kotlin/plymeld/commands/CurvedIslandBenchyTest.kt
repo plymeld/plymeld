@@ -11,11 +11,10 @@ import java.nio.file.Files
 import java.nio.file.Path
 
 /**
- * A curved island on a real model: the 3DBenchy in test-models/, as given and centered, its bow's cap (the survey's
+ * A curved island on a whole model: the 3DBenchy in test-models/, as given and centered, its bow's cap (the survey's
  * island there, locked at 59.38, 15.63 from its corner; CurvedRegionsModelsTest prints it) printed in its own layers
- * on the [IslandPin] machine. Its first runs found four faults the pin had not shown
- * (a sharp tip read bilinearly 49.5 deg steep; lines 0.034 mm off their surface between bends of the grid); it must read
- * back clean. Control: the same file with its island marks taken off is refused. And its island layers are 0.13 to 0.2 mm
+ * on the [IslandPin] machine. Its geometry reaches what the pin does not (a sharp tip read bilinearly as steep; lines
+ * between bends of the grid off their surface); it must read back clean. Control: the same file with its island marks taken off is refused. And its island layers are 0.13 to 0.2 mm
  * thick along one loop: read on the layer's stated height, the walls' plastic read them a third narrower where the layer is
  * thin, and the hole rule refused slits between them; control: a stretch of an inner wall left out is still a hole.
  */

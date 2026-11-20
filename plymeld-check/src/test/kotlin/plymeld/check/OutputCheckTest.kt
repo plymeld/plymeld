@@ -111,8 +111,8 @@ class OutputCheckTest : StringSpec({
         GcodeCheck.check(file().replaceFirst("G1 F3000", "G1 F30000"), expect).any { it.contains("over the machine's 300") } shouldBe true
     }
 
-    // A feed rate of 0 stops the print on the printer (a zero-length line under the steady share's cap was written G1 F0, and
-    // the job died there). Controls: the same file with F0 and with a feed that is not a number is refused; as written (F3000), it passes.
+    // A feed rate of 0 stops the print on the printer (a zero-length line under the steady share's cap can come out G1 F0).
+    // Controls: the same file with F0 and with a feed that is not a number is refused; as written (F3000), it passes.
     "a move at F0 is refused, saying why; control: the same file at a feed above 0 passes" {
         GcodeCheck.check(file(), expect).none { it.contains("feed rate") } shouldBe true
         val zero = GcodeCheck.check(file().replaceFirst("G1 F3000", "G1 F0"), expect)

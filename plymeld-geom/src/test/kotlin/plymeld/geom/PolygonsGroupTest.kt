@@ -7,8 +7,7 @@ import io.kotest.matchers.shouldBe
  * Polygons.group gives each hole to the outer that holds it, not to a smaller outer it only touches. The set (µm): an
  * outer 10 by 6 mm; a hole inside it, starting at the left end of a sliver 4 mm long and a micron tall that lies in the
  * hole (an island in it, as the leftover between two walls' bands leaves one); the hole touches the sliver only there.
- * The walls of a two-color test model left such a set, and the leftover's line was lost: the hole went to the sliver, the
- * outer was read as having none. Control: the hole's first vertex is on the sliver, the smaller outer, so a rule reading
+ * Given to the sliver, the hole would leave the outer read as having none, and the leftover's line would be lost. Control: the hole's first vertex is on the sliver, the smaller outer, so a rule reading
  * that vertex alone picks the sliver.
  */
 class PolygonsGroupTest : StringSpec({

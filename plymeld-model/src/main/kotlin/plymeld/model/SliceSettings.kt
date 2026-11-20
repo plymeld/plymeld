@@ -163,9 +163,9 @@ class SliceSettings private constructor(r: (String) -> Any, opt: (String) -> Any
     val speedFactor by setting { num("plan.mechanism.motion.speed.factor").also { require(it > 0) { "plan.mechanism.motion.speed.factor must be above 0 (it is $it)" } } }
     /**
      * Purge tower speed: plan.mechanism.purge.tower.speed (bundled: the visible lines' speed, a tower beside walls laid at
-     * it; at the hidden lines' speed, 300 mm/s against the walls' 100, its jump stood out on a print), never faster than
-     * the machine prints (hardware.machine.motion.print.speed; the Creator 5 travels at 600 mm/s and prints at 300, and a
-     * thin tower layer's melt cap still allowed 467: the g-code check) or travels; the writer's melt cap then applies.
+     * it, not the hidden lines' much faster one), never faster than the machine prints (hardware.machine.motion.print.speed;
+     * a machine may travel faster than it prints, and a thin tower layer's melt cap alone can allow more than its print
+     * speed, which the g-code check refuses) or travels; the writer's melt cap then applies.
      */
     val towerSpeed: Double get() = minOf(towerSpeedSet, travelSpeed, hiddenSpeed)
     val bridgeFlow by setting { num("plan.layer.bridge.flow") }

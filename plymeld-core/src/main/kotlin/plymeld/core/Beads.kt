@@ -102,7 +102,7 @@ object Beads {
 
     /**
      * A loop turning more than this (degrees) over a line width either side of a tip it runs into turns a corner there:
-     * its run into the corner fills the outside of its turn and stays (Lay.shortRunIns). A geometric bound, Claude's choice
+     * its run into the corner fills the outside of its turn and stays (Lay.shortRunIns). A geometric bound, plymeld's choice
      * (about a right angle's turn, not going on straight: the catalog's square-end bound, decision 60).
      */
     private const val CORNER_TURN_DEG = 60.0
@@ -1083,9 +1083,9 @@ object Beads {
          * widest of the others' ends) but for [Params.endOverlap] of its own width at every point (no further past it than an
          * interior line's end reaches into the walls), and whose side of the axis reaches no further past the junction's bead
          * than the narrowest place a line is laid in ([pokesOut]). At each junction the shortest go while two of its ends stay
-         * (a small Y keeps its two longest). Joined as an end, a stub was the closest pair with one of the others there and
-         * the third end then joined its dead end: the line ran out along it and back, 40 to 150 microns (on a test slice,
-         * nine such zigzags in the outer line; four stay, where the pocket beyond the stub reaches further).
+         * (a small Y keeps its two longest). Joined as an end, a stub would be the closest pair with one of the others there
+         * and the third end would then join its dead end: the line would run out along it and back, a zigzag in the outer
+         * line. Where the pocket beyond the stub reaches further, the stub stays.
          */
         fun stubs(fs: List<Piece>, reachUm: Double): Set<Int> {
             fun key(x: Double, y: Double) = x.toRawBits() to y.toRawBits()

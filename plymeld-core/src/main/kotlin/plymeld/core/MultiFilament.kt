@@ -92,8 +92,8 @@ object MultiFilament {
         fun <T> timed(name: String, body: () -> T): T { val t = System.nanoTime(); val r = body(); ms[name] = (ms[name] ?: 0L) + (System.nanoTime() - t) / 1_000_000; return r }
         // the thinnest area the walls print: a filament's area thinner than it goes to a neighbor (FilamentAreas.handOverSlivers).
         // Variable-width walls print an area down to the smallest feature (with a line of the narrowest width); handing
-        // over everything under the narrowest LINE split a two-color Benchy's thin cabin strips so neither color
-        // printed them
+        // over everything under the narrowest LINE would split a two-color Benchy's thin cabin strips so neither color
+        // prints them
         // (plan.layer.sliver.width asks for more). One lying along the object's surface beside another filament stays its
         // own with plan.layer.sliver.at_surface = own; beside another group of its own filament it goes over either way.
         val narrowest = s.sliverHandOverUm
@@ -101,8 +101,8 @@ object MultiFilament {
         val splits = timed("split") { Parallel.map(n, progress.Counter("filament areas", n)) { i ->
             FilamentAreas.split(partLayers.map { it[i] }, units, precedence, narrowest, keepOnSurface) { u -> spoolOf[u] ?: u } } }
         // The parts' union, closed like any slice (slice_closing_radius): parts sliced one by one meet
-        // at hairline seams, which read as "exposed from below" and, grown two nozzle widths as bridge
-        // anchors, bridged 1,393 mm2 of a raised QR code over solid material.
+        // at hairline seams, which would read as "exposed from below" and, grown two nozzle widths as bridge
+        // anchors, bridge a large area over solid material (MultiPartWholeTest).
         val union = timed("union") { Parallel.map(n) { i ->
             val u = Booleans.normalize(partLayers.flatMap { it[i] })
             // united with the raw union: a closing only ever adds, but its round joins, as polygons,

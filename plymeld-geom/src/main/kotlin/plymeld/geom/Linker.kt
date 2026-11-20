@@ -2,8 +2,7 @@ package plymeld.geom
 
 /**
  * Joins hatch lines into continuous polylines by running along the region boundary between
- * the end of one line and the start of the next (the "anchors" along the wall that
- * QIDIStudio prints). Fewer separate runs = fewer retractions, less travel, less stringing.
+ * the end of one line and the start of the next (the "anchors" along the wall). Fewer separate runs = fewer retractions, less travel, less stringing.
  *
  * Every hatch endpoint lies on the region boundary (Hatch clips to it). For a chain ending
  * at E, the candidates are the endpoints of lines on the NEXT scanline; the connector is the
@@ -18,9 +17,8 @@ object Linker {
      * scanline has two lines beside this one, e.g. at a notch in the region's edge), so no chain carries on into one side
      * of a fork: each side is a block of its own. Without it a chain runs on into one side, and a sweep that runs against the
      * chains (from the merge back to the fork) may print that chain's lines before the fork and then the other side, whose
-     * last line then goes down between two printed neighbors. Found on the calibration plates' bases (diagonal
-     * lines round a notch in the edge: a 4.2 mm line printed between neighbors beside it for 4.2 and 3.4 mm); used there
-     * (CalibrationPlate). The slicing pipeline's monotonic surfaces do not set it (unchanged).
+     * last line then goes down between two printed neighbors (the calibration plates' bases: diagonal lines round a notch
+     * in the edge); used there (CalibrationPlate). The slicing pipeline's monotonic surfaces do not set it.
      */
     fun link(segs: LongArray, scanline: IntArray, region: List<Polygon>, maxConnectorUm: Long, breakAtSplits: Boolean = false, breakAtForks: Boolean = false): List<LongArray> {
         val n = segs.size / 4
@@ -29,8 +27,8 @@ object Linker {
         // `breakAtSplits`, a chain ends where the fill MERGES (the next line overlaps two lines of this
         // scanline, e.g. past a hole): it would otherwise run on past a side not yet printed, and the
         // sweep would have to come back (monotonic surfaces). At a split the chain may carry on
-        // into one side; the other side is its own block. Breaking at splits too gave 34 runs on the
-        // testplate's top where 19 do (QIDIStudio: 8).
+        // into one side; the other side is its own block. Breaking at splits too would nearly double the runs on the
+        // testplate's top.
         val lo = DoubleArray(n); val hi = DoubleArray(n)
         run {
             val dx = (segs[2] - segs[0]).toDouble(); val dy = (segs[3] - segs[1]).toDouble(); val l = Math.hypot(dx, dy).coerceAtLeast(1.0)
@@ -111,10 +109,9 @@ object Linker {
      * so each stretch of boundary is walked at most once. Gaps are taken shortest first, up to
      * `maxConnectorUm`, and never join a chain to itself (chains stay open polylines).
      *
-     * Why (seen on a test model): linking each grid direction on its own ran each direction along
-     * the whole region edge, so every edge was printed twice as sparse; sparse came out 1.30x
-     * QIDIStudio's on four models. The two directions meet near each other at the wall, so joining
-     * across them needs only a short step along it.
+     * Why: linking each grid direction on its own would run each direction along the whole region edge, so every edge
+     * would be printed twice as sparse. The two directions meet near each other at the wall, so joining across them needs
+     * only a short step along it.
      */
     fun linkAll(segs: LongArray, region: List<Polygon>, maxConnectorUm: Long): List<LongArray> {
         val n = segs.size / 4

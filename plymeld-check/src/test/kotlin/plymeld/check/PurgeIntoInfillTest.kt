@@ -114,8 +114,8 @@ class PurgeIntoInfillTest : StringSpec({
             r.filaments.sumOf { f -> f.layers.sumOf { l -> l.paths.count { it.feature == Feature.SPARSE || it.feature == Feature.SOLID } } }
     }
     "a line laid after another than it was planned after retracts on the travel into it; control: lines kept in order keep their own decision" {
-        // travels inside an island without a retraction (plan.mechanism.motion.no_retract_in_island), as on the nameplate
-        // whose strings this was found on: lines planned to follow their neighbour unretracted
+        // travels inside an island without a retraction (plan.mechanism.motion.no_retract_in_island): lines planned to follow
+        // their neighbor unretracted
         val sIsland = plymeld.model.SliceSettings.of(testSetup("plan.mechanism.motion.no_retract_in_island" to true))
         // and B two islands, 20 mm squares 5 mm apart: the second island's infill is planned after its own walls, unretracted,
         // and laid first after the first island's infill, across the gap

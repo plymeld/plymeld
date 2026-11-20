@@ -10,8 +10,7 @@ import plymeld.geom.Polygon
  * Bead model: an extruded line of width w and height h is a rectangle with semicircular
  * ends, so adjacent beads overlap and their centers sit one *spacing* apart:
  *     spacing(w, h) = w − h·(1 − π/4)
- * (the flow model of the Slic3r family, from recollection; confirmed by
- * measuring QIDIStudio's inner-wall positions on a test model).
+ * (the bead's cross-section, h·(w − h(1 − π/4)), over its height).
  *
  * Centerline insets from the outline:
  *     outer wall        wo/2
@@ -186,8 +185,8 @@ object Walls {
                 val loose = if (joined.isEmpty()) emptyList() else Booleans.intersection(Offset.offset(joined.flatMap { f.pieces[it] }, f.sk / 2 - toleranceUm, Offset.Join.MITER),
                     Offset.offset(outline, -(f.inset - toleranceUm), if (f.necks) Offset.Join.ROUND else Offset.Join.MITER))
                 // a loop round any piece of fit region is at least a circle of the bead's spacing round (pi x spacing); one
-                // shorter is a degenerate scrap of the offset (a test plate's pins: closed loops 0.08 mm round, a dot each,
-                // a restart and a retraction for a blob)
+                // shorter is a degenerate scrap of the offset (on small pins, closed loops 0.08 mm round: a dot each, a
+                // restart and a retraction for a blob)
                 val loop = (if (loose.isEmpty()) strict else if (strict.isEmpty()) loose else Booleans.union(strict, loose))
                     .filter { it.perimeter() >= Math.PI * f.sk }
                     // two loops facing each other across a pinch narrower than the loop needs: the smaller cut back ([apart])
@@ -856,8 +855,8 @@ object Walls {
     /**
      * Sampling of the skeleton: half the smallest feature, so that two samples at least
      * min_feature apart are never neighbors along one side of the outline. At a step EQUAL to
-     * min_feature, neighboring samples passed the skeleton's noise filter and every sampling hair
-     * became a path (117,888 inner-wall paths under 1 mm in one model). Floor: a geometric
+     * min_feature, neighboring samples pass the skeleton's noise filter and every sampling hair
+     * becomes a path (a model's inner walls turn into tens of thousands of paths under 1 mm). Floor: a geometric
      * resolution (µm), well under a line width.
      */
     private const val MIN_SAMPLE_UM = 25L
@@ -898,8 +897,8 @@ object Walls {
                      * trunk whose own forks went in an earlier round, laid out and back (a test's control).
                      */
                     trunksGo: Boolean = true): List<CenterLine> {
-        // one triangulation per connected thin piece: one for a whole layer's thin areas ran out of
-        // memory on a large test model's layer
+        // one triangulation per connected thin piece: one for a whole layer's thin areas can run out of
+        // memory on a large model's layer
         val lines = plymeld.geom.Polygons.group(thin).map { (o, hs) -> val piece = listOf(o) + hs
             fun lay(): PieceLines {
                 fun of(trunks: Boolean) = centerLinesOfPiece(piece, minBeadUm, minFeatureUm, maxWidthUm, minLengthFactor, transitionUm, outline,
@@ -1070,12 +1069,12 @@ object Walls {
      * stays within [tolUm] of its chord AND within 2 x [tolUm] of the ONE width the move is extruded
      * at (the writer's mean of its ends). Greedy, not Douglas-Peucker: on a width taper the vertex
      * farthest from a move's mean width is always the one next to an end, so splitting at the worst
-     * vertex peeled the taper off 25 um at a time (Benchy hull, z 12). Letting the width taper within
-     * a move merged tapers into single moves (Benchy shell gaps 9.0 -> 10.1 mm2). The skeleton is
-     * sampled every few tens of microns, and a constant-width line came out as 50 um segments with
+     * vertex would peel the taper off 25 um at a time (Benchy hull, z 12). Letting the width taper within
+     * a move would merge tapers into single moves and widen the shell's gaps. The skeleton is
+     * sampled every few tens of microns, and a constant-width line laid as sampled is 50 um segments with
      * 1-7 um slivers between them - thousands of moves a second for the motion planner, for nothing.
      * Before that, runs of vertices closer together than [tolUm] are made one ([merged]): where the
-     * width steps between them, the width rule alone kept every one.
+     * width steps between them, the width rule alone would keep every one.
      */
     /**
      * [c] with each run of neighboring vertices lying within [tolUm] of one another made one vertex: a move shorter than
@@ -1395,9 +1394,9 @@ object Walls {
         fun length(c: List<Int>) = (1 until c.size).sumOf { Math.hypot(nx[c[it]] - nx[c[it - 1]], ny[c[it]] - ny[c[it - 1]]) }
         // Prune dead-end spurs shorter than their width: the forks into a thin area's corners. Each round decides on the graph
         // as it stood at the round's start, and a fork is one that ends where the skeleton itself ended (at the area's edge).
-        // Decided as the graph changed under the loop, a short band's two forks went first, its trunk then read as a dead-end
-        // spur of its own and went too, and one corner fork was left as the band's line: a ridge 0.75 mm wide between two wall
-        // loops, 1.2 mm of it, laid as a 0.4 mm stub across it. Then, as a second step, a dead end the first step left (the
+        // Decided as the graph changes under the loop, a short band's two forks would go first, its trunk then read as a
+        // dead-end spur of its own and go too, and one corner fork would be left as the band's line: a short stretch of ridge
+        // between two wall loops laid as a stub across it. Then, as a second step, a dead end the first step left (the
         // trunk of a fork whose own forks were pruned) goes too where it is a side branch of a line running on through its
         // junction (two other branches there), not where it is the line itself.
         // Where the line lies against the model's surface ([outline]: its circle reaches the outline, within the sampling):
@@ -1466,11 +1465,11 @@ object Walls {
                     if (cs.size >= (degree[junction] ?: 0)) cs.sortedBy { length(it) }.dropLast(2) else cs
                 }.toMutableList()
                 // Nor every branch of a small area whose junction is several skeleton nodes a few microns apart: where the
-                // round's cuts would leave less of its skeleton than its own widest line, its two longest forks stay (a
-                // dome 1.3 x 0.8 mm kept a line 23 um long between two of its junction's nodes). The area's two longest,
-                // not the two longest of the forks cut: those could be a short trunk whose own forks went in an earlier round
-                // beside two longer forks that stay anyway, and the line ran out along it and back (a cell 0.5 mm across
-                // between the walls of a pattern of square cells, a zigzag in the line)
+                // round's cuts would leave less of its skeleton than its own widest line, its two longest forks stay (else a
+                // small dome would keep a line a few microns long between two of its junction's nodes). The area's two
+                // longest, not the two longest of the forks cut: those could be a short trunk whose own forks went in an
+                // earlier round beside two longer forks that stay anyway, and the line would run out along it and back, a
+                // zigzag in the line (JunctionStubTest)
                 if (cut.isNotEmpty()) {
                     val comp = HashMap<Int, Int>()
                     for (start in adj.keys) if (start !in comp) {
@@ -1543,25 +1542,21 @@ object Walls {
             close()
             return out
         }
-        // Small lines: an open line shorter than min_length_factor x its narrowest width is dropped
-        // (min_length_factor, as the Orca-lineage Arachne is understood to use it: plymeld's reading,
-        // not verified against its source); a closed one (a skeleton cycle) shorter than its own
-        // widest width is a blob, not a wall (one model: 4,266 closed center lines under 0.2 mm).
+        // Small lines: an open line shorter than min_length_factor x its narrowest width is dropped; a closed one (a
+        // skeleton cycle) shorter than its own widest width is a blob, not a wall.
         // Corner voids: an open line less than twice as long as its widest point is not a thin band
-        // but the void a round bead leaves in a sharp corner between loops (on one layer seen: most of
-        // the short lines). That is gap fill, which the Orca lineage prints only where
-        // gap_fill_target says (commonly topbottom), so it is left empty here.
-        // The factor 2 is plymeld's rule, not an Orca setting. It is for voids INSIDE the part: a short line along the
-        // model's outline (a wedge tip, a frame's cut end) is the part's outer surface there, and is kept (
-        // a two-color Benchy's window-frame ends printed nothing, their outline with no wall).
-        // The outline exception covers both rules (a double helix's wall wedge beside a strip's end, 0.5 to 0.97 mm
-        // wide, kept a loop at its wide end and lost its 0.57 mm center line to min_length_factor alone: its outline had no wall)
-        // A line of no length (its ends on one point: a chain round a sampling cycle collapsed) lays nothing, yet cost a
+        // but the void a round bead leaves in a sharp corner between loops. That is gap fill, left empty here.
+        // The factor 2 is plymeld's rule. It is for voids INSIDE the part: a short line along the
+        // model's outline (a wedge tip, a frame's cut end) is the part's outer surface there, and is kept (dropped,
+        // a two-color Benchy's window-frame ends would print nothing, their outline with no wall).
+        // The outline exception covers both rules (a wall wedge beside a strip's end, kept as a loop at its wide end,
+        // would otherwise lose its center line to min_length_factor alone, its outline with no wall)
+        // A line of no length (its ends on one point: a chain round a sampling cycle collapsed) lays nothing, yet costs a
         // restart and a retraction; it is dropped (under a micron: below the file's coordinates).
         // Nor is a piece of a band cut by a thin dip a corner void or a dot: between two dips, or a dip and the band's end, it
-        // is the band, as wide as it is there, kept when at least as long as it is narrow (on a ridge lowest in its middle,
-        // the leftover between a loop's sides, 0.3 to 0.6 mm wide over 0.5 to 0.9 mm each side of its thin middle, went
-        // empty; on a test model's hull, a band 0.24 to 0.39 mm wide along 26 mm, cut where it dipped, lost every piece)
+        // is the band, as wide as it is there, kept when at least as long as it is narrow (dropped, the leftover between a
+        // loop's sides on a ridge lowest in its middle would go empty, and a long band cut where it dips would lose every
+        // piece)
         // Nor is an area wider somewhere than [keepWiderUm] (the narrowest place a line is laid in, and the slicing tolerance
         // a side) a corner void: left empty it is a hole inside the walls. A web 1.6 mm wide between a hole and the side,
         // where the next loops of both end, left 0.72 mm bare between the two outer loops over 1.4 mm: its line, 0.68 mm

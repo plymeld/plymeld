@@ -16,7 +16,7 @@ import plymeld.model.SliceSettings
  * they converge at the tip of a thin sliver of the other's.
  *  - A tongue of B too thin for a line goes over to A (FilamentAreas.handOverSlivers) with the gap between it and A's slot
  *    (5 µm a side): nothing of a slot is left to no area. Control: the tongue handed over alone leaves the gap, a crack in A's
- *    area along each tongue that A's walls loop round (on a test slice up to 0.8 mm² laid twice at one crack).
+ *    area along each tongue that A's walls loop round, laying plastic twice there.
  *  - The model sliced: the pre-print check passes, and no spot laid twice lies along a tongue. Spots are left at the spikes
  *    (B's loops crossing a spike's tip: open, DECISIONS 50); the catalog's baseline records them.
  */

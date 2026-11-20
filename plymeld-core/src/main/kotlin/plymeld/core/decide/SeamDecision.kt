@@ -66,8 +66,8 @@ object SeamDecision {
 
     /**
      * Which wall-loop points hang over the layer below, per layer (Overhangs.seamOverhangs): the same for every candidate,
-     * computed once, the layers in parallel as the Planner computes them (on one thread it took a 30-part
-     * model's 805 layers 20 minutes).
+     * computed once, the layers in parallel as the Planner computes them (on one thread a model of many parts and
+     * layers takes many minutes).
      */
     fun overhangs(w: Walls): List<List<List<BooleanArray>>?> {
         val hs = Planner.heights(w.layerTopsUm)
@@ -147,7 +147,7 @@ object SeamDecision {
             val c = Choice(lockedPlacement ?: Placement.CORNERS, scarfLock?.value ?: "none", placementLock != null, scarfLock != null)
             return Decision(step, c, "locked: $lockWords", listOf("the seams are locked here; nothing weighed"), standIns = standIns, overridden = true)
         }
-        // where the time goes (a 30-part model's plan spent 500 s here with nothing saying so): the overhangs, the layer
+        // where the time goes (on a model of many parts this decision can take minutes): the overhangs, the layer
         // preparation, each candidate's measure
         val t0 = System.nanoTime()
         val over = overhangs(w)

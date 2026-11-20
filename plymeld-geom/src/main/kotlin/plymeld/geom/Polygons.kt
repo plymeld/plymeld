@@ -6,8 +6,8 @@ object Polygons {
      * Groups a normalized set into (outer, holes-inside-it). Each hole goes to the smallest outer that holds it: an outer
      * at least as large, inside which the hole lies at its first vertex off that outer's boundary (exact test on the
      * outer's edges). A vertex on an outer's boundary says nothing about which side of it the hole lies on (polygons of a
-     * set may touch): decided by the first vertex alone, a hole starting at a corner of a smaller outer it merely touched
-     * (a sliver a micron wide beside it) went to that outer, and the outer that does hold it was left without it.
+     * set may touch): decided by the first vertex alone, a hole starting at a corner of a smaller outer it merely touches
+     * (a sliver a micron wide beside it) would go to that outer, and the outer that does hold it would be left without it.
      */
     fun group(set: List<Polygon>): List<Pair<Polygon, List<Polygon>>> {
         val sized = set.filter { it.isCcw() }.map { it to Math.abs(it.signedArea2()) }.sortedBy { it.second }

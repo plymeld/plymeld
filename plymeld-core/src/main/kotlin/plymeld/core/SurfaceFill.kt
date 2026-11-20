@@ -35,10 +35,10 @@ object SurfaceFill {
      * reference outline is simplified to within [CONCENTRIC_TOL_UM]; every [ANCHOR_EVERY]th ring is
      * offset from it directly, the rings between from the ring before. Measured on a 4000-vertex
      * ellipse (ConcentricDriftTest): worst error 8.7 um in 0.9 s. The alternatives:
-     *  - every ring from the previous one: the offset's grid rounding compounds; rings collapsed to
-     *    12-gons 9.8 mm off (radial "spokes" on a large oval);
-     *  - every ring from the outline: accurate but 7 s (simplified) to ~30 s per ring (unsimplified,
-     *    > 600 s on one layer of a large oval): the offset's work grows with vertices x distance.
+     *  - every ring from the previous one: the offset's grid rounding compounds; rings collapse to
+     *    coarse polygons millimeters off (radial "spokes");
+     *  - every ring from the outline: accurate but seconds per ring (simplified) to minutes per layer
+     *    (unsimplified): the offset's work grows with vertices x distance.
      */
     fun concentric(region: List<Polygon>, spacing: Long): List<Polygon> {
         val out = ArrayList<Polygon>()
@@ -264,7 +264,7 @@ object SurfaceFill {
     /** The narrowest a ring's line is laid beside a wall, a share of its width: half a line, as the hatch's slivers (Planner). */
     private const val MIN_SHARE = 0.5
 
-    /** The most points taken between two samples where a ring's line narrows fast: a work bound (Claude's choice), not a print value. */
+    /** The most points taken between two samples where a ring's line narrows fast: a work bound (plymeld's choice), not a print value. */
     private const val MAX_SPLIT = 16
 
     /**

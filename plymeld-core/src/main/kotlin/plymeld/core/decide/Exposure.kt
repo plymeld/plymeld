@@ -160,8 +160,8 @@ class Exposure(private val outlines: List<List<Polygon>>, private val topsUm: Lo
     /**
      * How much of the ray from ([x], [y]) at height [z0] along azimuth ([ca], [sa]), rising [tanE] per unit across, gets through:
      * 1 when it leaves the reach meeting no material; 1 - d / show_through when the only material it meets ends d from the seam,
-     * within [Sample.showThroughUm] (the seam close behind a thin wall shows through it: a part's seam 1.4 mm behind
-     * a visible wall printed as two faint vertical lines, while the map counted it hidden); 0 when material reaches deeper, or
+     * within [Sample.showThroughUm] (the seam close behind a thin wall shows through it, as faint vertical lines, where the
+     * map alone would count it hidden); 0 when material reaches deeper, or
      * comes again after it.
      */
     private fun through(layer: Int, x: Double, y: Double, ca: Double, sa: Double, tanE: Double, z0: Double): Double {
@@ -181,7 +181,7 @@ class Exposure(private val outlines: List<List<Polygon>>, private val topsUm: Lo
             } else if (inside) {
                 // out of the thin material within the show-through depth: seen through it, less the deeper it lay; material
                 // entered within the depth but reaching past it hides the seam (read as 1 - depth / show_through
-                // there, below 0, one model's base seam scar summed to -9.2 mm²)
+                // there, it would go below 0, and a seam scar could sum to less than nothing)
                 if (s > show) return 0.0
                 share = 1.0 - s / show; inside = false; passed = true
             }

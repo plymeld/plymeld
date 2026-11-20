@@ -53,7 +53,7 @@ class Extrude(
     val segmentSpeeds: DoubleArray? = null,
     /**
      * The travel into this path lifts over what it crosses but does not retract: an outer-wall speck
-     * reached from its own wall, whose last hop crosses that wall; a retraction and prime for a dot left a blob.
+     * reached from its own wall, whose last hop crosses that wall; a retraction and prime for a dot leaves a blob.
      */
     val hopOnly: Boolean = false,
     /**
@@ -85,7 +85,7 @@ class Extrude(
     /**
      * Whether the travel into this path, [straightMm] long as the crow flies, is taken as a speck's hop ([hopOnly]): lifted, not
      * retracted. Only a hop: combed inside the island up to its last step ([via]), or no longer than two of the path's widths;
-     * any other travel to a speck (a straight one along the wall to the next speck, 12.5 mm on a test model) retracts as usual.
+     * any other travel to a speck (a straight one along the wall to the next speck, however long) retracts as usual.
      */
     fun hops(straightMm: Double): Boolean = hopOnly && (via != null || straightMm <= HOP_WIDTHS * widthUm / 1000.0)
 
@@ -167,7 +167,7 @@ class ToolChange(val tool: Int, val spool: String, val tempC: Int? = null, val f
 /**
  * The print stops here for the user (swap a filament, drop in a magnet ...); the writer emits the
  * machine's own pause command. Placed right after a [LayerStart], before anything on that layer
- * prints (as Flash Studio places a project's pause). [reason]: what asked for it, for the g-code comment.
+ * prints. [reason]: what asked for it, for the g-code comment.
  */
 class Pause(val reason: String) : Event
 

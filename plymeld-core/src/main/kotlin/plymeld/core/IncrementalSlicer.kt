@@ -281,7 +281,7 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
             // loops are unioned per layer so overlapping or touching parts print as one object.
             val layers: List<Layer> = if (sliced.size == 1) Slicer.slice(sliced[0], plan.slices) else {
                 val perPart = sliced.map { Slicer.slice(it, plan.slices) }
-                // the layers' unions side by side (one after another, a 29-part model's union was a seventh of its plan)
+                // the layers' unions side by side (one after another, a model of many parts spends much of its plan on them)
                 Parallel.map(plan.slices.size) { li ->
                     val loops = perPart.flatMap { it[li].loops }
                     Layer(plan.slices[li], plymeld.geom.Booleans.normalize(loops), perPart.flatMap { it[li].openChains })
@@ -1225,7 +1225,7 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
         // an arched bridge's speed over air: known once the first layer has said it arches
         if (lift != null && bridgeLayer >= 1 && arched && !(s!!.bridgeTopNormal && bridgeTops.containsKey(l))) {
             // past the ramp every segment says "usual" (NaN): left without speeds, the writer would lay the whole layer at the
-            // bridge's print speed, its earlier rule (seen in the test: the strip's fifth layer all at 5 mm/s)
+            // bridge's print speed
             val v = bridgeAirSpeed(bridgeLayer) ?: Double.NaN
             val groups = plymeld.geom.Polygons.group(supportArea)
             // wave beads keep the technique's own speed (plan.technique.wave_overhang.speed), not the bridge's over air
@@ -1521,9 +1521,8 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
     /** This object's planned layers for `setup` (cached stages re-run only as needed). */
     /**
      * The slice and walls stages alone, for a decision made before the slice (the seam decision): the same stages
-     * with the same cache keys, so the slice that follows finds its walls made (the decision sliced the
-     * concatenated soup, uncleaned, and walled it on its own: 436 s of a 30-part model's 757 s plan, against the slice's
-     * own walls in under 150 s). Returns each layer's outline as cut, the walls (with their effective outlines), and the
+     * with the same cache keys, so the slice that follows finds its walls made (slicing the concatenated soup, uncleaned,
+     * and walling it apart would do the work twice, the decision's copy the slower). Returns each layer's outline as cut, the walls (with their effective outlines), and the
      * layer tops (µm above the object's bottom); a banded plan's flat layers only (its bands are built with the slice).
      */
     fun wallsForDecision(setup: Setup): Triple<List<List<plymeld.geom.Polygon>>, Planner.WallsOut, LongArray> {
@@ -1851,9 +1850,9 @@ class IncrementalSlicer(private val parts: List<TriangleSoup>, private val versi
             // wave overhangs: the undersides' surface technique and the technique's own values the paths read
             "plan.faces.under.wave_overhang", "plan.technique.wave_overhang.spacing", "plan.technique.wave_overhang.overlap", "plan.technique.wave_overhang.neck.min",
             "plan.technique.wave_overhang.area.min", "plan.technique.wave_overhang.line.area",
-            // its height limit: left out, a slice with the limit reused another's waved layers (seen in the test)
+            // its height limit: left out, a slice with the limit would reuse another's waved layers
             "plan.faces.under.from", "plan.faces.under.to",
-            // a lifted bridge's first layer as waves: left out, a slice with lines reused the waved one's paths (seen in the test)
+            // a lifted bridge's first layer as waves: left out, a slice with lines would reuse the waved one's paths
             "plan.technique.bridge.first_layer", "plan.technique.bridge.wave.sides", "plan.technique.bridge.wave.edges.order", "plan.technique.bridge.wave.edges.enabled", "plan.technique.bridge.wave.layers", "plan.technique.bridge.wave.second_layer", "plan.technique.bridge.wave.x_length", "plan.technique.bridge.wave.start", "plan.technique.bridge.wave.strip.width", "plan.technique.bridge.wave.front", "plan.technique.curved.top_order", "plan.technique.bridge.wave.chevron.lead", "plan.technique.bridge.wave.chevron.leading", "plan.technique.bridge.wave.chevron.lines", "plan.technique.bridge.wave.after_supported", "plan.technique.bridge.wave.line.direction", "plan.technique.bridge.wave.spacing", "plan.technique.bridge.wave.second_pass.zones", "plan.technique.bridge.wave.x_layer.enabled", "plan.technique.bridge.wave.x_layer.raise", "plan.technique.bridge.wave.x_layer.share", "plan.technique.bridge.wave.x_layer.inset", "plan.technique.bridge.wave.x_layer.middle", "plan.technique.bridge.wave.span_layer.enabled", "plan.technique.bridge.wave.span_layer.raise",
             // a lifted bridge's fill all along it: read by the paths stage (bridgeAlong), left out earlier, so a re-slice
             // after changing it reused the other value's paths (ConfiguredValueReachesTest; the layer cache keyed it itself)

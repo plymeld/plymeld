@@ -11,7 +11,7 @@ import io.kotest.matchers.string.shouldContain
  * its sides), a square tube (a cap with a hole), a ball whose equator's vertices lie on the cutting plane (the plane moved
  * off them), and a block with two posts (two outlines on one cap). Closed is checked edge by edge: every directed edge of
  * the result has its reverse exactly once. References: volumes worked by hand; the ball's half from the mesh's own
- * symmetry. A cut outline that crosses itself by a float's step (two points that close together, from a real model) is
+ * symmetry. A cut outline that crosses itself by a float's step (two points that close together) is
  * still closed, and one crossing itself by half a millimetre is refused. Controls: a box round the whole mesh changes
  * nothing; a cube with a face missing, cut across the opening, is
  * refused.
@@ -84,8 +84,8 @@ class SectionCutTest : StringSpec({
         unpaired(cut) shouldBe 0
         cut.signedVolume() shouldBe (20.0 * 10 * 2 + 2 * (4.0 * 4 * 3) plusOrMinus 1e-3)
     }
-    // what was left of a real model's cut outline (46,728 points) when the triangulation stopped: two needles whose tips are
-    // two points a float's step apart, their sides swapped there, so the outline crosses itself by 0.000004 mm
+    // two needles whose tips are two points a float's step apart, their sides swapped there, so the outline crosses itself
+    // by 0.000004 mm
     "an outline crossing itself by a float's step at a needle's tip is still closed; control: one truly crossing itself is refused" {
         val needles = doubleArrayOf(54.641090393066406, -20.027002334594727, 55.16203689575195, -17.6484432220459, 71.58467102050781, -17.943384170532227,
             72.80488586425781, -20.63744354248047, 72.80487823486328, -20.63744354248047, 72.68623352050781, -17.90029525756836,

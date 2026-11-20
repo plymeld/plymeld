@@ -67,7 +67,7 @@ object DoubledCheck {
     /**
      * The most doubled cells kept for one layer (with their lookup, about 40 bytes each, 4 MB): 62.5 mm2 laid twice, far
      * past a spot that counts. plymeld's choice (memory, a layer on every core at once: at a million cells the curved
-     * Benchy's check ran out of a 512 MB heap; a layer with more laid twice is read to the first of them, and marked so).
+     * Benchy's check runs out of a 512 MB heap; a layer with more laid twice is read to the first of them, and marked so).
      */
     const val MAX_CELLS = 100_000
 

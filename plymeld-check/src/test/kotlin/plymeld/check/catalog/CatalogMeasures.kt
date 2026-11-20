@@ -114,7 +114,7 @@ object CatalogMeasures {
      * it came (more than 120 deg: the end's second corner within a line or so), and the spike points out of the turn, into
      * the corner (the move into the vertex against the difference of the two directions). A spike at a single corner, the
      * line not turning back within two widths (a stub at a center line's junction where it turns), stays a zigzag.
-     * (60 deg and twice the width: Claude's choice, geometric bounds of this measure, not print values.)
+     * (60 deg and twice the width: plymeld's choice, geometric bounds of this measure, not print values.)
      */
     fun jagged(ms: List<TechniqueRender.Move>, tolMm: Double, widthMm: Double): Jagged {
         var tiny = 0; var tinyOuter = 0; var kinks = 0; var zigzags = 0

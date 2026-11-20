@@ -24,10 +24,10 @@ object Models {
 
     /** The lens's depth at height [z]: 0.7 mm at z 0.42, 1.2 mm at z 1.42. */
     fun lensDepth(z: Double) = 0.7 + 0.5 * (z - 0.42)
-    /** A gray lens 2.4 mm long, flat on one side, curved on the other, growing from 0.7 to 1.2 mm deep from z 0.42 to 1.42. */
+    /** A lens 2.4 mm long, flat on one side, curved on the other, growing from 0.7 to 1.2 mm deep from z 0.42 to 1.42. */
     val lens by lazy { loft((0..50).map { r -> val z = 0.42 + r * 0.02
         z to (0 until 61).map { k -> val t = -1 + 2.0 * k / 60; doubleArrayOf(CX + 1.2 * t, CY - lensDepth(z) * (1 - t * t)) } }) }
-    /** The white block the lens lies against (a second part), with the foot both stand on. */
+    /** The block the lens lies against (a second part), with the foot both stand on. */
     val lensBlock by lazy { join(box(CX - 3, CY - 2, 0.0, CX + 3, CY + 3, 0.42), box(CX - 3, CY, 0.42, CX + 3, CY + 3, 1.6)) }
     /** The lens on a foot of its own. */
     val lensAlone by lazy { join(box(CX - 1.6, CY - 1.6, 0.0, CX + 1.6, CY + 0.4, 0.42), lens) }
@@ -94,8 +94,8 @@ object Models {
     /**
      * A finger of one part hanging into a second part off a band of the first, joined to the band by a neck too narrow for
      * the finger's loop and about as long as it is wide: the finger 1 mm wide, 3 mm long, its neck 0.5 mm long and, layer by
-     * layer, 0.36 to 0.58 mm wide (a slab a layer: the layers' tops are 0.2 mm, then every 0.08 mm). The gray band and
-     * finger, then the white part round it.
+     * layer, 0.36 to 0.58 mm wide (a slab a layer: the layers' tops are 0.2 mm, then every 0.08 mm). The band and
+     * finger (the first part), then the second part round it.
      */
     val finger: List<TriangleSoup> by lazy {
         val fh = 0.5; val nl = 0.5; val slabs = 23
@@ -103,11 +103,11 @@ object Models {
             doubleArrayOf(CX + fh, CY - 3), doubleArrayOf(CX + fh, CY - nl), doubleArrayOf(CX + nh, CY - nl), doubleArrayOf(CX + nh, CY))
         val zs = listOf(0.0) + (0 until slabs).map { 0.2 + 0.08 * it }
         val nhs = (0 until slabs).map { 0.18 + 0.005 * it }
-        val gray = join(*(0 until slabs).map { k -> prism(listOf(doubleArrayOf(CX - 6, CY)) + outline(nhs[k]) +
+        val band = join(*(0 until slabs).map { k -> prism(listOf(doubleArrayOf(CX - 6, CY)) + outline(nhs[k]) +
             listOf(doubleArrayOf(CX + 6, CY), doubleArrayOf(CX + 6, CY + 4), doubleArrayOf(CX - 6, CY + 4)), zs[k], zs[k + 1]) }.toTypedArray())
-        val white = join(*(0 until slabs).map { k -> prism(listOf(doubleArrayOf(CX - 6, CY - 4), doubleArrayOf(CX + 6, CY - 4), doubleArrayOf(CX + 6, CY)) +
+        val around = join(*(0 until slabs).map { k -> prism(listOf(doubleArrayOf(CX - 6, CY - 4), doubleArrayOf(CX + 6, CY - 4), doubleArrayOf(CX + 6, CY)) +
             outline(nhs[k]).reversed() + listOf(doubleArrayOf(CX - 6, CY)), zs[k], zs[k + 1]) }.toTypedArray())
-        listOf(gray, white)
+        listOf(band, around)
     }
 
     // ---- a ridge narrowing to a line, then to nothing (ThinRidgeTest) ----
@@ -174,17 +174,17 @@ object Models {
 
     // ---- a sliver of one filament on the object's surface beside another (ExposedSliverTest) ----
 
-    /** The exposed wedge's frame: the white's front face at x [WEDGE_X0] on the bed, the gray wedge from [WEDGE_Z0], both to [WEDGE_TOP]. */
+    /** The exposed wedge's frame: the block's front face at x [WEDGE_X0] on the bed, the wedge from [WEDGE_Z0], both to [WEDGE_TOP]. */
     const val WEDGE_X0 = 40.0; const val WEDGE_Z0 = 1.49; const val WEDGE_TOP = 3.0
     private val cot62 = 1 / Math.tan(Math.toRadians(62.5)); private val cot55 = 1 / Math.tan(Math.toRadians(55.0))
-    /** The white's front face at height [z] (leaning back at 62.5 deg from level). */
-    fun wedgeWhite(z: Double) = WEDGE_X0 + z * cot62
-    /** The gray wedge's front at height [z] (above [WEDGE_Z0]; leaning out over the white's face at 55 deg from level). */
-    fun wedgeGray(z: Double) = wedgeWhite(WEDGE_Z0) - (z - WEDGE_Z0) * cot55
-    /** The exposed wedge: A the gray wedge on the white's face, B the white block (prisms along Y from 100 to 110). */
+    /** The block's front face at height [z] (leaning back at 62.5 deg from level). */
+    fun blockFace(z: Double) = WEDGE_X0 + z * cot62
+    /** The wedge's front at height [z] (above [WEDGE_Z0]; leaning out over the block's face at 55 deg from level). */
+    fun wedgeFront(z: Double) = blockFace(WEDGE_Z0) - (z - WEDGE_Z0) * cot55
+    /** The exposed wedge: A the wedge on the block's face, B the block (prisms along Y from 100 to 110). */
     val exposedWedge: List<TriangleSoup> by lazy { listOf(
-        prismAlongY(listOf(wedgeWhite(WEDGE_Z0) to WEDGE_Z0, wedgeWhite(WEDGE_TOP) to WEDGE_TOP, wedgeGray(WEDGE_TOP) to WEDGE_TOP), 100.0, 110.0),
-        prismAlongY(listOf(WEDGE_X0 to 0.0, 60.0 to 0.0, 60.0 to WEDGE_TOP, wedgeWhite(WEDGE_TOP) to WEDGE_TOP), 100.0, 110.0)) }
+        prismAlongY(listOf(blockFace(WEDGE_Z0) to WEDGE_Z0, blockFace(WEDGE_TOP) to WEDGE_TOP, wedgeFront(WEDGE_TOP) to WEDGE_TOP), 100.0, 110.0),
+        prismAlongY(listOf(WEDGE_X0 to 0.0, 60.0 to 0.0, 60.0 to WEDGE_TOP, blockFace(WEDGE_TOP) to WEDGE_TOP), 100.0, 110.0)) }
     /**
      * A buried sliver: a block x 50 to 60 (A, the first filament), a block x 40 to 50 beside it (B, the second), and a fin of
      * the first filament [t] mm thick inside B against A (C), inside the object (sliced with job.part_overlap lower_filament).
@@ -336,8 +336,8 @@ object Models {
      *    to A ([TONGUES]);
      *  - A's spikes reaching into B, a wedge [SPIKES] wide at the base and long: too short and blunt to go over to B (their
      *    thin tips are crumbs), so B's area has a narrow notch at each.
-     * The widths and lengths are the test's (Claude's choice, around a test slice's: a sliver 0.12 to 0.2 mm wide, a notch
-     * 0.18 mm wide and 0.2 mm deep).
+     * The widths and lengths are the test's (plymeld's choice: slivers 0.1 to 0.13 mm wide, notches 0.18 to 0.3 mm wide and
+     * 0.2 to 0.35 mm deep).
      */
     val sliverTips: List<TriangleSoup> by lazy {
         val y0 = CY + 2; val g = 0.005
@@ -389,7 +389,7 @@ object Models {
     val speckTriangle = Polygon(longArrayOf(15_000, 5_000, 20_000, 100, 25_000, 5_000))
     /** The triangle as a hole in the base. */
     val speckTriangleHole = Polygon(longArrayOf(15_000, 5_000, 25_000, 5_000, 20_000, 100))
-    /** The base and the triangle as two parts 2.4 mm tall at ([CX] - 20, [CY] - 5): the gray base round the white triangle. */
+    /** The base and the triangle as two parts 2.4 mm tall at ([CX] - 20, [CY] - 5): the base round the triangle. */
     val speckBeside: List<TriangleSoup> by lazy {
         fun mm(p: Polygon) = (0 until p.size).map { i -> doubleArrayOf(CX - 20 + p.x(i) / 1000.0, CY - 5 + p.y(i) / 1000.0) }
         val tri = (if (speckTriangle.isCcw()) speckTriangle else speckTriangle.reversed()).let { mm(it) }

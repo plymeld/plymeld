@@ -18,7 +18,7 @@ import java.util.Locale
  *
  * With no weight on strength, bond-first never wins (it costs quality and gains nothing counted). A lock
  * (plan.bond_cooling = on / off, for every object or one) decides without weighing. The bond factor's coefficients
- * (method.strength.bond.*) and bond-first's values are PLACEHOLDERS until measured (the helix-layer coupon).
+ * (method.strength.bond.*) and bond-first's values are PLACEHOLDERS until measured.
  */
 object BondCooling {
     /** How an object's layers are laid for the bond: the part fan (% of full), the nozzle after the first layer (C), the minimum layer time (s). */
@@ -80,7 +80,7 @@ object BondCooling {
                 "; strong enough at %s mm² (method.strength.bond.enough_area, a placeholder): bond.strength the filament's %.1f, bond-first %.1f".format(Locale.ROOT,
                     fmt(model.enoughAreaMm2), bondOf(filament), bondOf(bond)),
             "side area %.0f mm² of %.0f mm² surface (cooling_shortfall's scale)".format(Locale.ROOT, sideMm2, surfaceMm2))
-        val standIns = listOf("bond.strength and cooling_shortfall are stand-ins: the bond factor's coefficients and bond-first's values are placeholders until the helix-layer coupon measures them")
+        val standIns = listOf("bond.strength and cooling_shortfall are stand-ins: the bond factor's coefficients and bond-first's values are placeholders until measured")
         if (lock != null) return Decision(step, Choice(lock, conditions(lock)), "locked " + (if (lock) "on" else "off") + " by ${lockSource ?: "plan.bond_cooling"}: ${Choice(lock, conditions(lock))}",
             facts, standIns = standIns, overridden = true)
         val values = mapOf<Metric, (Boolean) -> Double>(

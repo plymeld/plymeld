@@ -100,7 +100,7 @@ class CurvedIsland(val capId: Int, val startMm: Double, val topMm: Double, val l
      * The island's own layer height in warped space over [spanMm] (its start as printed, the flat top under the plan's start,
      * to its top): the span in equal layers, as near [layerMm] as keeps every layer at least [minLayerMm] where it dips most
      * (1 - dip / span of its height) and at most [maxLayerMm] where it does not dip; null when no whole number of layers does.
-     * (Layers of [layerMm] with what is left on top: the remainder layer, dipped, came out 0.06 mm thick.)
+     * (Layers of [layerMm] with what is left on top would leave a remainder layer, dipped, far thinner than any other.)
      */
     fun ownLayerMm(spanMm: Double, minLayerMm: Double, maxLayerMm: Double): Double? {
         val factor = 1.0 - (dip.maxOrNull() ?: 0.0) / spanMm

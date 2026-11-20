@@ -7,12 +7,12 @@ import plymeld.geom.Offset
 import plymeld.geom.Polygon
 
 /**
- * A thin wedge is walled along its whole outline: the double helix tube's wall beside a strip's end, cut at z 5.33, is a
- * four-sided piece 2 mm long, 0.5 to 0.97 mm wide, too narrow anywhere for its three walls: an island laid by its local width
- * (Beads), every point of its outline with a line beside it. Laid by a loop where one fits and a center line along the rest
- * (as such a piece of a wider island still is), the 0.57 mm line was under min_length_factor (2) times its width and dropped
- * though it runs along the part's outline (the pre-print check: "the model's outline has no wall along 4.7 mm"); the
- * center lines keep a short line along the outline, and drop it with no outline given (the control).
+ * A thin wedge is walled along its whole outline: a tube's wall beside a strip's end, cut across, is a four-sided piece
+ * 2 mm long, 0.5 to 0.97 mm wide, too narrow anywhere for its three walls: an island laid by its local width (Beads), every
+ * point of its outline with a line beside it. Laid by a loop where one fits and a center line along the rest (as such a
+ * piece of a wider island still is), the 0.57 mm line is under min_length_factor (2) times its width, and dropped it would
+ * leave the part's outline with no wall there; the center lines keep a short line along the outline, and drop it with no
+ * outline given (the control).
  */
 class ThinWedgeTest : StringSpec({
     val wedge = Polygon(longArrayOf(14728, 2837, 14790, 2500, 13316, 2500, 12757, 2500, 12747, 2550, 12744, 2569, 12736, 2602, 12642, 3007, 13408, 3184,

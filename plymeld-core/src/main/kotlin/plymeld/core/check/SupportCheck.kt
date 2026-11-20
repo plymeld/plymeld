@@ -2,9 +2,9 @@ package plymeld.core.check
 
 /**
  * The pre-print check of the plan's support: every support spot the plan has (chosen by the search, locked
- * by the plan, or by the user) must have support printed in it. Found the day a plan said "support under 1 spot" for a
- * flat underside and the sliced file held no support at all (a spot of no height matched no layer, Supports.Box.spans),
- * while the model check passed: it judges the model's lines against the model, never support against the plan.
+ * by the plan, or by the user) must have support printed in it. The model check cannot catch a missing spot (a spot of no
+ * height under a flat underside matches no layer, Supports.Box.spans): it judges the model's lines against the model,
+ * never support against the plan.
  */
 object SupportCheck {
     /** One planned spot: its name and its footprint on the bed (mm). */

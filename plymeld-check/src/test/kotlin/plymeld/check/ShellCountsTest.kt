@@ -8,8 +8,8 @@ import plymeld.model.SliceSettings
 
 /**
  * Shells on layers of varying height (Planner.shellCounts): a layer is solid exactly when less than
- * the shell's thickness of the part lies above it. Found in a comparison with Flash Studio: the
- * count took the layer's own height, and a top shell came out 0.75 of 0.8 mm.
+ * the shell's thickness of the part lies above it. Counting the layer's own height would leave a top shell short (0.75 of
+ * 0.8 mm here).
  */
 class ShellCountsTest : StringSpec({
     val cfg = arrayOf<Pair<String, Any>>("plan.layer.top.thickness" to "0.8 mm", "plan.layer.bottom.thickness" to "0 mm")

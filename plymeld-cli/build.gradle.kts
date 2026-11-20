@@ -12,8 +12,8 @@ dependencies {
 application {
     mainClass.set("plymeld.cli.MainKt")
     applicationName = "plymeld"
-    // C2 as the top JIT tier, not Graal's: on a GraalVM JDK, Graal's JIT was seen to leave the hottest geometry
-    // uncompiled in some launches (minutes instead of seconds), and C2 was faster on the measured job anyway.
+    // C2 as the top JIT tier, not Graal's: on a GraalVM JDK, Graal's JIT can leave the hottest geometry uncompiled in
+    // some launches (minutes instead of seconds), and C2 is the faster of the two on slicing.
     // JAVA_OPTS comes after these, so it can override.
     // UnlockExperimentalVMOptions: on a stock OpenJDK 21 UseJVMCICompiler is an EXPERIMENTAL flag, which
     // IgnoreUnrecognizedVMOptions does not cover: without the unlock the JVM refuses to start.

@@ -23,8 +23,7 @@ import java.io.StringWriter
 
 /**
  * The feed rates the writer writes (KlipperWriter), read from its g-code: a printer stops the print at F0 (a line of no
- * length under the steady share's cap was written `G1 F0`, beside a preheat comment of "NaN s of printing", and a print
- * died there). One object of two tools, four layers, each an outer wall square, an outer wall of no length (its two points
+ * length under the steady share's cap can come out `G1 F0`, beside a preheat comment of "NaN s of printing"). One object of two tools, four layers, each an outer wall square, an outer wall of no length (its two points
  * one), and an inner wall; a tool change before the third layer, with its preheat walked back over the line of no length.
  *  - with the steady share set: no feed of 0 or below and no NaN or Infinity anywhere, the line of no length still written
  *    (its feed line), and the preheat's time a number; the minimum layer time on;

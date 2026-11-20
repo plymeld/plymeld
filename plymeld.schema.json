@@ -427,7 +427,7 @@
                         ]
                       },
                       "variables_file": {
-                        "description": "the path on the printer of Klipper's save_variables file, where the QIDI Box records its slots; unset = /home/mks/printer_data/config/saved_variables.cfg (a QIDI Q2's layout, as seen on one)",
+                        "description": "the path on the printer of Klipper's save_variables file, where the QIDI Box records its slots; unset = /home/mks/printer_data/config/saved_variables.cfg (a QIDI Q2's layout)",
                         "type": "string"
                       },
                       "accept_new": {
@@ -1889,7 +1889,7 @@
                     "additionalProperties": false,
                     "properties": {
                       "inward": {
-                        "description": "a wall loop's wipe (hardware.filament.<key>.retract.wipe.enabled), the outer wall's and the inner walls', steps one line width inside the wall first, onto hidden material, then runs back along it there, all of the retraction spread over its moves (none of retract_before standing where the loop ended): along the outer wall, the wipe's last ooze lay on the visible face; at the end of the wall beside it, the retraction stood just behind the face and showed through. Bundled: true — true or false; or a formula (= ...)",
+                        "description": "a wall loop's wipe (hardware.filament.<key>.retract.wipe.enabled), the outer wall's and the inner walls', steps one line width inside the wall first, onto hidden material, then runs back along it there, all of the retraction spread over its moves (none of retract_before standing where the loop ended): along the outer wall, the wipe's last ooze would lie on the visible face; at the end of the wall beside it, the retraction would stand just behind the face and show through. Bundled: true — true or false; or a formula (= ...)",
                         "anyOf": [
                           {
                             "type": "boolean"
@@ -3659,7 +3659,7 @@
                   "additionalProperties": false,
                   "properties": {
                     "height": {
-                      "description": "a lifted bridge's own layer height, for an object with several lifted bridges (each printed after the layer it rests on): what holds them up keeps the object's layer height (the double helix's wall at 0.1 mm, its arches at 0.2). Unset: the object's layer height. A lone lifted bridge shares the object's layers: a different value is refused — a length (mm); or a formula (= ...)",
+                      "description": "a lifted bridge's own layer height, for an object with several lifted bridges (each printed after the layer it rests on): what holds them up keeps the object's layer height (e.g. a wall at 0.1 mm, its arches at 0.2). Unset: the object's layer height. A lone lifted bridge shares the object's layers: a different value is refused — a length (mm); or a formula (= ...)",
                       "type": [
                         "string",
                         "number"
@@ -4821,7 +4821,7 @@
                   ]
                 },
                 "no_retract_in_island": {
-                  "description": "no retraction and no lift for a travel whose straight path stays inside the island being printed (the piece of the layer it is on), crosses no wall line already laid on the layer nor any outer wall of the layer, and neither leaves nor enters a top surface or ironing (above the first layer); a travel that leaves the island, crosses a gap or a wall retracts and lifts as usual. Unset = decided per object by the plan on its planned layers, by the job's weights (the strings those travels risk against the restarts and the time of retracting them; plan and slice say which, `plan -o` writes it); true = on (a helix island's runs each retracted, lifted, and restored for 1-2 mm moves inside it); false = every travel over retract.travel.min retracts and lifts, except those plymeld keeps hidden inside the infill and the travel into an outer-wall speck (a wall line shorter than two of its widths) that passes these tests or is reached from its own outer wall in its island, then lifted over that wall but not retracted (a restart for a dot left a blob) — true or false; or a formula (= ...)",
+                  "description": "no retraction and no lift for a travel whose straight path stays inside the island being printed (the piece of the layer it is on), crosses no wall line already laid on the layer nor any outer wall of the layer, and neither leaves nor enters a top surface or ironing (above the first layer); a travel that leaves the island, crosses a gap or a wall retracts and lifts as usual. Unset = decided per object by the plan on its planned layers, by the job's weights (the strings those travels risk against the restarts and the time of retracting them; plan and slice say which, `plan -o` writes it); true = on (off, a small island's runs each retract, lift, and restore for 1-2 mm moves inside it); false = every travel over retract.travel.min retracts and lifts, except those plymeld keeps hidden inside the infill and the travel into an outer-wall speck (a wall line shorter than two of its widths) that passes these tests or is reached from its own outer wall in its island, then lifted over that wall but not retracted (a restart for a dot leaves a blob) — true or false; or a formula (= ...)",
                   "anyOf": [
                     {
                       "type": "boolean"
@@ -5235,7 +5235,7 @@
                           ]
                         },
                         "overlap": {
-                          "description": "INHERITED: how far the purge tower brim's inner loop reaches into the tower's outline, so the two fuse (a brim only touching the tower held the bed while the tower peeled off it); 0 = they only touch — a length (mm); or a formula (= ...)",
+                          "description": "INHERITED: how far the purge tower brim's inner loop reaches into the tower's outline, so the two fuse (a brim that only touches the tower can hold the bed while the tower lifts off it); 0 = they only touch — a length (mm); or a formula (= ...)",
                           "type": [
                             "string",
                             "number"
@@ -5814,7 +5814,7 @@
                   "additionalProperties": false,
                   "properties": {
                     "height": {
-                      "description": "a lifted bridge's own layer height, for an object with several lifted bridges (each printed after the layer it rests on): what holds them up keeps the object's layer height (the double helix's wall at 0.1 mm, its arches at 0.2). Unset: the object's layer height. A lone lifted bridge shares the object's layers: a different value is refused — a length (mm); or a formula (= ...)",
+                      "description": "a lifted bridge's own layer height, for an object with several lifted bridges (each printed after the layer it rests on): what holds them up keeps the object's layer height (e.g. a wall at 0.1 mm, its arches at 0.2). Unset: the object's layer height. A lone lifted bridge shares the object's layers: a different value is refused — a length (mm); or a formula (= ...)",
                       "type": [
                         "string",
                         "number"
@@ -6976,7 +6976,7 @@
                   ]
                 },
                 "no_retract_in_island": {
-                  "description": "no retraction and no lift for a travel whose straight path stays inside the island being printed (the piece of the layer it is on), crosses no wall line already laid on the layer nor any outer wall of the layer, and neither leaves nor enters a top surface or ironing (above the first layer); a travel that leaves the island, crosses a gap or a wall retracts and lifts as usual. Unset = decided per object by the plan on its planned layers, by the job's weights (the strings those travels risk against the restarts and the time of retracting them; plan and slice say which, `plan -o` writes it); true = on (a helix island's runs each retracted, lifted, and restored for 1-2 mm moves inside it); false = every travel over retract.travel.min retracts and lifts, except those plymeld keeps hidden inside the infill and the travel into an outer-wall speck (a wall line shorter than two of its widths) that passes these tests or is reached from its own outer wall in its island, then lifted over that wall but not retracted (a restart for a dot left a blob) — true or false; or a formula (= ...)",
+                  "description": "no retraction and no lift for a travel whose straight path stays inside the island being printed (the piece of the layer it is on), crosses no wall line already laid on the layer nor any outer wall of the layer, and neither leaves nor enters a top surface or ironing (above the first layer); a travel that leaves the island, crosses a gap or a wall retracts and lifts as usual. Unset = decided per object by the plan on its planned layers, by the job's weights (the strings those travels risk against the restarts and the time of retracting them; plan and slice say which, `plan -o` writes it); true = on (off, a small island's runs each retract, lift, and restore for 1-2 mm moves inside it); false = every travel over retract.travel.min retracts and lifts, except those plymeld keeps hidden inside the infill and the travel into an outer-wall speck (a wall line shorter than two of its widths) that passes these tests or is reached from its own outer wall in its island, then lifted over that wall but not retracted (a restart for a dot leaves a blob) — true or false; or a formula (= ...)",
                   "anyOf": [
                     {
                       "type": "boolean"
@@ -8088,7 +8088,7 @@
                   "additionalProperties": false,
                   "properties": {
                     "height": {
-                      "description": "a lifted bridge's own layer height, for an object with several lifted bridges (each printed after the layer it rests on): what holds them up keeps the object's layer height (the double helix's wall at 0.1 mm, its arches at 0.2). Unset: the object's layer height. A lone lifted bridge shares the object's layers: a different value is refused — a length (mm); or a formula (= ...)",
+                      "description": "a lifted bridge's own layer height, for an object with several lifted bridges (each printed after the layer it rests on): what holds them up keeps the object's layer height (e.g. a wall at 0.1 mm, its arches at 0.2). Unset: the object's layer height. A lone lifted bridge shares the object's layers: a different value is refused — a length (mm); or a formula (= ...)",
                       "type": [
                         "string",
                         "number"
@@ -9250,7 +9250,7 @@
                   ]
                 },
                 "no_retract_in_island": {
-                  "description": "no retraction and no lift for a travel whose straight path stays inside the island being printed (the piece of the layer it is on), crosses no wall line already laid on the layer nor any outer wall of the layer, and neither leaves nor enters a top surface or ironing (above the first layer); a travel that leaves the island, crosses a gap or a wall retracts and lifts as usual. Unset = decided per object by the plan on its planned layers, by the job's weights (the strings those travels risk against the restarts and the time of retracting them; plan and slice say which, `plan -o` writes it); true = on (a helix island's runs each retracted, lifted, and restored for 1-2 mm moves inside it); false = every travel over retract.travel.min retracts and lifts, except those plymeld keeps hidden inside the infill and the travel into an outer-wall speck (a wall line shorter than two of its widths) that passes these tests or is reached from its own outer wall in its island, then lifted over that wall but not retracted (a restart for a dot left a blob) — true or false; or a formula (= ...)",
+                  "description": "no retraction and no lift for a travel whose straight path stays inside the island being printed (the piece of the layer it is on), crosses no wall line already laid on the layer nor any outer wall of the layer, and neither leaves nor enters a top surface or ironing (above the first layer); a travel that leaves the island, crosses a gap or a wall retracts and lifts as usual. Unset = decided per object by the plan on its planned layers, by the job's weights (the strings those travels risk against the restarts and the time of retracting them; plan and slice say which, `plan -o` writes it); true = on (off, a small island's runs each retract, lift, and restore for 1-2 mm moves inside it); false = every travel over retract.travel.min retracts and lifts, except those plymeld keeps hidden inside the infill and the travel into an outer-wall speck (a wall line shorter than two of its widths) that passes these tests or is reached from its own outer wall in its island, then lifted over that wall but not retracted (a restart for a dot leaves a blob) — true or false; or a formula (= ...)",
                   "anyOf": [
                     {
                       "type": "boolean"

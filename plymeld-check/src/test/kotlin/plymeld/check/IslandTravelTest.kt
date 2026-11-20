@@ -20,7 +20,7 @@ import java.io.StringWriter
 
 /**
  * No retraction and no lift for a travel that stays inside its island and crosses no wall (plan.mechanism.motion.no_retract_in_island;
- * without it, a helix island's three runs each retracted, lifted 0.2 mm and restored for 1-2 mm moves inside it).
+ * without it, each run of a small island retracts, lifts and restores for a 1-2 mm move inside it).
  * Two 10 mm squares 20 mm apart, 20 layers of 0.2 mm, two wall loops each (walls 0.88 mm thick at 0.44 mm lines), no minimum
  * travel for a retraction, planned and written by plymeld's own planner and writer. The g-code is read on its own terms: per layer, every run of extrusion with
  * whether a retraction (E < 0) and a lift (Z above the run's) came between it and the run before.

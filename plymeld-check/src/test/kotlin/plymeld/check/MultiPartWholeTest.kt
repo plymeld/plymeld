@@ -12,7 +12,6 @@ import java.util.Locale
 /**
  * Parts of one object that touch, on synthetic outlines (no mesh): what one part's planning reads
  * about the WHOLE object must not depend on where the other part's walls or edges fall.
- * Found on a multi-part model against Flash Studio.
  */
 class MultiPartWholeTest : StringSpec({
     fun rect(x0: Long, y0: Long, x1: Long, y1: Long) = Polygon(longArrayOf(x0, y0, x1, y0, x1, y1, x0, y1))
@@ -22,9 +21,8 @@ class MultiPartWholeTest : StringSpec({
 
     // A 40 mm square ring (hole 21 mm) around a 20 mm core, 0.5 mm of air between them (a shell
     // part and its core part): straight sides, 40 layers. The core is an island of its own. The object has 4 walls, the core its own 2. The vertical-shell cover test
-    // once read reference walls built with the OBJECT's 4 loops, so two wall widths of the core's
-    // infill counted as uncovered and turned solid on every layer (a ring ~0.8 mm wide from z 0 to 24
-    // in the model it was found on).
+    // reads reference walls built with the part's own loops: built with the OBJECT's 4, two wall widths of the core's
+    // infill would count as uncovered and turn solid on every layer.
     "a part with fewer walls than the object gets no vertical-shell solid on straight sides" {
         val s = SliceSettings.of(testSetup("plan.layer.walls.thickness" to "1.77 mm"))
         val core2 = SliceSettings.of(testSetup("plan.layer.walls.thickness" to "0.87 mm"))
@@ -44,9 +42,9 @@ class MultiPartWholeTest : StringSpec({
 
     // A base whose bottom 3 layers have square pockets, filled by a second part's pixels that stop
     // 1 um short of each pocket wall: the seam two separately sliced parts leave where they touch
-    // (a QR code inlaid in a base). The first layer above rests on solid material everywhere.
-    // The seams once read as "exposed from below" and, grown two nozzle widths as bridge anchors,
-    // became 1,393 mm2 of bridge over that QR code.
+    // (a pattern of square cells inlaid in a base). The first layer above rests on solid material everywhere.
+    // Read as "exposed from below" and grown two nozzle widths as bridge anchors, the seams would become a large
+    // area of bridge over the cells.
     "hairline seams between touching parts are not bridged over" {
         val s = SliceSettings.of(testSetup())
         val n = 12

@@ -16,8 +16,8 @@ class GlContext private constructor(private val window: Long) : AutoCloseable {
 
     /**
      * The window goes; GLFW is not terminated. glfwTerminate unloads the GL library while Mesa's d3d12 driver (WSL's GPU)
-     * still has threads running in it: the JVM died in libc after a clean benchmark (SIGSEGV at an unmapped
-     * address on a native thread). The process's exit releases it all.
+     * still has threads running in it: the JVM can crash in libc (SIGSEGV at an unmapped address on a native thread).
+     * The process's exit releases it all.
      */
     override fun close() {
         GLFW.glfwMakeContextCurrent(0L)

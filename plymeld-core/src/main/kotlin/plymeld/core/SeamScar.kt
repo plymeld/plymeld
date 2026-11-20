@@ -243,7 +243,7 @@ object SeamScar {
     /**
      * The layer below's outer-wall loops prepared once for many seam points: grouped (each outer with its holes, by index)
      * and boxed, so a point is tested only against the loops whose box can matter (grouping and scanning every
-     * vertex per seam took a 30-part model's plan from 3 min to over 15).
+     * vertex per seam makes a many-part model's plan several times slower).
      */
     /**
      * The blemish a point seam leaves (mm²), before how much it is seen and its jog: one line width [wMm] across, as long as

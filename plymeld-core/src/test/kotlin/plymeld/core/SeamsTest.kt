@@ -65,7 +65,7 @@ class SeamsTest : StringSpec({
         p.atCorner shouldBe false
         start(p) shouldBe (10.0 to 0.0)
     }
-    // An island like a helix's: 2 x 8 mm, one layer (0.1 mm) moved 0.15 mm along +y from the one below, so
+    // A small island: 2 x 8 mm, one layer (0.1 mm) moved 0.15 mm along +y from the one below, so
     // its +y end hangs over air. Its outer loop 0.22 mm in (half a 0.44 mm line), its inner loop 0.66 mm in. Worked by hand:
     // the outer loop's +y corners lie 0.07 mm inside the lower layer's end, a share of (0.22 - 0.07) / 0.44 = 0.34 over air,
     // past where the overhang slow-down starts (h / 2w = 0.11); its -y corners are 0.22 mm inside the lower layer (its side;

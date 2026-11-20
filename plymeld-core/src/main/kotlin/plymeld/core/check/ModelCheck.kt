@@ -7,8 +7,7 @@ import plymeld.mesh.TriangleSoup
 import java.util.Locale
 
 /**
- * Judges a print's g-code against the MODEL, not against how it was planned (the Kotlin
- * successor of an earlier deposition check's two main tests): every layer's printed lines are compared
+ * Judges a print's g-code against the MODEL, not against how it was planned: every layer's printed lines are compared
  * with the mesh's own cross-section at the layer's mid height, cut by the mesh slicer (not the planner):
  *
  *  - outside: the model's lines (walls, infill, surfaces) more than half a line plus [tolUm] outside
@@ -147,7 +146,7 @@ object ModelCheck {
             LayerOut(lo.problems + airProblems(sf, k, tol, imagesDir) + toolProblems(sf, k, tol + handOverMm, partTools) + surfaceToolProblems(sf, k, tol + surfaceHandOverMm, partTools),
                 lo.twice, lo.picture).also { sf.release(k) } }
         // the layers' pictures, one at a time once every layer is read: drawn by the layers' own tasks, a picture each
-        // (an image of about 4 MB, its line list and its PNG encoding) on every core at once took a 512 MB test JVM to its
+        // (an image of about 4 MB, its line list and its PNG encoding) on every core at once takes a 512 MB test JVM to its
         // limit where a slice holds a spot laid twice on dozens of layers
         if (imagesDir != null) for (k in per.indices) { val p = per[k].picture ?: continue
             val file = imagesDir.resolve("z%07.3f.png".format(Locale.ROOT, layers[k].z))

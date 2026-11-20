@@ -17,7 +17,7 @@ import plymeld.model.SliceSettings
  * An outer-wall speck (an Arachne line kept only because it lines the outline, shorter than two of its widths) prints
  * without a retraction of its own where it is reached from its own outer wall in its island, even where the plan retracts
  * every other travel (plan.mechanism.motion.no_retract_in_island off; a restart for a 0.2 mm dot
- * left a blob on a show face): the travel to it is clear (no lift either), or, crossing its wall as every route to a speck
+ * leaves a blob on a show face): the travel to it is clear (no lift either), or, crossing its wall as every route to a speck
  * past its wall's loop does, lifted over it but not retracted (ToolPath.hopOnly). Squares 8 mm
  * across, each with a tab 0.2 mm wide and 0.6 mm long on its top edge, 10 layers of 0.2 mm, walled by Arachne (the default):
  * each tab is lined by one center line 0.41 mm long, a speck. (Earlier, thin wedges, whose tips gave specks of 0 µm,

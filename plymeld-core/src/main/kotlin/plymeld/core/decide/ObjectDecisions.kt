@@ -81,7 +81,7 @@ object ObjectDecisions {
             "the baseline's predicted time from the technique decision's finalists")
         if (placementLock != null && scarfLock != null) return SeamDecision.decide(name, noWalls, params, weights, placementLock, scarfLock)
         // decided already (`slice` after `plan` in one run carries plan.seam and the scarf's where with their provenance):
-        // kept as it is, not weighed again (the slice re-ran the decision, 8 minutes on a 30-part model)
+        // kept as it is, not weighed again (re-running the decision can take minutes on a model of many parts)
         val already = Resolver.resolveOrNull(setup, "plan.seam", ctx)
         val alreadyScarf = Resolver.resolveOrNull(setup, "plan.technique.scarf_seam.where", ctx)
         if (already != null && alreadyScarf != null)

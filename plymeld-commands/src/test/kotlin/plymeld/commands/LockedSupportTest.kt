@@ -192,7 +192,7 @@ class LockedSupportTest : StringSpec({
         (Regex("support\\.spot\\.[A-Za-z0-9_-]+\\.min =").findAll(thrifty).count() >= 2 || thrifty.contains("0.0 mm² unsupported")) shouldBe true
         thrifty shouldContain "upside down"
         // the plan plymeld writes beside a locked spot, with weights that choose no other support, is one plymeld accepts: the locked
-        // spot is written as the plan's own, never the switch off beside it (found in review: that file was refused by plymeld's own rule)
+        // spot is written as the plan's own, never the switch off beside it (written so, the file would be refused by plymeld's own rule)
         PlanCommand().parse(listOf("-cf", p("q2.toml"), "-cf", p("thrifty.toml"), "-cf", p("lock.toml"), "-m", p("t.stl"), "-o", p("thrifty_lock_plan.toml")))
         val thriftyLock = Files.readString(d.resolve("thrifty_lock_plan.toml"))
         thriftyLock shouldNotContain "support.enabled = \"false\""

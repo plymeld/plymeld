@@ -302,7 +302,7 @@ object PlateInstructions {
                 "a line takes about ${m.speeds.joinToString(", ") { n(len / it, 2) }} s on FAST, MID, and SLOW, a strip ${m.speeds.joinToString(", ") { n(m.lines * len / it, 1) }} s. The speed never changes on a surface; the flow changes with the strip's thickness, strip by strip.")
             l("- **Under each surface** is its **floor**, one solid layer (two walls, then lines front to back one bead spacing apart, across the strips' lines), on a body: two walls and a **grid** of lines about ${n(PlateGeometry.pedestalPitch / 1000.0, 0)} mm apart both ways. " +
                 "So a strip is pressed onto something solid and spreads as it would on a print, and one that does not melt fast enough shows **gaps down to the floor**. The strips' line ends lie on the floor's walls.")
-            l("- **Why thickness, not width**: on the first printed plate the strips varied in width on a sparse grid, and gaps showed on every surface, worst on the widest strips: a line wider than the nozzle spreads only when pressed onto something solid, and over the grid's gaps every line was a small bridge. Every strip is now the plate's width on a solid floor, and its thickness sets its flow.")
+            l("- **Why thickness, not width**: a line wider than the nozzle spreads only when pressed onto something solid, and over a sparse grid's gaps every line is a small bridge, gapped whatever its flow. Every strip is the plate's width on a solid floor, and its thickness sets its flow.")
             l()
         }
         if (lg != null) {

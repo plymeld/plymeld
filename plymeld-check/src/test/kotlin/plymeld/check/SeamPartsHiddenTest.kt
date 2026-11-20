@@ -11,9 +11,8 @@ import plymeld.model.SliceSettings
 /**
  * Least-visible seams on an object of parts in two filaments: an inlay part set into a notch in the back of a base part.
  * The inlay's front edge, facing the viewer, is pressed against the base and covered by it: it hides a seam. The inlay
- * alone sees that edge as an open wall facing the viewer, the most visible place on it. Each part's seams were placed
- * seeing that part alone, so on a two-color nameplate the inlaid lettering's seams went to its edges on the visible face
- * (587 of 1,715) rather than its edges against the base (205 left once every part was counted). Control: the inlay with no
+ * alone sees that edge as an open wall facing the viewer, the most visible place on it: placed seeing each part alone, an
+ * inlay's seams would go to its edges on the visible face rather than its edges against the base. Control: the inlay with no
  * base puts no seam on that edge. With scarf seams on, a base's seam in a pocket the inlay fills: kept out of a pocket
  * shorter than the ramp where covered seams are scarfed too (plan.technique.scarf_seam.covered = scarf), hidden in it as a
  * point seam by default (each the other's control).

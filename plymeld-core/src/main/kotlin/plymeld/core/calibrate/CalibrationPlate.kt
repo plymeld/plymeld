@@ -40,16 +40,15 @@ class PathValues(val speed: Double, val accel: Double, val flowRatio: Double, va
 class Band(val index: Int, val tempC: Int, val fanPct: Double, val fromUm: Long, val readToUm: Long, val toUm: Long)
 
 /**
- * The terraced melt test (in place of the melt loop, which showed little but ringing),
- * alone on the melt plate.
+ * The terraced melt test, alone on the melt plate.
  * One STEP per band, terraced like the bridge decks: band 1 (the hottest) the lowest step at the front, each colder band's
  * step behind it. Band 1's
  * body is [PlateGeometry.meltFirstBody] tall on the base and each later band's step two layers higher
  * ([CalibrationSpec.meltBands]).
  *
- * Each step's top is ONE read layer, and nothing is printed on it afterwards. Now (after the first printed
- * plate, where every strip over the sparse grid came out gappy, and no speed printed 0.8 mm lines well, which threw
- * off the line-width variation) it lies on a **solid floor** (the step's
+ * Each step's top is ONE read layer, and nothing is printed on it afterwards. It lies on a **solid floor** (a strip over a
+ * sparse grid is a small bridge between the grid's lines and gaps there whatever its flow, and a line much wider than
+ * the nozzle spreads only when pressed onto something solid) (the step's
  * layer below it: [PlateGeometry.frameWalls] walls and front-to-back lines one bead spacing apart, at the frame's values),
  * and what varies is the read layer's **thickness**, not its width: every strip [widthUm] wide (the plate's ordinary line
  * width), strip k [heightsUm][k] thick, printed at the floor's top plus that thickness. The thicknesses ([heights]): from
@@ -212,8 +211,8 @@ class Fit(val pegUm: Long, val holesUm: LongArray, val speed: Double, val accel:
  * block's melt limit is left out, never slowed ([FirstLayerSpec.printed]). [accel]: the first layer's
  * acceleration. [liftUm]: how far the nozzle rises off a tile before it travels on (the travel lift, the filament's retract.z_hop).
  * [wallOverlap]: how far each line's END reaches past bead contact with the tile's wall, as a share of [widthUm] (the
- * slicer's own rule for a line end meeting a wall, plan.layer.infill.wall_overlap: an end touches the wall only with its round cap;
- *, after the first plate showed a gap at every second line end along each tile's left and right walls).
+ * slicer's own rule for a line end meeting a wall, plan.layer.infill.wall_overlap: an end touches the wall only with its round cap,
+ * so without the overlap a gap opens at the line ends along each tile's walls).
  */
 class FirstLayerTiles(val speeds: DoubleArray, val heightsUm: LongArray, val widthUm: Long, val accel: Double, val liftUm: Long, val wallOverlap: Double) {
     init {
@@ -1033,8 +1032,7 @@ class CalibrationPlate(private val spec: CalibrationSpec, private val without: S
      * forth, joined along the inner wall: the Y lines' joins at its front and back, the X lines' at its left and right, so the
      * two never lie on each other).
      *
-     * Earlier, the X lines stood only under the strip boundaries, where the line width changed (front-to-back
-     * lines as sparse as they could be without making it a bridging test), and no layer was solid. With every strip the same width that reason is gone, and the floor's
+     * With every strip the same width, no X line need stand only under the strip boundaries, and the floor's
      * lines run front to back, parallel to the grid's Y lines: what holds them up across the body is the X lines, so those now
      * stand every pitch (plymeld's choice: the pedestals' pitch, so the floor bridges about 2 mm, not the 5 to 6 mm
      * between strip boundaries).

@@ -36,8 +36,7 @@ layer.height = "= clamp(round(tool.bore / 2, 0.04 mm), tool.layer.height.min, to
 height_ratio = "1.5"
 # the hidden core in thicker layers: sparse infill laid every this many layers, that many
 # layers thick where the layers' sparse regions overlap: as many layers as make a bead the tool's thickest layer. "1" = off.
-# First test print: two 30 x 30 x 6 mm blocks in 0.1 mm layers, one with 0.3 mm core beads every third
-# layer, one without: no difference seen on top. Not yet checked: the beads inside and the two weights.
+# Not measured.
 core.layers = "= floor(tool.layer.height.max / plan.technique.flat.layer.height + 0.01)"   # + 0.01: 0.3 / 0.1 is 2.9999... in floating point
 
 # ---- what every flat layer is made of, for every flat-layer technique (INHERITED groups, to be
@@ -68,14 +67,11 @@ pattern = "grid"
 line.width = "= tool.bore * 1.1"
 angle = "45 deg"                               # stand-in: plymeld decides it per object, 45 deg to its long axis
 # plan.layer.infill.chord_tolerance (how far a curved interior line may stray from its curve between vertices) is left
-# unset: the gyroid is laid as traced and the arc fitter turns its runs into arcs. Bundled at an
-# eighth of the bore for one day: simplified first, the curves no longer fitted as arcs (a 9 h print's gyroid
-# 843,112 arcs -> 15,215, its g-code 600,000 lines longer, predicted 14 min slower). Set it for a printer without arcs.
+# unset: the gyroid is laid as traced and the arc fitter turns its runs into arcs. Set, the curves are simplified first
+# and no longer fit as arcs (far fewer arcs, a much longer g-code, a slower print). Set it for a printer without arcs.
 # How far an interior line's end reaches into the walls past bead contact, as a share of its width: a line end touches a
 # wall only with its rounded cap, so it reaches a quarter of its width further in to press into the wall. A PLACEHOLDER,
-# not measured: the bundled value since plymeld's config began ("reaches a quarter of its width into the
-# walls"), a constant in the code for a while until it became a setting again (every value plymeld
-# supplies is an overridable setting). Stands until a coupon measures it.
+# not measured; stands until a coupon measures it.
 wall_overlap = "25%"
 
 [plan.layer.solid]
@@ -104,8 +100,8 @@ bridge.speed = "30 mm/s"
 # measured maximum is the highest flow that printed without gaps on its melt plate, so a move at it has nothing to spare;
 # set 0% for no buffer
 melt.buffer = "10%"
-# travels around the layer's other islands (strings from a purge tower to a part embedded themselves in another part
-# between them); no retraction for a travel inside its island crossing no wall. Here so `plymeld
+# travels around the layer's other islands (a string laid across another part is embedded in it by the next layer); no
+# retraction for a travel inside its island crossing no wall. Here so `plymeld
 # config` shows them; the catalog carries the same defaults.
 avoid_crossing = "true"
 # the detour's margin outside an island's wall and its cap: PLACEHOLDERS,
@@ -115,13 +111,12 @@ detour.ratio.max = "2"
 detour.extra.max = "20 mm"
 # no_retract_in_island is NOT set here: unset, it is DECIDED per object by the plan on its planned layers (RetractionDecision; `plan -o` writes it):
 # the travels the planner keeps inside an island either way, weighed by the strings they risk (string_risk) against the
-# restarts and the time of retracting them (restart_starved, speed). Earlier, it was "true" (an island's
-# 1-2 mm moves had each retracted, lifted and restored). Set it to lock either way.
+# restarts and the time of retracting them (restart_starved, speed). Set it to lock either way.
 # the travel lift is the filament's (hardware.filament.<key>.retract.z_hop): the bundled filaments set it
 
 # ---- the slow-down for the minimum layer time: from the hidden lines first, the visible lines only for what they cannot give
-# (a gap found reviewing a slice: outer walls slowed to a different speed every layer, banding, while the
-# inner walls beside them kept their speed)
+# (outer walls slowed instead change speed from layer to layer, which shows as banding, while the inner walls beside them
+# keep theirs)
 [plan.mechanism.cooling]
 slowdown.style = "hidden_first"
 # a layer still short of its minimum time at the minimum speed: the head waits out the rest
@@ -171,8 +166,7 @@ fill_along = "false"
 wave.crossing_clearance = "3 mm"
 # Arched lifted bridges (concave up or down: a first-layer line more than half a layer above or below straight between
 # its supports): every layer of the bridge at 4 mm/s, every move there at 8 mm/s, no tacks, 15 C under the filament's
-# print temperature. From one speed plate (4 / 8, 8 / 16 and 12 / 24 mm/s, each with and without tacks), so
-# measured on one filament and one printer only. The temperature is an offset from the filament's print temperature so it
+# print temperature. Measured on one filament and one printer only. The temperature is an offset from the filament's print temperature so it
 # carries to other filaments. Straight lifted bridges keep the usual bridge values.
 print.speed = "4 mm/s"
 travel.speed = "8 mm/s"
@@ -199,8 +193,8 @@ spacing = "= 5 * tool.bore"
 line.width = "= tool.bore"
 angle = "0 deg"
 from_bed_only = "false"
-# the gap on top of support: one layer, but never less than this (0.2 mm held apart in a test print where 0.1 mm
-# fused); gap.top.value set = exactly that. The gap under support standing on the model: one layer unless
+# the gap on top of support: one layer, but never less than this (a thinner gap fuses the support to the model);
+# gap.top.value set = exactly that. The gap under support standing on the model: one layer unless
 # gap.bottom is set
 gap.top.min = "0.2 mm"
 
@@ -220,22 +214,21 @@ tower.enabled = "true"
 # taking the rest), infill_and_object (its sparse, then its hidden solid infill, then the tower)
 into = "tower"
 # tower.x and tower.y are NOT set: the tower stands beside the object (its right, back, left or front, the first with
-# room), this far from it and its brim, where its first layer holds as the object's does: a tower at the bed's corner,
-# far from the object, peeled off there twice. PLACEHOLDER: a clearance for travels between them, not measured
+# room), this far from it and its brim, where its first layer holds as the object's does, not at a far corner of the bed.
+# PLACEHOLDER: a clearance for travels between them, not measured
 tower.gap = "5 mm"
 # the tower's first layer, its brim included, no faster than this: the object's first-layer speed unless set slower
 tower.first_layer.speed = "= plan.mechanism.motion.first_layer.speed"
-# the tower above its first layer: at the visible lines' speed, as the walls beside it (at the hidden lines', 300 mm/s
-# against the walls' 100 on one print, its jump stood out); set faster where a tower is known to hold
+# the tower above its first layer: at the visible lines' speed, as the walls beside it, not the hidden lines' much faster
+# one; set faster where a tower is known to hold
 tower.speed = "= plan.mechanism.motion.visible.speed"
-# a brim around the tower's first layer whatever the object's (a tower standing on its own footprint came loose), twice
-# as wide as the object's brim would be (a tower as wide as the object's came loose from the bed twice, peeling from a
-# corner); each side at least half the tower's height (a tall, thin tower sways). PLACEHOLDERS: neither tested on a
-# print that held
+# a brim around the tower's first layer whatever the object's (a tower's footprint is small for its height), twice as
+# wide as the object's brim would be; each side at least half the tower's height (a tall, thin tower sways).
+# PLACEHOLDERS, not measured
 tower.brim.enabled = "true"
 tower.brim.width = "= plan.mechanism.adhesion.brim.width * 2"
-# how far the brim's inner loop reaches into the tower's outline, so the two fuse: a brim that only touched the tower,
-# laid by another tool before it, held the bed while the tower peeled off it. PLACEHOLDER: a quarter of a first-layer line
+# how far the brim's inner loop reaches into the tower's outline, so the two fuse: a brim that only touches the tower,
+# laid by another tool before it, can hold the bed while the tower lifts off it. PLACEHOLDER: a quarter of a first-layer line
 tower.brim.overlap = "= plan.mechanism.adhesion.first_layer.line.width * 0.25"
 tower.side_share.min = "0.5"
 
@@ -265,9 +258,9 @@ point_distance = "= tool.bore * 2"
 first_layer = "false"
 
 # ---- wave overhangs (plan.faces.under.technique = "wave_overhang"): the sources' values for a 0.4 mm nozzle
-# (docs/user/explanation/print-techniques.md), scaled by the bore; placeholders until the tiles are printed. On by default
-# (a 12 mm wave shelf printed far better than its bridged control): an underside hanging off one side gets a
-# wave overhang, support or nothing, never a bridge; a span between two supports stays a bridge
+# (docs/user/explanation/print-techniques.md), scaled by the bore; placeholders, not measured. On by default (a bridge's
+# line needs an anchor at both ends): an underside hanging off one side gets a wave overhang, support or nothing, never a
+# bridge; a span between two supports stays a bridge
 [plan.faces]
 under.technique = "wave_overhang"
 
@@ -286,11 +279,10 @@ inset = "= tool.bore / 2"
 angle = "0 deg"
 speed = "30 mm/s"
 
-# Bond-first cooling (after thin parts of a test print snapped between layers): what an
+# Bond-first cooling (thin parts cooled hard bond weakly between layers): what an
 # object gets when the bond between its layers is chosen over its filament's cooling (plan.bond_cooling = on, or weighed so).
 # PLACEHOLDERS, not measured: half the filament's part fan, half its minimum layer time, and
-# 10 C over its print temperature (capped at the filament's temperature.max where set). The helix-layer coupon
-# is the first measurement.
+# 10 C over its print temperature (capped at the filament's temperature.max where set).
 [plan.technique.bond_cooling]
 fan = "= filament.cooling.fan / 2"
 layer.time.min = "= filament.cooling.layer.time.min / 2"
@@ -308,6 +300,6 @@ measure.layer_lines = "4"
 [method.search.pose]
 keep_margin = "0.1"
 # the first look's shortlist: the poses searched in full are the as-given pose and those within this of the best under
-# one plan (flat layers at the baseline's height). A placeholder: on the test models the chosen pose sat at most 0.068
-# from the first look's best, a large model's poses left out 0.12 and more.
+# one plan (flat layers at the baseline's height). A placeholder: on the bundled test models the chosen pose sits at most
+# 0.068 from the first look's best.
 shortlist_margin = "0.1"

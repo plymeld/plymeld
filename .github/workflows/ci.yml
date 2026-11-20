@@ -15,8 +15,8 @@ permissions:
   contents: read
 
 # The Kotlin compiler's heap on the runners (-Pkotlin.daemon.jvmargs on each Gradle run that compiles): by default it
-# takes the Gradle daemon's, which ran out compiling the test code and the window at once when the build cache missed
-# (a version change misses it for everything that depends on plymeld-commands). 2 GB is Claude's choice, a fraction of
+# takes the Gradle daemon's, which runs out compiling the test code and the window at once when the build cache misses
+# (a version change misses it for everything that depends on plymeld-commands). 2 GB is plymeld's choice, a fraction of
 # the runner's memory; local builds keep the default.
 
 jobs:

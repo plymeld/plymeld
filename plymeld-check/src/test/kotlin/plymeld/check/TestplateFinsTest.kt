@@ -37,7 +37,7 @@ class TestplateFinsTest : StringSpec({
         // the fins: loops about 12 mm long in y and under 2 mm wide
         val fins = cleaned.map { box(it.xy) }.filter { f -> f[3] - f[1] in 11_000..13_000 && f[2] - f[0] < 2_000 }.sortedBy { it[2] - it[0] }
         fins.size shouldBe 4
-        // control: the rest of the layer must have loops, or the bug this guards cannot show
+        // control: the rest of the layer must have loops, or the fault this guards against cannot show
         val whole = Walls.arachne(cleaned, s.wallLoops, s.outerWallWidthUm, s.innerWallWidthUm, s.layerHeightUm, s.minBeadUm, s.minFeatureUm, s.minLengthFactor, s.transitionLengthUm)
         val loopsElsewhere = whole.walls.flatten().count { p -> val q = box(p.xy); fins.none { f -> q[0] >= f[0] - 100 && q[2] <= f[2] + 100 } }
         println("layer z 6.4: %d loop(s) away from the fins".format(Locale.ROOT, loopsElsewhere))

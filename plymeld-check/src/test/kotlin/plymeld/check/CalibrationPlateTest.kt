@@ -887,7 +887,7 @@ class CalibrationPlateTest : StringSpec({
         hs(t)[1] shouldBe (0.2 plusOrMinus 1e-9)
         CalibrationCheck.check(thick, t).shouldBeEmpty()
         CalibrationCheck.check(spec, t).shouldNotBeEmpty()          // control: read as a 0.2 mm first layer, no layer matches
-        // every copy of a spec keeps it (the plate is packed and re-banded through copies; seen dropped: the file came out at 0.2 mm)
+        // every copy of a spec keeps it (the plate is packed and re-banded through copies; dropped, the file would be at 0.2 mm)
         thick.withBands(bands).firstLayerUm shouldBe 280L
         thick.withMelt(null).firstLayerUm shouldBe 280L
         thick.keeping(thick.parts.toSet()).firstLayerUm shouldBe 280L

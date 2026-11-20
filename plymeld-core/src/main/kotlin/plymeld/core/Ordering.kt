@@ -80,9 +80,8 @@ object Ordering {
     /**
      * 2-opt over the greedy order: reversing a stretch i..j of the sequence (open paths also flipped
      * end to end; closed loops keep their direction and seam) is kept when it lowers the total
-     * travel cost. Greedy nearest-first commits early and so depends on where it starts (hole block,
-     * a different end point on one layer changed the next layers' travel by ~10 %);
-     * the improvement pass removes much of that. A stretch of one open path is that path turned end to end. Paths with
+     * travel cost. Greedy nearest-first commits early and so depends on where it starts (a different end point on one
+     * layer changes the next layers' travel); the improvement pass removes much of that. A stretch of one open path is that path turned end to end. Paths with
      * overhang tiers are never flipped. With [freeUm] (the travel that never retracts), a path whose travel costs extra is
      * also moved beside a path ending within it (relocate, below). A move is costed with `extra` only when its plain
      * distance could still win, and a travel no longer than [freeUm] not at all.
@@ -110,8 +109,8 @@ object Ordering {
         // and put back beside a path whose end lies within [freeUm] of one of its own ends (an open one either way round), a
         // travel that costs nothing extra, when that lowers the total. A stretch reversal cannot move a path the greedy order
         // left for later: a short line between walls, beside the line it meets, reached once everything round it was laid by a
-        // retracted travel. Only such places are tried: every place in the group, each costed with [extra], made the
-        // planning of a test slice 7 to 11 s slower.
+        // retracted travel. Only such places are tried: every place in the group, each costed with [extra], would make
+        // the planning much slower.
         fun relocate(): Boolean {
             if (freeUm <= 0.0 || extra == null) return false
             var moved = false
@@ -217,8 +216,7 @@ object Ordering {
      * The sweep runs across the lines (normal to the longest segment). Each open path is turned to
      * advance in the sweep direction; blocks are ordered by where they begin along the sweep (ties by
      * position along the lines). Travel is secondary here.
-     * Found: nearest-first started the testplate's top at a hole in the middle and went
-     * back and forth (74 of 171 run pairs out of sweep order; QIDIStudio 0 of 28).
+     * Nearest-first would start a top with holes (the testplate's) at a hole in the middle and go back and forth.
      */
     fun sweep(paths: List<ToolPath>, startX: Long, startY: Long): List<ToolPath> {
         if (paths.isEmpty()) return paths
@@ -242,8 +240,8 @@ object Ordering {
         // the violation monotonic surfaces forbid; blocks side by side, e.g. the two sides of a hole, may go in
         // either order). The block whose far edge is nearest is always allowed, so this never
         // stalls. The first block is one at the start of the sweep. Sorting by where each block
-        // begins was also violation-free but sent the nozzle back along the lines after every block
-        // beside a hole (testplate z 2.0 top: 1,243 mm of top-to-top travel vs QIDIStudio's 466).
+        // begins is also violation-free but sends the nozzle back along the lines after every block
+        // beside a hole.
         // Both sweep directions are planned; the one with less travel is kept.
         fun endX(p: ToolPath) = if (p.closed) p.xy[0] else p.xy[p.xy.size - 2]
         fun endY(p: ToolPath) = if (p.closed) p.xy[1] else p.xy[p.xy.size - 1]

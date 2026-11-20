@@ -207,10 +207,9 @@ class CatalogTest : StringSpec({
      * in the run; and every unit measured side by side on the parallel pool as this JVM's first slices (before the run, the
      * layer cache emptied) reads exactly as one after another, every measure of every unit.
      *
-     * Side by side as a JVM's first work is where a slice once read another's working state: the mesh slicer's crossing
-     * point, one buffer shared by every thread, overwritten between its write and its read while the code still ran
-     * interpreted (the two-color piece refused for an outline with no wall, the exposed wedge printing nothing on 18
-     * layers, in 4 runs of 9, and 2 of 6 in a second count). SlicerThreadsTest holds the slicer itself to it.
+     * Side by side as a JVM's first work is where a slice can read another's working state: a buffer shared by every
+     * thread, overwritten between its write and its read while the code still runs interpreted, changes another unit's
+     * reading. SlicerThreadsTest holds the slicer itself to it.
      */
     "determinism: every unit reads the same side by side on the parallel pool as one after another, and two measured again in this JVM" {
         val names = listOf("blob", "speck beside a part")

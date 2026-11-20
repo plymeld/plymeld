@@ -140,7 +140,7 @@ class SliceSession(private val keepSlicers: Boolean = true) {
         val text = SourceBlock.append(withMachineHeader(pictured, pr.config, setup, s, prediction), PlymeldVersion.value, pr.usedStack, pr.modelPaths, pr.planFile(plan), pr.config.machine, pr.usedKeys)
         Files.writeString(output, text)
         echo("predicted: $prediction")
-        // where the time goes, by feature (a gyroid's infill traced finer than the machine runs it showed only in the total)
+        // where the time goes, by feature (a feature that costs more than it should is hidden in the total alone)
         prediction.byFeature()?.let { echo("predicted by feature: $it") }
         echo(seamScar?.let { "seams: ${it.words()} (seam_scar)" } ?: "seams: not measured (a multi-filament object: its outer walls are laid per filament)")
         echo(strings?.let { "${it.words()} (string_risk, restart_starved; the restart lag hardware.filament.retract.restart_lag is a placeholder)" } ?: "strings: not measured (an exact program)")
@@ -183,8 +183,8 @@ class SliceSession(private val keepSlicers: Boolean = true) {
             val bx = pl.parts.minOf { it.bounds()[0] }; val by = pl.parts.minOf { it.bounds()[1] }
             doubleArrayOf(bx + g.x0, bx + g.x1, by + g.y0, by + g.y1, pl.parts.minOf { it.bounds()[2] } + g.toMm) }
         // ... and its parts cut to that box, each cut face closed (SectionCut): inside the box their cross-sections are the
-        // whole model's, and the check reads a mesh the size of what prints (six copies of a 3.9-million-triangle model, read
-        // whole, ran out of memory). A part with nothing in the box is left out, its tool with it. A model the cut refuses
+        // whole model's, and the check reads a mesh the size of what prints (several copies of a large model, read whole,
+        // can run out of memory). A part with nothing in the box is left out, its tool with it. A model the cut refuses
         // (not closed where the box cuts it) is read whole.
         fun cutParts(j: Int, parts: List<plymeld.mesh.TriangleSoup>, tools: List<Int>): Pair<List<plymeld.mesh.TriangleSoup>, List<Int>> {
             val c = cutOf(j) ?: return parts to tools

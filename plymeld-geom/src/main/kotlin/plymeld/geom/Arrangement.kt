@@ -54,8 +54,7 @@ object Arrangement {
         for (i in 0 until n) { addHot(edges.p(i)); addHot(edges.q(i)) }
         for (c in properCrossings(edges)) addHot(c)
         // Iterated snap rounding: single-pass SR can leave two fragments crossing at a pixel
-        // CORNER (found on the rig base: 1 µm jaggies in both inputs, a missing piece,
-        // an open chain). Any crossing left among the fragments becomes a hot pixel and the
+        // CORNER (with 1 µm jaggies in both inputs: a missing piece, an open chain). Any crossing left among the fragments becomes a hot pixel and the
         // ORIGINAL segments are re-routed, until the fragments are crossing-free.
         var frags = route(edges, hotList)
         repeat(16) {

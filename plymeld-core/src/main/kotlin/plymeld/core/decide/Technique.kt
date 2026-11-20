@@ -95,8 +95,7 @@ object FlatLayers : TechniqueModel {
             if (f?.minLayerMm == null) "hardware.tool.<key>.layer.height.min" else null, if (f?.maxLayerMm == null) "hardware.tool.<key>.layer.height.max" else null)
             .takeIf { it.isNotEmpty() }?.let { "blocked: no ${it.joinToString()}" }
             // fuzzy skin is a texture whose look follows the layer height, so it would change
-            // from band to band; on a fuzzy test model 0.27 mm layers also doubled the shell gaps
-            // behind the jittered wall (deposition gate)
+            // from band to band; thicker layers also widen the shell gaps behind the jittered wall
             ?: if (f?.fuzzySkin == true) "not with fuzzy skin: its texture depends on the layer height (plan.faces.side.technique = \"fuzzy_skin\")" else null
 
     /** The plan of flat layers [h] mm thick over the whole portion (one height). */

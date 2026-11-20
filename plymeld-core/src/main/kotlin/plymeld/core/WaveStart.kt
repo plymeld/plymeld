@@ -25,8 +25,8 @@ object WaveStart {
 
     /**
      * The span between the supports [first] and [second] (each a support's polygons). The gap runs from the first support's
-     * inner edge to the second's (taken from the air's own extent, specks of 0.001 mm2 at a support's far end,
-     * under a strip's end, put the middle 7.5 mm towards it, and the triangles came out one large and one small); its edges
+     * inner edge to the second's (taken from the air's own extent, specks of air at a support's far end, under a strip's
+     * end, would pull the middle towards it and make the triangles one large and one small); its edges
      * are [air]'s extent across, between them.
      */
     class Frame(air: List<Polygon>, first: List<Polygon>, second: List<Polygon>) {

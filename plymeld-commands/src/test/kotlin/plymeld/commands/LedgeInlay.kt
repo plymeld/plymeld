@@ -5,10 +5,9 @@ package plymeld.commands
  * level, with a pocket cut square to that face holding an inlay of a second filament, its visible face [RECESS_MM] below the
  * block's face (along the face's normal). In front of (below) the inlay's face the pocket's lower wall shows: a ledge facing up
  * at 90 - [FACE_DEG] deg, with a 45 deg chamfer [CHAMFER_MM] on its rim (17.5 deg from level). The pocket seen on the face is
- * the outer outline of a letter U ([round]: a slot with a half-round bottom, so the ledge's rim rises along it) or a rectangle
- * (its rim level). The values the brief gives: the face's angle, the recess, the chamfer's angle; the rest is Claude's choice
- * (a block 16 mm wide and 12 mm tall, 4 mm deep at its top; the pocket 4 mm wide, its bottom 6.7 mm up the face, 1.5 mm deep;
- * the chamfer 0.15 mm).
+ * a U-shaped outline ([round]: a slot with a half-round bottom, so the ledge's rim rises along it) or a rectangle (its rim
+ * level). The test's values (plymeld's choice): the face's angle, the recess, the chamfer's angle, a block 16 mm wide and
+ * 12 mm tall, 4 mm deep at its top; the pocket 4 mm wide, its bottom 6.7 mm up the face, 1.5 mm deep; the chamfer 0.15 mm.
  *
  * The frame: x across the face, the face toward -y, z up; the block's front edge on the bed along y = 0. A point on the face is
  * (u, v) (u = x, v up the face from its front edge) and w into the block along the face's normal: [at].
@@ -154,7 +153,7 @@ object LedgeInlay {
     }
 
     /**
-     * A two-tool machine (the values made up for the test, as the brief gives them: a 0.4 mm bore, layers 0.08 to 0.3 mm, a 45 deg
+     * A two-tool machine (TEST VALUES: a 0.4 mm bore, layers 0.08 to 0.3 mm, a 45 deg
      * nozzle 4 mm tall; the head's outline [IslandPin]'s), the block on tool 1 and the inlay on tool 2, flat layers 0.08 mm.
      */
     val hardware = """

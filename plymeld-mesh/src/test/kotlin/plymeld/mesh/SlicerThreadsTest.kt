@@ -10,11 +10,11 @@ import io.kotest.matchers.shouldBe
  * the layers that read otherwise.
  *
  * A slicer that shares a working buffer between threads may still read right once the JIT compiler keeps the buffer's
- * values in registers: the fault showed only as a JVM's first work (the catalog's slices side by side, in a third to a
- * half of the runs), and in this JVM, its code compiled, the count below read 0 with the fault in place. So the threads
+ * values in registers: the fault shows only in a JVM's first work, and in this JVM, its code compiled, the count below
+ * reads 0 with the fault in place. So the threads
  * run in a JVM of their own too, with the slicer's code kept interpreted, as a cold JVM runs it. Control: with the
- * crossing point written to one buffer the slicer object shares (as it once was), the child JVM counted 5743 to 5755
- * wrong layers of 5760, in each of 6 runs.
+ * crossing point written to one buffer the slicer object shares, the child JVM counts nearly every one of its 5760
+ * layers wrong.
  */
 class SlicerThreadsTest : StringSpec({
     "slicing on several threads at once gives every thread the layers each soup gives alone (here, and in a JVM running the slicer interpreted)" {

@@ -212,9 +212,9 @@ object TravelRouter {
     const val SPECK_MAX_EXTRA_UM = 50_000L
 
     /**
-     * The route of a travel to or from a speck along the outer wall it lines, when combing finds none (strings
-     * across a raised name's letter gaps; at the letters' tips every inset region had thinned to nothing, and 37 of 42 travels
-     * over 3 mm between specks on one raised name went straight across the gaps): both ends within [SPECK_WALL_REACH] of the
+     * The route of a travel to or from a speck along the outer wall it lines, when combing finds none (at narrow tips every
+     * inset region has thinned to nothing, so travels between specks would go straight across the gaps between tips and
+     * string): both ends within [SPECK_WALL_REACH] of the
      * layer's widest outer walls from one outer-wall loop, the route goes in to the loop's nearest point, along the loop's
      * center line the shorter way round (over the wall just printed), and out to the other end. Null when no loop lies near
      * both ends, a hop in or out crosses another loop, or the route is longer than [detourRatio] x the straight travel +
@@ -347,8 +347,8 @@ object TravelRouter {
         /**
          * The regions at each inset of the ladder ([COMB_INSET_SHARES] of the inset, the largest first), each made when a
          * travel first needs it: a thin shell whose region vanishes at the full inset keeps one at a smaller inset, a strip
-         * down the middle of its material (an engraved name's notched shell, thinner than two
-         * insets, left its travels straight across its face).
+         * down the middle of its material (a notched shell thinner than two insets would otherwise leave its travels
+         * straight across its face).
          */
         val levels: List<Lazy<List<CombRegion>>>, val walls: List<plymeld.geom.Polygon>,
         /** The widest outer wall on the layer (µm): how far a speck may lie from the wall it lines ([alongWall]). */
@@ -359,7 +359,7 @@ object TravelRouter {
         /**
          * Whether a -> b runs over air: a point along it, sampled every [stepUm] between its ends, lies outside every outer-wall
          * loop (even-odd: inside a hole is outside). A travel between two specks just past one loop crosses no wall yet runs
-         * outside the part all the way (in front of a raised name's letters, 12.7 mm, 0.29 mm out).
+         * outside the part all the way (in front of a row of raised tips, a fraction of a millimeter out).
          */
         fun overAir(ax: Double, ay: Double, bx: Double, by: Double, stepUm: Double = 250.0): Boolean {
             val n = Math.ceil(Math.hypot(bx - ax, by - ay) / stepUm).toInt()
@@ -433,9 +433,8 @@ object TravelRouter {
     }
 
     /**
-     * The points a travel a -> b within one island goes through to stay inside it (combing; a quality-weighted
-     * print's travels left its base across the notches of an engraved name, several hundred over one face, every one retracted
-     * and still stringing): both ends taken into the island's comb region (an end on an outer wall is within an inset of it),
+     * The points a travel a -> b within one island goes through to stay inside it (combing; a travel straight across a
+     * notch in the island leaves it and strings, retracted or not): both ends taken into the island's comb region (an end on an outer wall is within an inset of it),
      * then, where the straight line leaves the region, the region's edge walked the shorter way round to where the line comes
      * back, and the walk shortcut wherever a straight hop stays inside. Null when the ends are not in one island, the straight
      * line already stays inside, or the route would be longer than [detourRatio] x the straight travel + [detourExtraUm]. Tried at

@@ -65,8 +65,8 @@ class CurvedRegionsTest : StringSpec({
     }
 
     "no island starts under the first layer (Params.minStartMm); control: without the bound, a dome on an 8 mm block starts under it" {
-        // the shape that showed it: a spherical cap rising 1.75 mm over 40 mm (10 deg at its edge) on an 8 mm block;
-        // the island's best start was 0.08 mm, under the 0.28 mm first layer, and the slicer refused it
+        // a spherical cap rising 1.75 mm over 40 mm (10 deg at its edge) on an 8 mm block: without the bound, the island's
+        // best start is 0.08 mm, under the 0.28 mm first layer, which the slicer refuses
         val rr = 20.0 / Math.sin(Math.toRadians(10.0)); val rise = rr - Math.sqrt(rr * rr - 400.0)
         val m = field(0.0, 40.0, 0.0, 40.0) { x, y -> val d2 = (x - 20) * (x - 20) + (y - 20) * (y - 20); if (d2 >= 400.0) 8.0 else 8.0 + Math.sqrt(rr * rr - d2) - (rr - rise) }
         // the plan's case: flat layers 0.08 mm (the Creator 5's quality plan), the tool's thickest 0.3

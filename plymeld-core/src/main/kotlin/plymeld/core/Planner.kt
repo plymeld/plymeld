@@ -47,8 +47,8 @@ class ToolPath(val feature: Feature, val xy: LongArray, val closed: Boolean, val
                /**
                 * Laid in this order among its feature's paths on the layer, each as generated, never reversed; -1 = ordered for
                 * travel. A ring pattern's rings (concentric-inside-out, concentric-outside-in): every ring in one direction, the
-                * rings in order (ordered for travel, half of a top's circle arcs were reversed and the rings laid in
-                * bands of opposite direction and order, which printed as "two types" of arcs).
+                * rings in order (ordered for travel, half of a top's circle arcs would be reversed and the rings laid in
+                * bands of opposite direction and order, two visibly different kinds of arc on one top).
                 */
                val sequence: Int = -1,
                /**
@@ -311,7 +311,7 @@ object Planner {
      * of a surface up to top[i] layers above it — the fewest layers ABOVE i that are together
      * plan.layer.top.thickness thick, so layer i is solid exactly when less than that thickness of the
      * part lies above it (the surface layer counts toward the shell, layer i's own height does not:
-     * counting it left the shell up to a layer short, a top of 0.75 mm where 0.8 mm was asked for).
+     * counting it would leave the shell up to a layer short, a top of 0.75 mm where 0.8 mm is asked for).
      * The bottom likewise downward. With equal heights this is
      * [SliceSettings.topLayers] / [SliceSettings.bottomLayers] everywhere.
      */
@@ -327,13 +327,12 @@ object Planner {
     }
 
     /**
-     * Sparse infill at 100 % density is solid infill (as Orca-lineage slicers treat it): the region is
-     * printed as internal solid, with the solid line width and pattern.
+     * Sparse infill at 100 % density is solid infill: the region is printed as internal solid, with the solid line width
+     * and pattern.
      */
     /**
      * Sparse infill that becomes internal solid: all of it at 100 % density, else each connected
-     * piece smaller than minimum_sparse_infill_area. Flash Studio fills the interiors of
-     * raised letters and small islands solid; plymeld printed sparse stubs there.
+     * piece smaller than plan.layer.infill.area.min: a small island's interior is laid solid, not as sparse stubs.
      */
     private fun solidAtFull(s: SliceSettings, r: List<LayerRegions>): List<LayerRegions> = r.map { l ->
         if (l.sparse.isEmpty()) l
@@ -471,8 +470,7 @@ object Planner {
         val effOutlines = w.effOutlines
         // What the NEXT layer rests on: the first layer is printed shrunk by the squish compensation
         // precisely so that the bed spreads it back to the true outline, so layer 0 supports its true
-        // outline (Benchy: judging layer 1 against the shrunk outline marked its whole
-        // outer wall as overhang).
+        // outline (judged against the shrunk outline, layer 1's whole outer wall would read as overhang).
         val asPrinted: List<List<Polygon>> = effOutlines.mapIndexed { k, o -> if (k == 0) outlines[0] else o }
         // planned inserts: by the layer laid onto each insert (the first whose bottom is at or above the insert's top), the
         // insert's cover: what that layer stands on there (its bottom a surface, not a bridge; no overhang for support). Not
@@ -595,8 +593,8 @@ object Planner {
             vis = seamVis,
             cornerShare = if (s.seamLeastVisible) s.seamCornerShare else 1.0,
             // what hides a point nearby, from the layers' outer walls, its viewing directions by quadrant: the WHOLE object's for
-            // one part of several ([whole]): a part's edge against another part (a letter's inlay against the base it sits in)
-            // is covered by it, not an open wall; read as open, the seams went to corners on the visible face instead
+            // one part of several ([whole]): a part's edge against another part (an inlay against the base it sits in)
+            // is covered by it, not an open wall; read as open, the seams would go to corners on the visible face instead
             exposure = seamVis?.exposure((whole?.w?.walls ?: walls).map { it.walls.getOrNull(0).orEmpty() }, layerTopsUm),
             shelfOf = { i -> shelfAt(i) },
             // a scarf seam's ramp is seen as well as its start (plan.technique.scarf_seam.*)
@@ -659,10 +657,9 @@ object Planner {
                 fun lines(region: List<Polygon>, feature: Feature, angle: Double, gapUm: Long) {
                     if (region.isEmpty()) return
                     val (segs, idx) = Hatch.indexed(region, angle, gapUm + w)
-                    // every line is kept, however short (a filter dropping lines under two widths, meant for 26 dabs
-                    // in an engraved name, also dropped the interface of every tree tip (0.8 mm across by design) and the columns
-                    // under small faces: a full-scale model's ball went from 97 % to 0 % supported, a pin from 98 % to 30 %;
-                    // reverted the same day. The dabs want a filter on the overhang REGIONS, never per line; not built yet)
+                    // every line is kept, however short: a filter dropping lines under two widths would also drop the
+                    // interface of every tree tip (0.8 mm across by design) and the columns under small faces, leaving them
+                    // unsupported. Small dabs of support want a filter on the overhang REGIONS, never per line
                     for (chain in plymeld.geom.Linker.link(segs, idx, region, 3 * (gapUm + w))) paths.add(ToolPath(feature, chain, false, w, h))
                 }
                 for (loop in sup.walls) paths.add(ToolPath(Feature.SUPPORT, loop.xy, true, w, h))   // tree branches: outline first
@@ -1040,8 +1037,8 @@ object Planner {
             val order = if (s.innerWallsFirst) ws.indices.reversed() else ws.indices
             // arachne center lines are the innermost walls: first with inner walls first, else last. One that runs along the
             // model's edge (where the part is too thin for an outer loop: a fin, a wedge's narrow end) IS the outer wall
-            // there, the visible surface: it is named so, and prints as one (a wedge's narrow end printed
-            // as an inner wall, at hidden speed, and the check found no wall along its outline)
+            // there, the visible surface: it is named so, and prints as one (named an inner wall, a wedge's narrow end would
+            // print at hidden speed, and the check would find no wall along its outline)
             fun center() { for (c0 in walls[i].center) { val c = Walls.simplified(c0, s.resolutionUm)
                 val outer = Walls.alongOutline(c.xy, c.widths, effOutlines[i])
                 val f = if (outer) Feature.OUTER_WALL else Feature.INNER_WALL
@@ -1050,26 +1047,22 @@ object Planner {
                 // a speck: an outer-wall line kept only because it lines the outline (shorter than two of its widths, the
                 // threshold Walls keeps it under) prints without a retraction and prime of its own wherever the travel to it
                 // stays in its island and crosses no wall, whatever the in-island switch (keepInIsland): a restart for a dot
-                // left a blob on a show face (kept, not dropped, so the outline stays walled). Its length is the thin area's
+                // leaves a blob on a show face (kept, not dropped, so the outline stays walled). Its length is the thin area's
                 // own: not what its ends reach into the walls they meet (CenterLine.reachUm)
                 val ownLength = Planner.polylineLength(c.xy) - c.reachUm
                 val speck = outer && ownLength < 2.0 * c.maxWidthUm
                 // a speck shorter than one of its widths where another part of the object lies within a width of it (this part a
                 // sliver in front of the other there) is left out: a dot of one filament, stopped and restarted on the visible
-                // face every layer, made a column of blobs (on a test print, 142 such starts on one face),
-                // and the part behind fills the outline there within less than a line. Only a sliver's: a speck that runs
-                // into a place thinner than the narrowest line (its narrowest point widened to that line). One as wide as its
-                // area all along fills a short stretch of a band a line or more wide (between two walls, at a band's end):
-                // left out, it left a hole as wide as the band (a ridge of one filament beside another, 0.9 mm along it with
-                // no line). Nor one wider somewhere than two narrowest lines: it fills a patch, not a sliver (a small dome
-                // of one filament in another's arch, too small for a loop, its one line 0.3 to 0.78 mm wide, had nothing laid in it).
-                // And only on the object's surface (along the whole object's outline): a speck along a part's edge inside
-                // the object shows no dot, and nothing behind it fills its place (a pocket between a narrow stroke's
-                // loop, the loop of the band it meets through a neck and the pockets beside it, 0.45 mm wide, was left bare).
+                // face every layer, stacks into a column of blobs, and the part behind fills the outline there within less
+                // than a line. Only a sliver's: a speck that runs into a place thinner than the narrowest line (its narrowest
+                // point widened to that line). One as wide as its area all along fills a short stretch of a band a line or
+                // more wide (between two walls, at a band's end): left out, it would leave a hole as wide as the band. Nor one
+                // wider somewhere than two narrowest lines: it fills a patch, not a sliver (an area too small for a loop,
+                // whose one line is all that is laid in it). And only on the object's surface (along the whole object's
+                // outline): a speck along a part's edge inside the object shows no dot, and nothing behind it fills its place.
                 // Read on the line as it was joined with the stubs at junctions that were left out of it
-                // (CenterLine.withStubs): the rule's bounds were set on those lines, and a stub run out and back made a short
-                // line long enough to be laid (a V-shaped line on a ridge's dipped crest beside a second part, 0.4 mm long
-                // without its stub, left a hole there when left out)
+                // (CenterLine.withStubs): the rule's bounds were set on those lines, and a stub run out and back makes a short
+                // line long enough to be laid (left out, such a line would leave a hole)
                 fun dot(d: CenterLine): Boolean {
                     val own = if (d === c) ownLength else Planner.polylineLength(d.xy) - d.reachUm
                     val sp = if (d === c) speck else own < 2.0 * d.maxWidthUm && Walls.alongOutline(d.xy, d.widths, effOutlines[i])
@@ -1085,7 +1078,7 @@ object Planner {
                 val feature = if (k == 0) Feature.OUTER_WALL else Feature.INNER_WALL
                 val w = if (first) s.firstLayerWidthUm else if (k == 0) s.outerWallWidthUm else s.innerWallWidthUm
                 for ((li, loop) in ws[k].withIndex()) {
-                    // fuzzy skin, per fuzzy_skin (measured in QIDIStudio on a block with a hole):
+                    // fuzzy skin, per fuzzy_skin:
                     // external = outside outlines of the outer wall, all = + hole walls, allwalls = every wall
                     val fuzz = (!first || s.fuzzyFirstLayer) && when (s.fuzzySkin) {
                         "none" -> false
@@ -1150,14 +1143,14 @@ object Planner {
                 var hatchRegion = region
                 if (feature != Feature.SPARSE) {
                     // 1. Ring-shaped bands up to MAX_CONCENTRIC_LINES wide get loops along the band
-                    //    (no fragmented toolpaths: hatching a ring gives a saw-tooth of micro-segments, seen
-                    //    on a domed test model). Detected on the RAW region: a sliver filter first would pinch a
+                    //    (no fragmented toolpaths: hatching a ring gives a saw-tooth of micro-segments).
+                    //    Detected on the RAW region: a sliver filter first would pinch a
                     //    thin ring into crescents that then get hatched.
                     //    A NARROW region without holes (under MAX_CONCENTRIC_LINES across) gets loops too,
                     //    each covering both sides: crossed by the hatch, it is mostly line ends - a wedge
                     //    of air or a connector laid on the wall at every one - while loops along its
-                    //    outline have no ends at the walls at all (testplate pillars and slot strips,
-                    //    a deposition check against the model). Loop count from its depth (the largest
+                    //    outline have no ends at the walls at all (the testplate's pillars and slot strips).
+                    //    Loop count from its depth (the largest
                     //    inward offset that leaves anything), widths adjusted so the loops fill it exactly.
                     val leftovers = ArrayList<Polygon>()
                     for ((outer, holes) in Polygons.group(region)) {
@@ -1186,7 +1179,7 @@ object Planner {
                             val loops = Offset.offset(listOf(outer), -d).filter { lp -> lp.isCcw() && lp.signedAreaMm2() > 0.01 }
                             if (holes.isEmpty()) for (lp in loops) { paths.add(ToolPath(feature, seamAtBack(lp).xy, true, widthK, h)); placed = true }
                             // a band's loops follow its outer edge; where the band is narrower than its mean width they would
-                            // run on over its hole (the walls round it, or the fill inside it: a Benchy's deck ring laid two
+                            // run on over its hole (the walls round it, or the fill inside it: a Benchy's deck ring would lay two
                             // loops on its cabin's inner wall), so each is cut where its middle leaves the band
                             else for (pc in SurfaceFill.outOfHoles(loops, holes, 0L, 2 * widthK)) {
                                 paths.add(if (pc.closed) ToolPath(feature, seamAtBack(Polygon(pc.xy)).xy, true, widthK, h) else ToolPath(feature, pc.xy, false, widthK, h))
@@ -1197,8 +1190,7 @@ object Planner {
                     }
                     if (leftovers.isEmpty()) return
                     // 2. What is left gets hatched, minus slivers narrower than half a line (an opening
-                    //    by w/4). Without it, a domed test model had hundreds of solid dashes along
-                    //    the wall where QIDIStudio printed no solid at all.
+                    //    by w/4). Without it, the slivers along a wall are hatched into hundreds of short solid dashes.
                     val q = width / 4
                     val cleaned = Offset.offset(Offset.offset(leftovers, -q), q)
                     droppedHere += leftovers.sumOf { it.signedAreaMm2() } - cleaned.sumOf { it.signedAreaMm2() }
@@ -1209,17 +1201,14 @@ object Planner {
                 // pulled in to where a bead of this width merely touches the wall bead beside it -
                 // the same center distance as between any two neighboring beads, w/2 - h(1 - pi/4)
                 // from the wall's edge - and infill_wall_overlap then adds its bonding overlap on
-                // top. Clipping on the wall's edge itself laid half of every line end and every
-                // linking run on the wall: testplate overfill near the surface 175 mm2 on three
-                // layers, missing + excess plastic 16.1 mm3 against 6.1 with contact placement
-                // (a deposition sweep against the model).
+                // top. Clipping on the wall's edge itself would lay half of every line end and every
+                // linking run on the wall.
                 // Where the region shares an edge with another of the layer's fills that owns that edge ([beside]: the
                 // layer's fills), there is no wall at the edge: the owner's lines are, laid against the edge as against a
                 // wall, and these lines are placed against the owner's beads the same way (bead contact, then the line-end
                 // overlap). Both placed against the edge itself, their line ends and linking runs lay over each other along
-                // it, 0.25 to 0.30 mm wide (the pre-print check's laid-twice rule: 92 spots on a plain Benchy); both placed
-                // at bead contact with no overlap, the gaps between their line ends' round caps met in a bare seam about
-                // 0.3 mm wide (FillContactTest).
+                // it, 0.25 to 0.30 mm wide (the pre-print check's laid-twice rule); both placed at bead contact with no
+                // overlap, the gaps between their line ends' round caps meet in a bare seam about 0.3 mm wide (FillContactTest).
                 val grown = Offset.offset(hatchRegion, Math.round(s.infillWallOverlap * width) - contactInset(width, height))
                     .let { g -> if (beside == null || g.isEmpty()) g else Booleans.difference(g, beside(contactInset(width, height) - Math.round(s.infillWallOverlap * width))) }
                 if (feature == Feature.SPARSE && s.sparsePattern == "gyroid") {
@@ -1253,9 +1242,8 @@ object Planner {
                     // Top / bottom (monotonic): only to the ADJACENT line, so the sweep stays monotonic.
                     val limit = if (feature == Feature.SPARSE || feature == Feature.SOLID) s.anchorMaxUm ?: ANCHOR_SPACINGS * spacing else ANCHOR_SPACINGS * spacing
                     // a curved band's top laid uphill (plan.technique.curved.top_order = "uphill"): laid
-                    // one way across the peak, the half the sweep went down had each new line below the last, beside it, where the
-                    // nozzle's flat tip can drag through it (plate 8's solid arch came out rough on that half, the g-code alike on
-                    // both halves otherwise). The lines split at the scanline where the surface is highest, each side linked on its
+                    // one way across the peak, the half the sweep goes down has each new line below the last, beside it, where the
+                    // nozzle's flat tip can drag through it and roughen that half. The lines split at the scanline where the surface is highest, each side linked on its
                     // own, each chain turned to start at its low end, the chains laid from the lowest start up ([ToolPath.climbFrom])
                     if (feature == Feature.TOP && s.curvedTopUphill && surfaceTop != null && segs.isNotEmpty()) {
                         val n = segs.size / 4
@@ -1271,7 +1259,7 @@ object Planner {
                             val ridge = mean.maxBy { it.value }.key
                             // which scanline each segment end lies on: a chain is turned by the lines it starts and ends on, so
                             // it runs towards the ridge (not by the surface at its two ends: a chain over a foot's top has both
-                            // ends flat and its middle lines rising onto the slope, and was left running down them)
+                            // ends flat and its middle lines rising onto the slope, and would be left running down them)
                             val lineAt = HashMap<Pair<Long, Long>, Int>()
                             for (k in 0 until n) { lineAt[segs[4 * k] to segs[4 * k + 1]] = lineIdx[k]; lineAt[segs[4 * k + 2] to segs[4 * k + 3]] = lineIdx[k] }
                             for (low in listOf(true, false)) {
@@ -1344,15 +1332,13 @@ object Planner {
                     else -> error("${feature.label} pattern '$pattern' is not implemented yet (line patterns, concentric-outside-in, concentric-inside-out, archimedeanchords)")
                 }
             }
-            // Bridges: direction chosen PER connected region. One angle for the whole layer let the
-            // largest region decide for all: a test model's layer laid 2.4 mm strips 4 deg off
-            // their length, broken into short groups, 153 retractions in the layer vs QIDIStudio's 10.
+            // Bridges: direction chosen PER connected region. One angle for the whole layer lets the
+            // largest region decide for all: a narrow strip elsewhere on the layer is then crossed a little off its length,
+            // in short groups with a retraction each.
             // A bridge's lines are clipped with their center at bead contact with what is around the region (the walls, the
             // infill beside it), then reach on by [grow] (infill_wall_overlap of the line), as every interior line's (hatch).
-            // Clipped on the region's edge itself, every line end and every linking run lay half a line over the walls and
-            // the infill beside it (the pre-print check's laid-twice rule: on the internal bridge layer of nearly every model of
-            // the test catalog). A bridge laid across a small tooth's own beads was another cause: the walls handed the tooth to
-            // infill (Walls.arachne, an island laid by its beads)
+            // Clipped on the region's edge itself, every line end and every linking run would lie half a line over the walls
+            // and the infill beside it (the pre-print check's laid-twice rule)
             fun bridgeEach(region: List<Polygon>, below: List<Polygon>, bw: Long, h: Long, out: MutableList<ToolPath>, grow: Long,
                            feature: Feature = Feature.BRIDGE,
                            families: List<Bridges.Family>? = null, owners: ((Long) -> List<Polygon>)? = null) {
@@ -1418,14 +1404,12 @@ object Planner {
             var ib: List<Polygon> = emptyList()
             if (!first) {
                 // Internal bridge: solid laid directly over the layer below's SPARSE infill spans the
-                // gaps between infill lines, so it is printed as a bridge (QIDIStudio does the same:
-                // most of the card-holder base's 90 m of "Bridge" is this). Support for the angle
+                // gaps between infill lines, so it is printed as a bridge. Support for the angle
                 // search = the layer below's material that is not sparse infill.
                 val overSparse = Booleans.intersection(internalSolid, allSparse[i - 1])
                 val q = s.nozzleDiameterUm / 2
                 // Ring bands (<= MAX_CONCENTRIC_LINES wide, anchored by walls and shell) are NOT
-                // bridged: they keep their concentric loops. Found on a test model's dome:
-                // bridging them made 248 micro-runs where QIDIStudio prints plain shell loops.
+                // bridged: they keep their concentric loops (bridged, a ring band breaks into hundreds of micro-runs).
                 val ringLimit = MAX_CONCENTRIC_LINES * Walls.spacing(solidW, h)
                 val wideOverSparse = Polygons.group(overSparse).filter { (o, hs) ->
                     val area = o.signedAreaMm2() + hs.sumOf { it.signedAreaMm2() }
@@ -1461,7 +1445,7 @@ object Planner {
             fun sparsePhasesAt(zUm: Long, spacing: Long): List<Double> =
                 sparseAngles.map { a -> centered(a, spacing, sparseCenter, if (s.sparsePattern == "cubic") -zUm / Math.sqrt(2.0) else 0.0) }
             // A sparse pattern needs about one of its own cells to form; a piece narrower than that
-            // only gets fragments (no fragmented toolpaths; Benchy hull sides: 577 sparse runs under 1 mm). Such a piece
+            // only gets fragments (no fragmented toolpaths: runs under a millimeter along a hull's sides). Such a piece
             // gets ONE continuous loop half a line inside its edge: 2 line widths of plastic per mm,
             // which equals the pattern's own d x width exactly at one cell wide and is less than solid
             // below it. Too thin for even one loop: left as a gap between walls.
@@ -1469,9 +1453,9 @@ object Planner {
             // (a gyroid's cell: half its period, the distance between its neighboring curves, as a family's line spacing)
             val narrowUm = Math.round((if (s.sparsePattern == "gyroid") sparseSpacing / 2.0 else sparseSpacing.toDouble()) * s.narrowCells)
             // Narrowness is judged LOCALLY: an opening by half that width keeps what is wide enough for
-            // the pattern; only what it removes is narrow. Judging whole connected pieces instead
-            // left the Benchy's bow (10 mm wide, joined to the thin strip around the deck) with
-            // nothing but an edge loop at z 8.0-8.2 (found in a two-color render).
+            // the pattern; only what it removes is narrow. Judging whole connected pieces instead would leave a wide area
+            // joined to a thin strip (the Benchy's bow, 10 mm wide, joined to the strip around the deck at z 8.0-8.2) with
+            // nothing but an edge loop.
             val core = if (sparseRegion.isEmpty()) sparseRegion
                 else Offset.offset(Offset.offset(sparseRegion, -narrowUm / 2, Offset.Join.MITER), narrowUm / 2, Offset.Join.MITER)
             val narrowParts = (if (core.isEmpty()) sparseRegion else Booleans.difference(sparseRegion, core))
@@ -1522,10 +1506,8 @@ object Planner {
             hatch(internalSolid, Feature.SOLID, solidW, Walls.spacing(solidW, h), listOf(solidAngle), beside = ownersOf(3))
             // The loop runs ALONGSIDE the wall, so it sits as a neighboring wall does: at bead contact.
             // (infill_wall_overlap is for line ENDS, which touch a wall only with their cap; along a
-            // whole loop it laid a double band the full length of a test model's walls: overfill 0 -> 105
-            // mm2.) Half a line in (the first version) left a crack on both sides: Benchy cabin walls,
-            // z 12, the whole length (a deposition check against the model). A region too thin for a
-            // loop half a line in still gets none. Beside a fill that owns the edge, at bead contact with its beads.
+            // whole loop it would lay a double band the full length of the walls.) Half a line in would leave a crack on
+            // both sides. A region too thin for a loop half a line in still gets none. Beside a fill that owns the edge, at bead contact with its beads.
             val loopInset = contactInset(sparseW, h)
             // or, with plan.layer.infill.narrow.fill = solid (an option), solid like internal solid infill
             if (s.narrowFill == "solid") hatch(narrowSolid, Feature.SOLID, solidW, Walls.spacing(solidW, h), listOf(solidAngle), beside = ownersOf(4))
@@ -1548,8 +1530,7 @@ object Planner {
             surface(topRegion, Feature.TOP, topW, Walls.spacing(topW, h), listOf(usualAngle), s.topPattern, ownersOf(6))
             // Ironing (ironing_type "top"): the layer's whole exposed top — this layer minus the next,
             // walls included — shrunk by half a line (+ ironing_inset) so the nozzle stays inside the
-            // edges. Measured against QIDIStudio: area within 0.4 % on 7 of 10 ironed layers of
-            // two test models. Other ironing types are not measured yet.
+            // edges. Other ironing types are not implemented.
             if (!first && s.ironingType != "none") {
                 require(s.ironingType == "top") { "ironing_type '${s.ironingType}' is not implemented yet (only 'top')" }
                 val above = if (i + 1 < n) allEff[i + 1] else emptyList()
@@ -1591,14 +1572,13 @@ object Planner {
             // Order. Brim and support first, across the layer. Then ISLAND BY ISLAND (each separate
             // piece of the layer's outline): the nearest unvisited island next, and inside it the
             // feature groups in sequence, each nearest-first from where the last path ended. Printing
-            // feature by feature across all islands criss-crossed every layer (Benchy layer 60: 312 mm
-            // of travel vs QIDIStudio's 174; test plate 1.74x).
+            // feature by feature across all islands would criss-cross every layer.
             val first3 = listOf(Feature.BRIM, Feature.SUPPORT, Feature.SUPPORT_INTERFACE)
             // a bridge's first two layers laid as waves together (wave.layers = "2"): its beads last, after the fill over the
             // supports, so nothing low near a support is laid once the beads stand at the peak (the fill over the
-            // feet came after them, the head 4.18 mm under the second layer's peak, over its 4 mm nozzle height)
-            // (and chevron fronts, wave.front = "chevron": their last ring lies right over the peak, 4.000 mm over the strip on the
-            // supports printed after it)
+            // feet laid after them would put the head further under the second layer's peak than its nozzle height)
+            // (and chevron fronts, wave.front = "chevron": their last ring lies right over the peak, as high over the strip on
+            // the supports as the nozzle's height)
             // (and on request, plan.technique.bridge.wave.after_supported: the first lines attach to the strip already laid over
             // the supports, not to the supports' bare edge)
             val wavesLast = s.bridgeFirstLayerWave && (s.bridgeWaveLayers == 2 || s.bridgeWaveChevron || s.bridgeWaveAfterSupported) && bridgeAnchors.isNotEmpty() && i == bridgeAnchors.keys.min()
@@ -1606,8 +1586,7 @@ object Planner {
             val inIsland = (if (s.innerWallsFirst) listOf(Feature.INNER_WALL, Feature.OUTER_WALL) else listOf(Feature.OUTER_WALL, Feature.INNER_WALL)) +
                 (if (wavesLast) fills - Feature.WAVE + Feature.WAVE else fills)
             // A travel between two INTERNAL fill paths that stays inside the part — within the inner
-            // edge of the outer wall — can only ooze where nothing is seen: no retraction, no lift
-            // (Benchy: plymeld retracted 93 % of 13,832 travels, QIDIStudio 81 % of 10,227).
+            // edge of the outer wall — can only ooze where nothing is seen: no retraction, no lift.
             val hidden = if (first) emptyList() else Offset.offset(effOutlines[i], -s.outerWallWidthUm)
             val hiddenGroups = Polygons.group(hidden)
             val edges = hidden.flatMap { p -> (0 until p.size).map { e -> val j = (e + 1) % p.size; plymeld.geom.IntPoint(p.x(e), p.y(e)) to plymeld.geom.IntPoint(p.x(j), p.y(j)) } }
@@ -1620,8 +1599,7 @@ object Planner {
             val interior = setOf(Feature.SPARSE, Feature.SOLID)
             // Ordering fills: a travel that will need a retraction costs, on top of its length, the
             // distance travel covers in the time of the retract and the de-retract (from the settings;
-            // Q2 preset: 500 mm/s x 2 x 0.8 mm / 30 mm/s = 26.7 mm). Plain nearest-first hopped across
-            // holes (hole block: 16 sparse-to-sparse retractions vs QIDIStudio's 11).
+            // e.g. 500 mm/s x 2 x 0.8 mm / 30 mm/s = 26.7 mm). Plain nearest-first hops across holes, a retraction each.
             val retractCostUm = s.travelSpeed * (s.retractMm / s.retractSpeed + s.retractMm / s.deretractSpeed) * 1000
             // a travel no longer than hardware.filament.retract.travel.min never retracts (the writer's rule): ordered at its
             // length alone (Ordering's freeUm), and a path whose travel would retract is put beside a path ending that near it
@@ -1630,8 +1608,8 @@ object Planner {
                 if (hidden.isEmpty()) null else { x0, y0, x1, y1 -> if (staysHidden(x0, y0, x1, y1)) 0.0 else retractCostUm }
             // Ordering walls (plan.mechanism.motion.no_retract_in_island): a travel between an island's wall runs that stays inside it and
             // crosses none of the layer's wall lines needs no retraction; one that would costs the same retraction-equivalent
-            // distance as for fills, so the runs chain inside the island (nearest-first took a helix island's
-            // center line, 1.08 mm away, before its inner loop, 1.21 mm away, and the travel back to the loop crossed the line)
+            // distance as for fills, so the runs chain inside the island (nearest-first can take an island's center line
+            // before its inner loop, a little further away, and the travel back to the loop then crosses the line)
             // unset (decided when sliced, RetractionDecision): the travels are marked as if on; the decision keeps or clears the marks
             val wallExtra: ((Long, Long, Long, Long) -> Double)? = if (first || s.noRetractInIsland == false) null else {
                 val isl = Islands(effOutlines[i], paths)
@@ -1678,19 +1656,19 @@ object Planner {
             }
             // Walls CONTOUR BY CONTOUR: in an island with holes, each contour's walls (its outer wall
             // and the inner walls nearest it) are finished before the next contour's. Printing all
-            // inner walls and then all outer walls crossed between contours twice per layer, each
-            // time with a retraction (hole block: 2 per layer vs QIDIStudio's 1).
+            // inner walls and then all outer walls crosses between contours twice per layer, each
+            // time with a retraction.
             // One contour's walls. With inner walls first, the inner walls must END near the outer
             // wall's seam, where the outer wall starts: nearest-first from the nozzle ignores that, and
-            // each arachne center line (an open path, not a loop at the seam) left a travel back across
-            // the contour (testplate: inner->inner + inner->outer travel 351 -> 2502 mm with arachne).
+            // each arachne center line (an open path, not a loop at the seam) would leave a travel back across
+            // the contour.
             // So the order is also built BACKWARDS from the seam (nearest-first, then
             // run in reverse), and the cheaper of the two is kept.
             // [specks]: the outer-wall specks lining this contour's outer wall (ToolPath.speck), laid right after it in the order
             // they lie along it from its seam, the way it printed, each entered from its nearer end (as
-            // contours of their own, they were reached whenever nearest the nozzle, and on an engraved name's base 391 of 414
-            // travels across its front face started or ended at one; laid nearest-first instead, the hops between neighboring
-            // specks cut across the notches between them, outside the part)
+            // contours of their own, they would be reached whenever nearest the nozzle, most travels across a front face
+            // starting or ending at one; laid nearest-first instead, the hops between neighboring specks cut across the
+            // notches between them, outside the part)
             fun emitSpecks(outer: List<ToolPath>, specks: List<ToolPath>) {
                 if (specks.isEmpty()) return
                 val wall = outer.singleOrNull() ?: run { emit(specks); return }
@@ -1727,8 +1705,8 @@ object Planner {
                 val backward = Ordering.order(before, sx, sy, wallExtra, freeUm = minTravelUm).asReversed().map { if (it.closed) it else it.reversed() }
                 val chosen = if (cost(backward) < cost(forward)) backward else forward
                 // the inner wall laid just before the outer one, a loop, starts (and so ends) nearest the outer wall's start (an
-                // inner wall's start is not seen): left at its own seam, the step onto the outer wall was a travel of tens of mm
-                // along the inside of the visible face (36 mm on a test print)
+                // inner wall's start is not seen): left at its own seam, the step onto the outer wall can be a travel of tens
+                // of mm along the inside of the visible face
                 val seq = chosen.mapIndexed { q, w -> if (q == chosen.size - 1 && w.closed) w.startingNear(sx, sy) else w }
                 ordered.addAll(seq)
                 lastX = endX(seq.last()); lastY = endY(seq.last())
@@ -1736,7 +1714,7 @@ object Planner {
                 emitSpecks(outer, specks)
                 // the wall beside the outer one, laid after it: each of its loops started at its point nearest where the outer
                 // wall ended (an inner wall's start is not seen), so the head steps onto it, a line in, with no travel across
-                // the contour (kept at its own seam, the step was a travel of tens of mm and a retraction on the visible face)
+                // the contour (kept at its own seam, the step can be a travel of tens of mm and a retraction on the visible face)
                 if (split) {
                     // where the head is: a scarfed loop ends at its ramp's end, not its start (Scarf.endOf)
                     val end = Scarf.endOf(ordered.last())
@@ -1755,8 +1733,7 @@ object Planner {
                 val fam = IntArray(members.size) { k -> outers.indices.minBy { distToPath(outers[it], members[k].xy[0], members[k].xy[1]) } }
                 // open inner lines that meet end to end within a travel that needs no retraction (retract.travel.min) go with one
                 // contour, the longest one's: assigned each by its own nearest contour, a thin area's pieces between two contours
-                // were split between them and laid apart, each piece then reached by a retracted travel (a test slice:
-                // 655 of 1,117 lines under 1 mm with a retraction had another line's end within 1 mm)
+                // would be split between them and laid apart, each piece then reached by a retracted travel
                 run {
                     val open = members.indices.filter { !members[it].closed && members[it].feature == Feature.INNER_WALL }
                     if (open.size < 2) return@run
@@ -1791,9 +1768,7 @@ object Planner {
                 emitWalls(mine.filter { it.feature == Feature.OUTER_WALL || it.feature == Feature.INNER_WALL })
                 // Fills: the monotonic surfaces are sweeps of their own; bridges, internal solid
                 // and sparse infill are ONE nearest-first group. Feature by feature, each group started
-                // wherever the last one ended and crossed the island to reach its nearest path
-                // (testplate: outer wall -> bridge travel 920 mm vs QIDIStudio's 36, which chains its
-                // fills by proximity whatever their kind).
+                // wherever the last one ended and crossed the island to reach its nearest path.
                 for (f in inIsland.drop(2)) when (f) {
                     Feature.BRIDGE, Feature.INTERNAL_BRIDGE, Feature.SPARSE -> {}
                     Feature.SOLID -> emit(mine.filter { it.feature in MIXED_FILLS })
@@ -1816,8 +1791,7 @@ object Planner {
                         (0 until l.pts.size - 1).any { e -> plymeld.geom.Segments.intersects(p0, p1, l.pts[e], l.pts[e + 1]) }
                 }
                 // Inner wall -> outer wall inside the part: the step from one seam onto the next. Its
-                // ooze lands at the outer wall's own seam. QIDIStudio does not retract here (a test model with
-                // fuzzy skin: 1 of 86 retracted; plymeld retracted every one over 1 mm, 26).
+                // ooze lands at the outer wall's own seam: no retraction.
                 val outlineGroups = Polygons.group(effOutlines[i])
                 val outlineEdges = effOutlines[i].flatMap { p -> (0 until p.size).map { e -> val j = (e + 1) % p.size; plymeld.geom.IntPoint(p.x(e), p.y(e)) to plymeld.geom.IntPoint(p.x(j), p.y(j)) } }
                 fun insideOutline(x: Long, y: Long) = outlineGroups.any { (o, hs) -> Polygons.contains(o, x, y) && hs.none { Polygons.contains(it, x, y) } }
@@ -1838,7 +1812,7 @@ object Planner {
                     val bx = b.xy[0]; val by = b.xy[1]
                     val p0 = plymeld.geom.IntPoint(ax, ay); val p1 = plymeld.geom.IntPoint(bx, by)
                     // a step between a wall and the outer one keeps its retraction unless it is a step, two line widths at most:
-                    // in a narrow stroke the steps of 2 to 5 mm crossed the pocket's edge unretracted and drew strands
+                    // in a narrow stroke a longer step crosses the pocket's edge unretracted and draws strands
                     if (seamStep) { if (Math.hypot((bx - ax).toDouble(), (by - ay).toDouble()) > 2.0 * s.outerWallWidthUm || !ontoOuterWallInside(p0, p1)) continue }
                     else if (!staysHidden(ax, ay, bx, by) || crossesOuterWall(p0, p1)) continue
                     ordered[k] = b.withRetract(false)
@@ -1860,9 +1834,8 @@ object Planner {
 
     /**
      * plan.mechanism.motion.no_retract_in_island: a travel that stays inside the island being printed needs no
-     * retraction and no lift. A helix island (7.9 x 2 mm: an outer loop, an inner loop, and a center line) retracted, lifted
-     * 0.2 mm and restored before each of its three runs, for 1-2 mm moves that crossed nothing; the print showed a row of
-     * beads where they started. [ordered]: one layer's paths in print order; [outline]: the layer's outline (its islands
+     * retraction and no lift: retracting, lifting and restoring for each short run of a small island (an outer loop, an
+     * inner loop, and a center line), for 1-2 mm moves that cross nothing, leaves a bead where each run starts. [ordered]: one layer's paths in print order; [outline]: the layer's outline (its islands
      * are its outer contours with their holes). A travel keeps its retraction when it: starts or ends outside an island,
      * or in two different ones; crosses the island's edge (a concave island, a hole); crosses a wall line already laid
      * on this layer, or an outer wall of the layer laid or not (the promise of every unretracted travel); or
@@ -1870,7 +1843,7 @@ object Planner {
      * switch is on or unset; only outer-wall specks where it is off).
      *
      * An outer-wall speck ([ToolPath.speck]) is entered by such a travel without a retraction WHATEVER the switch: a restart
-     * for a 0.2 mm dot left a blob on a show face. So a cleared speck is not marked
+     * for a 0.2 mm dot leaves a blob on a show face. So a cleared speck is not marked
      * [ToolPath.islandHidden]: the in-island decision's "off" side (IncrementalSlicer.decideRetraction) restores the
      * retraction of the marked paths only, and leaves the speck as it is. A real speck lies past its wall's loop, so the travel
      * to it crosses that wall and is rarely clear: reached from its own outer wall in its island, it is lifted over the wall

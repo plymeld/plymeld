@@ -14,7 +14,7 @@ import java.util.Locale
 import javax.imageio.ImageIO
 
 /**
- * The curved-top survey on real models: the 3DBenchy in test-models/, and
+ * The curved-top survey on whole models: the 3DBenchy in test-models/, and
  * any models named in PLYMELD_SURVEY_MODELS (paths separated by ':'; none are in the repo), with a 45 deg, 4 mm nozzle,
  * band layers 0.2 mm, the tool's thinnest 0.08 mm. Prints each cap's band or why it has none, and writes a top view per
  * model to build/curved-regions/: green, a sloped top the band's layers follow; blue, a flat top inside a band; orange,

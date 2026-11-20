@@ -122,8 +122,8 @@ class PurgeTower(
     private val brimLoops: List<Polygon> = if (brimUm <= 0 || top < 0) emptyList() else {
         val sp = Walls.spacing(brimLineUm, hs[0])
         val out = ArrayList<Polygon>()
-        // the inner loop reaches [brimOverlapUm] into the tower's outline: a loop that only touched the tower's wall, laid by
-        // another tool before it, held the bed while the tower peeled off it
+        // the inner loop reaches [brimOverlapUm] into the tower's outline: a loop that only touches the tower's wall, laid by
+        // another tool before it, can hold the bed while the tower lifts off it
         var d = brimLineUm / 2 - brimOverlapUm
         while (d <= brimUm - brimLineUm / 2) { out += Offset.offset(listOf(outline), d, Offset.Join.ROUND).filter { it.isCcw() }; d += sp }
         out
@@ -167,13 +167,12 @@ class PurgeTower(
             var need = needs?.get(k) ?: purgeMm3
             // the wall this change lays (compact: the first change on a layer the tower is visited) counts toward its purge,
             // but is laid LAST: a nozzle just back from the dock lays its first, uneven plastic inside the tower, not on its
-            // edge (every change starting the wall at one corner piled a blob there each time, and that corner peeled off)
+            // edge (every change starting the wall at one corner would pile a blob there each time)
             val ownWall = compact && k == 0 && wall != null
             if (ownWall) need = Math.max(0.0, need - wallMm3)
             val n = if (compact || needs != null) linesFor(need, h, w) else purgeLines(i)
             // where the change starts: one of the band's four corners, turning layer by layer and change by change, so the
-            // first plastic of a nozzle back from the dock does not land on one spot every time (all 188 changes of a
-            // two-color nameplate started at one point, by the corner that peeled)
+            // first plastic of a nozzle back from the dock does not land on one spot every time
             val turn = (i + k) % 4
             val down = turn >= 2; val fromRight = turn % 2 == 1
             if (n > 0) zigzag(y0, y0 + bandUm, spacing(h, w), h, n, down, fromRight)?.let { group += it }

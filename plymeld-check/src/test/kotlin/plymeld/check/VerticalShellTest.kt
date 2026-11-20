@@ -8,10 +8,9 @@ import plymeld.model.SliceSettings
 import java.util.Locale
 
 /**
- * Vertical shells on a face leaning INWARD (the part narrows upward): Flash Studio
- * (ensure_vertical_shell_thickness = ensure_all, top_shell_thickness 1 mm, 0.08 mm layers) lays a
- * solid band behind the face exactly shell thickness x tan(lean) wide (fin ladder 20-65 deg). plymeld
- * uses its own ellipsoid rule alone; top_shell_thickness does not set the band.
+ * Vertical shells on a face leaning INWARD (the part narrows upward): a solid band behind the face exactly shell
+ * thickness x tan(lean) wide lays plastic beyond every stated thickness. plymeld uses its own ellipsoid rule alone;
+ * top_shell_thickness does not set the band.
  */
 class VerticalShellTest : StringSpec({
     val cfg = arrayOf<Pair<String, Any>>("plan.technique.flat.layer.height" to "0.08 mm", "plan.mechanism.adhesion.first_layer.height" to "0.08 mm",
@@ -25,8 +24,8 @@ class VerticalShellTest : StringSpec({
     // a 30 mm square narrowing 0.08 mm per 0.08 mm layer on every side (45 deg), 60 layers. The
     // ellipsoid rule (default): every point within the wall thickness W across and the top
     // shell T = 13 x 0.08 mm up is solid, so behind the walls a band sqrt(W^2 + (T tan 45)^2) - W.
-    // Control: Flash Studio (ensure_all) lays the whole T tan 45 = 1.04 mm band - plastic beyond every
-    // stated thickness; the ellipsoid band is clearly less.
+    // Control: the whole T tan 45 = 1.04 mm band - plastic beyond every stated thickness; the ellipsoid band is clearly
+    // less.
     "an inward 45 deg face: the ellipsoid band, sqrt(W^2 + T^2) - W, less than the full T" {
         val n = 60
         val tops = LongArray(n) { 80L * (it + 1) }

@@ -7,7 +7,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 
 /**
- * Bond-first cooling end to end (a quad helix's helices snapped mid-print): two blocks sliced
+ * Bond-first cooling end to end: two blocks sliced
  * together, one with bond-first cooling locked on (plan.object."b.stl".bond_cooling = "on"): its lines print at
  * plan.technique.bond_cooling's part fan and nozzle temperature (bundled: half the generic PLA's 100 % fan, its 210 C + 10),
  * the other block at the filament's own (unlocked, and its 100 mm² section is over method.strength.bond.enough_area, so the

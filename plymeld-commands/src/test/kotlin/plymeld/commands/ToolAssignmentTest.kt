@@ -14,8 +14,8 @@ import java.nio.file.Path
 /**
  * A part prints with the tool the machine's loadout gives its filament (the g-code's T = the tool's index - 1), from the
  * config to the g-code, and the pre-print check refuses a g-code that prints a part with another tool or whose header
- * credits the wrong filament. The bug: a Benchy assigned filament 3 (tool index 3, T2) printed with T0,
- * its header crediting filament 1, and the check passed it.
+ * credits the wrong filament: a Benchy assigned filament 3 (tool index 3, T2) printed with T0, or its header crediting
+ * filament 1, is refused.
  */
 class ToolAssignmentTest : StringSpec({
     /** An ASCII STL box [x] x [y] x [z] mm, corner at the origin. */
@@ -125,7 +125,7 @@ class ToolAssignmentTest : StringSpec({
         (used[2] > 0) shouldBe true
         used.filterIndexed { i, _ -> i != 2 }.all { it == 0.0 } shouldBe true
         problems(d, cfs, models, g).shouldBeEmpty()
-        // control: the same print on T0 (the bug's g-code): GcodeCheck and ModelCheck both refuse it
+        // control: the same print on T0 (the wrong tool): GcodeCheck and ModelCheck both refuse it
         val onT0 = renumber(g, 2, 0)
         printingTools(onT0) shouldBe setOf(0)
         val p0 = problems(d, cfs, models, onT0)
@@ -134,7 +134,7 @@ class ToolAssignmentTest : StringSpec({
         p0.any { "printed by the wrong tool: T0 (tool 1)" in it && "assigned T2 (tool 3)" in it } shouldBe true
         // ... and its header, still crediting filament 3, no longer matches what each tool pushes
         p0.any { "the header credits filament 1 with 0.00 mm" in it } shouldBe true
-        // control: the right tool, but the header crediting filament 1 with filament 3's use (the bug's header)
+        // control: the right tool, but the header crediting filament 1 with filament 3's use (the wrong header)
         val hdr = g.lines().joinToString("\n") { l ->
             if (l.startsWith("; filament used [mm] =")) "; filament used [mm] = " + listOf(used[2], used[1], used[0], used[3]).joinToString(", ") { "%.2f".format(java.util.Locale.ROOT, it) }
             else l
@@ -177,8 +177,7 @@ class ToolAssignmentTest : StringSpec({
         plan.layout.order shouldBe plymeld.core.decide.ObjectOrder.TOGETHER
         plan.decisions.filter { it.value is plymeld.core.decide.TechniquePlan }.map { it.value as plymeld.core.decide.TechniquePlan }.distinct().size shouldBe 2
         problems(d, cfs, models, renumber(g, 2, 0)).shouldNotBeEmpty()
-        // control: the plate read as ONE model, every object's outline on every layer (what once refused such a plate),
-        // is refused: the boxes' layers are at different heights
+        // control: the plate read as ONE model, every object's outline on every layer, is refused: the boxes' layers are at different heights
         ModelCheck.check(g, plan.parts, plan.parts.minOf { it.bounds()[2] }, partTools = pr.partTools(plan)).shouldNotBeEmpty()
     }
 

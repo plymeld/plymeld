@@ -18,19 +18,19 @@ dependencies {
 
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
-    // Test classes run in parallel JVMs (one JVM per module took 15-25 min, two thirds of it a dozen tests that slice
-    // real models, one class after another). Three forks per module, each at the 512 MB Gradle gives one fork, so a
+    // Test classes run in parallel JVMs (in one JVM per module, a dozen tests that slice whole models run one class after
+    // another and take most of the time). Three forks per module, each at the 512 MB Gradle gives one fork, so a
     // test that needs more memory still fails here rather than only on a smaller machine; modules already run in
     // parallel (org.gradle.parallel), so this is bounded by memory, not processors.
     maxParallelForks = 3
     // -Pplymeld.testHeap=6g for a development run on a large model (a survey over millions of triangles); 512m otherwise
     maxHeapSize = (project.findProperty("plymeld.testHeap") as String?) ?: "512m"
     // C2 as the top JIT tier, as the CLI ships (plymeld-cli's applicationDefaultJvmArgs). Under GraalVM's own JIT a
-    // test JVM was seen failing nearly every top-tier compile (4.4 million bailouts against 3,300 compiles,
-    // ~18,000 a second), so the slicing code ran at C1 speed: ToolChangeGcodeTest went from 16.5 s to over 10 minutes.
+    // test JVM can fail nearly every top-tier compile, so the slicing code runs at C1 speed: ToolChangeGcodeTest takes
+    // over 10 minutes instead of under 20 s.
     jvmArgs("-XX:+IgnoreUnrecognizedVMOptions", "-XX:+UnlockExperimentalVMOptions", "-XX:-UseJVMCICompiler")
     // the per-layer cache (LayerCache) small in a test JVM: its 768 MB default is for a window's heap, and a slicing test
-    // ran out of the 512 MB with it; 48 MB still exercises it (LayerCacheTest)
+    // runs out of the 512 MB with it; 48 MB still exercises it (LayerCacheTest)
     systemProperty("plymeld.layerCache.mb", "48")
     // Tests tagged LocalFixtures replay crash dumps a developer puts in test-models/crash/ (git-ignored,
     // CrashReplayTest). OFF by default; on with -Pplymeld.localFixtures.
