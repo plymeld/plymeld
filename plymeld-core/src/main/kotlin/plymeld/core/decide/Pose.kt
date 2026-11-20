@@ -1338,19 +1338,19 @@ object PoseDecision {
          * locked spot's proposals are requirements sharing one requirement, so one order of it is always chosen. Their
          * outcomes' differences are kept for the linearised cost ([Coordinated.supportStats]).
          */
-        // the cantilever check: a region's reach over air from its lowest layer and each level face of it higher up
-        // (Cantilever.readings), cached by pose, region, reading, and layer height
+        // the cantilever check: a region's reach over air from its lowest layer, or for a region standing on the bed from each
+        // level face of it higher up (Cantilever.readings), cached by pose, region, reading, and layer height
         val posedOf0 = HashMap<String, Pair<TriangleSoup, DoubleArray>>()
         val reachOf = HashMap<String, Cantilever.Reach?>()
         // the reach by pose, region, and layer height, the height in 0.05 mm buckets: the search tries up to nine heights per pose,
         // and a region's lowest layer reaches the same over air to within a fraction of a layer (a cut per bucket, not per height)
         fun reachBucket(layerMm: Double) = Math.max(0.05, Math.round(layerMm / 0.05) * 0.05)
-        // each region read where Cantilever.readings says (its lowest layer, and each level face of it higher up), [j] the reading
+        // each region read where Cantilever.readings says, [j] the reading
         fun reachKey(pose: Pose, r: OverhangRegion, j: Int, layerMm: Double) = "${pose.label}|${r.index}|$j|${Math.round(reachBucket(layerMm) * 1e4)}"
         /** The reach of every reading of every region of [regions] in [pose] at [layerMm] not yet known, cut in ONE sweep of the posed model (a Benchy has 176 regions). */
         fun reachAll(pose: Pose, regions: List<OverhangRegion>, layerMm0: Double) {
             val layerMm = reachBucket(layerMm0)
-            val todo = regions.flatMap { r -> Cantilever.readings(r).mapIndexed { j, g -> Triple(r, j, g) } }.filter { (r, j, _) -> reachKey(pose, r, j, layerMm) !in reachOf }
+            val todo = regions.flatMap { r -> Cantilever.readings(r, layerMm).mapIndexed { j, g -> Triple(r, j, g) } }.filter { (r, j, _) -> reachKey(pose, r, j, layerMm) !in reachOf }
             if (todo.isEmpty()) return
             val (posed, b) = posedOf0.getOrPut(pose.label) { pose.apply(soup).let { it to it.bounds() } }
             val cuttable = todo.filter { (_, _, g) -> layerMm > 0 && g.fromMm >= layerMm - 1e-9 }
@@ -1366,7 +1366,7 @@ object PoseDecision {
         /** The region's reach: the first of its readings that is a cantilever, else its lowest layer's. */
         fun cantileverReach(pose: Pose, r: OverhangRegion, layerMm: Double): Cantilever.Reach? {
             reachAll(pose, listOf(r), layerMm)
-            val all = Cantilever.readings(r).indices.map { reachOf[reachKey(pose, r, it, layerMm)] }
+            val all = Cantilever.readings(r, reachBucket(layerMm)).indices.map { reachOf[reachKey(pose, r, it, layerMm)] }
             return all.firstOrNull { isCantilever(it) } ?: all[0]
         }
         /** Why nothing but support can lay a region whose reach [isCantilever]: a cantilever, or a bridge past the filament's span. */
@@ -1518,8 +1518,8 @@ object PoseDecision {
         fun surfaceTechniqueWords(m: Measure) = if (!weighIroning) "" else if (SurfaceTechnique.IRONING in m.surfaceTechniques) " · ironing" else " · flat tops as laid"
         fun label(p: Pose, m: Measure) = (if (several) "${p.label} · ${m.plan.label}" else p.label) + surfaceTechniqueWords(m)
         fun sealedNote(m: Measure) = if (m.sealedMm2 > 0.005) " (%.1f mm² of it inside a sealed cavity)".format(Locale.ROOT, m.sealedMm2) else ""
-        // the hard check before the weights: an overhang region whose lowest layer (or a level face of it higher up,
-        // Cantilever.readings) reaches past a line width over air and is anchored on one side only (a cantilever, Cantilever.reach) that no
+        // the hard check before the weights: an overhang region whose lowest layer (for one standing on the bed, a level face of
+        // it higher up, Cantilever.readings) reaches past a line width over air and is anchored on one side only (a cantilever, Cantilever.reach) that no
         // support spot holds cannot be laid, whatever its score. Only where the search surveys the overhangs (support
         // decided per overhang); locked on, everything is held; locked off, the plan says what prints over air. Applied to
         // the FINAL set (rejectedFinal): the coarse first pass carries no support yet (the joint search proposes it per
@@ -2213,7 +2213,7 @@ object PoseDecision {
         fun unheld(reach: Cantilever.Reach) = reach.reachMm > f.overhang.widthMm + 1e-9 && (!reach.bridged || (bridgeLimit != null && 2 * reach.reachMm > bridgeLimit + 1e-9))
         for ((h, rs) in regions.groupBy { layerOf(it) }) {
             // every reading of each region (Cantilever.readings) that is cut above the first layer
-            val reads = rs.associateWith { r -> Cantilever.readings(r).filter { it.fromMm >= h - 1e-9 } }
+            val reads = rs.associateWith { r -> Cantilever.readings(r, h).filter { it.fromMm >= h - 1e-9 } }
             if (reads.values.all { it.isEmpty() }) continue
             val areaAt = Cantilever.areas(posed, reads.values.flatten().flatMap { listOf(Cantilever.belowZ(b, it, h), Cantilever.layerZ(b, it, h)) })
             for ((r, gs) in reads) {

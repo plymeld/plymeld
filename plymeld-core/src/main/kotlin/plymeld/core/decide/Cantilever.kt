@@ -9,8 +9,8 @@ import plymeld.mesh.TriangleSoup
 
 /**
  * The hard check before the weights: a bead with nothing under it that no
- * technique holds up cannot be laid, whatever its score. An overhang region's lowest layer (and the lowest layer of each
- * level face of it higher up, [readings]) is cut from the posed model and read against the model's cross-section just
+ * technique holds up cannot be laid, whatever its score. An overhang region's lowest layer (for a region standing on the
+ * bed, the lowest layer of each level face of it higher up, [readings]) is cut from the posed model and read against the model's cross-section just
  * below it: how far its material over air lies from that section is its REACH. Within one line width a line still touches the layer below (how much of it may hang clean is the quality
  * rule, [plymeld.model.Overhang.stepMm]); beyond it the line lies entirely over air, and only a bridge, anchored on two
  * sides, can lay it. A region reaching past a line width that is anchored on one side only is a CANTILEVER: a candidate
@@ -26,13 +26,17 @@ object Cantilever {
     private const val MAX_SPAN_MM = 1000.0
 
     /**
-     * Where a region's reach is read: its lowest layer, and the lowest layer of each level face of it higher up
-     * ([OverhangRegion.flatFromMm]), each as the region's box from that height. A region is a cantilever where any reading
-     * is. A cluster of faces is one region however it rises: a ramp from the bed into an underside level over air higher up
-     * is one, and read at its lowest layer alone (on the bed: not read at all) the level underside would never be.
+     * Where a region's reach is read, with layers [layerMm] thick: its lowest layer; and where that lies within the first
+     * layer (the region stands on the bed, and its lowest layer is not read), the lowest layer of each level face of it
+     * higher up ([OverhangRegion.flatFromMm]), each as the region's box from that height. A region is a cantilever where any
+     * reading is. A cluster of faces is one region however it rises: a ramp from the bed into an underside level over air
+     * higher up is one, and read at its lowest layer alone (on the bed: not read at all) the level underside would never
+     * be. A region above the first layer is read at its lowest layer only, as before: read at a level face in the middle of
+     * a curved underside, the stair-step of the slope around it reads as a cantilever a little past a line width.
      */
-    fun readings(r: OverhangRegion): List<Coordination.Volume.Region> = listOf(r.region) +
-        r.flatFromMm.map { Coordination.Volume.Region(it, r.region.toMm, r.region.x0, r.region.x1, r.region.y0, r.region.y1) }
+    fun readings(r: OverhangRegion, layerMm: Double): List<Coordination.Volume.Region> =
+        if (r.region.fromMm >= layerMm - 1e-9) listOf(r.region)
+        else listOf(r.region) + r.flatFromMm.filter { it >= layerMm - 1e-9 }.map { Coordination.Volume.Region(it, r.region.toMm, r.region.x0, r.region.x1, r.region.y0, r.region.y1) }
 
     /**
      * How far the region's layer read ([readings]) reaches over air (mm), where (mm, the posed model's frame), whether that

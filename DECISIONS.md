@@ -2407,7 +2407,7 @@ under a plate of the model below the arm, found), CantileverBridgeTest (the arms
 arm's lines along it, nothing reported, seen at 0 degrees each before; a span bridged across; a slab held only from
 above reported, with support unset and locked off).
 
-## 69. An overhang region is read for hanging off one side at each level face of it, not at its lowest layer alone (2026-11-20)
+## 69. An overhang region standing on the bed is read for hanging off one side at each level face of it higher up (2026-11-20)
 
 **Context.** Support decided per overhang requires support under a cantilever: an overhang region whose layer reaches
 over air past a line width, anchored on one side only (the Cantilever rule), whatever the weights. The faces needing
@@ -2420,21 +2420,28 @@ from a sum of three single-precision coordinates, which rounds; a level face on 
 from the same vertices) read up to a few tenths of a micron above the box, outside the spot under it, and was counted
 unheld, in the plan's figure and in the droop the weights read.
 
-**Decision.** A region is read at its lowest layer and at the lowest layer of each level face of it higher up (its faces
-whose three corners lie within a micron of one height, the survey's own tolerance for one position), each reading the
-region's box from that height; it is a cantilever where any reading is, and its words name the layer read. No new
-number. A face's middle for the spot and region tests is summed in double precision.
+**Decision.** A region whose lowest layer lies within the first layer (it stands on the bed, and that layer is not read)
+is read at the lowest layer of each level face of it higher up (its faces whose three corners lie within a micron of one
+height, the survey's own tolerance for one position), each reading the region's box from that height; it is a
+cantilever where any reading is, and its words name the layer read. A region above the first layer is read at its
+lowest layer, as before. No new number. A face's middle for the spot and region tests is summed in double precision.
 
-**Rejected.** Reading every layer of every region: a sloped overhang's every layer steps out by the same amount, and a
-reading per layer per region multiplies the cuts of a pose search for nothing a level face does not already show.
-Splitting a region at a change of slope: the cluster is support's unit of choice (a spot holds a region whole), and a
-region cut where the ramp meets the level underside would let the weights hold one and not the other. Widening the
-box test's tolerance: the faces' middles would still be rounded, only hidden.
+**Rejected.** Reading every region at each of its level faces: a level face in the middle of a curved underside (a hull,
+a cabin roof's edge) reads the stair-step of the slope around it, a little past a line width on layers near the thickest
+(0.5 to 0.7 mm at 0.3 mm layers), as a cantilever; the search then rejected plans it had chosen for such models, and the
+plan it chose instead laid a hole inside the walls the pre-print check refuses. Whether a stair-step a little past a
+line width is a cantilever is the rule's own question, not this one's. Reading every layer of every region: a sloped
+overhang's every layer steps out by the same amount, and a reading per layer per region multiplies the cuts of a pose
+search. Splitting a region at a change of slope: the cluster is support's unit of choice (a spot holds a region whole),
+and a region cut where the ramp meets the level underside would let the weights hold one and not the other. Widening
+the box test's tolerance: the faces' middles would still be rounded, only hidden.
 
 **Consequences.** A region rising from the bed into an underside level over air is supported whatever the weights, as
 any overhang hanging off one side past a line width is; a sloped region with no level face is read as before (on the
-bed, not at all). Decisions can change for models with such regions, and the held figures of plans whose level faces
-sit at heights a float holds only roughly rise to what support holds. Tests: CantileverBridgeTest (a block, a ramp
+bed, not at all), and a region above the first layer as before. Decisions can change for models with such regions, and
+the held figures of plans whose level faces sit at heights a float holds only roughly rise to what support holds.
+Open: an underside level over air higher up in a region that starts above the first layer, where its lowest layer reads
+no cantilever, is still left to the weights. Tests: CantileverBridgeTest (a block, a ramp
 whose underside rises from the bed to 5.06 mm, and an arm level at 5.06 mm reaching 30 mm out: with weights that would
 rather pay no support, all 366.6 mm² needing support is held; on main none was; with the faces' middles summed as
 floats, 126.6 mm²; control: the ramp alone, no level underside, is weighed and left unheld by those weights).

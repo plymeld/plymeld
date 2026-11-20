@@ -56,8 +56,8 @@ section the release's version and date.
   bed is now supported whatever the weights, as any overhang hanging off one side further than a line width is. The
   faces needing support form one overhang region where they meet, and a region was read for hanging off one side at its
   lowest layer alone; one rising from the bed was not read at all, and the level underside at its top, however far it
-  reached over air, was left to the weights. A region is now read at its lowest layer and at each level face of it
-  higher up.
+  reached over air, was left to the weights. A region standing on the bed is now read at each level face of it higher
+  up; a region above the first layer is read at its lowest layer, as before.
 - The plan's figure for the overhang area support holds up counts the level faces on top of an overhang region: a face
   whose height a single-precision number holds only roughly read its middle a fraction of a micron above the region's
   top, outside the support spot under it, and was counted as unheld, in the figure and in the weights' droop.
