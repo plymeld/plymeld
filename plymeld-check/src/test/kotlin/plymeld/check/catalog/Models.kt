@@ -239,6 +239,38 @@ object Models {
         listOf(a, b).map { Shapes.moved(it, CX - 8, CY - 4.5) }
     }
 
+    // ---- the inlay block's leaning face with a plate of the second filament just behind it (BuriedPartFaceTest's section) ----
+
+    /**
+     * The plate behind the face, across a layer: 1.33 mm of the first filament in front of it (1.25 mm along the face's
+     * normal), about three lines of 0.44 mm: room for the two outer walls and a line between them, not for three walls a side.
+     */
+    const val PLATE_SKIN_MM = 1.33
+    /** The plate behind the face: its first and last layers' heights (mm), level. */
+    const val PLATE_Z0 = 1.0; const val PLATE_Z1 = 3.0
+    /** The plate behind the face: along X (mm, the block's own frame: the block from 0 to 12). */
+    const val PLATE_X0 = 2.0; const val PLATE_X1 = 10.0
+    /** Slabs as the walls rig's layers (a first layer of 0.2 mm, then 0.08 mm), 3.96 mm tall: a slab a layer, its section at the layer's middle. */
+    private val plateZs = listOf(0.0) + (0..47).map { 0.2 + 0.08 * it }
+    /** The block of the plate behind the face: 12 mm wide, its face leaning back at [INLAY_FACE_DEG] from y 0 on the bed, its back at y 6. */
+    private val plateBlock = xIn(0.0, 12.0) + listOf(wAtLeast(0.0), doubleArrayOf(0.0, 1.0, 0.0, 6.0))
+    /** The plate: parallel to the face, [skin] mm across a layer behind it and 0.8 mm thick along the face's normal, shorter than the face both ways. */
+    private fun plateBehind(skin: Double) = xIn(PLATE_X0, PLATE_X1) + listOf(wAtLeast(skin * sinF), wAtMost(skin * sinF + 0.8),
+        doubleArrayOf(0.0, 0.0, -1.0, -PLATE_Z0), doubleArrayOf(0.0, 0.0, 1.0, PLATE_Z1))
+    /**
+     * A plate of a second filament buried just behind a leaning face: A, the block of the inlay's face (leaning back at
+     * [INLAY_FACE_DEG]) with no inlay or opening; B, a plate parallel to the face with a skin of A in front of it narrower
+     * than three walls, ordinary walls beyond its ends and below its bottom edge. Built at the origin, the block's middle
+     * moved to ([CX], [CY]).
+     */
+    val plateBehindFace: List<TriangleSoup> by lazy { plateBehindFace(PLATE_SKIN_MM) }
+    /** [plateBehindFace] with [skin] mm of the first filament in front of the plate across a layer. */
+    fun plateBehindFace(skin: Double): List<TriangleSoup> {
+        val a = Shapes.slabs(plateZs) { z -> plymeld.geom.Booleans.difference(section(plateBlock, z), section(plateBehind(skin), z)) }
+        val b = Shapes.slabs(plateZs) { z -> section(plateBehind(skin), z) }
+        return listOf(a, b).map { Shapes.moved(it, CX - 6, CY - 3) }
+    }
+
     // ---- seams ----
 
     /** A smooth cylinder 12 mm across, 8 mm tall: no corner to hide a seam in. */

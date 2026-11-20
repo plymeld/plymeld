@@ -8,14 +8,14 @@ models in `test-models/`, and test resources.
 The catalog ([Catalog.kt](../../plymeld-check/src/test/kotlin/plymeld/check/catalog/Catalog.kt)) is one list of small
 models built in code, each with a stable name and a line saying what it is for: one technique, or one known weakness
 (a lens growing from one line to two, a stroke about as wide as two lines become three, a web between a hole and the side, a thin ridge, a sliver of one filament on
-another's face, an inlay on a leaning face, small teeth hanging off a second part's edge, slivers of one filament ending inside another's area, seams on a cylinder and a post, an overhang ladder, bridges, sloped and
+another's face, an inlay on a leaning face, a plate of a second filament buried just behind a leaning face, small teeth hanging off a second part's edge, slivers of one filament ending inside another's area, seams on a cylinder and a post, an overhang ladder, bridges, sloped and
 domed tops, an oval's top laid in round rings, a stepped top whose fills of several kinds share edges, a small pillar, holes and pins). Each is sliced with a rig (the machine and plan values over the slicing
 tests' setup) under a few rows of settings that matter to it, the first always the rig as it is.
 
 It is for catching side effects during development, not for judging a printer. `CatalogTest` slices every model
 under every row, one after another, and measures each file: the pre-print check as `slice` runs it, and its laid-twice
 measure as `slice` reports it (the spots, their area, the layers holding one, the widest); for the walls cases,
-the uncovered area, plastic outside, plastic laid twice, paths and the shift between layers; the seam scar, seams,
+the uncovered area, plastic outside, plastic laid twice, paths and the shift between layers (inside the read window); the seam scar, seams,
 scarf seams and jogs; unretracted travel over open air and across tops, visible restarts, retractions; filament and
 predicted time; the paths and length of every feature type; and the jagged lines: extruding moves shorter than the
 slicing tolerance (all, and the outer wall's), the outer wall's kinks (a turn of more than 150 degrees beside a move

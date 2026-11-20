@@ -96,6 +96,8 @@ object Catalog {
             { Models.speckBeside }),
         Entry("inlay on a leaning face", "a second filament inlaid flush in a leaning face, and an opening with walls turned from the face's normal down to a buried plate of it",
             Slicing.TWO_TOOLS, { Models.inlay }, rows = listOf(BASE, SUPPORT)),
+        Entry("plate behind a leaning face", "a plate of a second filament buried behind a leaning face, about three lines of the first in front of it: the line between the outer walls meeting the inner walls where they turn away behind the plate, and the face's wall where the plate begins",
+            Slicing.WALLS, { Models.plateBehindFace }, walls = WallRead(0.9, 1.3)),
         Entry("two-color piece", "two halves of two filaments side by side: a tool change and a purge on every layer", Slicing.TWO_TOOLS,
             { Models.twoColorPiece }, rows = listOf(BASE, Row("purge into infill", listOf("plan.mechanism.purge.into" to "infill")))),
         Entry("teeth under a second part", "small teeth of one filament hanging off another's edge over air: islands laid by their beads, nothing bridged or filled over them",

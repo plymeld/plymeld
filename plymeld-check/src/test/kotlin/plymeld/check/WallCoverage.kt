@@ -21,8 +21,8 @@ import java.util.Locale
  *  - doubled: cells covered by two beads (two paths, or one path's places more than 1.5 of its widths apart along it) once
  *    each bead is narrowed by half the usual overlap of two touching beads (h (1 - pi / 4)) and the slicing tolerance a
  *    side, an infill line's also by what it reaches into the walls: overlap beyond the usual, mm².
- * [shift]: how far one layer's lines lie from the layer below's (each line sampled every 0.02 mm, its distance to the
- * nearest line of the other layer; the larger of the two ways, mm).
+ * [shift]: how far one layer's lines lie from the layer below's (each line sampled every 0.02 mm inside the window, its
+ * distance to the nearest line of the other layer; the larger of the two ways, mm).
  *
  * The grid and the margins are the test's; nothing here is a print value.
  */
@@ -231,18 +231,25 @@ object WallCoverage {
             pathIds.minOfOrNull { read.paths[it].length } ?: 0.0, segs.minOfOrNull { read.moveLength[it.move] } ?: 0.0, dbl * area)
     }
 
-    /** How far [a]'s lines lie from [b]'s (and back), the larger (mm): each line sampled every 0.02 mm; [tool]: one tool's lines. */
+    /**
+     * How far [a]'s lines lie from [b]'s (and back), the larger (mm): each line sampled every 0.02 mm, the points inside [win]
+     * read against the other layer's lines within [SHIFT_REACH_MM] of it (a long move reaching out of the window is read
+     * only where it is in it: one layer's move may stop at a point the other's runs straight through); [tool]: one tool's
+     * lines.
+     */
     fun shift(a: Layer, b: Layer, win: Window, tool: Int?): Double {
-        fun pick(l: Layer) = l.segs.filter { (tool == null || it.tool == tool) && maxOf(it.x0, it.x1) >= win.x0 && minOf(it.x0, it.x1) <= win.x1 &&
-            maxOf(it.y0, it.y1) >= win.y0 && minOf(it.y0, it.y1) <= win.y1 }
-        val sa = pick(a); val sb = pick(b)
+        fun pick(l: Layer, m: Double) = l.segs.filter { (tool == null || it.tool == tool) && maxOf(it.x0, it.x1) >= win.x0 - m && minOf(it.x0, it.x1) <= win.x1 + m &&
+            maxOf(it.y0, it.y1) >= win.y0 - m && minOf(it.y0, it.y1) <= win.y1 + m }
+        val sa = pick(a, 0.0); val sb = pick(b, 0.0)
         if (sa.isEmpty() || sb.isEmpty()) return if (sa.isEmpty() && sb.isEmpty()) 0.0 else Double.POSITIVE_INFINITY
+        val ra = pick(a, SHIFT_REACH_MM); val rb = pick(b, SHIFT_REACH_MM)
         fun far(from: List<Seg>, to: List<Seg>): Double {
             var worst = 0.0
             for (s in from) {
                 val k = maxOf(1, Math.ceil(s.length / 0.02).toInt())
                 for (t in 0..k) {
                     val px = s.x0 + (s.x1 - s.x0) * t / k; val py = s.y0 + (s.y1 - s.y0) * t / k
+                    if (px < win.x0 || px > win.x1 || py < win.y0 || py > win.y1) continue
                     var best = Double.MAX_VALUE
                     for (q in to) {
                         val dx = q.x1 - q.x0; val dy = q.y1 - q.y0; val l2 = dx * dx + dy * dy
@@ -254,8 +261,10 @@ object WallCoverage {
             }
             return worst
         }
-        return maxOf(far(sa, sb), far(sb, sa))
+        return maxOf(far(sa, rb), far(sb, ra))
     }
+    /** How far round [shift]'s window the other layer's lines are read (mm): the test's margin, not a print value. */
+    const val SHIFT_REACH_MM = 2.0
 
     /**
      * The exact Euclidean distance (in cells) from each cell where [mask] is true to the nearest cell where it is false

@@ -2226,3 +2226,66 @@ the bounding-box routine drawn in print order, drawn in print order, in reverse,
 seen to fail with one round end left out of the span; control: in reverse without the same-depth rule, two beads at
 one depth differ), RenderLargeTest (a slow suite: 2500 layers, 15 MB, drawn in 3D in a JVM of its own with a 64 MB
 heap within 30 s, 1.5 s measured; control: a 24 MB heap runs out).
+
+## 66. A line between two walls meets a third across its way as a line meets a wall; a loop widens only beside its slit (2026-11-20)
+
+A fix to two rules that the code fell short of: decision 26's (a center line's end against a loop reaches into it by
+`plan.layer.infill.wall_overlap` of its width past bead contact) and decision 34's (two loops share a slit too narrow
+for a line, each half of it wider where it lies).
+
+**Context.** Where a part of another filament lies buried just behind a face, the area in front of it can be too narrow
+for all its walls: about three lines across holds the face's outer wall, the buried part's (the area's hole), and a
+center line between them, while the face's inner walls turn away from the face at each end of the part and run behind
+it. The center line ran on toward that turn and stopped at bead contact: Walls.reachInto read the band nearest its end,
+which is the outer walls' beside it, found it not ahead, and left the end as it was. Its round end, the turn, and the two
+outer walls closed in a pocket behind the outer wall at each end of the part, on every layer it spans (0.13 to 0.15 mm
+across by IslandCheck's measure on BuriedPartFaceTest's section, under the pre-print check's hole floor). shareSlits read
+that pocket as a slit beside the face's outer wall and widened the wall there; along an edge it kept only the edge's
+start and the points beside the slit, so the widening ran from the start of the face's long edge to the pocket at its
+far end: the face's outer wall laid wider (up to 0.045 mm) and further in (up to 0.023 mm), slanting along the whole
+face on every layer the part spans, with a step at its end, and back to its place on the layers above and below.
+
+**Decision.**
+- Where the band nearest a center line's end lies beside it, and a band lies within the same reach (half its width and
+  the skeleton's sampling) straight out from each side of the end (a line between two walls), the end reads straight on
+  along its own way: a band whose edge that way crosses within that reach, entering the band and within 60 deg of head
+  on, is the wall it ends against, and it reaches in by the same overlap as against a wall ahead. A side wall the line
+  runs along, or one closing in on it at a slant (a line thinning out between two walls), is not crossed so, and such an
+  end stays as it was; so does the end of a line along the outline (the outer line of a narrow tip), with a wall on one
+  side only. Only in an island wide enough for its walls somewhere: a narrow island's walls (decision 28) stay as they
+  were, so its beads are judged against the same walls as before.
+- Along a loop's edge, shareSlits keeps the last point read before a slit as well as the first after it: the loop widens
+  and moves over one step (the skeleton's sampling) where a slit begins and ends, and keeps its place and width elsewhere.
+- The catalog's wall reading measures the shift between layers only at the points inside its window (a long move reaching
+  out of a fixed window was read out to its far end, against the other layer's moves inside the window: a move one layer
+  ends at a point the other runs straight through read as a shift of millimeters).
+
+**Rejected.** Joining the center line into the inner loop it meets as one path (the line a chord of the loop, laid as
+one path from one end of the part to the other): the walls keep loops and open lines apart (seams, order, scarf), and
+the line's end reaching into the loop covers the pocket. Laying the line in front of the part at the inner wall's place
+and width so the line behind the outer wall does not change where the part begins: the narrow area's leftover then
+holds a slit between it and the buried part's wall (about 0.03 mm at three lines across), which only that wall could
+take; the center line's face-side edge already lies where the inner wall's did (within 0.01 mm), its far side
+taking the rest. Spreading a shared slit's widening over `plan.layer.walls.transition_length`: started before the slit,
+the loop overlaps its neighbor where there is no slit; started inside it, it leaves the slit's ends bare.
+
+**Consequences.** BuriedPartFaceTest (the catalog's plate behind a leaning face, its section on a layer below the plate
+and one through it): the face's outer wall straight and even through the part's ends and between the two layers (no
+change of its distance from the face or its width between points or layers, against 0.023 and 0.045 mm with both rules
+as before, the control); along the face's middle 6 mm, beside a slit at the edge's end, unchanged against 0.020 and
+0.040 mm without the point before the slit (control); the widest uncovered spot in front of each end of the part 0.085
+and 0.067 mm, against 0.150 and 0.127 mm reaching in only where the nearest band is ahead (control). The pre-print
+check's hole rule is unchanged: the pocket was narrower than its floor, a spot a line could not have been laid in. The
+catalog: more center lines reach into the walls they meet (inner walls a few tenths of a millimeter longer a layer on the
+ridges, webs, lens, pins, sliver tips, and inlay); the web 2.2 mm's widest uncovered spot 0.045 to 0.014 mm, the web
+1.0 mm's plastic laid twice 1.16 to 0.79 mm²; loops widen only beside their slits (a little less filament on the
+buried fin, exposed wedge, speck, finger, and ridges). Where line ends moved, paths are ordered differently: the web
+2.2 mm has one more retraction on most layers (87 to 98) and 1.7 s more, the steep and pointed ridges one more each,
+the inlay two fewer, the web 1.0 mm four fewer. Read on along its way in a narrow island too, a line made that island's
+walls measure better than its beads on the wedge's first layer, which then kept walls that leave its tip's outline bare
+(the pre-print check refused it): hence only in wide islands. Still open: the line behind the face's outer wall
+changes from an inner wall to the narrow area's center line where a buried part begins (its face-side edge in place,
+its middle about 0.02 mm further in, 0.03 mm wider); a shared slit's widening still changes width over one step. The
+buried part's underside is not a surface of the object (the regions are classified against the whole object, all its
+parts together), so the shell rules put no solid layers under it and none as its bottom: its first layer and the first
+filament's lines beside it lie over the sparse infill below, as the interior of a part of one filament does.
