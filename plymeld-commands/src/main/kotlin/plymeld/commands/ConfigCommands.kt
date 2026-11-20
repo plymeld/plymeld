@@ -315,7 +315,7 @@ class ShowConfigCommand : ConfigCommand("config") {
  */
 class SchemaCommand : CliktCommand(name = "schema") {
     private val output by option("-o", "--output", metavar = "FILE", help = "file to write (default: print it)").path()
-    private val markdown by option("--markdown", metavar = "PAGE", help = "rewrite the settings tables in this page below its marker line, instead of the JSON Schema").path()
+    private val markdown by option("--markdown", metavar = "PAGE", help = "rewrite the settings tables in this page below its marker line, instead of the JSON Schema").path(mustExist = true, canBeDir = false)
     override fun help(context: com.github.ajalt.clikt.core.Context) =
         "Print (or write, -o) the config schema as JSON Schema, for editors checking config files; or rewrite the settings catalog's tables (--markdown)."
     override fun run() {

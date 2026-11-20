@@ -4,7 +4,9 @@ name: Release
 # version passed to Gradle (-Pplymeld.version; a build without it is 0.0.0-dev), for
 # Windows and Linux, packages them with Velopack (the Windows installer and portable zip, the AppImage, the update feeds),
 # and uploads them, with the Linux command line's own tar, to a draft GitHub release for the maintainer to read and
-# publish. Each platform builds and packages on its own runner, with the same tools/ scripts as a hand build.
+# publish. Each platform builds and packages on its own runner, with the same tools/ scripts as a hand build, and runs
+# every command on the executables it packages (tools/native-smoke.sh) before anything is published: the draft is
+# created only once both platforms' executables have passed, and a failed case stops the release with no draft.
 on:
   push:
     tags: ['v*']
@@ -17,13 +19,12 @@ env:
   PLYMELD_FEED: https://plymeld.org/releases
 
 jobs:
-  draft:
-    name: Draft release
+  version:
+    name: The version
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v7
       - id: version
         name: The version, from the tag
         run: |
@@ -31,19 +32,14 @@ jobs:
           [[ "$ver" =~ ^0\.[0-9]{8}\.[0-9]+$ ]] || { echo "tag $GITHUB_REF_NAME is not v0.YYYYMMDD.N"; exit 1; }
           date -u -d "${ver:2:8}" +%Y%m%d > /dev/null 2>&1 || { echo "tag $GITHUB_REF_NAME: ${ver:2:8} is not a date"; exit 1; }
           echo "version=$ver" >> "$GITHUB_OUTPUT"
-      - name: The draft release (its notes are written from CHANGELOG.md before it is published)
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VER: ${{ steps.version.outputs.version }}
-        run: gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "plymeld $VER" --notes "Notes to come from CHANGELOG.md."
 
   linux:
     name: Linux packages
-    needs: draft
+    needs: version
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 150
     env:
-      VER: ${{ needs.draft.outputs.version }}
+      VER: ${{ needs.version.outputs.version }}
     steps:
       - uses: actions/checkout@v7
       # GraalVM for JDK 21 with native-image (Oracle GraalVM); sets GRAALVM_HOME and JAVA_HOME. Pinned to the release the
@@ -72,8 +68,25 @@ jobs:
           pack="$RUNNER_TEMP/linux"; mkdir -p "$pack"
           cp -a plymeld-ui/build/native/. "$pack/"
           rm -rf "$pack/lib/"*.jar
-          # the command line and any library native-image put beside it (the window's own copies kept)
-          for f in plymeld-cli/build/native/*; do case "$f" in *.txt) ;; *) cp -an "$f" "$pack/" ;; esac; done
+          # the command line and any library native-image put beside it (the window's own copies kept); its lib/ is the
+          # window's, there already, with anything the command line's holds
+          for f in plymeld-cli/build/native/*; do case "$f" in *.txt) ;; *) if [ -d "$f" ]; then mkdir -p "$pack/${f##*/}"; cp -an "$f"/. "$pack/${f##*/}/"; else cp -an "$f" "$pack/"; fi ;; esac; done
+      # every command, run by the executables as they ship: the tar's command line (its own folder, as the tar holds it),
+      # and the AppImage's command line and window (the package folder, where the command line uses the window's copies
+      # of the libraries both load)
+      - name: Every command, run by the tar's command line
+        run: tools/native-smoke.sh check plymeld-cli/build/native/plymeld "$RUNNER_TEMP/smoke-tar"
+      - name: Every command, run by the AppImage's command line and window
+        run: tools/native-smoke.sh check "$RUNNER_TEMP/linux/plymeld" --window "$RUNNER_TEMP/linux/plymeld-ui" "$RUNNER_TEMP/smoke-appimage"
+      - name: Keep the smoke runs' files of a failed run
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-smoke
+          path: |
+            ${{ runner.temp }}/smoke-tar/
+            ${{ runner.temp }}/smoke-appimage/
+          retention-days: 14
       - name: Install vpk (Velopack's packager)
         run: |
           dotnet tool install -g vpk
@@ -86,18 +99,20 @@ jobs:
           cp plymeld-cli/build/plymeld-linux-x64.tar.gz "$out/"
           # the checksum `plymeld update` checks the tar against before it replaces an installed command line
           (cd "$out" && sha256sum plymeld-linux-x64.tar.gz > plymeld-linux-x64.tar.gz.sha256)
-      - name: Upload to the draft release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$GITHUB_REF_NAME" "$RUNNER_TEMP"/releases/* --clobber
+      - name: Keep the packages for the draft
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-releases
+          path: ${{ runner.temp }}/releases/
+          retention-days: 7
 
   windows:
     name: Windows packages
-    needs: draft
+    needs: version
     runs-on: windows-latest
-    timeout-minutes: 180
+    timeout-minutes: 210
     env:
-      VER: ${{ needs.draft.outputs.version }}
+      VER: ${{ needs.version.outputs.version }}
       # native-image's builder heap for the window (tools/build-native-ui.cmd); the runner has 16 GB
       NATIVE_XMX: 12g
     steps:
@@ -138,8 +153,8 @@ jobs:
           META: ${{ github.workspace }}\plymeld-ui\src\main\resources\META-INF\native-image\com.plymeld\plymeld-ui
           OUT: ${{ runner.temp }}\ui
         run: call tools\build-native-ui.cmd build || exit /b 1
-      # the window with its DLLs and bin\jawt.dll at the root; the command line with ITS OWN DLLs under cli\ (native-image's
-      # stub DLLs differ per image); not the icon's build files
+      # the window with its DLLs and bin\jawt.dll at the root; the command line with ITS OWN DLLs and lib\ (its fonts'
+      # configuration) under cli\ (native-image's stub DLLs differ per image); not the icon's build files
       - name: The package folder
         shell: pwsh
         run: |
@@ -148,6 +163,20 @@ jobs:
           Copy-Item "$env:RUNNER_TEMP\ui\*.exe", "$env:RUNNER_TEMP\ui\*.dll" $win
           Copy-Item "$env:RUNNER_TEMP\ui\bin\*" "$win\bin"
           Copy-Item "$env:RUNNER_TEMP\cli\*.exe", "$env:RUNNER_TEMP\cli\*.dll" "$win\cli"
+          Copy-Item -Recurse "$env:RUNNER_TEMP\cli\lib" "$win\cli\lib"
+      # every command, run by the executables the installer and the portable zip carry (Git's bash runs the script)
+      - name: Every command, run by the command line and the window
+        shell: bash
+        run: |
+          t="$(cygpath -u "$RUNNER_TEMP")"
+          tools/native-smoke.sh check "$t/win/cli/plymeld.exe" --window "$t/win/plymeld-ui.exe" "$t/smoke"
+      - name: Keep the smoke run's files of a failed run
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-smoke
+          path: ${{ runner.temp }}/smoke/
+          retention-days: 14
       # on PATH for the steps after this one, so package-velopack.cmd finds it there (its fallback is a per-user .NET)
       - name: Install vpk (Velopack's packager)
         shell: pwsh
@@ -161,14 +190,34 @@ jobs:
           PLYMELD_ICONS: ${{ github.workspace }}\plymeld-ui\build\icons
           OUT: ${{ runner.temp }}\releases
         run: call tools\package-velopack.cmd %VER% win || exit /b 1
-      - name: Upload to the draft release
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$GITHUB_REF_NAME" "$RUNNER_TEMP"/releases/* --clobber
+      - name: Keep the packages for the draft
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-releases
+          path: ${{ runner.temp }}\releases\
+          retention-days: 7
       # when the cache missed, setup-graalvm saves it after the job, which on Windows fails while a Gradle or Kotlin
       # daemon (java.exe) still holds its files open
       - name: Stop the build's daemons
         if: always()
         shell: cmd
         run: taskkill /F /IM java.exe /T || exit /b 0
+
+  # only once both platforms' executables have passed: the draft, with every package
+  draft:
+    name: Draft release
+    needs: [version, linux, windows]
+    runs-on: ubuntu-latest
+    env:
+      VER: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: '*-releases'
+          merge-multiple: true
+          path: ${{ runner.temp }}/releases
+      - name: The draft release (its notes are written from CHANGELOG.md before it is published)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "plymeld $VER" --notes "Notes to come from CHANGELOG.md." "$RUNNER_TEMP"/releases/*

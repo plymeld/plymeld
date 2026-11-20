@@ -171,8 +171,8 @@ object Installs {
     }
 
     /**
-     * The Linux command line's tar: `plymeld-linux-<arch>.tar.gz`, a `plymeld/` folder holding the executable and the
-     * libraries native-image put beside it, unpacked anywhere. Updated in place: the new tar downloaded beside the
+     * The Linux command line's tar: `plymeld-linux-<arch>.tar.gz`, a `plymeld/` folder holding the executable, the
+     * libraries native-image put beside it, and its `lib/` folder, unpacked anywhere. Updated in place: the new tar downloaded beside the
      * install, checked against the published `.sha256`, unpacked into a folder there, its executable's `--version`
      * asked, and then each file moved over the installed one (a rename: the running executable keeps its own copy until
      * it exits, as Linux allows).
@@ -287,8 +287,13 @@ object Installs {
             }
         }
 
-        /** Moves every file unpacked in [staged] over its counterpart in [folder] (each a rename within one file system). */
+        /**
+         * Moves every file unpacked in [staged] over its counterpart in [folder] (each a rename within one file system), and
+         * makes every folder the tar holds there, an empty one too (the executable's lib/, which the JDK's fonts look for).
+         */
         fun replace(staged: Path, files: List<Path>, folder: Path) {
+            Files.walk(staged).use { s -> s.filter { Files.isDirectory(it) && it != staged }.toList() }
+                .forEach { Files.createDirectories(folder.resolve(staged.relativize(it).toString())) }
             for (f in files) {
                 val rel = staged.relativize(f)
                 val target = folder.resolve(rel.toString())

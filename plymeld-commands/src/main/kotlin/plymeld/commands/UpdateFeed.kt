@@ -96,10 +96,12 @@ object UpdateFeed {
 
     private val http: HttpClient by lazy { HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).followRedirects(HttpClient.Redirect.NORMAL).build() }
 
-    /** Reads `{feedUrl}/releases.{channel}.json`. Throws on a network or feed error. */
+    /** Reads `{feedUrl}/releases.{channel}.json`. Throws on a network or feed error, a feed it cannot reach in words. */
     fun fetch(feedUrl: String, channel: String, timeout: Duration = Duration.ofSeconds(20)): List<Release> {
         if (!feedAllowed(feedUrl)) error("the update feed must be an https address: $feedUrl")
-        val res = http.send(HttpRequest.newBuilder(URI("${feedUrl.trimEnd('/')}/releases.$channel.json")).timeout(timeout).GET().build(), HttpResponse.BodyHandlers.ofString())
+        val url = "${feedUrl.trimEnd('/')}/releases.$channel.json"
+        val res = try { http.send(HttpRequest.newBuilder(URI(url)).timeout(timeout).GET().build(), HttpResponse.BodyHandlers.ofString()) }
+            catch (e: java.io.IOException) { error("could not reach the update feed at $url: ${e.message ?: e.javaClass.simpleName}") }
         if (res.statusCode() != 200) error("the update feed answered ${res.statusCode()}")
         return parseFeed(res.body())
     }

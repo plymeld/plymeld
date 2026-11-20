@@ -19,7 +19,8 @@ From the [releases page](https://github.com/plymeld/plymeld/releases), the lates
 
 - `plymeld.AppImage` is the window: make it executable (`chmod +x plymeld.AppImage`) and run it.
 - `plymeld-linux-x64.tar.gz` is the command line. Unpack it where you keep programs, and put the folder on your `PATH`
-  or link the program into one that is:
+  or link the program into one that is (keep the folder whole: the program draws pictures with the libraries and the
+  `lib/` folder beside it):
 
 ```
 mkdir -p ~/.local/opt ~/.local/bin

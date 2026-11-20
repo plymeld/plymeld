@@ -82,4 +82,11 @@ class UpdateFeedTest : StringSpec({
         UpdateFeed.channel("Linux") shouldBe "linux"
         UpdateFeed.channel("Mac OS X") shouldBe null
     }
+
+    "a feed that cannot be reached is refused in words naming its address, not a stack trace; control: a feed that is not https is refused for that" {
+        val port = java.net.ServerSocket(0).use { it.localPort }    // a port of this machine nothing listens on
+        val e = io.kotest.assertions.throwables.shouldThrow<IllegalStateException> { UpdateFeed.fetch("http://127.0.0.1:$port/releases", "linux", Duration.ofSeconds(5)) }
+        e.message!! shouldContain "could not reach the update feed at http://127.0.0.1:$port/releases/releases.linux.json"
+        io.kotest.assertions.throwables.shouldThrow<IllegalStateException> { UpdateFeed.fetch("http://feed.example/releases", "linux") }.message!! shouldContain "must be an https address"
+    }
 })

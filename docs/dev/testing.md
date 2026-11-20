@@ -60,3 +60,23 @@ comes and goes from run to run; the code at fault gets a test of its own that do
 ```
 
 which writes the run as the new baseline, then read the file's diff and commit it with the change that moved it.
+
+## The native executables
+
+The tests run on the JVM; the release ships the command line and the window as GraalVM native images, which reach what
+native-image cannot see (the JDK's imaging, AWT, whose libraries call back into Java through JNI; reflection; resources)
+only through their reachability metadata, the command line's in
+`plymeld-cli/src/main/resources/META-INF/native-image/com.plymeld/plymeld-cli`. `tools/native-smoke.sh` runs every
+command on small jobs from `test-models/` and holds each to its exit status and to what proves its work ran: a file
+written, a picture that decodes, a line of text (`render` in each of its views, color modes, marks, sheet, comparison,
+PNG and SVG; every calibration plate, its readings and values; the printer commands against a saved answer, or refused
+at a host that does not exist; `init`, `updates --check` and `update` at their refusals without a terminal or a feed).
+
+- `tools/native-smoke.sh check <executable> [--window <window executable>]` fails when a case fails. CI's "Native
+  command line" job runs it on every pull request with the native command line it builds; the release runs it on every
+  executable it packages, on Linux and on Windows, before the draft release is created.
+- `tools/native-smoke.sh trace` runs the same cases on the JVM under GraalVM's tracing agent (`GRAALVM_HOME`, after
+  `./gradlew :plymeld-cli:installDist`), merging what they reach into the command line's metadata. A change that reaches
+  something new (a library, a drawing path, a protocol) traces again and commits the metadata's diff with it.
+- `NativeSmokeCoverageTest` holds the script to the command tree: a command or subcommand added without a case fails the
+  build, unless the script's not-yet ledger (`not_yet "<command>" "<reason>"`) says why it cannot run there.
