@@ -9,6 +9,8 @@ section the release's version and date.
 
 ## [Unreleased]
 
+## [0.20261120.0] - 2026-11-20
+
 ### Added
 
 - `plymeld render FILE.gcode`: pictures of what any g-code file lays down, read from the file alone (no slicing, no
