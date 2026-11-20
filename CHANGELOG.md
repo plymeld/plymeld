@@ -139,6 +139,8 @@ section the release's version and date.
   outer wall is still laid free. With fewer than three walls, or where the outer wall hangs out past the layer below,
   inner first. The inner wall laid just before the outer one, and the one laid just after it, start nearest the outer
   wall's start and end, so the head steps between them and the outer wall without a long travel. `inner_first` and `outer_first` (the order before) stay values.
+  A config or plan file that still sets the old switch is read as `order = "inner_first"` (`inner_first = true`) or
+  `"outer_first"` (`false`), with a warning; `plymeld migrate FILE...` rewrites it.
 - An outer wall's restore after a retracted travel happens a line inside its start, and the head then moves onto the
   start with nothing pushed (`hardware.filament.<key>.retract.return.inside`, on in the bundled filaments). Restored at the
   start, the push left a blob on the visible face, where a scarf seam's ramp is thinnest.
