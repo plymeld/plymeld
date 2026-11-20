@@ -61,7 +61,7 @@ object Booleans {
         // edges: split points are rounded, so a piece's midpoint can sit a fraction of a
         // grid unit off the original edge and the side test there has an arbitrary sign.
         // Each input's pieces still form closed chains, and every piece contains its own
-        // midpoint exactly. (Found by fuzzing against an independent reference: an empty union.)
+        // midpoint exactly. (Without it a union can come out empty.)
         val edgesA = subset(pieces, 0)
         val edgesB = subset(pieces, 1)
         val idxA = BandIndex(edgesA)

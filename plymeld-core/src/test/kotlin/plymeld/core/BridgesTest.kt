@@ -45,7 +45,7 @@ class BridgesTest : StringSpec({
         Bridges.internalAngle(listOf(rect(0, 0, 40_000, 40_000)), ring, listOf(Bridges.Family(135.0, 2_000)), 400, 400) shouldBe 45.0
     }
 
-    // a test model's layer in miniature: a 2.4 mm strip between walls, over a 45/135 grid 5.66 mm apart. Along
+    // a narrow strip: 2.4 mm between walls, over a 45/135 grid 5.66 mm apart. Along
     // the strip the crossings come every 4 mm; across it every strand is held at both walls: 2.4 mm.
     "a narrow strip over a grid is bridged across its width, wall to wall" {
         val below = listOf(rect(-5_000, -5_000, 45_000, 7_400), Polygon(longArrayOf(0, 0, 0, 2_400, 40_000, 2_400, 40_000, 0)))

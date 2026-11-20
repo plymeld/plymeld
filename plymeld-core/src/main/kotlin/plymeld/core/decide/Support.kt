@@ -32,8 +32,8 @@ object Support {
      * The narrowest overhang region a tree can hold up (mm): a tip's diameter with the XY gap on both sides, from
      * [controls] (the settings' values); 0 when either is not set. A region narrower than this is left out of the survey
      * (TreeSupports removes the gap around the object from every branch, so nothing of a tip survives in a sliver), and
-     * its faces droop: found on the two-color Benchy, whose plan promised support under two slivers under a
-     * millimetre wide that the slice could not build (SupportCheck refused it). Measured on the region's box; the faces'
+     * its faces droop: a plan promising support under a sliver narrower than that (on the two-color Benchy, two under a
+     * millimeter wide) promises what the slice cannot build, which SupportCheck refuses. Measured on the region's box; the faces'
      * own footprint is held to [columnWidthMm].
      */
     fun minRegionWidthMm(controls: List<Control>): Double {
@@ -50,9 +50,9 @@ object Support {
      * when set, else its rule for tree support, a tip's diameter ([controls]: tip_diameter, else twice the support line,
      * as Planner falls back); 0 when neither is known. The generator drops every overhang whose downward faces are not this
      * wide anywhere (Supports.dropSpecks), so the survey leaves out a region whose faces, seen from below, are not either
-     * ([Overhangs.holdsWidth]): found on the two-color Benchy (one filament on both parts), where a cluster of
-     * 0.0 mm² of faces lying diagonally across a 1.67 x 1.62 mm box passed the box's test, was planned as a support spot,
-     * and the slice printed no support in it (SupportCheck refused the file).
+     * ([Overhangs.holdsWidth]): a cluster of faces of almost no area lying diagonally across a box wide enough passes the
+     * box's test (on the two-color Benchy, one filament on both parts, a 1.67 x 1.62 mm box), yet the slice prints no
+     * support in it, which SupportCheck refuses.
      */
     fun columnWidthMm(controls: List<Control>, columnWidthSetting: Double?): Double {
         if (columnWidthSetting != null) return columnWidthSetting
@@ -319,6 +319,14 @@ object Overhangs {
     private val baseCache = object : LinkedHashMap<String, Double>(256, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Double>?) = size > 20_000
     }
+    /**
+     * A number per soup, never given to another while the process runs: [baseCache]'s keys name the model by it. Not its
+     * identity hash code: two soups alive at once may share one, and a soup no longer used may leave its code to a new
+     * one, whose regions would then read the other model's areas (two slices in one process, a pose search's candidates).
+     */
+    private val soupIds = java.util.WeakHashMap<TriangleSoup, Long>()
+    private var nextSoupId = 0L
+    private fun soupId(p: TriangleSoup): Long = synchronized(soupIds) { soupIds.getOrPut(p) { nextSoupId++ } }
 
     /**
      * The support interface's bottom: the model's cross-section just under the surface a region's column stands
@@ -331,7 +339,8 @@ object Overhangs {
 
     fun baseAreas(p: TriangleSoup, b: DoubleArray, regions: List<Pair<Coordination.Volume.Region, Double?>>, poseLabel: String): DoubleArray {
         val out = DoubleArray(regions.size)
-        val keys = regions.map { (r, so) -> so?.let { "${System.identityHashCode(p)}|$poseLabel|${r.words}|${Math.round(it * 1e4)}" } }
+        val id = soupId(p)
+        val keys = regions.map { (r, so) -> so?.let { "$id|$poseLabel|${r.words}|${Math.round(it * 1e4)}" } }
         val todo = ArrayList<Int>()
         synchronized(baseCache) { for (i in regions.indices) { val k = keys[i] ?: continue; val c = baseCache[k]; if (c != null) out[i] = c else todo += i } }
         if (todo.isEmpty()) return out

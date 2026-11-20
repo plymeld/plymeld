@@ -5,7 +5,7 @@ import io.kotest.matchers.doubles.plusOrMinus
 import io.kotest.matchers.shouldBe
 
 /**
- * Bond-first cooling (a quad helix's helices snapped mid-print): the bond factor, the cooling
+ * Bond-first cooling: the bond factor, the cooling
  * shortfall, and the decision under the job's weights. The coefficients here are the bundled placeholders; what is tested
  * is the logic, not the numbers.
  */

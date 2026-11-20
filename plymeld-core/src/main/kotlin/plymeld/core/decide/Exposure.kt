@@ -20,14 +20,17 @@ import java.util.concurrent.atomic.AtomicReferenceArray
  * the reach counts. Only the object's own geometry, by design: other objects on a plate are not placed with each other's
  * looks in mind (separate objects are not aligned with that in view). Not the bed.
  *
- * [outlines]: per layer, the outer-wall loops (µm); [topsUm]: each layer's top (µm, rising).
+ * [outlines]: per layer, the outer-wall loops (µm); [topsUm]: each layer's top (µm, rising); [bands]: per layer (or none),
+ * the footprints of the open outer-wall lines (a line along the outline where no loop fits: it is material as a loop's
+ * inside is), read as material wherever one covers a cell, whatever the loops say there.
  *
  * [look]: the print looked at from a side (plan.view_from): each direction counts its quadrant's weight
  * ([Visibility.Look.weight]), and the point reads the weighted directions that see it over what the most-seen open wall
  * gets, so a wall facing the viewer's quadrant counts more than one facing the back. Null = every direction alike: the
  * facing-weighted share of the directions the wall faces that get through (an open wall reads 1 whichever way it faces).
  */
-class Exposure(private val outlines: List<List<Polygon>>, private val topsUm: LongArray, val sample: Sample, val look: Visibility.Look? = null) {
+class Exposure(private val outlines: List<List<Polygon>>, private val topsUm: LongArray, val sample: Sample, val look: Visibility.Look? = null,
+               private val bands: List<List<Polygon>> = emptyList()) {
     /** The sampling (method.quality.visibility.sample.*): directions around and up, the reach of a ray, and the raster's cell. */
     class Sample(val azimuths: Int, val elevations: Int, val maxElevationDeg: Double, val reachUm: Long, val cellUm: Long,
                  /**
@@ -51,7 +54,7 @@ class Exposure(private val outlines: List<List<Polygon>>, private val topsUm: Lo
     private val minX: Long; private val minY: Long; private val cols: Int; private val rows: Int
     init {
         var x0 = Long.MAX_VALUE; var y0 = Long.MAX_VALUE; var x1 = Long.MIN_VALUE; var y1 = Long.MIN_VALUE
-        for (layer in outlines) for (p in layer) for (i in 0 until p.size) {
+        for (layer in outlines + bands) for (p in layer) for (i in 0 until p.size) {
             x0 = minOf(x0, p.x(i)); x1 = maxOf(x1, p.x(i)); y0 = minOf(y0, p.y(i)); y1 = maxOf(y1, p.y(i))
         }
         if (x0 > x1) { x0 = 0; y0 = 0; x1 = 0; y1 = 0 }
@@ -63,7 +66,10 @@ class Exposure(private val outlines: List<List<Polygon>>, private val topsUm: Lo
     private val rasters = AtomicReferenceArray<BitSet>(outlines.size)
 
     /** Layer [j]'s material: a cell is set when its center lies inside an odd number of the layer's loops. */
-    private fun raster(j: Int): BitSet = rasters.get(j) ?: rasterise(outlines[j]).also { rasters.compareAndSet(j, null, it) }
+    private fun raster(j: Int): BitSet = rasters.get(j) ?: rasterise(outlines[j]).also { b ->
+        bands.getOrNull(j)?.takeIf { it.isNotEmpty() }?.let { b.or(rasterise(it)) }
+        rasters.compareAndSet(j, null, b)
+    }
 
     private fun rasterise(loops: List<Polygon>): BitSet {
         // every crossing of a row's center line by an edge, packed as (row, x - minX) and sorted: consecutive pairs per row bound the inside
@@ -154,8 +160,8 @@ class Exposure(private val outlines: List<List<Polygon>>, private val topsUm: Lo
     /**
      * How much of the ray from ([x], [y]) at height [z0] along azimuth ([ca], [sa]), rising [tanE] per unit across, gets through:
      * 1 when it leaves the reach meeting no material; 1 - d / show_through when the only material it meets ends d from the seam,
-     * within [Sample.showThroughUm] (the seam close behind a thin wall shows through it: a part's seam 1.4 mm behind
-     * a visible wall printed as two faint vertical lines, while the map counted it hidden); 0 when material reaches deeper, or
+     * within [Sample.showThroughUm] (the seam close behind a thin wall shows through it, as faint vertical lines, where the
+     * map alone would count it hidden); 0 when material reaches deeper, or
      * comes again after it.
      */
     private fun through(layer: Int, x: Double, y: Double, ca: Double, sa: Double, tanE: Double, z0: Double): Double {
@@ -175,7 +181,7 @@ class Exposure(private val outlines: List<List<Polygon>>, private val topsUm: Lo
             } else if (inside) {
                 // out of the thin material within the show-through depth: seen through it, less the deeper it lay; material
                 // entered within the depth but reaching past it hides the seam (read as 1 - depth / show_through
-                // there, below 0, one model's base seam scar summed to -9.2 mm²)
+                // there, it would go below 0, and a seam scar could sum to less than nothing)
                 if (s > show) return 0.0
                 share = 1.0 - s / show; inside = false; passed = true
             }

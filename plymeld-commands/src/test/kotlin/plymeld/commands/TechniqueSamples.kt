@@ -60,12 +60,14 @@ object TechniqueSamples {
     /**
      * What every sample locks so that the picture shows the technique and nothing the search chose: the model as given, in
      * the plate's middle, flat layers of one 0.2 mm height (the tests' choice, the layer height of the other slice tests),
-     * bond-first cooling off and the search log off. A sample overrides any of these in its own file.
+     * bond-first cooling off, the search log off, and looked at from all around (the samples' models have no front of their
+     * own). A sample overrides any of these in its own file.
      */
     val PLAN = """
         [method.search]
         log.enabled = "false"
         [plan]
+        view_from = "all_around"
         pose = "as-given"
         placement = "center"
         bond_cooling = "off"

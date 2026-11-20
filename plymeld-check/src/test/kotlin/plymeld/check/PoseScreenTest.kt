@@ -16,7 +16,7 @@ import plymeld.model.Overhang
 
 /**
  * The pose search's screen: a pose whose best possible score cannot reach the best candidates is left without its
- * estimates (and its overhangs unsurveyed). On a trophy (a wide base, a tall column on it) under quality-heavy weights,
+ * estimates (and its overhangs unsurveyed). On a base and column (a wide base, a tall column on it) under quality-heavy weights,
  * standing upright needs no support, while upside down or on its side much of it needs support: those are ruled out.
  *
  * The check against the search without the screen, which measures every pose: the same choice; and every pose the screen
@@ -25,7 +25,7 @@ import plymeld.model.Overhang
  * search without it measured candidates in at least one of those.
  */
 class PoseScreenTest : StringSpec({
-    val soup = trophy()
+    val soup = baseAndColumn()
     val range = Control(FlatLayers.LAYER_HEIGHT, "mm", Control.Range.Continuous(0.1, 0.3), "test: the tool's thinnest and thickest layer")
     fun facts(screen: Boolean, shortlist: Double? = null) =
         PoseFacts(0.0, 0.0, 270.0, 270.0, 256.0, Overhang.fromAngle(30.0, 0.2, 0.4), "test", Weights.parse("quality=100", "test"), null,
@@ -75,11 +75,11 @@ class PoseScreenTest : StringSpec({
 })
 
 /**
- * A trophy: a base 40 x 40 mm and 4 mm thick, a column 8 x 8 mm on its middle up to 40 mm. Upright nothing overhangs;
- * upside down the base's underside ring (1536 mm²) faces down 36 mm up; on a side the column hangs 16 mm over the bed.
- * Outward winding.
+ * A base and column: a base 40 x 40 mm and 4 mm thick, a column 8 x 8 mm on its middle up to 40 mm. Upright nothing
+ * overhangs; upside down the base's underside ring (1536 mm²) faces down 36 mm up; on a side the column hangs 16 mm over
+ * the bed. Outward winding.
  */
-internal fun trophy(): TriangleSoup {
+internal fun baseAndColumn(): TriangleSoup {
     val t = ArrayList<Float>()
     fun tri(a: DoubleArray, b: DoubleArray, c: DoubleArray) { for (v in listOf(a, b, c)) for (x in v) t.add(x.toFloat()) }
     fun quad(a: DoubleArray, b: DoubleArray, c: DoubleArray, d: DoubleArray) { tri(a, b, c); tri(a, c, d) }

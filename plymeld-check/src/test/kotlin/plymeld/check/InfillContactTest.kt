@@ -12,9 +12,8 @@ import java.util.Locale
  * Where infill meets a wall: a line is clipped with its CENTER on the
  * region's edge, so the region is pulled in to where the bead merely touches the wall bead, the
  * same center distance as between two neighboring beads (w/2 - h(1 - pi/4)), before
- * infill_wall_overlap adds its bonding overlap. Clipping on the wall's edge itself laid half of
- * every line end on the wall (a deposition check against the model: testplate missing + excess plastic near
- * the surface 10.8 -> 4.7 mm3 on three layers).
+ * infill_wall_overlap adds its bonding overlap. Clipping on the wall's edge itself would lay half of
+ * every line end on the wall.
  */
 class InfillContactTest : StringSpec({
     "solid infill ends where its bead touches the inner wall, plus the bonding overlap" {

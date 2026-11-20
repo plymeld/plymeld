@@ -323,9 +323,8 @@ object PoseDecision {
      *   sawtooth is that deep whatever the layers' tilt (a vertical wall is flush under tilted layers as under flat ones).
      * - Edges per mm along the face: the sine of its angle to its layer / the layer's height. A face along its layer crosses
      *   none (the cap a curved island follows); flat layers on a gentle slope cross few, far apart.
-     * Depth alone (the measure earlier) charged a gentle slope nearly a whole layer whatever the edges' spacing, so a
-     * curved island a few degrees off its cap counted as stepped as flat layers, and no island on the Benchy or a larger test model
-     * removed any. Edges alone would favor thick layers everywhere (fewer edges); the power keeps a deep edge costing more
+     * Depth alone would charge a gentle slope nearly a whole layer whatever the edges' spacing, so a curved island a few
+     * degrees off its cap would count as stepped as flat layers, and no island would remove any. Edges alone would favor thick layers everywhere (fewer edges); the power keeps a deep edge costing more
      * than a shallow one (2: an edge half as deep counts a quarter), so thinner layers still score better.
      */
     /**
@@ -985,8 +984,8 @@ object PoseDecision {
 
     /**
      * The heap one unit of the search's parallel work (a pose measured, a plan's layers worked out) is allowed, in turned copies
-     * of the model: a 3DBenchy's units held about 11 copies each (18 units, 461 MB live, of which 74 MB its
-     * copies; a class histogram in a 512 MB heap just before it ran out); 16 with a margin. Search effort, not a print
+     * of the model: a 3DBenchy's units hold about 11 copies each (18 units, 461 MB live, of which 74 MB its
+     * copies, in a 512 MB heap near its limit); 16 with a margin. Search effort, not a print
      * parameter (plymeld's choice).
      */
     const val UNIT_COPIES = 16L
@@ -996,7 +995,7 @@ object PoseDecision {
 
     /**
      * The search's parallel work shares one budget of units across its levels (the first round's poses and each
-     * pose's plans, each sized to the cores, ran out of a 512 MB heap together): as many units as [PARALLEL_HEAP_SHARE] of
+     * pose's plans, each sized to the cores, run out of a 512 MB heap together): as many units as [PARALLEL_HEAP_SHARE] of
      * the heap holds at [UNIT_COPIES] copies of the model each, at most the cores. A level takes what is left; given one or
      * none, it works one after another, inside the unit that called it.
      */
@@ -1108,7 +1107,7 @@ object PoseDecision {
         )
         val standIns = listOf("placement: centered on the bed", "a sealed cavity's downward area counts as unsupported like any other (not weighed differently yet)",
             "bond.area: no loads known, so the thinnest bond between layers stands in for strength",
-            "time.estimate and support.mass / support.volume: quick estimates for ranking poses, not the full prediction; time.estimate samples 40 sections (shells between samples are placed at the sample), leaves out travel, acceleration, and internal solid infill, and lets every layer take the full minimum layer time (the slow-down stops at its minimum speed); it overstates the saving of flat layers following the surfaces against the full prediction (13.9 % against 8.7 % on one multi-part model)",
+            "time.estimate and support.mass / support.volume: quick estimates for ranking poses, not the full prediction; time.estimate samples 40 sections (shells between samples are placed at the sample), leaves out travel, acceleration, and internal solid infill, and lets every layer take the full minimum layer time (the slow-down stops at its minimum speed); it overstates the saving of flat layers following the surfaces against the full prediction",
             if (f.visibility == null) "every face counts alike toward quality: which faces are seen is not known"
             else "visibility: bed faces by a placeholder weight (method.quality.visibility.bed), undersides by one measured on a seam plate (.underside); occlusion by the object itself, by neighbors on the plate, and a view direction are not weighed yet",
             "surface_step: each face's terrace edges per mm x each edge's depth to %s (method.quality.stair_step.depth_power: %s): how fast a shallower edge fades from view is not measured".format(Locale.ROOT, f.stairStepPower, f.stairStepPowerSource.ifEmpty { "2, unset" }))
@@ -1300,7 +1299,7 @@ object PoseDecision {
                 // flat layers' own trim, which they allow anywhere (the coordinator does not know layers): a band reaching
                 // the model's top runs to the top (no empty band above it); other boundaries snap to the one-height layer
                 // grid (first layer + whole layer heights), so bands of one height keep exactly the layer height
-                // (evened-out 0.195 mm layers on a test model overlapped inner walls and sparse infill more than 0.2 mm ones);
+                // (evened-out layers a little off the height lay inner walls and sparse infill over each other more);
                 // nothing is left of a band shorter than a layer
                 fun trim(p: Coordination.Proposal): Coordination.Volume? {
                     val v = p.volume as Coordination.Volume.ZBand

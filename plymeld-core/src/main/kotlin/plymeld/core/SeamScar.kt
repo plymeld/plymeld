@@ -6,18 +6,22 @@ import plymeld.geom.Polygons
 import java.util.Locale
 
 /**
- * The seam measure, `seam_scar` (mm², quality): over every closed
- * outer-wall loop of the planned layers, the blemish its seam leaves, as seen. A point seam counts one line width
+ * The seam measure, `seam_scar` (mm², quality): over every closed outer-wall loop of the planned layers, the blemish its
+ * seam leaves, as seen; and every open outer-wall line's two ends (a line along the outline where no loop fits: it starts
+ * and stops on the surface, two point seams). A point seam counts one line width
  * squared; a scarf seam `method.quality.seam.scarf_share` of that (the joint spread over the scarf's length instead of
  * piled at a point; a placeholder until measured — NOT proportional to the length: a longer scarf is not a longer
  * blemish, else a 10 mm scarf would read worse than the point seam it replaces); a point seam in a corner
  * `method.quality.seam.corner_share` of a smooth wall's (the corner hides it: what corner seams are for; a placeholder
- * too); a seam further than a line width from the nearest seam of the
- * layer below adds the jog's length x the line width (a step between layers reads as a line). Each is weighted by how
+ * too); a loop's seam further than a line width from the nearest seam of what lies under it (a loop or line of the layer
+ * below whose bead it overlaps or comes within a line width of, or an outer loop below whose inside it lies on) adds the jog's length x the line width (a step between
+ * layers reads as a line); a loop with nothing under it (a new island) has no jog: a seam elsewhere on the layer below
+ * is no step. Each is weighted by how
  * much the face at the seam is seen ([Visibility]): a seam on an edge that steps out over the layer below sits on an
  * underside leaning by that step (the direction term); a seam the layer below holds up sits on a wall or a sloped top
- * (1). The layer below's printed area is read from its own outer walls, so the measure needs no mesh and runs on any
- * planned layers (the slice, the finalists' slices, a seam candidate on the same walls).
+ * (1). The layer below's printed area is read from its own outer walls (its loops and its open lines' beads), so the
+ * measure needs no mesh and runs on any planned layers (the slice, the finalists' slices, a seam candidate on the same
+ * walls).
  */
 object SeamScar {
     class Result(val scarMm2: Double, val seams: Int, val pointSeams: Int, val scarfSeams: Int, val jogMm: Double, val perLayerMm2: DoubleArray) {
@@ -32,6 +36,98 @@ object SeamScar {
 
     /** The outer-wall loops of a layer: the seams, and the layer's printed area as the layer above sees it. */
     private fun outerLoops(l: LayerPlanOut): List<ToolPath> = l.paths.filter { it.feature == Feature.OUTER_WALL && it.closed && it.xy.size >= 6 }
+    /** The open outer-wall lines of a layer (a line along the outline where no loop fits): each end a seam, its bead printed area. */
+    private fun outerLines(l: LayerPlanOut): List<ToolPath> = l.paths.filter { it.feature == Feature.OUTER_WALL && !it.closed && it.xy.size >= 4 }
+
+    /**
+     * The bead of an open line [p] as a polygon (µm, counter-clockwise): its center line offset half its width to each side
+     * (the width at each point where it varies), the ends square. What the line prints, for what hides a seam and what holds
+     * the layer above up; a sharp turn's inside may fold (read even-odd, a sliver of air: the measure's resolution).
+     */
+    fun footprint(p: ToolPath): Polygon {
+        val m = p.xy.size / 2
+        val left = LongArray(2 * m); val right = LongArray(2 * m)
+        for (i in 0 until m) {
+            val a = maxOf(0, i - 1); val b = minOf(m - 1, i + 1)
+            val dx = (p.xy[2 * b] - p.xy[2 * a]).toDouble(); val dy = (p.xy[2 * b + 1] - p.xy[2 * a + 1]).toDouble(); val l = Math.hypot(dx, dy)
+            val h = (p.widths?.getOrNull(i) ?: p.widthUm) / 2.0
+            val nx = if (l > 0) -dy / l * h else 0.0; val ny = if (l > 0) dx / l * h else 0.0
+            left[2 * i] = Math.round(p.xy[2 * i] + nx); left[2 * i + 1] = Math.round(p.xy[2 * i + 1] + ny)
+            right[2 * i] = Math.round(p.xy[2 * i] - nx); right[2 * i + 1] = Math.round(p.xy[2 * i + 1] - ny)
+        }
+        val xy = LongArray(4 * m)
+        for (i in 0 until m) { xy[2 * i] = right[2 * i]; xy[2 * i + 1] = right[2 * i + 1] }
+        for (i in 0 until m) { val j = m - 1 - i; xy[2 * (m + i)] = left[2 * j]; xy[2 * (m + i) + 1] = left[2 * j + 1] }
+        val poly = Polygon(xy)
+        return if (poly.isCcw()) poly else Polygon(LongArray(xy.size) { k -> xy[(xy.size - 2 - (k / 2) * 2) + k % 2] })
+    }
+
+    /**
+     * A path of the layer below as the jog reads it: its center line, its width, its seams (a loop's start; a line's two ends),
+     * its box. The seam placement (Seams.alignAll) reads the same, so a seam is aligned only with what the measure would
+     * charge its jog from.
+     */
+    internal class Under(val xy: LongArray, val closed: Boolean, val widthUm: Double, val seams: LongArray) {
+        /** An outer loop (counter-clockwise): what it encloses is printed, a loop above it lies on it. */
+        private val outer: Polygon? = if (closed && Polygon(xy).isCcw()) Polygon(xy) else null
+        /** Whether a point lies on what this loop encloses (an outer loop's inside). */
+        fun on(x: Long, y: Long): Boolean = outer != null && x >= box[0] && x <= box[2] && y >= box[1] && y <= box[3] && Polygons.contains(outer, x, y)
+        val box: LongArray = run {
+            var x0 = Long.MAX_VALUE; var y0 = Long.MAX_VALUE; var x1 = Long.MIN_VALUE; var y1 = Long.MIN_VALUE
+            for (i in 0 until xy.size / 2) { x0 = minOf(x0, xy[2 * i]); x1 = maxOf(x1, xy[2 * i]); y0 = minOf(y0, xy[2 * i + 1]); y1 = maxOf(y1, xy[2 * i + 1]) }
+            longArrayOf(x0, y0, x1, y1)
+        }
+        /** Whether a point lies within [reachUm] of the center line. */
+        fun near(x: Double, y: Double, reachUm: Double): Boolean {
+            if (x < box[0] - reachUm || x > box[2] + reachUm || y < box[1] - reachUm || y > box[3] + reachUm) return false
+            val m = xy.size / 2
+            for (i in 0 until (if (closed) m else m - 1)) {
+                val j = (i + 1) % m
+                val ax = xy[2 * i].toDouble(); val ay = xy[2 * i + 1].toDouble(); val dx = xy[2 * j] - ax; val dy = xy[2 * j + 1] - ay
+                val l2 = dx * dx + dy * dy
+                val t = if (l2 == 0.0) 0.0 else (((x - ax) * dx + (y - ay) * dy) / l2).coerceIn(0.0, 1.0)
+                if (Math.hypot(ax + t * dx - x, ay + t * dy - y) <= reachUm) return true
+            }
+            return false
+        }
+    }
+    private fun unders(loops: List<ToolPath>, lines: List<ToolPath>): List<Under> =
+        loops.map { Under(it.xy, true, it.widthUm.toDouble(), longArrayOf(it.xy[0], it.xy[1])) } +
+            lines.map { val m = it.xy.size / 2; Under(it.xy, false, (it.widths?.max() ?: it.widthUm).toDouble(), longArrayOf(it.xy[0], it.xy[1], it.xy[2 * m - 2], it.xy[2 * m - 1])) }
+
+    /**
+     * The jog a loop [p] reads from the paths [below] (mm): the distance from its seam to the nearest seam of a path under it
+     * (it lies on what an outer loop below encloses, or its bead overlaps that path's or comes within a line width of it: the loop's points within the two half widths and a
+     * line of that path's center line); null when nothing lies under it.
+     */
+    private fun jogFrom(p: ToolPath, below: List<Under>): Double? {
+        val w = p.widthUm.toDouble()
+        var best: Double? = null
+        for (u in below) {
+            if (!isUnder(p.xy, w, u)) continue
+            for (k in 0 until u.seams.size / 2) {
+                val d = Math.hypot((p.xy[0] - u.seams[2 * k]) / 1000.0, (p.xy[1] - u.seams[2 * k + 1]) / 1000.0)
+                if (best == null || d < best) best = d
+            }
+        }
+        return best
+    }
+
+    /**
+     * Whether the path [u] of the layer below lies under the loop [xy] (µm pairs) of width [wUm]: the loop lies on what [u]
+     * encloses (an outer loop's inside), or a point of it within the two half widths and a line of [u]'s center line (the
+     * beads overlap or come within a line of each other).
+     */
+    internal fun isUnder(xy: LongArray, wUm: Double, u: Under): Boolean {
+        val reach = wUm / 2 + u.widthUm / 2 + wUm
+        val m = xy.size / 2
+        // the boxes first: a loop whose box lies clear of [u]'s, grown by the reach, has no point on it or near it
+        var x0 = Long.MAX_VALUE; var y0 = Long.MAX_VALUE; var x1 = Long.MIN_VALUE; var y1 = Long.MIN_VALUE
+        for (i in 0 until m) { x0 = minOf(x0, xy[2 * i]); x1 = maxOf(x1, xy[2 * i]); y0 = minOf(y0, xy[2 * i + 1]); y1 = maxOf(y1, xy[2 * i + 1]) }
+        if (x1 < u.box[0] - reach || x0 > u.box[2] + reach || y1 < u.box[1] - reach || y0 > u.box[3] + reach) return false
+        for (i in 0 until m) if (u.on(xy[2 * i], xy[2 * i + 1]) || u.near(xy[2 * i].toDouble(), xy[2 * i + 1].toDouble(), reach)) return true
+        return false
+    }
 
     /** The seam measure's shares (method.quality.seam.*): a scarf seam's blemish and a point seam's in a corner, each against a point seam on a smooth wall. */
     class Shares(val scarf: Double, val corner: Double, val cornerDeg: Double?) {
@@ -58,19 +154,44 @@ object SeamScar {
                  * of the model (the 3DBenchy with an island on its bow, seam scar 45.6 -> 183 mm2).
                  */
                 stackOf: ((Int) -> Int)? = null): Result {
-        val ex = exposure ?: visibility?.exposure(layers.map { l -> outerLoops(l).map { Polygon(it.xy) } }, LongArray(layers.size) { layers[it].topZUm })
+        val lineBands = if (visibility == null) null else layers.map { l -> outerLines(l).map { footprint(it) } }
+        val ex = exposure ?: visibility?.exposure(layers.map { l -> outerLoops(l).map { Polygon(it.xy) } }, LongArray(layers.size) { layers[it].topZUm }, lineBands.orEmpty())
         val scarfShare = shares.scarf
         var total = 0.0; var seams = 0; var points = 0; var scarfs = 0; var jog = 0.0
         val per = DoubleArray(layers.size)
         // each stack's layer below: its own last one (an island's first layer: the flat layers' last, what it starts on)
-        val lastLoops = HashMap<Int, List<ToolPath>>(); val lastPolys = HashMap<Int, Below?>()
+        val lastUnders = HashMap<Int, List<Under>>(); val lastPolys = HashMap<Int, Below?>()
         for ((i, l) in layers.withIndex()) {
             val st = stackOf?.invoke(i) ?: -1
-            val belowLoops: List<ToolPath> = lastLoops[st] ?: lastLoops[-1] ?: emptyList()
+            val belowUnders: List<Under> = lastUnders[st] ?: lastUnders[-1] ?: emptyList()
             val belowPolys: Below? = if (st in lastPolys) lastPolys[st] else lastPolys[-1]
             val loops = outerLoops(l)
+            val lines = outerLines(l)
             val h = l.heightUm / 1000.0
             var here = 0.0
+            /** How much the face at a seam at ([sx], [sy]) is seen, its outward normal from the path [p]'s point [k] (both ways for an open line: its outline side is not known). */
+            fun seen(sx: Long, sy: Long, w: Double, p: ToolPath, ks: IntArray, bothWays: Boolean): Double {
+                // held up by the layer below (within half a line of its walls, or inside them) = a wall or a sloped top; else an
+                // underside leaning by the step over the layer below
+                val bp = belowPolys
+                var v = if (visibility == null || i == 0 || bp == null || bp.polys.isEmpty()) 1.0 else {
+                    val out = stepOutMm(sx, sy, bp, w / 2)
+                    if (out <= 0) 1.0 else visibility.direction(out / Math.hypot(out, h))
+                }
+                // the directions it faces, weighed by the quadrant they look from around the view, less what hides it nearby,
+                // read at the seam as the placement reads a candidate (Exposure.outward: the wall's outward normal, to the right
+                // of the path's direction, the material on a wall loop's left)
+                if (ex != null) {
+                    var s = 0.0
+                    for (k in ks) {
+                        val nrm = plymeld.core.decide.Exposure.outward(p.xy, k)
+                        s = maxOf(s, ex.at(i, p.xy[2 * k], p.xy[2 * k + 1], nrm[0], nrm[1]))
+                        if (bothWays) s = maxOf(s, ex.at(i, p.xy[2 * k], p.xy[2 * k + 1], -nrm[0], -nrm[1]))
+                    }
+                    v *= s
+                }
+                return v
+            }
             for (p in loops) {
                 val sx = p.xy[0]; val sy = p.xy[1]
                 val w = p.widthUm / 1000.0
@@ -83,27 +204,38 @@ object SeamScar {
                     val atCorner = shares.cornerDeg != null && Math.abs(Seams.turns(Polygon(p.xy), 2.0 * p.widthUm)[0]) >= shares.cornerDeg
                     pointBlemish(w, shelf, if (atCorner) shares.corner else 1.0)
                 }
-                // the jog from the nearest seam below (none below: a new island, no jog)
-                if (belowLoops.isNotEmpty()) {
-                    var d = Double.MAX_VALUE
-                    for (b in belowLoops) d = minOf(d, Math.hypot((sx - b.xy[0]) / 1000.0, (sy - b.xy[1]) / 1000.0))
-                    if (d > w) { blemish += d * w; jog += d }
+                // the jog from the nearest seam of what lies under it (nothing under it: a new island, no jog)
+                jogFrom(p, belowUnders)?.let { d -> if (d > w) { blemish += d * w; jog += d } }
+                // a scarf seam is seen along its ramp: its most-seen point over the scarf's length from the start, as the
+                // placement judges it (Seams.place)
+                val ks = ArrayList<Int>(); ks.add(0)
+                if (p.scarfUm > 0) {
+                    val m = p.xy.size / 2
+                    var run = 0.0; var j = 0
+                    while (run < p.scarfUm) {
+                        val k = (j + 1) % m
+                        run += Math.hypot((p.xy[2 * k] - p.xy[2 * j]).toDouble(), (p.xy[2 * k + 1] - p.xy[2 * j + 1]).toDouble())
+                        ks.add(k); j = k
+                        if (j == 0) break
+                    }
                 }
-                // how much the face at the seam is seen: held up by the layer below (within half a line of its walls, or inside
-                // them) = a wall or a sloped top; else an underside leaning by the step over the layer below
-                val bp = belowPolys
-                var v = if (visibility == null || i == 0 || bp == null || bp.polys.isEmpty()) 1.0 else {
-                    val out = stepOutMm(sx, sy, bp, w / 2)
-                    if (out <= 0) 1.0 else visibility.direction(out / Math.hypot(out, h))
+                here += blemish * seen(sx, sy, p.widthUm / 1000.0, p, ks.toIntArray(), false); seams++
+            }
+            // an open line's two ends: each a point seam where it starts or stops on the surface (no jog: a line has no seam
+            // to align)
+            for (p in lines) {
+                val m = p.xy.size / 2
+                for (k in intArrayOf(0, m - 1)) {
+                    val x = p.xy[2 * k]; val y = p.xy[2 * k + 1]
+                    val w = (p.widths?.getOrNull(k) ?: p.widthUm) / 1000.0
+                    val shelf = belowPolys?.takeIf { i > 0 && it.polys.isNotEmpty() }?.let { b -> shelfMm(x, y, b, w / 2, shelfReachMm(visibility)) } ?: 0.0
+                    points++; seams++
+                    here += pointBlemish(w, shelf) * seen(x, y, w, p, intArrayOf(k), true)
                 }
-                // the directions it faces, weighed by the quadrant they look from around the view, less what hides it
-                // nearby, read at the seam as the placement reads a candidate (Exposure.outward: the wall's outward normal, to the
-                // right of the loop's direction, the material on a wall loop's left)
-                if (ex != null) { val nrm = plymeld.core.decide.Exposure.outward(p.xy, 0); v *= ex.at(i, sx, sy, nrm[0], nrm[1]) }
-                here += blemish * v; seams++
             }
             per[i] = here; total += here
-            lastLoops[st] = loops; lastPolys[st] = if (visibility == null) null else belows?.getOrNull(i) ?: Below(loops.map { Polygon(it.xy) })
+            lastUnders[st] = unders(loops, lines)
+            lastPolys[st] = if (visibility == null) null else belows?.getOrNull(i) ?: Below(loops.map { Polygon(it.xy) } + lineBands!![i])
         }
         return Result(total, seams, points, scarfs, jog, per)
     }
@@ -111,7 +243,7 @@ object SeamScar {
     /**
      * The layer below's outer-wall loops prepared once for many seam points: grouped (each outer with its holes, by index)
      * and boxed, so a point is tested only against the loops whose box can matter (grouping and scanning every
-     * vertex per seam took a 30-part model's plan from 3 min to over 15).
+     * vertex per seam makes a many-part model's plan several times slower).
      */
     /**
      * The blemish a point seam leaves (mm²), before how much it is seen and its jog: one line width [wMm] across, as long as

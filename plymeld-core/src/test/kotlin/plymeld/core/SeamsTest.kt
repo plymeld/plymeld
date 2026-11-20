@@ -45,6 +45,19 @@ class SeamsTest : StringSpec({
         // control: the upper layer on its own takes its back-most corner
         start(Seams.place(upper, 30.0, span)) shouldBe (10.0 to 11.0)
     }
+    "in line only with what lies under it: a new island beside another loop's seam keeps its own back-most corner (20, 4)" {
+        // layer 0: a square at x 40..50, its seam at its back-most corner (40, 0); layer 1: the same square, and a new island
+        // 10 mm away with nothing under it. As the seam measure reads a jog (SeamScar.isUnder), the island has no seam below:
+        // it takes its back-most corner, not its corner nearest (40, 0), which is (30, 0)
+        val lower = poly(40.0, -10.0, 50.0, -10.0, 50.0, 0.0, 40.0, 0.0)
+        val island = poly(20.0, 0.0, 30.0, 0.0, 30.0, 4.0, 20.0, 4.0)
+        val placed = Seams.alignAll(listOf(listOf(listOf(lower)), listOf(listOf(lower, island))), 30.0, spanUm = { _, _ -> span })
+        start(placed[0][0][0]) shouldBe (40.0 to 0.0)
+        start(placed[1][0][0]) shouldBe (40.0 to 0.0)
+        start(placed[1][0][1]) shouldBe (20.0 to 4.0)
+        // control: the island with that seam as its seam below aligns with it (what every seam of the layer below did)
+        start(Seams.place(island, 30.0, span, longArrayOf(40_000, 0))) shouldBe (30.0 to 0.0)
+    }
     "in line with the layer below: a circle with a seam below at (10, 0) starts at its point nearest it, not at its back" {
         val n = 120
         val xy = DoubleArray(2 * n) { k -> val a = 2 * Math.PI * (k / 2) / n; if (k % 2 == 0) 10 * Math.cos(a) else 10 * Math.sin(a) }
@@ -52,7 +65,7 @@ class SeamsTest : StringSpec({
         p.atCorner shouldBe false
         start(p) shouldBe (10.0 to 0.0)
     }
-    // An island like a helix's: 2 x 8 mm, one layer (0.1 mm) moved 0.15 mm along +y from the one below, so
+    // A small island: 2 x 8 mm, one layer (0.1 mm) moved 0.15 mm along +y from the one below, so
     // its +y end hangs over air. Its outer loop 0.22 mm in (half a 0.44 mm line), its inner loop 0.66 mm in. Worked by hand:
     // the outer loop's +y corners lie 0.07 mm inside the lower layer's end, a share of (0.22 - 0.07) / 0.44 = 0.34 over air,
     // past where the overhang slow-down starts (h / 2w = 0.11); its -y corners are 0.22 mm inside the lower layer (its side;

@@ -7,8 +7,6 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import plymeld.config.ConfigStack
-import plymeld.core.check.Expectations
-import plymeld.core.check.GcodeCheck
 import plymeld.core.check.ModelCheck
 import java.nio.file.Files
 import java.nio.file.Path
@@ -16,8 +14,8 @@ import java.nio.file.Path
 /**
  * A part prints with the tool the machine's loadout gives its filament (the g-code's T = the tool's index - 1), from the
  * config to the g-code, and the pre-print check refuses a g-code that prints a part with another tool or whose header
- * credits the wrong filament. The bug: a Benchy assigned filament 3 (tool index 3, T2) printed with T0,
- * its header crediting filament 1, and the check passed it.
+ * credits the wrong filament: a Benchy assigned filament 3 (tool index 3, T2) printed with T0, or its header crediting
+ * filament 1, is refused.
  */
 class ToolAssignmentTest : StringSpec({
     /** An ASCII STL box [x] x [y] x [z] mm, corner at the origin. */
@@ -75,37 +73,45 @@ class ToolAssignmentTest : StringSpec({
         SliceCommand().parse(cfs.flatMap { listOf("-cf", d.resolve(it).toString()) } + models.flatMap { listOf("-m", it.toString()) } + listOf("-o", d.resolve(out).toString()))
         return Files.readString(d.resolve(out))
     }
+    // the file is read line by line (lineSequence), never held as a list of its lines: the dual Benchy's g-code as line
+    // strings is tens of MB, and the test held them beside the check's own in a 512 MB test JVM
+    val tCommand = Regex("T\\d+"); val xyWord = Regex(" [XY]"); val eWord = Regex(" E[0-9.]+")
     /** The tools (T numbers) that print, read from the g-code: the T command in force at each extrusion. */
     fun printingTools(g: String): Set<Int> {
         var t = 0; val out = HashSet<Int>()
-        for (l in g.lines()) {
+        for (l in g.lineSequence()) {
             val c = l.substringBefore(';').trim()
-            if (Regex("T\\d+").matches(c)) t = c.substring(1).toInt()
-            else if (c.startsWith("G1 ") && Regex(" [XY]").containsMatchIn(c) && Regex(" E[0-9.]+").find(c)?.value?.drop(2)?.toDouble()?.let { it > 0 } == true) out += t
+            if (tCommand.matches(c)) t = c.substring(1).toInt()
+            else if (c.startsWith("G1 ") && xyWord.containsMatchIn(c) && eWord.find(c)?.value?.drop(2)?.toDouble()?.let { it > 0 } == true) out += t
         }
         return out
     }
-    /** The pre-print check of [g] as `plymeld slice` runs it, with the config's own reading of the part tools. */
+    /**
+     * The pre-print check of [g] as `plymeld slice` runs it (SliceSession.check: each object's settings for the model's
+     * rules, a plate's objects each against its own), with the config's own reading of the part tools; the job [pr]
+     * already decided ([plan]), so checking several files of one job decides it once.
+     */
+    fun problems(pr: Product, plan: plymeld.core.decide.Plan, d: Path, g: String): List<String> =
+        SliceSession(keepSlicers = false).check(pr, plan, pr.result.setup, d.resolve("check.gcode"), g, pr.partTools(plan), { }).problems
+    /** As the above, the job read from the config files [cfs] in [d] and [models], and decided. */
     fun problems(d: Path, cfs: List<String>, models: List<Path>, g: String): List<String> {
         val pr = Product(ConfigStack.load(cfs, emptyList(), d), models, null) { }
-        val plan = pr.decide()
-        val partTools = pr.partTools(plan)
-        val zBase = plan.parts.minOf { it.bounds()[2] }
-        if (plan.layout.placed.size > 1) {
-            // a plate printed together: each object's lines against that object (PlateCheck), as the slice does
-            var at = 0
-            val objs = plan.layout.placed.map { pl -> plymeld.core.check.PlateCheck.Obj(pl.name, pl.parts, partTools.subList(at, at + pl.parts.size).also { at += pl.parts.size }) }
-            val r = plymeld.core.check.PlateCheck.together(g, objs, zBase)
-            return GcodeCheck.check(g, Expectations.forSetup(pr.result.setup, ModelCheck.Surfaces(r.surfaces)::at, partTools.toSet(), partTools.toSet())) + r.problems
+        return problems(pr, pr.decide(), d, g)
+    }
+    /** [g] with each T number a key of [to] written as its value, all in one pass (a swap: both ways at once). */
+    fun swapTools(g: String, to: Map<Int, Int>): String {
+        val word = Regex("(^|\\s)T([0-9]+)(?![0-9])")
+        val out = StringBuilder(g.length)
+        var first = true
+        for (l in g.lineSequence()) {
+            if (!first) out.append('\n'); first = false
+            val c = l.substringBefore(';')
+            out.append(word.replace(c) { m -> m.groupValues[2].toInt().let { n -> to[n]?.let { m.groupValues[1] + "T$it" } ?: m.value } }).append(l, c.length, l.length)
         }
-        val surface = ModelCheck.Surface(plan.parts, zBase, g)
-        return GcodeCheck.check(g, Expectations.forSetup(pr.result.setup, surface::at, partTools.toSet(), partTools.toSet())) +
-            ModelCheck.check(g, plan.parts, zBase, surface = surface, partTools = partTools)
+        return out.toString()
     }
     /** [g] with every T number [a] written as [b] (the T commands and the T words of M104 / M109), comments left as they are. */
-    fun renumber(g: String, a: Int, b: Int) = g.lines().joinToString("\n") { l ->
-        val c = l.substringBefore(';'); c.replace(Regex("(^|\\s)T$a(?![0-9])"), "$1T$b") + l.substring(c.length)
-    }
+    fun renumber(g: String, a: Int, b: Int) = swapTools(g, mapOf(a to b))
 
     "a part on filament 3 (the loadout's tool of index 3) prints with T2 and is credited to filament 3; controls: printed on T0, or the header crediting filament 1, are refused" {
         val d = dir("hw.toml" to hardware, "lo.toml" to loadout("t3" to "pla-generic") + lock("box.stl", "part-1", 3), "box.stl" to box(20.0, 20.0, 3.0))
@@ -119,7 +125,7 @@ class ToolAssignmentTest : StringSpec({
         (used[2] > 0) shouldBe true
         used.filterIndexed { i, _ -> i != 2 }.all { it == 0.0 } shouldBe true
         problems(d, cfs, models, g).shouldBeEmpty()
-        // control: the same print on T0 (the bug's g-code): GcodeCheck and ModelCheck both refuse it
+        // control: the same print on T0 (the wrong tool): GcodeCheck and ModelCheck both refuse it
         val onT0 = renumber(g, 2, 0)
         printingTools(onT0) shouldBe setOf(0)
         val p0 = problems(d, cfs, models, onT0)
@@ -128,7 +134,7 @@ class ToolAssignmentTest : StringSpec({
         p0.any { "printed by the wrong tool: T0 (tool 1)" in it && "assigned T2 (tool 3)" in it } shouldBe true
         // ... and its header, still crediting filament 3, no longer matches what each tool pushes
         p0.any { "the header credits filament 1 with 0.00 mm" in it } shouldBe true
-        // control: the right tool, but the header crediting filament 1 with filament 3's use (the bug's header)
+        // control: the right tool, but the header crediting filament 1 with filament 3's use (the wrong header)
         val hdr = g.lines().joinToString("\n") { l ->
             if (l.startsWith("; filament used [mm] =")) "; filament used [mm] = " + listOf(used[2], used[1], used[0], used[3]).joinToString(", ") { "%.2f".format(java.util.Locale.ROOT, it) }
             else l
@@ -171,8 +177,7 @@ class ToolAssignmentTest : StringSpec({
         plan.layout.order shouldBe plymeld.core.decide.ObjectOrder.TOGETHER
         plan.decisions.filter { it.value is plymeld.core.decide.TechniquePlan }.map { it.value as plymeld.core.decide.TechniquePlan }.distinct().size shouldBe 2
         problems(d, cfs, models, renumber(g, 2, 0)).shouldNotBeEmpty()
-        // control: the plate read as ONE model, every object's outline on every layer (what once refused such a plate),
-        // is refused: the boxes' layers are at different heights
+        // control: the plate read as ONE model, every object's outline on every layer, is refused: the boxes' layers are at different heights
         ModelCheck.check(g, plan.parts, plan.parts.minOf { it.bounds()[2] }, partTools = pr.partTools(plan)).shouldNotBeEmpty()
     }
 
@@ -188,20 +193,36 @@ class ToolAssignmentTest : StringSpec({
             lock("3DBenchy-dual", "3DBenchy-dual-A", 3) + lock("3DBenchy-dual", "3DBenchy-dual-B", 4) +
             "[plan.mechanism.adhesion.first_layer]\nheight = \"0.28 mm\"\n[plan]\npose = \"as-given\"\nplacement = \"center\"\n")
         val cfs = listOf("hw.toml", "lo.toml"); val models = listOf(model)
-        val g = slice(d, cfs, models, "dual.gcode")
-        printingTools(g) shouldBe setOf(2, 3)
-        // the start template selects and heats the tool of the first line printed: no T0, and no change before the first line
-        val tLines = g.lines().filter { Regex("^T\\d+$").matches(it) }
-        tLines.none { it == "T0" || it == "T1" } shouldBe true
-        val lines = g.lines()
-        val firstLayer = lines.indexOfFirst { it.startsWith(";LAYER_CHANGE") || it.startsWith("; CHANGE_LAYER") }
-        val firstPrint = (firstLayer until lines.size).first { lines[it].startsWith("G1 X") && Regex(" E[0-9.]+").containsMatchIn(lines[it]) }
-        lines.subList(0, firstPrint).count { Regex("^T\\d+$").matches(it) } shouldBe 1
-        problems(d, cfs, models, g).shouldBeEmpty()
-        // control: T2 and T3 swapped: both tools are the print's, so only the per-part rule (ModelCheck) can see it
-        val swapped = renumber(renumber(renumber(g, 2, 9), 3, 2), 9, 3)
+        // sliced as `plymeld slice` does (its two halves, SliceSession: written, then checked, with the slicers let go
+        // between), the job decided once for the file and both checks: deciding plans this model's walls and paths again, a
+        // third of the test's time. The command's own parsing is the cases' above
+        val pr = Product(ConfigStack.load(cfs, emptyList(), d), models, null) { }
+        val plan = pr.decide()
+        // the sliced file and its swapped copy, one whole file at a time: the file is let go (this function returns) before
+        // the swapped one is checked
+        fun sliceAndSwap(): String {
+            val session = SliceSession(keepSlicers = false)
+            val w = session.write(pr, d.resolve("dual.gcode"), { })
+            w.plan shouldBe plan
+            session.check(w, { }).problems.shouldBeEmpty()
+            val g = w.text
+            printingTools(g) shouldBe setOf(2, 3)
+            // the start template selects and heats the tool of the first line printed: no T0, and no change before the first line
+            val tLine = Regex("^T\\d+$")
+            g.lineSequence().filter { tLine.matches(it) }.none { it == "T0" || it == "T1" } shouldBe true
+            var layered = false; var changes = 0
+            for (l in g.lineSequence()) {
+                if (l.startsWith(";LAYER_CHANGE") || l.startsWith("; CHANGE_LAYER")) layered = true
+                if (layered && l.startsWith("G1 X") && eWord.containsMatchIn(l)) break
+                if (tLine.matches(l)) changes++
+            }
+            changes shouldBe 1
+            // control: T2 and T3 swapped: both tools are the print's, so only the per-part rule (ModelCheck) can see it
+            return swapTools(g, mapOf(2 to 3, 3 to 2))
+        }
+        val swapped = sliceAndSwap()
         printingTools(swapped) shouldBe setOf(2, 3)
-        val ps = problems(d, cfs, models, swapped)
+        val ps = problems(pr, plan, d, swapped)
         ps.any { "printed by the wrong tool" in it } shouldBe true
         ps.none { "which the config's loadout gives this print nothing" in it } shouldBe true
     }

@@ -59,17 +59,89 @@ class OffsetTest : StringSpec({
         var worst = 0.0
         repeat(40) {
             val p = listOf(poly.next(rs))
-            for (d in listOf(-3_000L, -420L, 420L, 3_000L)) for (j in Offset.Join.values()) {
-                val fast = area(Offset.offset(p, d, j))
-                val slow = area(Offset.offsetBySleeves(p, d, j))
+            // each join, and the miter with round arcs past its limit
+            for (d in listOf(-3_000L, -420L, 420L, 3_000L)) for ((j, round) in Offset.Join.values().map { it to false } + (Offset.Join.MITER to true)) {
+                val fast = area(Offset.offset(p, d, j, roundBeyondLimit = round))
+                val slow = area(Offset.offsetBySleeves(p, d, j, roundBeyondLimit = round))
                 val err = Math.abs(fast - slow)
                 if (err > worst) worst = err
-                io.kotest.assertions.withClue("offset $d $j of ${p[0]}: raw=$fast sleeves=$slow") {
+                io.kotest.assertions.withClue("offset $d $j (round past the limit: $round) of ${p[0]}: raw=$fast sleeves=$slow") {
                     err shouldBe (0.0 plusOrMinus (0.002 * p[0].perimeterMm() * Math.abs(d / 1000.0) + 0.01))
                 }
             }
         }
         println("raw-ring vs sleeves: worst area difference %.5f mm²".format(worst))
+    }
+
+    // A thin triangle (apex 20 degrees, base angles 80) grown by d: its area is A + P d + each corner's join, the join
+    // computed from the corner's turn t alone: a miter d^2 tan(t / 2) where it reaches no more than twice d (the base
+    // corners, t = 100 degrees: 1.56 d), past that a bevel d^2 sin(t) / 2 or a round arc d^2 t / 2 (the apex, t = 160
+    // degrees: the miter would reach 5.8 d)
+    val tri = listOf(Polygon(longArrayOf(-3_000, 0, 3_000, 0, 0, 17_014)))
+    fun joins(round: Boolean, d: Double): Double {
+        val p = tri[0]; var j = 0.0
+        for (i in 0 until p.size) {
+            val a = (i + p.size - 1) % p.size; val c = (i + 1) % p.size
+            val t = Math.abs(Math.atan2(((p.x(i) - p.x(a)) * (p.y(c) - p.y(i)) - (p.y(i) - p.y(a)) * (p.x(c) - p.x(i))).toDouble(),
+                ((p.x(i) - p.x(a)) * (p.x(c) - p.x(i)) + (p.y(i) - p.y(a)) * (p.y(c) - p.y(i))).toDouble()))
+            j += if (1 / Math.cos(t / 2) <= Offset.MITER_LIMIT) d * d * Math.tan(t / 2) else if (round) d * d * t / 2 else d * d * Math.sin(t) / 2
+        }
+        return j
+    }
+    fun grown(round: Boolean) = area(tri) + tri[0].perimeterMm() * 1.0 + joins(round, 1.0)
+
+    "a miter past its limit takes a round arc with roundBeyondLimit: a thin triangle grown by 1 mm, its area in closed form" {
+        // within the arc's chords (inside its circle: 0.009 mm² short at the apex) and the points' rounding to the grid
+        // (half a micron over a perimeter of 40 mm)
+        area(Offset.offset(tri, 1_000, Offset.Join.MITER, roundBeyondLimit = true)) shouldBe (grown(true) plusOrMinus 0.02)
+        // without it, the bevel (every other caller's offset, unchanged)
+        area(Offset.offset(tri, 1_000, Offset.Join.MITER)) shouldBe (grown(false) plusOrMinus 0.02)
+    }
+
+    "control: the bevel's area is rejected as the round arc's (1.2 mm² short)" {
+        runCatching { area(Offset.offset(tri, 1_000, Offset.Join.MITER)) shouldBe (grown(true) plusOrMinus 0.02) }.isFailure shouldBe true
+    }
+
+    // A 20 mm square with a notch 8 mm deep from its top edge, its tip 30 degrees (the outline turns 150 degrees there:
+    // a miter would reach 3.9 d), shrunk by 0.8 mm. Every point of the exact shrink is at least d from the outline: read
+    // along the result's edges every 20 µm against the outline's edges (point to segment, not through Offset)
+    val notch = listOf(Polygon(longArrayOf(0, 0, 20_000, 0, 20_000, 20_000, 12_144, 20_000, 10_000, 12_000, 7_856, 20_000, 0, 20_000)))
+    fun nearestToOutline(r: List<Polygon>): Double {
+        val o = notch[0]; var best = Double.MAX_VALUE
+        for (q in r) for (e in 0 until q.size) {
+            val f = (e + 1) % q.size
+            val len = Math.hypot((q.x(f) - q.x(e)).toDouble(), (q.y(f) - q.y(e)).toDouble())
+            val steps = maxOf(1, Math.ceil(len / 20.0).toInt())
+            for (s in 0..steps) {
+                val px = q.x(e) + (q.x(f) - q.x(e)) * s.toDouble() / steps; val py = q.y(e) + (q.y(f) - q.y(e)) * s.toDouble() / steps
+                for (k in 0 until o.size) {
+                    val l = (k + 1) % o.size
+                    val ax = o.x(k).toDouble(); val ay = o.y(k).toDouble(); val dx = o.x(l) - ax; val dy = o.y(l) - ay
+                    val u = (((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)).coerceIn(0.0, 1.0)
+                    best = minOf(best, Math.hypot(ax + u * dx - px, ay + u * dy - py))
+                }
+            }
+        }
+        return best
+    }
+
+    "shrinking at a notch's tip, the round arc keeps the fit at least d from it, and no farther" {
+        val r = Offset.offset(notch, -800, Offset.Join.MITER, roundBeyondLimit = true)
+        // within the arc's chord sag (5 µm) and the grid's rounding
+        (nearestToOutline(r) >= 800.0 - 5 - 2) shouldBe true
+        // the ground straight below the tip, just past d from it, is kept (a miter, not cut, would take 3.1 mm more)
+        Polygons.contains(r.single(), 10_000, 12_000 - 810) shouldBe true
+        // the rest is the mitred shrink: its area is the bevelled one's less, at the tip, the circle's segment between the
+        // bevel's chord and the arc, d^2 (t - sin t) / 2 for the turn t (0.68 mm²; the arc's own chords 0.007 mm² in)
+        val t = Math.PI - 2 * Math.atan(2_144.0 / 8_000.0)
+        val bevel = Offset.offset(notch, -800, Offset.Join.MITER)
+        (area(bevel) - area(r)) shouldBe (0.8 * 0.8 * (t - Math.sin(t)) / 2 plusOrMinus 0.01)
+    }
+
+    "control: the bevel keeps ground d cos(75 degrees), 0.21 mm, from the notch's tip" {
+        val near = nearestToOutline(Offset.offset(notch, -800, Offset.Join.MITER))
+        near shouldBe (800 * Math.cos(Math.toRadians(75.0)) plusOrMinus 3.0)
+        runCatching { (near >= 800.0 - 5 - 2) shouldBe true }.isFailure shouldBe true
     }
 
     "control: the inset check rejects the outset answer" {

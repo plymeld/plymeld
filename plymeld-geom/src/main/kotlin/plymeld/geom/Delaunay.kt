@@ -34,7 +34,7 @@ class Delaunay(xs: LongArray, ys: LongArray) {
         // Biased randomized insertion order: a seeded shuffle split into doubling rounds, spatial
         // (Morton) order within each round. Pure spatial order fed thousands of collinear samples of
         // one straight outline edge in sequence, the worst case of incremental Delaunay: quadratic
-        // work, and out of memory on a test model's layer. Seeded: same output every run.
+        // work, and out of memory on a large layer. Seeded: same output every run.
         val rnd = java.util.Random(0x5EED)
         val shuffled = (0 until n).toMutableList().also { java.util.Collections.shuffle(it, rnd) }
         val order = ArrayList<Int>(n)

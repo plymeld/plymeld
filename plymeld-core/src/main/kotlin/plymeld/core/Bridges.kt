@@ -11,9 +11,8 @@ import plymeld.geom.Polygons
  * the line, lies on material of the layer below. Unanchored length counts against the angle.
  * Ties go to the angle whose LONGEST line is shortest: the longest unsupported span is the one
  * that sags. Not the anchored LENGTH: it differs between angles by hatching noise alone, so a
- * region anchored all round would never tie and the pick would be arbitrary (hole block:
- * -75°, lines 1.38 mm apart along the edges, too far to link: 22 bridge retractions vs
- * QIDIStudio's 1, which bridged at 45°).
+ * region anchored all round would never tie and the pick would be arbitrary (on the hole block an arbitrary angle lays
+ * lines too far apart along the edges to link, a retraction each).
  */
 object Bridges {
     /** One family of sparse lines below: direction (deg), spacing, and grid offset (µm), as Hatch lays them. */
@@ -24,7 +23,7 @@ object Bridges {
      * LONGEST UNSUPPORTED SPAN is shortest. A strand is held where it crosses a sparse line below
      * (the families' lines lie on Hatch's global grid, so the crossings are exact) and at an end that
      * lands on material ([below], probed one [probeUm] beyond, as [bestAngle]); between supports it
-     * sags. Ties: the shorter mean span. Crossings alone ran a test model's 2.4 mm strip along its length
+     * sags. Ties: the shorter mean span. Crossings alone would run a narrow strip (2.4 mm wide) along its length
      * (spans of a grid's cells) where across it every strand spans 2.4 mm wall to wall.
      */
     fun internalAngle(bridge: List<Polygon>, below: List<Polygon>, families: List<Family>, spacingUm: Long, probeUm: Long): Double? {

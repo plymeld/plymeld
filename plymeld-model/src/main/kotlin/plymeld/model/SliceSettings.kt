@@ -10,9 +10,17 @@ package plymeld.model
 /** One zone of a waved first layer's second pass (plan.technique.bridge.wave.second_pass.zones): from..to as shares of the span, the lines' height over the first pass (µm), their plastic as a share of the first pass's. */
 class SecondPassZone(val from: Double, val to: Double, val raiseUm: Long, val share: Double)
 
+/** The values of plan.layer.walls.order. */
+val WALL_ORDERS = listOf("outer_first", "inner_first", "inner_outer_inner")
+
+/** The values of plan.layer.sliver.at_surface. */
+val SLIVER_AT_SURFACE = listOf("own", "neighbor")
+
 class SliceSettings private constructor(r: (String) -> Any, opt: (String) -> Any?, private val models: plymeld.machine.ModelLibrary,
                                         /** Every setting read through [r] or [opt] so far, with its value as text. */
-                                        private val recorded: java.util.concurrent.ConcurrentHashMap<String, String>) {
+                                        private val recorded: java.util.concurrent.ConcurrentHashMap<String, String>,
+                                        /** The 0-based tool these settings are read for (NozzleCone.toolOf); null when the setup does not say. */
+                                        private val tool: Int?) {
     /**
      * Every setting this read so far with its value, in id order: what a per-layer result depended on (LayerCache). A
      * setting first read later (a lazy field) joins the key from then on; a result stored under a key without it was
@@ -62,11 +70,20 @@ class SliceSettings private constructor(r: (String) -> Any, opt: (String) -> Any
     val minFeatureUm by setting { Math.round(num("plan.layer.walls.feature.min") * 1000) }
     val minLengthFactor by setting { num("plan.layer.walls.length_factor.min") }
     val transitionLengthUm by setting { Math.round(num("plan.layer.walls.transition_length") * 1000) }
+    /** The widest a variable-width wall line may be (null: twice the inner wall's width, [maxBeadFor]). */
+    val maxBeadSetUm: Long? by setting { (opt("plan.layer.walls.line.width.max") as Number?)?.let { Math.round(it.toDouble() * 1000) } }
+    /** The widest wall line for walls of inner width [innerUm] (the first layer's walls are of its own width). */
+    fun maxBeadFor(innerUm: Long): Long = maxBeadSetUm?.also { require(it >= 2 * minBeadUm) {
+        "plan.layer.walls.line.width.max (${it / 1000.0} mm) is under twice plan.layer.walls.line.width.min (${minBeadUm / 1000.0} mm): one line could not become two lines each at least the narrowest" } }
+        ?: maxOf(2 * innerUm, 2 * minBeadUm)
     val outerWallWidthUm by setting { um("plan.layer.walls.outer.line.width") }
     val innerWallWidthUm by setting { um("plan.layer.walls.inner.line.width") }
     val firstLayerWidthUm by setting { um("plan.mechanism.adhesion.first_layer.line.width") }
     val elephantFootUm by setting { um("hardware.plate.first_layer.squish") }
-    val innerWallsFirst by setting { bool("plan.layer.walls.inner_first") }
+    /** The order a contour's walls are laid in (plan.layer.walls.order): outer_first, inner_first, or inner_outer_inner. */
+    val wallOrder by setting { text("plan.layer.walls.order").also { require(it in WALL_ORDERS) { "plan.layer.walls.order is '$it'; it is one of ${WALL_ORDERS.joinToString()}" } } }
+    /** Inner walls before the outer one (all of them, or all but the one beside it: [wallOrder]). */
+    val innerWallsFirst: Boolean get() = wallOrder != "outer_first"
     /**
      * Where wall loops start (plan.seam, locked or decided): "corners", at corners in line with the layer below, "back", or
      * "least_visible". Null = not decided yet (plan.seam unset and the seam decision not run: `plymeld plan` decides it); the
@@ -99,9 +116,20 @@ class SliceSettings private constructor(r: (String) -> Any, opt: (String) -> Any
     val seamCornerDeg: Double? by setting { (opt("plan.technique.corner_seam.corner_angle") as Number?)?.toDouble() }
     /** Scarf seams on outer walls (plan.technique.scarf_seam.where): "none", "smooth" (loops with no corner), "all"; unset: none. */
     val scarf: String by setting { opt("plan.technique.scarf_seam.where") as String? ?: "none" }
+    /**
+     * A closed outer wall whose seam another part of the object covers gets a point seam, not a scarf
+     * (plan.technique.scarf_seam.covered = "point", unset too); "scarf": a scarf there too.
+     */
+    val scarfCoveredPoint: Boolean by setting { opt("plan.technique.scarf_seam.covered") != "scarf" }
     val scarfLengthUm: Long? by setting { (opt("plan.technique.scarf_seam.length") as Number?)?.let { Math.round(it.toDouble() * 1000) } }
     /** The scarf's starting thickness, a share of the layer (0..1). */
     val scarfStart: Double? by setting { (opt("plan.technique.scarf_seam.start") as Number?)?.toDouble() }
+    /** A scarf seam's ramp and closing pass no faster than this (mm/s; plan.technique.scarf_seam.speed). */
+    val scarfSpeed by setting { num("plan.technique.scarf_seam.speed") }
+    /** A scarf seam's ramp's longest step (µm; plan.technique.scarf_seam.step). */
+    val scarfStepUm by setting { Math.round(num("plan.technique.scarf_seam.step") * 1000).also { require(it > 0) { "plan.technique.scarf_seam.step must be above 0" } } }
+    /** A scarf seam's ramp and closing pass laid with this times their plastic (plan.technique.scarf_seam.flow). */
+    val scarfFlow by setting { num("plan.technique.scarf_seam.flow") }
     // shells and infill
     /** Top / bottom shell layers at the layer height: as many as the shell's thickness takes (layers of varying height count it layer by layer: Planner.shellCounts). */
     val topLayers by setting { Math.ceil(um("plan.layer.top.thickness") / layerHeightUm.toDouble() - 1e-9).toInt() }
@@ -131,11 +159,13 @@ class SliceSettings private constructor(r: (String) -> Any, opt: (String) -> Any
     val bridgeSpeed by setting { num("plan.mechanism.motion.bridge.speed") }
     /** The purge tower's speed as set (plan.mechanism.purge.tower.speed; bundled: the visible lines' speed). */
     val towerSpeedSet by setting { num("plan.mechanism.purge.tower.speed") }
+    /** Every printing speed plymeld decides, times this (plan.mechanism.motion.speed.factor; travels and retractions as they are). */
+    val speedFactor by setting { num("plan.mechanism.motion.speed.factor").also { require(it > 0) { "plan.mechanism.motion.speed.factor must be above 0 (it is $it)" } } }
     /**
      * Purge tower speed: plan.mechanism.purge.tower.speed (bundled: the visible lines' speed, a tower beside walls laid at
-     * it; at the hidden lines' speed, 300 mm/s against the walls' 100, its jump stood out on a print), never faster than
-     * the machine prints (hardware.machine.motion.print.speed; the Creator 5 travels at 600 mm/s and prints at 300, and a
-     * thin tower layer's melt cap still allowed 467: the g-code check) or travels; the writer's melt cap then applies.
+     * it, not the hidden lines' much faster one), never faster than the machine prints (hardware.machine.motion.print.speed;
+     * a machine may travel faster than it prints, and a thin tower layer's melt cap alone can allow more than its print
+     * speed, which the g-code check refuses) or travels; the writer's melt cap then applies.
      */
     val towerSpeed: Double get() = minOf(towerSpeedSet, travelSpeed, hiddenSpeed)
     val bridgeFlow by setting { num("plan.layer.bridge.flow") }
@@ -143,17 +173,69 @@ class SliceSettings private constructor(r: (String) -> Any, opt: (String) -> Any
     val brimType by setting { text("plan.mechanism.adhesion.brim.where") }
     val brimWidthUm by setting { um("plan.mechanism.adhesion.brim.width") }
     val brimGapUm by setting { um("plan.mechanism.adhesion.brim.gap") }
+    /** A first layer under this area (mm²) is a small footprint, and so is one the print is more than [smallFootprintHeightRatio] times as tall as its narrower side. */
+    val smallFootprintAreaMm2 by setting { num("plan.mechanism.adhesion.small_footprint.area") }
+    val smallFootprintHeightRatio by setting { num("plan.mechanism.adhesion.small_footprint.height_ratio") }
+    /** An area of one filament thinner than this (µm), touching another's, goes to that neighbor; null = the thinnest area the walls print. */
+    val sliverWidthUm: Long? by setting { (opt("plan.layer.sliver.width") as Number?)?.let { Math.round(it.toDouble() * 1000) } }
+    /**
+     * The width (µm) under which an area of one filament goes to a neighbor: [sliverWidthUm], and at least the thinnest area
+     * the walls print (plan.layer.walls.feature.min with variable-width walls, the outer wall's line with fixed-width ones).
+     */
+    val sliverHandOverUm: Long get() = maxOf(sliverWidthUm ?: 0L, if (wallGenerator == "arachne") minFeatureUm else outerWallWidthUm)
+    /**
+     * A sliver lying along the object's outer surface (plan.layer.sliver.at_surface): "own" = it stays its own part's (laid by
+     * its own filament where a line fits, else left empty); "neighbor" = it goes to the neighboring filament like a buried one.
+     */
+    val sliverAtSurface: String by setting { (opt("plan.layer.sliver.at_surface") as String? ?: "own").also {
+        require(it in SLIVER_AT_SURFACE) { "plan.layer.sliver.at_surface is '$it'; it is one of ${SLIVER_AT_SURFACE.joinToString()}" } } }
+    /** A wall shorter than this (mm) prints no faster than [shortWallSpeed] (mm/s); null = no such cap. */
+    val shortWallLengthMm: Double? by setting { (opt("plan.mechanism.motion.short_walls.length") as Number?)?.toDouble() }
+    val shortWallSpeed: Double? by setting { (opt("plan.mechanism.motion.short_walls.speed") as Number?)?.toDouble() }
+    /**
+     * From [shortWallLengthMm] to this (mm) a wall's cap rises in a straight line from [shortWallSpeed] to its own speed; null
+     * = [shortWallLengthMm] (a single step). Shorter than [shortWallLengthMm] is refused.
+     */
+    val shortWallFullLengthMm: Double? by setting {
+        (opt("plan.mechanism.motion.short_walls.full_length") as Number?)?.toDouble()?.also { full ->
+            shortWallLengthMm?.let { len ->
+                require(full >= len) {
+                    "plan.mechanism.motion.short_walls.full_length (${mm(full)}) is shorter than short_walls.length (${mm(len)}): a wall's speed " +
+                        "rises from short_walls.speed at short_walls.length to its own at full_length, so full_length is at least as long " +
+                        "as length (or unset, for a single step at length)"
+                }
+            }
+        }
+    }
+    /** [v] as a message writes it: at most three decimals, no trailing zeros. */
+    private fun plain(v: Double): String = java.math.BigDecimal.valueOf(v).setScale(3, java.math.RoundingMode.HALF_UP).stripTrailingZeros().toPlainString()
+    private fun mm(v: Double) = "${plain(v)} mm"
+    /** The share (0..1) of a line's length laid at a steady speed (plan.mechanism.motion.steady.share); null = no such cap. */
+    val steadyShare: Double? by setting {
+        (opt("plan.mechanism.motion.steady.share") as Number?)?.toDouble()?.also {
+            require(it >= 0 && it < 1) {
+                "plan.mechanism.motion.steady.share is ${plain(it * 100)} %: it is the share of a line's length laid at a steady speed, " +
+                    "from 0 % up to but not including 100 % (no line can be laid all at one speed: it starts and stops at rest)"
+            }
+        }
+    }
     /** The prime line: "near", "tab" or "none"; null = by the plate (PrimeLine). */
     val primeLine: String? by setting { opt("plan.mechanism.adhesion.prime.line") as String? }
     val primeLengthUm: Long by setting { (opt("plan.mechanism.adhesion.prime.length") as Number?)?.let { Math.round(it.toDouble() * 1000) } ?: 0L }
     val primeGapUm: Long by setting { (opt("plan.mechanism.adhesion.prime.gap") as Number?)?.let { Math.round(it.toDouble() * 1000) } ?: 0L }
     /**
-     * The loaded head's shape for clearance above printed plastic (null where the config does not give it): the nozzle's cone
-     * (hardware.tool.head.nozzle.angle, degrees from horizontal), how far the tip sits below the rest of the head (hardware.tool.head.nozzle.height, µm), and
+     * The loaded head's shape for clearance above printed plastic (null where nothing gives it): the nozzle's cone
+     * (hardware.tool.head.nozzle.angle, degrees from horizontal) and how far the tip sits below the rest of the head
+     * (hardware.tool.head.nozzle.height, µm), each the tool's own, else its machine model's toolhead's ([NozzleCone]); and
      * the head's reach from the nozzle towards -X, +X, -Y, +Y (µm, from hardware.tool.head.size.x/y and nozzle_x/y).
      */
-    val nozzleAngleDeg: Double? by setting { (opt("hardware.tool.head.nozzle.angle") as Number?)?.toDouble() }
-    val nozzleHeightUm: Long? by setting { (opt("hardware.tool.head.nozzle.height") as Number?)?.let { Math.round(it.toDouble() * 1000) } }
+    val nozzleAngleDeg: Double? by setting { (opt("hardware.tool.head.nozzle.angle") as Number?)?.toDouble() ?: modelCone(NozzleCone.ANGLE_KEY, "angle") }
+    val nozzleHeightUm: Long? by setting { ((opt("hardware.tool.head.nozzle.height") as Number?)?.toDouble() ?: modelCone(NozzleCone.HEIGHT_KEY, "height"))?.let { Math.round(it * 1000) } }
+    /** The machine model's toolhead value [key] for this tool (a tool's own cone value wins over it: NozzleCone). */
+    private fun modelCone(key: String, what: String): Double? {
+        val id = optional("hardware.machine.model") as String? ?: return null
+        return NozzleCone.fromModel(models.all.firstOrNull { it.id == id || id in it.otherNames }, tool, key, what)?.first
+    }
     val headReachUm: LongArray? by setting {
         listOf("hardware.tool.head.size.x", "hardware.tool.head.size.y", "hardware.tool.head.nozzle.x", "hardware.tool.head.nozzle.y").map { (opt(it) as Number?)?.toDouble() }
         .takeIf { v -> v.all { it != null } }?.let { (sx, sy, nx, ny) -> doubleArrayOf(nx!!, sx!! - nx, ny!!, sy!! - ny).map { Math.round(it * 1000) }.toLongArray() }
@@ -295,7 +377,8 @@ class SliceSettings private constructor(r: (String) -> Any, opt: (String) -> Any
     /** The object's filament (its own spool, like every filament value here): how far its outer wall line may hang past the one below. */
     val overhang by setting { Overhang(num("hardware.filament.overhang.share"), num("plan.layer.walls.outer.line.width")) }
     /** The conditions [overhang] holds at: the part fan while a line hangs past the one below (%), and the fastest such a line prints (mm/s; null = not known: only the graded slow-down). */
-    val overhangFanPct by setting { num("hardware.filament.overhang.fan") }
+    /** The part fan while a line hangs over (percent of full speed, as the fan commands take it; the setting is a share). */
+    val overhangFanPct by setting { num("hardware.filament.overhang.fan") * 100 }
     val overhangSpeed: Double? by setting { (opt("hardware.filament.overhang.speed") as Number?)?.toDouble() }
     /** Another slicer's gaps (investigation); null = plymeld's rules (Planner): one support line to the side, one layer on top. */
     val supportXyUm: Long? by setting { (opt("plan.support.gap.side") as Number?)?.let { Math.round(it.toDouble() * 1000) } }
@@ -354,7 +437,8 @@ class SliceSettings private constructor(r: (String) -> Any, opt: (String) -> Any
     val coolingDwellLiftUm by setting { um("plan.mechanism.cooling.dwell.lift") }
     val slowDownMinSpeed by setting { num("hardware.filament.cooling.speed.min") }
     val fanOffFirstLayers by setting { int("hardware.filament.cooling.fan_off_layers") }
-    val fanMinPct by setting { num("hardware.filament.cooling.fan") }
+    /** The part fan once it is on (percent of full speed, as the fan commands take it; the setting is a share). */
+    val fanMinPct by setting { num("hardware.filament.cooling.fan") * 100 }
     val filamentDiameterMm by setting { num("hardware.filament.diameter") }
     val flowRatio by setting { num("hardware.filament.flow") }
     val nozzleTempC by setting { int("hardware.filament.temperature.print") }
@@ -389,6 +473,8 @@ class SliceSettings private constructor(r: (String) -> Any, opt: (String) -> Any
     val restartLagMm by setting { num("hardware.filament.retract.restart_lag") }
     val retractSpeed by setting { num("hardware.filament.retract.speed") }
     val deretractSpeed by setting { num("hardware.filament.retract.return.speed") }
+    /** An outer wall's restore after a retracted travel a line inside its seam, then onto it with nothing pushed (hardware.filament.retract.return.inside). */
+    val returnInside by setting { bool("hardware.filament.retract.return.inside") }
     /** How far along a path the push back is spread (hardware.filament.retract.return.distance, mm); null = standing still. */
     val returnDistanceMm: Double? by setting { (opt("hardware.filament.retract.return.distance") as Number?)?.toDouble() }
     /** Coasting: the last part of a path before a retraction laid with no filament pushed (hardware.filament.retract.coast.distance, mm); null = none. */
@@ -415,6 +501,8 @@ class SliceSettings private constructor(r: (String) -> Any, opt: (String) -> Any
     val zHopUm by setting { um("hardware.filament.retract.z_hop") }
     val wipe by setting { bool("hardware.filament.retract.wipe.enabled") }
     val wipeDistanceMm by setting { num("hardware.filament.retract.wipe.distance") }
+    /** A closed outer wall's wipe a line inside it, then back along it (hardware.filament.retract.wipe.inward). */
+    val wipeInward by setting { bool("hardware.filament.retract.wipe.inward") }
     val wipeSpeed by setting { num("hardware.filament.retract.wipe.speed") }
     val retractBeforeWipe by setting { num("hardware.filament.retract.wipe.retract_before") }
     // machine
@@ -446,7 +534,7 @@ class SliceSettings private constructor(r: (String) -> Any, opt: (String) -> Any
      * uses): for the check that names every missing value at once. SliceSettingsTest holds it to every lazy field.
      */
     fun readAll() {
-        for (f in listOf<() -> Any?>({ layerHeightUm }, { firstLayerHeightUm }, { resolutionUm }, { closingRadiusUm }, { wallLoops }, { wallGenerator }, { minBeadUm }, { minFeatureUm }, { minLengthFactor }, { transitionLengthUm }, { outerWallWidthUm }, { innerWallWidthUm }, { firstLayerWidthUm }, { elephantFootUm }, { innerWallsFirst }, { seamStart }, { visibilityUnderside }, { visibilityBed }, { visibilityAway }, { visibilityQuadrants }, { seamCornerShare }, { seamScarfShare }, { viewFrom }, { visibilityAzimuths }, { visibilityElevations }, { visibilityMaxElevationDeg }, { visibilityReachUm }, { visibilityCellUm }, { visibilityShowThroughUm }, { seamCornerDeg }, { scarf }, { scarfLengthUm }, { scarfStart }, { topLayers }, { bottomLayers }, { topShellThicknessUm }, { bottomShellThicknessUm }, { coreLayers }, { maxLayerHeightUm }, { purgeInto }, { sparseDensity }, { sparsePattern }, { sparseChordUm }, { topPattern }, { bottomPattern }, { sparseWidthUm }, { minSparseAreaMm2 }, { solidWidthUm }, { topWidthUm }, { infillAngleDeg }, { infillWallOverlap }, { anchorMaxUm }, { bridgeSpeed }, { bridgeFlow }, { nozzleDiameterUm }, { towerSpeedSet }, { brimType }, { brimWidthUm }, { brimGapUm }, { primeLine }, { primeLengthUm }, { primeGapUm }, { nozzleAngleDeg }, { nozzleHeightUm }, { headReachUm }, { bridgeTempC }, { bridgePrintSpeed }, { bridgeMoveSpeed }, { bridgeRampListed }, { bridgeRampGrowth }, { bridgeLayerHeightUm }, { bridgeTopNormal }, { bridgeOrderHotToCold }, { bridgeOrderOneAtATime }, { bridgeFirstLayerWave }, { bridgeWaveAlternate }, { bridgeWaveOneSupport }, { bridgeWaveEdgesLast }, { bridgeWaveEdgesNone }, { bridgeWaveLayers }, { bridgeWaveSecondX }, { bridgeWaveStart }, { bridgeWaveStartWidthUm }, { bridgeWaveChevron }, { bridgeWaveChevronLeadUm }, { curvedTopUphill }, { bridgeWaveChevronMiddle }, { bridgeWaveChevronAcross }, { bridgeWaveAfterSupported }, { bridgeWaveXLengthUm }, { bridgeWaveDirection }, { bridgeWaveCrossBeside }, { bridgeWaveCrossClearanceUm }, { bridgeWaveRetractMm }, { bridgeWaveWipe }, { bridgeWaveWaitS }, { bridgeWaveCrossAway }, { bridgeWaveAwayUm }, { bridgeWaveWaitZones }, { bridgeWaveSecondPass }, { bridgeWaveSecondPassSpeed }, { bridgeWaveSecondPassApproachUm }, { bridgeWaveXLayer }, { bridgeWaveXLayerRaiseUm }, { bridgeWaveXLayerShare }, { bridgeWaveXLayerInsetUm }, { bridgeWaveXLayerSpeed }, { bridgeWaveXLayerMiddleFirst }, { bridgeWaveSpanLayer }, { bridgeWaveSpanLayerRaiseUm }, { bridgeWaveSpanLayerSpeed }, { bridgeWaveEvenSpacing }, { bridgeFillSpan }, { bridgeFillAlong }, { tackLayers }, { tackLengthUm }, { tackRiseUm }, { tackSpacingUm }, { bedUm }, { topUnderParts }, { zAntialias }, { waveOverhang }, { undersideFromUm }, { undersideToUm }, { waveSpacingUm }, { waveOverlapUm }, { waveMinNeckUm }, { waveMinAreaMm2 }, { waveLineAreaMm2 }, { waveSpeed }, { narrowCells }, { narrowFill }, { enableSupport }, { overhang }, { overhangFanPct }, { overhangSpeed }, { supportXyUm }, { supportTopZUm }, { supportTopZMinUm }, { supportBottomZUm }, { supportMinWidthUm }, { supportInterfaceTop }, { supportInterfaceBottom }, { supportBaseSpacingUm }, { supportInterfaceSpacingUm }, { supportOnPlateOnly }, { supportWidthUm }, { supportAngleDeg }, { treeBranchAngleDeg }, { treeTipDiameterUm }, { treeBranchDiameterUm }, { treeDiameterAngleDeg }, { treeBranchDistanceUm }, { fuzzySkin }, { fuzzyThicknessUm }, { fuzzyPointDistUm }, { fuzzyFirstLayer }, { fuzzyMode }, { fuzzyNoise }, { ironingType }, { ironingSpacingUm }, { ironingFlow }, { ironingSpeed }, { ironingInsetUm }, { ironingAngleDeg }, { maxVolumetric }, { slowDownForCooling }, { slowDownLayerTimeS }, { coolingSlowdown }, { coolingDwell }, { coolingDwellStyle }, { coolingDwellLiftUm }, { slowDownMinSpeed }, { fanOffFirstLayers }, { fanMinPct }, { filamentDiameterMm }, { flowRatio }, { nozzleTempC }, { nozzleTempFirstC }, { bedTempC }, { bedTempFirstC }, { visibleSpeed }, { speedMax }, { accelMax }, { innerWallsAsVisible }, { hiddenSpeed }, { firstLayerSpeed }, { travelSpeed }, { defaultAccel }, { visibleAccel }, { travelAccel }, { zSpeedMax }, { zAccelMax }, { cornerSpeed }, { zStepMm }, { retractMm }, { restartLagMm }, { retractSpeed }, { deretractSpeed }, { returnDistanceMm }, { coastMm }, { extrudeSectionMaxMm2 }, { retractMinTravelMm }, { noRetractInIsland }, { avoidCrossing }, { detourMarginUm }, { detourMaxRatio }, { detourMaxExtraUm }, { detourSpeckMaxRatio }, { detourSpeckMaxExtraUm }, { detourInsetUm }, { zHopUm }, { wipe }, { wipeDistanceMm }, { wipeSpeed }, { retractBeforeWipe }, { gcodeFlavor }, { printerModel }, { machineDescription }, { dialect }, { gcodeDialect }, { maxPrintHeightMm }, { excludeObject }, { arcFitting }, { arcSegmentMm }, { startGcode }, { endGcode }, { layerChangeGcode }, { pauseGcode }, { levelGcode }, { pictures })) f()
+        for (f in listOf<() -> Any?>({ layerHeightUm }, { firstLayerHeightUm }, { resolutionUm }, { closingRadiusUm }, { wallLoops }, { wallGenerator }, { minBeadUm }, { minFeatureUm }, { minLengthFactor }, { transitionLengthUm }, { maxBeadSetUm }, { outerWallWidthUm }, { innerWallWidthUm }, { firstLayerWidthUm }, { elephantFootUm }, { wallOrder }, { seamStart }, { visibilityUnderside }, { visibilityBed }, { visibilityAway }, { visibilityQuadrants }, { seamCornerShare }, { seamScarfShare }, { viewFrom }, { visibilityAzimuths }, { visibilityElevations }, { visibilityMaxElevationDeg }, { visibilityReachUm }, { visibilityCellUm }, { visibilityShowThroughUm }, { seamCornerDeg }, { scarf }, { scarfCoveredPoint }, { scarfLengthUm }, { scarfStart }, { scarfSpeed }, { scarfStepUm }, { scarfFlow }, { topLayers }, { bottomLayers }, { topShellThicknessUm }, { bottomShellThicknessUm }, { coreLayers }, { maxLayerHeightUm }, { purgeInto }, { sparseDensity }, { sparsePattern }, { sparseChordUm }, { topPattern }, { bottomPattern }, { sparseWidthUm }, { minSparseAreaMm2 }, { solidWidthUm }, { topWidthUm }, { infillAngleDeg }, { infillWallOverlap }, { anchorMaxUm }, { bridgeSpeed }, { bridgeFlow }, { nozzleDiameterUm }, { towerSpeedSet }, { speedFactor }, { brimType }, { brimWidthUm }, { brimGapUm }, { smallFootprintAreaMm2 }, { smallFootprintHeightRatio }, { sliverWidthUm }, { sliverAtSurface }, { shortWallLengthMm }, { shortWallSpeed }, { shortWallFullLengthMm }, { steadyShare },{ primeLine }, { primeLengthUm }, { primeGapUm }, { nozzleAngleDeg }, { nozzleHeightUm }, { headReachUm }, { bridgeTempC }, { bridgePrintSpeed }, { bridgeMoveSpeed }, { bridgeRampListed }, { bridgeRampGrowth }, { bridgeLayerHeightUm }, { bridgeTopNormal }, { bridgeOrderHotToCold }, { bridgeOrderOneAtATime }, { bridgeFirstLayerWave }, { bridgeWaveAlternate }, { bridgeWaveOneSupport }, { bridgeWaveEdgesLast }, { bridgeWaveEdgesNone }, { bridgeWaveLayers }, { bridgeWaveSecondX }, { bridgeWaveStart }, { bridgeWaveStartWidthUm }, { bridgeWaveChevron }, { bridgeWaveChevronLeadUm }, { curvedTopUphill }, { bridgeWaveChevronMiddle }, { bridgeWaveChevronAcross }, { bridgeWaveAfterSupported }, { bridgeWaveXLengthUm }, { bridgeWaveDirection }, { bridgeWaveCrossBeside }, { bridgeWaveCrossClearanceUm }, { bridgeWaveRetractMm }, { bridgeWaveWipe }, { bridgeWaveWaitS }, { bridgeWaveCrossAway }, { bridgeWaveAwayUm }, { bridgeWaveWaitZones }, { bridgeWaveSecondPass }, { bridgeWaveSecondPassSpeed }, { bridgeWaveSecondPassApproachUm }, { bridgeWaveXLayer }, { bridgeWaveXLayerRaiseUm }, { bridgeWaveXLayerShare }, { bridgeWaveXLayerInsetUm }, { bridgeWaveXLayerSpeed }, { bridgeWaveXLayerMiddleFirst }, { bridgeWaveSpanLayer }, { bridgeWaveSpanLayerRaiseUm }, { bridgeWaveSpanLayerSpeed }, { bridgeWaveEvenSpacing }, { bridgeFillSpan }, { bridgeFillAlong }, { tackLayers }, { tackLengthUm }, { tackRiseUm }, { tackSpacingUm }, { bedUm }, { topUnderParts }, { zAntialias }, { waveOverhang }, { undersideFromUm }, { undersideToUm }, { waveSpacingUm }, { waveOverlapUm }, { waveMinNeckUm }, { waveMinAreaMm2 }, { waveLineAreaMm2 }, { waveSpeed }, { narrowCells }, { narrowFill }, { enableSupport }, { overhang }, { overhangFanPct }, { overhangSpeed }, { supportXyUm }, { supportTopZUm }, { supportTopZMinUm }, { supportBottomZUm }, { supportMinWidthUm }, { supportInterfaceTop }, { supportInterfaceBottom }, { supportBaseSpacingUm }, { supportInterfaceSpacingUm }, { supportOnPlateOnly }, { supportWidthUm }, { supportAngleDeg }, { treeBranchAngleDeg }, { treeTipDiameterUm }, { treeBranchDiameterUm }, { treeDiameterAngleDeg }, { treeBranchDistanceUm }, { fuzzySkin }, { fuzzyThicknessUm }, { fuzzyPointDistUm }, { fuzzyFirstLayer }, { fuzzyMode }, { fuzzyNoise }, { ironingType }, { ironingSpacingUm }, { ironingFlow }, { ironingSpeed }, { ironingInsetUm }, { ironingAngleDeg }, { maxVolumetric }, { slowDownForCooling }, { slowDownLayerTimeS }, { coolingSlowdown }, { coolingDwell }, { coolingDwellStyle }, { coolingDwellLiftUm }, { slowDownMinSpeed }, { fanOffFirstLayers }, { fanMinPct }, { filamentDiameterMm }, { flowRatio }, { nozzleTempC }, { nozzleTempFirstC }, { bedTempC }, { bedTempFirstC }, { visibleSpeed }, { speedMax }, { accelMax }, { innerWallsAsVisible }, { hiddenSpeed }, { firstLayerSpeed }, { travelSpeed }, { defaultAccel }, { visibleAccel }, { travelAccel }, { zSpeedMax }, { zAccelMax }, { cornerSpeed }, { zStepMm }, { retractMm }, { restartLagMm }, { retractSpeed }, { deretractSpeed }, { returnInside }, { returnDistanceMm }, { coastMm }, { extrudeSectionMaxMm2 }, { retractMinTravelMm }, { noRetractInIsland }, { avoidCrossing }, { detourMarginUm }, { detourMaxRatio }, { detourMaxExtraUm }, { detourSpeckMaxRatio }, { detourSpeckMaxExtraUm }, { detourInsetUm }, { zHopUm }, { wipe }, { wipeDistanceMm }, { wipeInward }, { wipeSpeed }, { retractBeforeWipe }, { gcodeFlavor }, { printerModel }, { machineDescription }, { dialect }, { gcodeDialect }, { maxPrintHeightMm }, { excludeObject }, { arcFitting }, { arcSegmentMm }, { startGcode }, { endGcode }, { layerChangeGcode }, { pauseGcode }, { levelGcode }, { pictures })) f()
     }
 
     companion object {
@@ -497,14 +585,16 @@ class SliceSettings private constructor(r: (String) -> Any, opt: (String) -> Any
         fun of(setup: Setup, ctx: Context = Context()): SliceSettings {
             val rec = java.util.concurrent.ConcurrentHashMap<String, String>()
             return SliceSettings({ id -> capture.get()?.add(id); Resolver.resolve(setup, id, ctx).value.also { rec[id] = it.toString() } },
-                { id -> capture.get()?.add(id); Resolver.resolveOrNull(setup, id, ctx)?.value.also { rec[id] = it.toString() } }, setup.models, rec)
+                { id -> capture.get()?.add(id); Resolver.resolveOrNull(setup, id, ctx)?.value.also { rec[id] = it.toString() } }, setup.models, rec, NozzleCone.toolOf(setup, ctx))
         }
 
         private val capture = ThreadLocal<MutableSet<String>?>()
 
         /**
          * [block]'s result and the ids of the settings read in it on this thread (a cached computation keeps them, to read them
-         * again when its result is reused). The ids add to an enclosing [reading]'s.
+         * again when its result is reused). The ids add to an enclosing [reading]'s. Reads on other threads are not seen, and a
+         * thread waiting on parallel work may run other work meanwhile, its reads then counted here: so [block] starts no
+         * parallel work (LayerCache's per-layer computations do not).
          */
         fun <T> reading(block: () -> T): Pair<T, Set<String>> {
             val outer = capture.get()
@@ -525,7 +615,7 @@ class SliceSettings private constructor(r: (String) -> Any, opt: (String) -> Any
                 try { Resolver.resolve(setup, id, probe).value } catch (e: MissingValue) { missing += e.message!!; standIn(Catalog[id].kind) }
             }
             try {
-                SliceSettings(read, { id -> Resolver.resolveOrNull(setup, id, probe)?.value }, setup.models, java.util.concurrent.ConcurrentHashMap()).readAll()
+                SliceSettings(read, { id -> Resolver.resolveOrNull(setup, id, probe)?.value }, setup.models, java.util.concurrent.ConcurrentHashMap(), NozzleCone.toolOf(setup, probe)).readAll()
             } catch (e: RuntimeException) {
                 if (missing.isEmpty()) throw e
             }

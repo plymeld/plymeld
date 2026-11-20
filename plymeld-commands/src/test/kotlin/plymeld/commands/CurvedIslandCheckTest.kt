@@ -57,8 +57,8 @@ class CurvedIslandCheckTest : StringSpec({
         val p = problems(lines.toMutableList().also { it[at] = mark + "nowhere" }.joinToString("\n"))
         withClue(p.joinToString("\n")) { p.any { "which the plan has none of" in it } shouldBe true }
     }
-    // the walls rule reads the real model, no warped mesh (the frames' model check read a warped one, made the same wrong way for
-    // the slicer and the check, and passed a notch in the Benchy's bow): an island layer's walls made travels must be refused by it
+    // the walls rule reads the real model, no warped mesh (a warped one, made the same wrong way for the slicer and the
+    // check, would pass the same fault in both): an island layer's walls made travels must be refused by it
     "control: an island layer's walls taken out (made travels) are refused by the rule reading the real model" {
         val k = layerAt.indices.filter { marked(it) }.let { it[it.size / 2] }
         var inWall = false

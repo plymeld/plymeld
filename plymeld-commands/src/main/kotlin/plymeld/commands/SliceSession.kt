@@ -18,10 +18,14 @@ import java.nio.file.Path
  * A session kept across runs keeps each object's slicer (its cached stages: incremental re-slicing) while the plate is the same: the
  * same meshes, placed the same, with the same technique plan and pauses. Then a run after a change re-runs only the stages
  * whose settings changed (a speed: the g-code alone). A changed mesh, pose, or technique plan starts the slicer afresh.
+ * [keepSlicers] false: a session that slices once (the `slice` command) lets the slicers go as soon as the file is
+ * written, so their stages (every layer's outlines, walls, and paths) are not held through the check beside its own.
  */
-class SliceSession {
+class SliceSession(private val keepSlicers: Boolean = true) {
     private class Kept(val signature: String, val inc: IncrementalSlicer?, val job: plymeld.core.Job?)
     private var kept: Kept? = null
+    /** Whether the session holds the objects' slicers from its last [write] (for the next run's unchanged stages). */
+    internal fun holdsSlicers(): Boolean = kept != null
 
     /** What [write] produced, for [check]. */
     class Written(val pr: Product, val plan: Plan, val setup: Setup, val output: Path, val text: String, val partTools: List<Int>, val prediction: Predict.Prediction,
@@ -37,6 +41,39 @@ class SliceSession {
         "${pl.name}@${pl.cx},${pl.cy}:$mesh;bands=$bands;h=${t.layerHeightMm};cd=${t.curvedDepthAuto};sup=$support;ins=${t.inserts.size};isl=$islands"
     } + "|order=${plan.layout.order}|pauses=" + pauses.joinToString(",") { it.toString() }
 
+    /**
+     * The objects that stand on a small footprint with no brim, one line each, said as a note (nothing is refused or
+     * changed): its first layer's area under plan.mechanism.adhesion.small_footprint.area, or the object taller than
+     * small_footprint.height_ratio times the narrower side of the box round its first layer. The first layer is the placed
+     * parts cut half a first layer up; of a section left open (model.object.<key>.section), what lies inside its box, and
+     * its height the box's top.
+     */
+    private fun smallFootprints(pr: Product, plan: plymeld.core.decide.Plan, setup: plymeld.model.Setup): List<String> =
+        plan.layout.placed.withIndex().mapNotNull { (j, pl) ->
+            val o = pr.plate[j].first
+            val s = plymeld.model.SliceSettings.of(setup, plymeld.model.Context(j))
+            if (s.brimType != "no_brim") return@mapNotNull null
+            val bs = pl.parts.map { it.bounds() }
+            val z0 = bs.minOf { it[2] }; val x0 = bs.minOf { it[0] }; val y0 = bs.minOf { it[1] }
+            val open = plan.layout.techniques[j].regions.firstOrNull { it.section }?.region
+            val rect = open?.let { g -> listOf(plymeld.geom.Polygon(longArrayOf(Math.round((x0 + g.x0) * 1000), Math.round((y0 + g.y0) * 1000), Math.round((x0 + g.x1) * 1000), Math.round((y0 + g.y0) * 1000),
+                Math.round((x0 + g.x1) * 1000), Math.round((y0 + g.y1) * 1000), Math.round((x0 + g.x0) * 1000), Math.round((y0 + g.y1) * 1000)))) }
+            val loops = pl.parts.flatMap { p -> plymeld.mesh.Slicer.slice(p, doubleArrayOf(z0 + s.firstLayerHeightUm / 2000.0))[0].loops
+                .let { if (rect == null || it.isEmpty()) it else plymeld.geom.Booleans.intersection(it, rect) } }
+            if (loops.isEmpty()) return@mapNotNull null
+            val area = Math.abs(loops.sumOf { it.signedAreaMm2() })
+            var lx = Long.MAX_VALUE; var hx = Long.MIN_VALUE; var ly = Long.MAX_VALUE; var hy = Long.MIN_VALUE
+            for (p in loops) for (k in 0 until p.size) { lx = minOf(lx, p.x(k)); hx = maxOf(hx, p.x(k)); ly = minOf(ly, p.y(k)); hy = maxOf(hy, p.y(k)) }
+            val narrow = minOf(hx - lx, hy - ly) / 1000.0
+            val height = open?.toMm ?: (bs.maxOf { it[5] } - z0)
+            fun f(v: Double) = plymeld.core.decide.Control.fmt(v)
+            val why = listOfNotNull(
+                if (area < s.smallFootprintAreaMm2) "its first layer is ${f(area)} mm², under plan.mechanism.adhesion.small_footprint.area (${f(s.smallFootprintAreaMm2)} mm²)" else null,
+                if (narrow > 0 && height > s.smallFootprintHeightRatio * narrow) "it is ${f(height)} mm tall on a first layer ${f(narrow)} mm across its narrower side, over plan.mechanism.adhesion.small_footprint.height_ratio (${f(s.smallFootprintHeightRatio)})" else null)
+            if (why.isEmpty()) null
+            else "'${o.key}' stands on a small footprint with no brim: ${why.joinToString("; and ")}. A brim (plan.mechanism.adhesion.brim.enabled) may help it hold the bed"
+        }
+
     /** Slices [pr]'s plan to [output]: the decisions echoed as `slice` prints them, the file written with its header. */
     fun write(pr: Product, output: Path, echo: (String) -> Unit, progress: Progress = Progress.NONE,
               /** A second writer every byte of the g-code also goes to, as it is written (the window's stage), closed with the file. */
@@ -49,6 +86,7 @@ class SliceSession {
         plan.warnings.forEach { echo("warning: $it") }
         output.parent?.let { Files.createDirectories(it) }
         val setup = pr.result.setup
+        smallFootprints(pr, plan, setup).forEach { echo("note: $it") }
         // nozzle temperatures against each filament's range and each tool's limit: warned about, not refused
         plymeld.core.check.TemperatureLimits.warnings(setup).forEach { echo("warning: $it") }
         // the pauses asked for, and one above each planned insert's top: the insert is placed before the layer over it
@@ -86,21 +124,23 @@ class SliceSession {
             inc.retractionDecision?.let { echo("decided ${it.step}: ${if (it.overridden) "(locked) " else ""}${it.why}") }
         }
         echo("${pr.plate.size} object(s): ${(System.nanoTime() - t0) / 1_000_000} ms -> $output" + (if (reused) " (the slicer kept from the last run: unchanged stages skipped)" else ""))
+        if (!keepSlicers) kept = null
         progress.check()
         progress.at("prediction", 0, 0)
         val changeS = (plymeld.model.Resolver.resolveOrNull(setup, "hardware.machine.tool_change.time")?.value as Number?)?.toDouble()
         val s = plymeld.model.SliceSettings.of(setup)
-        val prediction = Predict.gcode(Files.readString(output), s.machineDescription, changeS, Predict.limits(s)).withSeamScar(seamScar).withStrings(strings)
+        val written = Files.readString(output)
+        val prediction = Predict.gcode(written, s.machineDescription, changeS, Predict.limits(s)).withSeamScar(seamScar).withStrings(strings)
         // which tool prints each part: the config's loadout, read on its own (not the setup the slice was made from)
         val partTools = pr.partTools(plan)
         // the machine's preview pictures (hardware.machine.gcode.pictures) and its own file header (the Creator 5's screen), from the
         // finished file and its prediction
-        val pictured = withPictures(Files.readString(output), plan.parts, partTools, setup, s, echo)
+        val pictured = withPictures(written, plan.parts, partTools, setup, s, echo)
         // what the file was made from (version, models, config, plan), at its end, for anyone reproducing it (SourceBlock)
         val text = SourceBlock.append(withMachineHeader(pictured, pr.config, setup, s, prediction), PlymeldVersion.value, pr.usedStack, pr.modelPaths, pr.planFile(plan), pr.config.machine, pr.usedKeys)
         Files.writeString(output, text)
         echo("predicted: $prediction")
-        // where the time goes, by feature (a gyroid's infill traced finer than the machine runs it showed only in the total)
+        // where the time goes, by feature (a feature that costs more than it should is hidden in the total alone)
         prediction.byFeature()?.let { echo("predicted by feature: $it") }
         echo(seamScar?.let { "seams: ${it.words()} (seam_scar)" } ?: "seams: not measured (a multi-filament object: its outer walls are laid per filament)")
         echo(strings?.let { "${it.words()} (string_risk, restart_starved; the restart lag hardware.filament.retract.restart_lag is a placeholder)" } ?: "strings: not measured (an exact program)")
@@ -110,12 +150,20 @@ class SliceSession {
     /**
      * Reads the file back as the printer would: against the config (machine, retraction, travels, tools, header, start and
      * end) and against the model (nothing printed outside it, its outline walled). The problems, empty when it passed; the
-     * check's line echoed either way (the command refuses the file on any).
+     * check's line echoed either way (the command refuses the file on any), and the laid-twice line before it (the rule's
+     * measure: spots, their area, the layers with one, the widest).
      */
-    class Checked(val problems: List<String>, /** The refusal as `slice` prints it (its message), or null when the file passed. */ val refusal: String?)
+    class Checked(val problems: List<String>, /** The refusal as `slice` prints it (its message), or null when the file passed. */ val refusal: String?,
+                  /** The laid-twice rule's measure over the file (DoubledCheck), as the "laid twice" line says it. */
+                  val laidTwice: plymeld.core.check.DoubledCheck.Summary = plymeld.core.check.DoubledCheck.Summary.NONE)
 
     fun check(w: Written, echo: (String) -> Unit, progress: Progress = Progress.NONE): Checked {
         val (pr, plan, setup, output, text, partTools) = w
+        return check(pr, plan, setup, output, text, partTools, echo, progress)
+    }
+
+    /** As [check] of a [Written], from its parts: [text] the g-code of [plan] (its pictures beside [output]). */
+    fun check(pr: Product, plan: Plan, setup: Setup, output: Path, text: String, partTools: List<Int>, echo: (String) -> Unit, progress: Progress = Progress.NONE): Checked {
         val t1 = System.nanoTime()
         progress.at("check: reading the model", 0, 0)
         val zBase = plan.parts.minOf { it.bounds()[2] }
@@ -126,24 +174,68 @@ class SliceSession {
         val several = plan.layout.placed.size > 1
         val sequential = several && plan.layout.order == plymeld.core.decide.ObjectOrder.ONE_AT_A_TIME
         val lifted = plan.layout.placed.indices.any { curvedSpec(plan, setup, it)?.follows == plymeld.core.check.CurvedCheck.Follows.LIFT }
-        // Z anti-aliasing: lines below their flat layer only on the model's own top (the rule from the model and the config)
-        val zaa = plymeld.core.check.Expectations.forZaa(setup, plan.parts, zBase, lifted)
+        // Z anti-aliasing: lines below their flat layer only on the model's own top (the rule from the model and the config):
+        // the tops of the objects that have it on, each over all its parts
+        val zaa = plymeld.core.check.Expectations.forZaa(setup, plan.layout.placed.mapIndexed { j, pl -> plan.layout.objectIndex[j] to pl.parts }, zBase, lifted)
+        // a section left open: the box object j's lines are laid in, in the file's frame (its sides, and its top's height)
+        fun cutOf(j: Int): DoubleArray? = plan.layout.techniques[j].regions.firstOrNull { it.section }?.let { r ->
+            val pl = plan.layout.placed[j]; val g = r.region
+            val bx = pl.parts.minOf { it.bounds()[0] }; val by = pl.parts.minOf { it.bounds()[1] }
+            doubleArrayOf(bx + g.x0, bx + g.x1, by + g.y0, by + g.y1, pl.parts.minOf { it.bounds()[2] } + g.toMm) }
+        // ... and its parts cut to that box, each cut face closed (SectionCut): inside the box their cross-sections are the
+        // whole model's, and the check reads a mesh the size of what prints (several copies of a large model, read whole,
+        // can run out of memory). A part with nothing in the box is left out, its tool with it. A model the cut refuses
+        // (not closed where the box cuts it) is read whole.
+        fun cutParts(j: Int, parts: List<plymeld.mesh.TriangleSoup>, tools: List<Int>): Pair<List<plymeld.mesh.TriangleSoup>, List<Int>> {
+            val c = cutOf(j) ?: return parts to tools
+            val z0 = parts.minOf { it.bounds()[2] }
+            val cut = try { parts.map { plymeld.mesh.SectionCut.cut(it, doubleArrayOf(c[0], c[1], c[2], c[3], z0 - 1.0, c[4])) } }
+                catch (x: IllegalArgumentException) { return parts to tools }
+            val keep = cut.indices.filter { cut[it].count > 0 }
+            return if (keep.isEmpty()) parts to tools else keep.map { cut[it] } to keep.map { tools[it] }
+        }
+        // how thin an area of one filament object j's config hands to its neighbor (plan.layer.sliver.width), for the tool rule
+        fun handOver(j: Int): Double = (plymeld.model.SliceSettings.of(setup, plymeld.model.Context(j)).sliverWidthUm ?: 0L) / 1000.0
+        // ... and along the object's outer surface (plan.layer.sliver.at_surface): with neighbor, as thin as it hands over
+        // anywhere (the walls' thinnest included); with own, nothing: there a line of one tool lies within its own part
+        fun surfaceHandOver(j: Int): Double = plymeld.model.SliceSettings.of(setup, plymeld.model.Context(j)).let {
+            if (it.sliverAtSurface == "neighbor") it.sliverHandOverUm / 1000.0 else 0.0 }
+        // the narrowest place object j's walls surely lay a line in, for the bare-outline rule: plan.layer.walls.feature.min
+        // and the slicing tolerance a side (method.slicing.tolerance: the outline is known no closer, and a place that close
+        // to the floor may go either way; a fin 0.161 mm wide, over a 0.15 mm floor, measured under it by the walls' skeleton)
+        fun featureMin(j: Int): Double = plymeld.model.SliceSettings.of(setup, plymeld.model.Context(j)).let { (it.minFeatureUm + 2 * it.resolutionUm) / 1000.0 }
+        // how far object j's first layer is drawn in (hardware.plate.first_layer.squish), for the same rule
+        fun firstInset(j: Int): Double = plymeld.model.SliceSettings.of(setup, plymeld.model.Context(j)).elephantFootUm / 1000.0
+        // object j's fuzzy skin's thickness where it is on (plan.technique.fuzzy_skin), for the hole rule: its walls move in and
+        // out by up to it
+        fun fuzz(j: Int): Double = plymeld.model.SliceSettings.of(setup, plymeld.model.Context(j)).let { if (it.fuzzySkin == "none") 0.0 else it.fuzzyThicknessUm / 1000.0 }
+        // the narrowest area object j's walls hand to infill (two inner wall lines), for the hole rule: an uncovered piece that
+        // wide is the infill region's
+        fun infillMin(j: Int): Double = 2 * plymeld.model.SliceSettings.of(setup, plymeld.model.Context(j)).innerWallWidthUm / 1000.0
+        // object j's slicing tolerance (method.slicing.tolerance) and its lines' reach into the walls (plan.layer.infill.wall_overlap),
+        // for the laid-twice rule: overlaps between lines the planner makes on purpose
+        fun slicingTol(j: Int): Double = plymeld.model.SliceSettings.of(setup, plymeld.model.Context(j)).resolutionUm / 1000.0
+        fun endOverlap(j: Int): Double = plymeld.model.SliceSettings.of(setup, plymeld.model.Context(j)).infillWallOverlap
         val plate = if (!several) null else {
             var at = 0
             val objs = plan.layout.placed.withIndex().map { (j, pl) ->
                 val tools = partTools.subList(at, at + pl.parts.size).also { at += pl.parts.size }
-                plymeld.core.check.PlateCheck.Obj(pl.name, pl.parts, tools, curvedSpec(plan, setup, j))
+                val (ps, ts) = if (curvedSpec(plan, setup, j) == null) cutParts(j, pl.parts, tools) else pl.parts to tools
+                plymeld.core.check.PlateCheck.Obj(pl.name, ps, ts, curvedSpec(plan, setup, j), cutOf(j), handOver(j), featureMin(j), firstInset(j), surfaceHandOver(j), fuzz(j), infillMin(j), slicingTol(j), endOverlap(j))
             }
             if (sequential) plymeld.core.check.PlateCheck.oneAtATime(text, objs, zBase, Path.of("$output.check"), zaa)
             else plymeld.core.check.PlateCheck.together(text, objs, zBase, Path.of("$output.check"), zaa)
         }
         val curved = if (several) null else curvedRead(text, plan, setup, zBase)
         val checkText = plate?.text ?: curved?.text ?: text
-        val checkParts = plate?.parts ?: curved?.parts ?: plan.parts
+        val lone = if (!several && curved == null) cutParts(0, plan.parts, partTools) else null
+        val checkParts = plate?.parts ?: curved?.parts ?: lone?.first ?: plan.parts
+        val checkTools = lone?.second ?: partTools
         // several lifted bridges in a lone object: each frame (what stands on the bed, each bridge) read against its own parts
         val frames = curved?.frames
-        val frameSurfaces = frames?.map { plymeld.core.check.ModelCheck.Surface(it.parts, zBase, it.text, zaaMinMm = if (it.flat) zaa?.minMm else null, clip = it.clip) }
-        val surface = if (frames == null) plymeld.core.check.ModelCheck.Surface(checkParts, zBase, checkText, zaaMinMm = zaa?.minMm) else null
+        val frameSurfaces = frames?.map { plymeld.core.check.ModelCheck.Surface(it.parts, zBase, it.text, zaaMinMm = if (it.flat) zaa?.minMm else null, clip = it.clip, thickness = it.thickness) }
+        val surface = if (frames == null) plymeld.core.check.ModelCheck.Surface(checkParts, zBase, checkText, zaaMinMm = zaa?.minMm, cut = if (several) null else cutOf(0),
+            thickness = if (plate == null) curved?.thickness else null) else null
         val onSurface: (Double, Double, Double, Double) -> Boolean = when {
             plate != null -> plymeld.core.check.ModelCheck.Surfaces(plate.surfaces)::at
             frameSurfaces != null -> plymeld.core.check.ModelCheck.Surfaces(frameSurfaces)::at
@@ -164,18 +256,28 @@ class SliceSession {
             plymeld.core.check.SupportCheck.check(text, sp.spots.map { s -> plymeld.core.check.SupportCheck.Spot(s.id, bx + s.region.x0, bx + s.region.x1, by + s.region.y0, by + s.region.y1) })
                 .map { "'${pl.name}': $it" }
         }
-        val problems = spotProblems + (plate?.problems ?: emptyList()) + (curved?.problems ?: emptyList()) + gProblems +
-            (if (plate != null) emptyList()
-            else if (frames != null) frames.flatMapIndexed { i, fr ->
-                plymeld.core.check.ModelCheck.check(fr.text, fr.parts, zBase, imagesDir = Path.of("$output.check", fr.name.replace(' ', '_')).also { Files.createDirectories(it) },
-                    surface = frameSurfaces!![i], partTools = fr.partIndex.map { partTools[it] }, zaa = if (fr.flat) zaa else null, progress = progress).map { "${fr.name}: $it" } }
-            else plymeld.core.check.ModelCheck.check(checkText, checkParts, zBase, imagesDir = Path.of("$output.check"), surface = surface, partTools = partTools, zaa = zaa, progress = progress))
+        // the model check: a lone object's whole file, or each of its frames; a plate's objects were read by PlateCheck
+        val modelResults: List<plymeld.core.check.ModelCheck.Result> =
+            if (plate != null) emptyList()
+            else if (frames != null) frames.mapIndexed { i, fr ->
+                plymeld.core.check.ModelCheck.checkAll(fr.text, fr.parts, zBase, imagesDir = Path.of("$output.check", fr.name.replace(' ', '_')).also { Files.createDirectories(it) },
+                    surface = frameSurfaces!![i], partTools = fr.partIndex.map { partTools[it] }, zaa = if (fr.flat) zaa else null, progress = progress,
+                    handOverMm = handOver(0), featureMinMm = featureMin(0), firstLayerInsetMm = firstInset(0), surfaceHandOverMm = surfaceHandOver(0), fuzzMm = fuzz(0), infillMinMm = infillMin(0),
+                    slicingTolMm = slicingTol(0), endOverlap = endOverlap(0)).let { r -> plymeld.core.check.ModelCheck.Result(r.problems.map { "${fr.name}: $it" }, r.laidTwice.at(fr.name)) } }
+            else listOf(plymeld.core.check.ModelCheck.checkAll(checkText, checkParts, zBase, imagesDir = Path.of("$output.check"), surface = surface, partTools = checkTools, zaa = zaa, progress = progress,
+                handOverMm = handOver(0), featureMinMm = featureMin(0), firstLayerInsetMm = firstInset(0), surfaceHandOverMm = surfaceHandOver(0), fuzzMm = fuzz(0), infillMinMm = infillMin(0),
+                slicingTolMm = slicingTol(0), endOverlap = endOverlap(0)))
+        val problems = spotProblems + (plate?.problems ?: emptyList()) + (curved?.problems ?: emptyList()) + gProblems + modelResults.flatMap { it.problems }
+        // plastic laid twice (DoubledCheck): measured on every layer, reported here; among the problems only when DoubledCheck.REFUSES
+        val laidTwice = modelResults.fold(plate?.laidTwice ?: plymeld.core.check.DoubledCheck.Summary.NONE) { a, r -> a + r.laidTwice }
         plate?.let { echo("check: ${plan.layout.placed.size} objects, ${if (sequential) "one at a time: each object's run of layers" else "together: each object's lines, by the file's object markers,"} read against that object alone") }
         (plate?.curvedLayers ?: curved?.curvedLayers)?.takeIf { it > 0 }?.let { echo("check: $it curved layer(s) read in warped space (the check's own warp, from the model)") }
+        echo("laid twice: ${laidTwice.words()}" + (if (laidTwice.spots == 0 || plymeld.core.check.DoubledCheck.REFUSES) "" else
+            " (the pre-print check's laid-twice rule, reported, not refused; a picture of each layer with one in $output.check)"))
         val took = (System.nanoTime() - t1) / 1_000_000
         val times = "$took ms: model cut $tCut, g-code check $tG, model check ${took - tCut - tG}"
-        if (problems.isEmpty()) { echo("check: the g-code reads back as the config and the model say ($times)"); return Checked(problems, null) }
-        return Checked(problems, "check: ${problems.size} problem(s) in $output ($times); do not print it before they are understood:\n" + problems.joinToString("\n") { "  $it" })
+        if (problems.isEmpty()) { echo("check: the g-code reads back as the config and the model say ($times)"); return Checked(problems, null, laidTwice) }
+        return Checked(problems, "check: ${problems.size} problem(s) in $output ($times); do not print it before they are understood:\n" + problems.joinToString("\n") { "  $it" }, laidTwice)
     }
 
     /** The file's writer, with [tap] written to as well when given. */

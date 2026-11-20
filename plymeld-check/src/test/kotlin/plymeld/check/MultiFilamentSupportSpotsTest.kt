@@ -14,9 +14,8 @@ import plymeld.geom.Polygon
 import plymeld.model.SliceSettings
 
 /**
- * The plan's support spots are printed for a MULTI-COLOR object too (seen to fail on a multi-color model: the plan held
- * seven spots, three of them locked, and the sliced file held no support in any; the per-filament planning never received
- * them, so with the switch unset nothing was generated). Two parts on two spools: a 20 mm block, and from 4 mm up a
+ * The plan's support spots are printed for a MULTI-COLOR object too (the per-filament planning receives them: without
+ * them, with the switch unset, nothing would be generated in any spot). Two parts on two spools: a 20 mm block, and from 4 mm up a
  * shelf of the second color hanging 8 mm out over air. The support switch is unset (the bundled files leave it so): the
  * spots alone say where support goes.
  */

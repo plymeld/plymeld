@@ -10,7 +10,7 @@ import plymeld.geom.Polygon
 
 /**
  * A ring pattern's rings are laid as generated (ToolPath.sequence; ordered for travel, half of a top's circle arcs
- * were reversed and the rings laid in bands of opposite direction and order, printed as "two types" of arcs). A 40 x 20 mm
+ * would be reversed and the rings laid in bands of opposite direction and order, two visibly different kinds of arc). A 40 x 20 mm
  * block, 30 layers of 0.2 mm, its top in concentric-inside-out: circles round (20, 10), full up to r 10, arcs at the ends.
  */
 class RingOrderTest : StringSpec({

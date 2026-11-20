@@ -27,14 +27,57 @@ class SeamScarTest : StringSpec({
     // curved islands: an island's own layers are printed among the flat ones, each stack's seams in line with its own layer below
     // (read against the layer printed before, the 3DBenchy with a bow island measured 183 mm2 against 45.6 flat)
     "two stacks printed in turn, each seam in line with its own: no jog read by stack; control: read in print order, each jogs to the other" {
+        // the two stacks over the same place (each under the other), A's seams at (0, 0), B's at (10, 0)
         val stackA = { i: Int -> layer(i, square(0.0, 0.0, 10.0)) }
-        val stackB = { i: Int -> layer(i, square(30.0, 0.0, 10.0)) }
+        val stackB = { i: Int -> layer(i, ToolPath(Feature.OUTER_WALL, longArrayOf(10000, 0, 10000, 10000, 0, 10000, 0, 0), true, w, h)) }
         val layers = listOf(stackA(0), stackB(1), stackA(2), stackB(3), stackA(4), stackB(5))
         val byStack = SeamScar.measure(layers, map, noCorner, stackOf = { i -> if (i % 2 == 0) -1 else 0 })   // A the flat layers, B an island
-        // B's first layer starts on A's (no layer of its own below yet): 30 mm; nothing else jogs
-        byStack.jogMm shouldBe (30.0 plusOrMinus 1e-6)
+        // B's first layer starts on A's (no layer of its own below yet): 10 mm; nothing else jogs
+        byStack.jogMm shouldBe (10.0 plusOrMinus 1e-6)
         val printOrder = SeamScar.measure(layers, map, noCorner)
-        printOrder.jogMm shouldBe (5 * 30.0 plusOrMinus 1e-6)
+        printOrder.jogMm shouldBe (5 * 10.0 plusOrMinus 1e-6)
+    }
+
+    // a loop's jog is read only from what lies under it: a seam elsewhere on the layer below is no step on this wall
+    "a loop with nothing under it has no jog; control: the same loop over the layer below's loop jogs to its seam" {
+        val apart = measure(listOf(layer(0, square(0.0, 0.0, 10.0)), layer(1, square(30.0, 0.0, 10.0))), null)
+        apart.jogMm shouldBe (0.0 plusOrMinus 1e-9)
+        apart.scarMm2 shouldBe (0.16 + 0.16 plusOrMinus 1e-9)
+        // the control: over it, its seam 2 mm from the one below
+        val over = measure(listOf(layer(0, square(0.0, 0.0, 10.0)), layer(1, square(2.0, 0.0, 10.0))), null)
+        over.jogMm shouldBe (2.0 plusOrMinus 1e-9)
+        // beside it, a line width apart (the beads touching within a line): under it, it jogs; 2 mm apart (control): not under
+        measure(listOf(layer(0, square(0.0, 0.0, 10.0)), layer(1, square(10.0 + 0.8, 0.0, 10.0))), null).jogMm shouldBe (10.8 plusOrMinus 1e-9)
+        measure(listOf(layer(0, square(0.0, 0.0, 10.0)), layer(1, square(12.0, 0.0, 10.0))), null).jogMm shouldBe (0.0 plusOrMinus 1e-9)
+    }
+
+    // an open outer-wall line (a line along the outline where no loop fits) starts and stops on the surface: two point seams
+    fun line(vararg pts: Double) = ToolPath(Feature.OUTER_WALL, LongArray(pts.size) { Math.round(pts[it] * 1000) }, false, w, h)
+    "an open outer line's two ends count as point seams; control: an inner-wall line counts none" {
+        val r = measure(listOf(layer(0, line(0.0, 0.0, 5.0, 0.0, 5.0, 3.0))), null)
+        r.seams shouldBe 2; r.pointSeams shouldBe 2; r.jogMm shouldBe (0.0 plusOrMinus 1e-9)
+        r.scarMm2 shouldBe (2 * 0.16 plusOrMinus 1e-9)
+        val inner = ToolPath(Feature.INNER_WALL, longArrayOf(0, 0, 5000, 0, 5000, 3000), false, w, h)
+        measure(listOf(layer(0, inner)), null).seams shouldBe 0
+        // a loop over a line jogs to the nearer of its ends: the line from (0, 0) to (10, 0), the loop's seam at (9, 0)
+        measure(listOf(layer(0, line(0.0, 0.0, 10.0, 0.0)), layer(1, square(9.0, 0.0, 1.0))), null).jogMm shouldBe (1.0 plusOrMinus 1e-9)
+    }
+
+    "an open outer line hides a seam close behind it as a loop does; control: without the line the seam is seen in full" {
+        val sample = plymeld.core.decide.Exposure.Sample(16, 1, 0.0, 5_000, 100)
+        val v = Visibility(0.3, 0.0, "test", sample = sample)
+        fun u(x: Double) = Math.round(x * 1000)
+        // a 10 mm square's seam mid-front (5, 0), its outward normal -y; a line 1 mm in front of it, along x
+        val atFront = ToolPath(Feature.OUTER_WALL, longArrayOf(u(5.0), u(0.0), u(10.0), u(0.0), u(10.0), u(10.0), u(0.0), u(10.0), u(0.0), u(0.0)), true, w, h)
+        val alone = measure(listOf(layer(0, atFront)), v, noCorner).scarMm2
+        alone shouldBe (0.16 plusOrMinus 1e-9)
+        val front = line(-5.0, -1.0, 15.0, -1.0)
+        val hidden = measure(listOf(layer(0, atFront, front)), v, noCorner)
+        // the same line 10 mm in front (beyond the rays' 5 mm reach): its ends as seen as before, the loop's seam in full
+        val far = measure(listOf(layer(0, atFront, line(-5.0, -10.0, 15.0, -10.0))), v, noCorner)
+        far.scarMm2 shouldBe (3 * 0.16 plusOrMinus 1e-9)
+        // the loop's seam reads less than in full behind the line
+        (hidden.scarMm2 < far.scarMm2 - 0.05) shouldBe true
     }
 
     "two aligned point seams on a wall: one line width squared each, seen in full" {

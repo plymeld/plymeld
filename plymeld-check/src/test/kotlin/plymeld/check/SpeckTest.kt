@@ -17,7 +17,7 @@ import plymeld.model.SliceSettings
  * An outer-wall speck (an Arachne line kept only because it lines the outline, shorter than two of its widths) prints
  * without a retraction of its own where it is reached from its own outer wall in its island, even where the plan retracts
  * every other travel (plan.mechanism.motion.no_retract_in_island off; a restart for a 0.2 mm dot
- * left a blob on a show face): the travel to it is clear (no lift either), or, crossing its wall as every route to a speck
+ * leaves a blob on a show face): the travel to it is clear (no lift either), or, crossing its wall as every route to a speck
  * past its wall's loop does, lifted over it but not retracted (ToolPath.hopOnly). Squares 8 mm
  * across, each with a tab 0.2 mm wide and 0.6 mm long on its top edge, 10 layers of 0.2 mm, walled by Arachne (the default):
  * each tab is lined by one center line 0.41 mm long, a speck. (Earlier, thin wedges, whose tips gave specks of 0 µm,
@@ -35,7 +35,10 @@ class SpeckTest : StringSpec({
         "hardware.tool.t1.machine" to "m", "hardware.tool.t1.index" to 1L, "hardware.tool.t1.bore" to "0.4 mm",
         "hardware.tool.t1.layer.height.min" to "= tool.bore / 5", "hardware.tool.t1.layer.height.max" to "= tool.bore * 0.75",
         "hardware.machine.m.loadout.plate" to "pei", "hardware.machine.m.loadout.tool.t1.filament" to "pla-generic",
-        "plan.mechanism.adhesion.prime.enabled" to false, "hardware.filament.pla-generic.retract.travel.min" to "0 mm")
+        "plan.mechanism.adhesion.prime.enabled" to false, "hardware.filament.pla-generic.retract.travel.min" to "0 mm",
+        // the outer wall first: inner first, the step from the inner wall onto the outer wall's seam never retracts (Planner),
+        // and the control (walls reached clear retract with the switch off) would read it as the switch's
+        "plan.layer.walls.order" to "outer_first")
     val box = ModelObject("box", listOf("box"), listOf(1), "box.3mf")
     fun settings(extra: List<Pair<String, Any>>) =
         SliceSettings.of(ConfigSetup.setup(Config(ConfigStack(ConfigFiles.bundled() + seamLockedForTests + (machine + extra).map { (k, v) -> ConfigFiles.Entry(k.split('.'), v, "test") }), listOf(box))).setup)

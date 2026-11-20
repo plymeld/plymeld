@@ -47,10 +47,11 @@ fun interface Transport {
  * small web server does not speak; the printers' own clients send HTTP/1.1.
  */
 class JdkHttp : Transport {
-    private val clients = HashMap<Duration, HttpClient>()
+    // (a printer's calls may come from several threads at once: its status read while a file is sent)
+    private val clients = java.util.concurrent.ConcurrentHashMap<Duration, HttpClient>()
 
     override fun send(call: HttpCall): HttpAnswer {
-        val client = clients.getOrPut(call.timeout) { HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(call.timeout).build() }
+        val client = clients.computeIfAbsent(call.timeout) { HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(call.timeout).build() }
         val b = HttpRequest.newBuilder(URI(call.url)).timeout(call.timeout)
         call.headers.forEach { (k, v) -> b.header(k, v) }
         b.method(call.method, call.body?.let { HttpRequest.BodyPublishers.ofByteArray(it) } ?: HttpRequest.BodyPublishers.noBody())

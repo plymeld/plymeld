@@ -24,7 +24,7 @@ class TreeSupportsTest : StringSpec({
     // 45° at 0.2 mm layers: each layer may step out one layer height
     fun params(plateOnly: Boolean) = Supports.Params(overhangStepUm = h, xyGapUm = 300, topGapLayers = 1, interfaceTopLayers = 2,
         interfaceBottomLayers = 0, onPlateOnly = plateOnly, lineWidthUm = 420)
-    // values as imported from a Flash Studio project: 45°, tip 0.8, branch 5, 5°, 5 mm
+    // TEST VALUES: 45°, tip 0.8, branch 5, 5°, 5 mm
     val tree = TreeSupports.Params(branchAngleDeg = 45.0, tipDiameterUm = 800, branchDiameterUm = 5000, diameterAngleDeg = 5.0, branchDistanceUm = 5000)
 
     // a 4 x 4 pillar carrying a 30 x 30 slab from layer 80 up

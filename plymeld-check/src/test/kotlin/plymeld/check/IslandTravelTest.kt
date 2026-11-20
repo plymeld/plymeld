@@ -20,7 +20,7 @@ import java.io.StringWriter
 
 /**
  * No retraction and no lift for a travel that stays inside its island and crosses no wall (plan.mechanism.motion.no_retract_in_island;
- * without it, a helix island's three runs each retracted, lifted 0.2 mm and restored for 1-2 mm moves inside it).
+ * without it, each run of a small island retracts, lifts and restores for a 1-2 mm move inside it).
  * Two 10 mm squares 20 mm apart, 20 layers of 0.2 mm, two wall loops each (walls 0.88 mm thick at 0.44 mm lines), no minimum
  * travel for a retraction, planned and written by plymeld's own planner and writer. The g-code is read on its own terms: per layer, every run of extrusion with
  * whether a retraction (E < 0) and a lift (Z above the run's) came between it and the run before.
@@ -37,7 +37,7 @@ class IslandTravelTest : StringSpec({
         "hardware.machine.m.loadout.plate" to "pei", "hardware.machine.m.loadout.tool.t1.filament" to "pla-generic",
         "plan.mechanism.adhesion.prime.enabled" to false,
         "plan.layer.walls.thickness" to "0.88 mm", "plan.layer.walls.outer.line.width" to "0.44 mm", "plan.layer.walls.inner.line.width" to "0.44 mm",
-        "plan.layer.walls.style" to "fixed_width",
+        "plan.layer.walls.style" to "fixed_width", "plan.layer.walls.order" to "outer_first",
         // every travel retracts unless the planner says otherwise: the hop between the loops (~0.6 mm) is shorter than the
         // bundled filament's hardware.filament.retract.travel.min, so without this the check could not fail (seen: the control passed
         // with the setting off)
@@ -100,7 +100,7 @@ class IslandTravelTest : StringSpec({
             // both islands are there, each with its two loops
             (a.count { it.feature == "Outer wall" } == 1 && a.count { it.feature == "Inner wall" } == 1) shouldBe true
             (b.count { it.feature == "Outer wall" } == 1 && b.count { it.feature == "Inner wall" } == 1) shouldBe true
-            // walls first, outer then inner (plan.layer.walls.inner_first = false): the inner loop's run follows the outer loop's
+            // walls first, outer then inner (plan.layer.walls.order = outer_first): the inner loop's run follows the outer loop's
             val ia = a.indexOfFirst { it.feature == "Inner wall" }
             a[ia - 1].feature shouldBe "Outer wall"
             a[ia].retracted shouldBe false

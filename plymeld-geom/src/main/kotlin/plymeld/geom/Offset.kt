@@ -11,7 +11,7 @@ package plymeld.geom
  *   - at a corner turning toward the offset side, the two moved edges are connected
  *     through the original vertex (the little loop this makes is wound the wrong way);
  *   - at a corner turning away, a join is inserted: miter point (within [miterLimit]),
- *     bevel beyond it, or a round arc with chord sag <= [arcTolerance].
+ *     bevel beyond it (or a round arc, roundBeyondLimit), or a round arc with chord sag <= [arcTolerance].
  *  The raw rings are then unioned under the POSITIVE rule (winding > 0), which removes
  *  every collapsed or wrong-way loop. One edge per input edge (+ joins), so the boolean
  *  sees ~10x fewer edges than the sleeve method.
@@ -25,9 +25,20 @@ object Offset {
     /** Vertices closer than this to the line through their neighbors are grid-rounding jitter (µm): a geometric tolerance. */
     private const val JITTER_UM = 1L
 
+    /** The miter limit both offsets take by default: a miter reaching more than twice |delta| from its corner is cut. */
+    const val MITER_LIMIT = 2.0
+
     fun offset(
         polys: List<Polygon>, delta: Long, join: Join = Join.MITER,
-        miterLimit: Double = 2.0, arcTolerance: Long = 5,
+        miterLimit: Double = MITER_LIMIT, arcTolerance: Long = 5,
+        /**
+         * [Join.MITER] only: a corner whose miter would reach past [miterLimit] (a reversal too) gets a round arc instead of a
+         * bevel, chord sag <= [arcTolerance] as [Join.ROUND]'s. A bevel joins the two moved edges' ends, closer to the corner
+         * than |delta|: shrinking, it keeps ground within |delta| of a sharp notch's tip (d cos(a / 2) from it, a the angle
+         * the outline turns there: 0.33 mm for 0.86 at a tip of 45 degrees), and a reversal's bevel passes through the
+         * corner itself; the arc keeps |delta| from it. The rest of the offset is the mitred one.
+         */
+        roundBeyondLimit: Boolean = false,
     ): List<Polygon> {
         if (delta == 0L || polys.isEmpty()) return Booleans.normalize(polys)
         val d = Math.abs(delta).toDouble()
@@ -66,6 +77,22 @@ object Offset {
             fun add(x: Double, y: Double) {
                 check(x.isFinite() && y.isFinite()) { "non-finite offset point" }
                 out.add(Math.round(x)); out.add(Math.round(y))
+            }
+            /** A round join at (vx, vy) from the moved end along normal n1 to the moved start along n2 (chord sag <= [arcTolerance]). */
+            fun arc(vx: Double, vy: Double, n1x: Double, n1y: Double, n2x: Double, n2y: Double, turn: Double) {
+                val a0 = Math.atan2(sigma * n1y, sigma * n1x)
+                var sweep = Math.atan2(sigma * n2y, sigma * n2x) - a0
+                // sweep the short way in the direction of the turn
+                if (turn > 0 && sweep < 0) sweep += 2 * Math.PI
+                if (turn < 0 && sweep > 0) sweep -= 2 * Math.PI
+                if (turn == 0.0) sweep = if (sigma > 0) -Math.PI else Math.PI   // 180° reversal: half circle
+                val sag = arcTolerance.coerceAtLeast(1).toDouble()
+                val step = 2 * Math.acos(1 - Math.min(sag / d, 1.0))
+                val steps = Math.max(1, Math.ceil(Math.abs(sweep) / step).toInt())
+                for (i in 0..steps) {
+                    val a = a0 + sweep * i / steps
+                    add(vx + d * Math.cos(a), vy + d * Math.sin(a))
+                }
             }
             // Moved edges, trimmed where they meet. Edge j (vertex j -> j+1) moves to the line
             // through (mx[j], my[j]) along (ex[j], ey[j]); a position s along it is 0 at its moved
@@ -174,30 +201,18 @@ object Offset {
                         Join.MITER -> {
                             var mx = n1x + n2x; var my = n1y + n2y
                             val ml = Math.hypot(mx, my)
-                            if (ml < 1e-9) { add(p1x, p1y); add(p2x, p2y) }   // reversal: bevel cap
+                            // reversal: a bevel cap (through the corner itself), or a half circle round it
+                            if (ml < 1e-9) { if (roundBeyondLimit) arc(vx, vy, n1x, n1y, n2x, n2y, turn) else { add(p1x, p1y); add(p2x, p2y) } }
                             else {
                                 mx /= ml; my /= ml
                                 val cosHalf = mx * n1x + my * n1y
                                 val reach = d / cosHalf
                                 if (reach <= miterLimit * d) add(vx + sigma * reach * mx, vy + sigma * reach * my)
+                                else if (roundBeyondLimit) arc(vx, vy, n1x, n1y, n2x, n2y, turn)
                                 else { add(p1x, p1y); add(p2x, p2y) }
                             }
                         }
-                        Join.ROUND -> {
-                            val a0 = Math.atan2(sigma * n1y, sigma * n1x)
-                            var sweep = Math.atan2(sigma * n2y, sigma * n2x) - a0
-                            // sweep the short way in the direction of the turn
-                            if (turn > 0 && sweep < 0) sweep += 2 * Math.PI
-                            if (turn < 0 && sweep > 0) sweep -= 2 * Math.PI
-                            if (turn == 0.0) sweep = if (sigma > 0) -Math.PI else Math.PI   // 180° reversal: half circle
-                            val sag = arcTolerance.coerceAtLeast(1).toDouble()
-                            val step = 2 * Math.acos(1 - Math.min(sag / d, 1.0))
-                            val steps = Math.max(1, Math.ceil(Math.abs(sweep) / step).toInt())
-                            for (i in 0..steps) {
-                                val a = a0 + sweep * i / steps
-                                add(vx + d * Math.cos(a), vy + d * Math.sin(a))
-                            }
-                        }
+                        Join.ROUND -> arc(vx, vy, n1x, n1y, n2x, n2y, turn)
                     }
                 }
                 b = next[b]
@@ -210,7 +225,7 @@ object Offset {
     /** Slow reference implementation (edge sleeves + joins). Kept for cross-checking [offset]. */
     fun offsetBySleeves(
         polys: List<Polygon>, delta: Long, join: Join = Join.MITER,
-        miterLimit: Double = 2.0, arcTolerance: Long = 5,
+        miterLimit: Double = MITER_LIMIT, arcTolerance: Long = 5, roundBeyondLimit: Boolean = false,
     ): List<Polygon> {
         if (delta == 0L || polys.isEmpty()) return Booleans.normalize(polys)
         val d = Math.abs(delta)
@@ -226,14 +241,14 @@ object Offset {
                 if (len == 0.0) continue
                 val nx = Math.round(ey / len * d); val ny = Math.round(-ex / len * d)
                 sleeves.add(ccw(Polygon(longArrayOf(ax - nx, ay - ny, bx - nx, by - ny, bx + nx, by + ny, ax + nx, ay + ny))))
-                sleeves.add(joinPiece(p, j, d, join, miterLimit, arcTolerance))
+                sleeves.add(joinPiece(p, j, d, join, miterLimit, arcTolerance, roundBeyondLimit))
             }
         }
         return if (delta > 0) Booleans.union(polys, sleeves) else Booleans.difference(polys, sleeves)
     }
 
-    /** Symmetric join piece at vertex k for the sleeve method (disc, miter hexagon, or bevel quad). */
-    private fun joinPiece(p: Polygon, k: Int, d: Long, join: Join, miterLimit: Double, tol: Long): Polygon {
+    /** Symmetric join piece at vertex k for the sleeve method (disc, miter hexagon, or bevel quad; a disc beyond the limit with [roundBeyond]). */
+    private fun joinPiece(p: Polygon, k: Int, d: Long, join: Join, miterLimit: Double, tol: Long, roundBeyond: Boolean = false): Polygon {
         val cx = p.x(k); val cy = p.y(k)
         if (join == Join.ROUND) return disc(cx, cy, d, tol)
         val n = p.size
@@ -256,6 +271,8 @@ object Offset {
         if (reach <= miterLimit * d) {
             add(n1x * d, n1y * d); add(mx * reach, my * reach); add(n2x * d, n2y * d)
             add(-n1x * d, -n1y * d); add(-mx * reach, -my * reach); add(-n2x * d, -n2y * d)
+        } else if (roundBeyond) {
+            return disc(cx, cy, d, tol)
         } else {
             add(n1x * d, n1y * d); add(n2x * d, n2y * d); add(-n1x * d, -n1y * d); add(-n2x * d, -n2y * d)
         }

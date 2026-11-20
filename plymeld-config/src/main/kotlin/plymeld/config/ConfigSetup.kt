@@ -198,14 +198,13 @@ object ConfigSetup {
     private fun value(c: Config, d: Schema.Decl, site: Site, id: String): Sourced? = valueOf(c, d, entryAt(c, d, site) ?: return null, site, id)
 
     /**
-     * [e]'s value read by decl [d]'s type for setting [id] (a choice mapped to the pipeline's word, a percent scaled), with its
+     * [e]'s value read by decl [d]'s type for setting [id] (a choice mapped to the pipeline's word), with its
      * source and the lines behind it: [e]'s own (through `like`) and every value a formula in it reads.
      */
     private fun valueOf(c: Config, d: Schema.Decl, e: ConfigFiles.Entry, site: Site, id: String): Sourced {
-        val kind = Catalog[id].kind
         val (v, reads) = c.reading {
             when (val t = d.type) {
-                is Schema.Type.Quantity -> c.quantity(e, t.dim, site).let { x -> if (kind == Kind.PERCENT) x * 100 else x }
+                is Schema.Type.Quantity -> c.quantity(e, t.dim, site)
                 is Schema.Type.Choice -> CHOICES[id]?.get(e.value as String) ?: e.value
                 is Schema.Type.Bool -> c.boolean(e, site)
                 else -> e.value
@@ -378,7 +377,7 @@ object ConfigSetup {
                 // default; a placeholder).
                 // plymeld's choice: a strand can leave the opening thinner than it (pushed less while moving), and three
                 // quarters of the bore stays wider than a layer is thick at the usual half-bore layer, so it is still a
-                // flattened bead; the whole bore left ledges under 0.4 mm unprinted on a 0.4 mm nozzle
+                // flattened bead; the whole bore would leave ledges narrower than it unprinted
                 val narrowE = hw("tool", site.tool, "line.width.min") ?: hw("tool", site.tool, "bore")
                 val narrowest = hw("tool", site.tool, "line.width.min")?.let { e -> c.quantity(e, Dimension.LENGTH, site) to "derived from the tool's narrowest line (${e.key}, ${e.source})" }
                     ?: hw("tool", site.tool, "bore")?.let { e -> c.quantity(e, Dimension.LENGTH, site) * STAND_IN_NARROWEST to
@@ -386,12 +385,13 @@ object ConfigSetup {
                 narrowest?.let { (w, from) ->
                     fun set(id: String, x: Any, from: String) = set(id, x, from, narrowE)
                     set("plan.layer.walls.line.width.min", w, "$from: the narrowest line")
-                    // half the line (plymeld's choice): an area from half the narrowest line thick gets that
-                    // line, over-full by at most twice; at the full line, ledges and frame edges thinner than the bore
-                    // (a two-color Benchy's cabin) were left unprinted, their outline with no wall
-                    set("plan.layer.walls.feature.min", w / 2, "$from: half that line; an area thinner gets nothing (one of at least half the line gets the line)")
+                    // half the line (plymeld's choice): an area at the model's surface from half the narrowest line thick gets
+                    // that line, over-full by at most twice; at the full line, ledges and frame edges thinner than the bore
+                    // (a two-color Benchy's cabin) would be left unprinted, their outline with no wall. Between walls the
+                    // narrowest line itself (less its flanks) is the floor: there an over-full line overlaps the walls (Walls.arachne)
+                    set("plan.layer.walls.feature.min", w / 2, "$from: half that line; an area at the model's surface thinner gets nothing (one of at least half the line gets the line)")
                     set("plan.layer.walls.length_factor.min", 2.0, "$from: a line shorter than two widths is a dot")
-                    set("plan.layer.walls.transition_length", w, "$from: a change in line count spread over one line's width (stand-in)")
+                    set("plan.layer.walls.transition_length", w, "$from: a change in line count spread over one line's width, a wall loop's piece shorter than it no loop (stand-in)")
                 }
                 // the surface techniques locked: each a lock of its technique on the surfaces it serves
                 pb("faces.side.technique")?.let { e ->
@@ -455,10 +455,10 @@ object ConfigSetup {
                 // the part fan and the minimum layer time for this object or part over the filament's (plan.mechanism.cooling.*,
                 // what bond-first cooling sets, or a config of the user's). The overhang fan is its own setting
                 // (hardware.filament.overhang.fan, the filament's cooling.fan by default) and is not changed by these.
-                pl("mechanism.cooling.fan")?.let { e -> set("hardware.filament.cooling.fan", c.quantity(e, Dimension.RATIO, site) * 100, "${e.key} (${e.source})", e) }
+                pl("mechanism.cooling.fan")?.let { e -> set("hardware.filament.cooling.fan", c.quantity(e, Dimension.RATIO, site), "${e.key} (${e.source})", e) }
                 pl("mechanism.cooling.layer.time.min")?.let { e -> set("hardware.filament.cooling.layer.time.min", c.quantity(e, Dimension.TIME, site), "${e.key} (${e.source})", e) }
                 // and over air (the arched-bridge calibration plate: half the fan over air on some specimens of a plate)
-                pl("mechanism.cooling.overhang_fan")?.let { e -> set("hardware.filament.overhang.fan", c.quantity(e, Dimension.RATIO, site) * 100, "${e.key} (${e.source})", e) }
+                pl("mechanism.cooling.overhang_fan")?.let { e -> set("hardware.filament.overhang.fan", c.quantity(e, Dimension.RATIO, site), "${e.key} (${e.source})", e) }
                 // an idle nozzle's drop: its filament's print temperature less its idle one
                 val pr = hw("filament", site.filament, "temperature.print"); val idle = hw("filament", site.filament, "temperature.idle")
                 if (pr != null && idle != null) set("hardware.filament.temperature.idle_drop", c.quantity(pr, Dimension.TEMPERATURE, site) - c.quantity(idle, Dimension.TEMPERATURE, site), idle.source, pr, idle)

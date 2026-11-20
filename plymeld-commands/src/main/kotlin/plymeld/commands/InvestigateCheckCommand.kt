@@ -15,7 +15,7 @@ class InvestigateCheckCommand : CliktCommand(name = "check") {
     private val settings by option("--settings", help = InvestigateCommand.SETTINGS_HELP).required()
 
     override fun help(context: com.github.ajalt.clikt.core.Context) =
-        "INVESTIGATION ONLY (limits from the settings in a project or g-code file): check g-code against the machine's limits before printing: bed area, excluded area, Z, temperatures, extrusion before heating, feed rates, extrusion amounts, and whether the head would hit printed material."
+        "INVESTIGATION ONLY (limits from the settings in a project or g-code file): check g-code against the machine's limits before printing: numbers the firmware may refuse or act wrongly on (not a finite number, a feed rate of 0 or below, a temperature, fan, or wait below 0, an acceleration of 0 or below), bed area, excluded area, Z, temperatures, extrusion before heating, feed rates, extrusion amounts, and whether the head would hit printed material."
 
     override fun run() {
         val findings = PrePrintCheck.check(file, loadSettings(settings))

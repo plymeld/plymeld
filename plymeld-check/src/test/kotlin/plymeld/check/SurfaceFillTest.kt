@@ -80,7 +80,7 @@ class SurfaceFillTest : StringSpec({
         val hole = rect(130.0, 95.0, 140.0, 105.0, hole = true)
         val region = listOf(oval, hole)
         val s = 500L
-        val pieces = SurfaceFill.circles(region, s, 800)
+        val pieces = SurfaceFill.circles(region, s, 800).map { if (it.closed) it.xy + longArrayOf(it.xy[0], it.xy[1]) else it.xy }
         /** How far (mm) a point is off the nearest ring: rings at 0.25, 0.75, ... mm from (100, 100). */
         fun offRing(x: Long, y: Long): Double { val r = Math.hypot(x - 100_000.0, y - 100_000.0) / 1000.0; return Math.abs(r - (0.25 + 0.5 * Math.round((r - 0.25) / 0.5))) }
         var worst = 0.0; var inHole = 0
@@ -104,5 +104,38 @@ class SurfaceFillTest : StringSpec({
         // control: concentric loops follow the outline, off the circles
         val loops = SurfaceFill.concentric(listOf(oval), s)
         (loops.maxOf { lp -> (0 until lp.size).maxOf { k -> offRing(lp.x(k), lp.y(k)) } } > 0.05) shouldBe true
+    }
+
+    // the circles running on past their arcs beside the oval's edge and the hole's, narrowed to the ground left
+    "circles running on: narrowed lines stay within the reach, beside the outline and the hole; control: none without the reach" {
+        val oval = Polygon(LongArray(720) { k -> val a = 2 * Math.PI * (k / 2) / 360; if (k % 2 == 0) Math.round(100_000 + 75_000 * Math.cos(a)) else Math.round(100_000 + 37_500 * Math.sin(a)) })
+        val hole = rect(130.0, 95.0, 140.0, 105.0, hole = true)
+        val region = listOf(oval, hole)
+        val w = 500L; val s = 450L
+        // the line centers' region and the plastic's, as the planner gives them: 0.2 mm in, 0.05 mm past the edges
+        val clipped = plymeld.geom.Offset.offset(region, -200)
+        val reach = plymeld.geom.Offset.offset(region, 50)
+        val pieces = SurfaceFill.circles(clipped, s, 2 * w, w, reach, 0.25, 12)
+        val narrowed = pieces.filter { it.widths != null }
+        println("circles running on: ${pieces.size} pieces, ${narrowed.size} narrowed, ${narrowed.sumOf { p -> p.widths!!.count { it < w } }} narrowed points")
+        (narrowed.size > 0) shouldBe true
+        val groups = plymeld.geom.Polygons.group(reach)
+        fun inReach(x: Double, y: Double) = groups.any { (o, hs) -> plymeld.geom.Polygons.contains(o, Math.round(x), Math.round(y)) &&
+            hs.none { plymeld.geom.Polygons.contains(it, Math.round(x), Math.round(y)) } }
+        var nearHole = 0; var outside = 0; var narrowest = Long.MAX_VALUE
+        for (p in narrowed) for (k in 0 until p.xy.size / 2) {
+            val x = p.xy[2 * k].toDouble(); val y = p.xy[2 * k + 1].toDouble(); val wk = p.widths!![k]
+            narrowest = minOf(narrowest, wk)
+            if (wk < w && x in 129_000.0..141_000.0 && y in 94_000.0..106_000.0) nearHole++
+            // the line's cross-section, across the circle round (100, 100), within the reach but for the tolerance
+            val r = Math.hypot(x - 100_000, y - 100_000); val ux = (x - 100_000) / r; val uy = (y - 100_000) / r
+            for (e in listOf(-1.0, 1.0)) { val d = e * (wk / 2.0 - 12); if (!inReach(x + d * ux, y + d * uy)) outside++ }
+        }
+        println("narrowed points beside the hole: $nearHole, narrowest ${narrowest} um, cross-section ends outside the reach: $outside")
+        (nearHole > 0) shouldBe true
+        outside shouldBe 0
+        (narrowest >= w / 2) shouldBe true
+        // control: without the reach the circles stop at their arcs
+        SurfaceFill.circles(clipped, s, 2 * w).none { it.widths != null } shouldBe true
     }
 })

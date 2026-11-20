@@ -93,7 +93,7 @@ class WaveOverhangExplorationTest : StringSpec({
     }
     // a fill the anchor surrounds (a waved bridge's gap between two edge strips and two feet): the fronts close in,
     // their advancing edge the hole in the covered region; given the overhang, its beads are those rings, all inside it.
-    // Control: without the overhang every hole is taken for one in the part, and no bead is laid (#4 of plate 8 came out empty)
+    // Control: without the overhang every hole is taken for one in the part, and no bead is laid
     "a fill surrounded by its anchor: its fronts close in as rings, laid when the overhang is given; control: none without it" {
         val hole = listOf(rect(5_000, 5_000, 12_000, 25_000))
         val anchor = Booleans.difference(listOf(rect(0, 0, 17_000, 30_000)), hole)

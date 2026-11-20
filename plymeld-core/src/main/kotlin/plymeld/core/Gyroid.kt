@@ -52,8 +52,8 @@ object Gyroid {
         val cx = center?.get(0) ?: 0.0; val cy = center?.get(1) ?: 0.0
         val k = 2 * Math.PI / periodUm
         // the trace is fine (CELLS_PER_PERIOD) so the curve is right; what is laid is the trace simplified to the chord
-        // tolerance: fewer, longer segments, which the firmware's junction planner runs faster (traced at 24 cells per
-        // period a gyroid's 1.17 mm segments cost 105 min on a 9 h print against a grid of the same density)
+        // tolerance: fewer, longer segments, which the firmware's junction planner runs faster (laid as traced at 24 cells
+        // per period, a gyroid's short segments make a print far slower than a grid of the same density)
         val polylines = trace(nx, ny, { i -> x0 + i * cell }, { j -> y0 + j * cell }, { x -> k * (x - cx) }, { y -> k * (y - cy) }, k * zUm)
             .map { if (chordUm > 0) simplify(it, chordUm.toDouble()) else it }
         val out = ArrayList<LongArray>()

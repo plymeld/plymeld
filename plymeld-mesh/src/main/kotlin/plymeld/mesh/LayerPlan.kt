@@ -14,8 +14,8 @@ class LayerPlan(val tops: DoubleArray, val slices: DoubleArray) {
     /**
      * This plan with its layers above [zFrom] (from the last top at or under it to the plan's top) made [layerHeight] or a
      * little thinner, all of one thickness: a curved band's. There each layer is squeezed
-     * where the top is lower (the wave tile's troughs: to 46 %), and a remainder layer left at the top, thin but over the
-     * tool's thinnest in warped space, came out under it there (0.12 mm warped, 0.055 mm printed).
+     * where the top is lower (a wave's troughs: to about half), and a remainder layer left at the top, thin but over the
+     * tool's thinnest in warped space, would come out under it there.
      */
     fun evenAbove(zFrom: Double, layerHeight: Double): LayerPlan {
         val keep = tops.indexOfLast { it <= zFrom + LAND_MM }

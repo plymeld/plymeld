@@ -3,8 +3,15 @@ package plymeld.core.decide
 import plymeld.mesh.TriangleSoup
 import java.util.Locale
 
-/** An object with its final placement on the bed. */
-class Placed(val name: String, val parts: List<TriangleSoup>, val heightMm: Double, val cx: Double, val cy: Double)
+/**
+ * An object with its final placement on the bed. [printed]: of an object only part of which prints (a section left open,
+ * model.object.<key>.section), that part's box on the bed (x0, y0, x1, y1 mm); the object is laid out, spaced, and held
+ * to the bed by it, and the rest of its model may lie anywhere, over other objects or off the bed.
+ */
+class Placed(val name: String, val parts: List<TriangleSoup>, val heightMm: Double, val cx: Double, val cy: Double, val printed: DoubleArray? = null) {
+    /** What prints of the object, as a box on the bed: x0, y0, x1, y1 (mm). */
+    fun box(): DoubleArray = printed ?: PoseDecision.merged(parts).bounds().let { doubleArrayOf(it[0], it[1], it[3], it[4]) }
+}
 
 /**
  * Lays posed objects out on the bed: rows along X in the given order, at least [gap] mm between
@@ -18,8 +25,12 @@ object Arrange {
      * side the print head reaches least (see [headClear]).
      */
     fun rows(objects: List<Pair<String, List<TriangleSoup>>>, gap: Double, f: PoseFacts, gapY: Double = gap,
-             fromRight: Boolean = false, fromBack: Boolean = false): List<Placed>? {
-        val boxes = objects.map { (_, parts) -> PoseDecision.merged(parts).bounds() }
+             fromRight: Boolean = false, fromBack: Boolean = false,
+             /** Per object, the part of it that prints (x0, x1, y0, y1 mm from its box's least corner; a section left open), or null for all of it. */
+             sections: List<DoubleArray?>? = null): List<Placed>? {
+        val whole = objects.map { (_, parts) -> PoseDecision.merged(parts).bounds() }
+        // each object's box as laid out: what prints of it
+        val boxes = whole.mapIndexed { i, b -> sections?.getOrNull(i)?.let { s -> doubleArrayOf(b[0] + s[0], b[1] + s[2], b[2], b[0] + s[1], b[1] + s[3], b[5]) } ?: b }
         val bedW = f.bedMaxX - f.bedMinX; val bedD = f.bedMaxY - f.bedMinY
         // shelf layout in a local frame: x along a row, rows stacked in y
         val at = ArrayList<DoubleArray>()   // local min corner of each object
@@ -42,22 +53,25 @@ object Arrange {
             val b = boxes[i]
             val t = doubleArrayOf(ox + at[i][0] - b[0], oy + at[i][1] - b[1], -b[2])
             val moved = parts.map { Pose("arranged", Pose.IDENTITY, t).apply(it) }
-            Placed(name, moved, b[5] - b[2], ox + at[i][0] + (b[3] - b[0]) / 2, oy + at[i][1] + (b[4] - b[1]) / 2)
+            Placed(name, moved, b[5] - b[2], ox + at[i][0] + (b[3] - b[0]) / 2, oy + at[i][1] + (b[4] - b[1]) / 2,
+                if (sections?.getOrNull(i) == null) null else doubleArrayOf(ox + at[i][0], oy + at[i][1], ox + at[i][0] + (b[3] - b[0]), oy + at[i][1] + (b[4] - b[1])))
         }
     }
 
-    /** Objects left where they are (placement locked): heights and centers from their own boxes. */
-    fun asIs(objects: List<Pair<String, List<TriangleSoup>>>): List<Placed> = objects.map { (name, parts) ->
-        val b = PoseDecision.merged(parts).bounds(); Placed(name, parts, b[5] - b[2], (b[0] + b[3]) / 2, (b[1] + b[4]) / 2)
+    /** Objects left where they are (placement locked): heights and centers from their own boxes ([sections] as for [rows]). */
+    fun asIs(objects: List<Pair<String, List<TriangleSoup>>>, sections: List<DoubleArray?>? = null): List<Placed> = objects.mapIndexed { i, (name, parts) ->
+        val b = PoseDecision.merged(parts).bounds()
+        val p = sections?.getOrNull(i)?.let { s -> doubleArrayOf(b[0] + s[0], b[1] + s[2], b[0] + s[1], b[1] + s[3]) }
+        Placed(name, parts, b[5] - b[2], if (p == null) (b[0] + b[3]) / 2 else (p[0] + p[2]) / 2, if (p == null) (b[1] + b[4]) / 2 else (p[1] + p[3]) / 2, p)
     }
 
     /** Why a locked placement cannot be printed on this bed (an object's box outside it), or null. */
     fun outsideBed(objects: List<Placed>, f: PoseFacts): String? {
         for (o in objects) {
-            val b = PoseDecision.merged(o.parts).bounds()
-            if (b[0] < f.bedMinX - 1e-6 || b[1] < f.bedMinY - 1e-6 || b[3] > f.bedMaxX + 1e-6 || b[4] > f.bedMaxY + 1e-6)
+            val b = o.box()
+            if (b[0] < f.bedMinX - 1e-6 || b[1] < f.bedMinY - 1e-6 || b[2] > f.bedMaxX + 1e-6 || b[3] > f.bedMaxY + 1e-6)
                 return "'%s' lies at x %.1f..%.1f, y %.1f..%.1f, outside the bed (x %.0f..%.0f, y %.0f..%.0f)".format(Locale.ROOT,
-                    o.name, b[0], b[3], b[1], b[4], f.bedMinX, f.bedMaxX, f.bedMinY, f.bedMaxY)
+                    o.name, b[0], b[2], b[1], b[3], f.bedMinX, f.bedMaxX, f.bedMinY, f.bedMaxY)
         }
         return null
     }
@@ -65,10 +79,10 @@ object Arrange {
     /** Smallest gap between the objects' bounding boxes (0 when they overlap). */
     fun minGap(objects: List<Placed>): Double {
         var g = Double.MAX_VALUE
-        val bs = objects.map { PoseDecision.merged(it.parts).bounds() }
+        val bs = objects.map { it.box() }
         for (i in bs.indices) for (j in i + 1 until bs.size) {
-            val dx = maxOf(0.0, maxOf(bs[i][0], bs[j][0]) - minOf(bs[i][3], bs[j][3]))
-            val dy = maxOf(0.0, maxOf(bs[i][1], bs[j][1]) - minOf(bs[i][4], bs[j][4]))
+            val dx = maxOf(0.0, maxOf(bs[i][0], bs[j][0]) - minOf(bs[i][2], bs[j][2]))
+            val dy = maxOf(0.0, maxOf(bs[i][1], bs[j][1]) - minOf(bs[i][3], bs[j][3]))
             g = minOf(g, Math.hypot(dx, dy))
         }
         return g
@@ -83,16 +97,16 @@ object Arrange {
      * pair, in print order [objects], that breaks this, described; null when none does. Boxes stand in for outlines.
      */
     fun headClear(objects: List<Placed>, reach: Reach, brimMm: Double): String? {
-        val bs = objects.map { PoseDecision.merged(it.parts).bounds() }
+        val bs = objects.map { it.box() }
         for (k in bs.indices) {
             val b = bs[k]
-            val x0 = b[0] - brimMm - reach.minusX; val x1 = b[3] + brimMm + reach.plusX
-            val y0 = b[1] - brimMm - reach.minusY; val y1 = b[4] + brimMm + reach.plusY
+            val x0 = b[0] - brimMm - reach.minusX; val x1 = b[2] + brimMm + reach.plusX
+            val y0 = b[1] - brimMm - reach.minusY; val y1 = b[3] + brimMm + reach.plusY
             for (j in 0 until k) {
                 val o = bs[j]
-                if (o[3] > x0 && o[0] < x1 && o[4] > y0 && o[1] < y1)
+                if (o[2] > x0 && o[0] < x1 && o[3] > y0 && o[1] < y1)
                     return "printing '%s', the head (x %.1f..%.1f, y %.1f..%.1f with the brim) would reach '%s', printed before it (x %.1f..%.1f, y %.1f..%.1f)".format(Locale.ROOT,
-                        objects[k].name, x0, x1, y0, y1, objects[j].name, o[0], o[3], o[1], o[4])
+                        objects[k].name, x0, x1, y0, y1, objects[j].name, o[0], o[2], o[1], o[3])
             }
         }
         return null

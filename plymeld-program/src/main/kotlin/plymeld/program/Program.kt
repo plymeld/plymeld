@@ -53,7 +53,7 @@ class Extrude(
     val segmentSpeeds: DoubleArray? = null,
     /**
      * The travel into this path lifts over what it crosses but does not retract: an outer-wall speck
-     * reached from its own wall, whose last hop crosses that wall; a retraction and prime for a dot left a blob.
+     * reached from its own wall, whose last hop crosses that wall; a retraction and prime for a dot leaves a blob.
      */
     val hopOnly: Boolean = false,
     /**
@@ -63,6 +63,13 @@ class Extrude(
     val speedMax: DoubleArray? = null,
     /** Each segment's most acceleration (mm/s²), a region's cap (plan.mechanism.motion.acceleration.max); NaN = none; null = no segment has one. */
     val accelMax: DoubleArray? = null,
+    /**
+     * A run of a closed wall loop laid as several open paths (a scarf seam's ramp, the rest of the loop, its closing pass:
+     * Scarf.extrudes): its material on its left, as a closed loop's, for where the writer restores and wipes.
+     */
+    val ofLoop: Boolean = false,
+    /** A scarf seam's ramp or its closing pass: laid at the scarf's own speed and flow (plan.technique.scarf_seam.speed, .flow). */
+    val scarf: Boolean = false,
 ) : Step {
     init {
         val m = xy.size / 2
@@ -78,7 +85,7 @@ class Extrude(
     /**
      * Whether the travel into this path, [straightMm] long as the crow flies, is taken as a speck's hop ([hopOnly]): lifted, not
      * retracted. Only a hop: combed inside the island up to its last step ([via]), or no longer than two of the path's widths;
-     * any other travel to a speck (a straight one along the wall to the next speck, 12.5 mm on a test model) retracts as usual.
+     * any other travel to a speck (a straight one along the wall to the next speck, however long) retracts as usual.
      */
     fun hops(straightMm: Double): Boolean = hopOnly && (via != null || straightMm <= HOP_WIDTHS * widthUm / 1000.0)
 
@@ -86,12 +93,12 @@ class Extrude(
     val curved: Boolean get() = zs != null || heights != null
 
     /** The same path with the travel into it going through [via] (null = straight). */
-    fun withVia(via: LongArray?) = Extrude(feature, xy, closed, zUm, widthUm, heightUm, tool, overhangShare, ePerMmOverride, retractBefore, widths, exact, zs, heights, via, segmentSpeeds, hopOnly, speedMax, accelMax)
+    fun withVia(via: LongArray?) = Extrude(feature, xy, closed, zUm, widthUm, heightUm, tool, overhangShare, ePerMmOverride, retractBefore, widths, exact, zs, heights, via, segmentSpeeds, hopOnly, speedMax, accelMax, ofLoop, scarf)
     /** The same path with [hopOnly] set: false where the travel into it is not a hop after all (routed along the wall, TravelRouter.alongWall). */
-    fun withHopOnly(hop: Boolean) = Extrude(feature, xy, closed, zUm, widthUm, heightUm, tool, overhangShare, ePerMmOverride, retractBefore, widths, exact, zs, heights, via, segmentSpeeds, hop, speedMax, accelMax)
+    fun withHopOnly(hop: Boolean) = Extrude(feature, xy, closed, zUm, widthUm, heightUm, tool, overhangShare, ePerMmOverride, retractBefore, widths, exact, zs, heights, via, segmentSpeeds, hop, speedMax, accelMax, ofLoop, scarf)
     /** The same path with [retractBefore] set (the retraction decision clearing the planner's hidden travels). */
-    fun withRetract(retract: Boolean) = Extrude(feature, xy, closed, zUm, widthUm, heightUm, tool, overhangShare, ePerMmOverride, retract, widths, exact, zs, heights, via, segmentSpeeds, hopOnly, speedMax, accelMax)
-    fun withSegmentSpeeds(speeds: DoubleArray?) = Extrude(feature, xy, closed, zUm, widthUm, heightUm, tool, overhangShare, ePerMmOverride, retractBefore, widths, exact, zs, heights, via, speeds, hopOnly, speedMax, accelMax)
+    fun withRetract(retract: Boolean) = Extrude(feature, xy, closed, zUm, widthUm, heightUm, tool, overhangShare, ePerMmOverride, retract, widths, exact, zs, heights, via, segmentSpeeds, hopOnly, speedMax, accelMax, ofLoop, scarf)
+    fun withSegmentSpeeds(speeds: DoubleArray?) = Extrude(feature, xy, closed, zUm, widthUm, heightUm, tool, overhangShare, ePerMmOverride, retractBefore, widths, exact, zs, heights, via, speeds, hopOnly, speedMax, accelMax, ofLoop, scarf)
 }
 
 /** A speck's hop ([Extrude.hops]) reaches at most this many of its line widths when not combed. */
@@ -150,7 +157,8 @@ class ObjectEnd(val name: String) : Event
 
 /**
  * From here on, extrusions use [tool] with [spool] loaded in it (a tool changer picks up another
- * nozzle; the writer emits the machine's own sequence, and purging is planned separately).
+ * nozzle; the writer emits the machine's own sequence, made over the start of the next extrusion after the travel there,
+ * and purging is planned separately).
  * [tempC]: the new tool's printing temperature, waited for; [fromTool] / [fromIdleC]: the tool put
  * down and the temperature it idles at (null = left as it is).
  */
@@ -159,7 +167,7 @@ class ToolChange(val tool: Int, val spool: String, val tempC: Int? = null, val f
 /**
  * The print stops here for the user (swap a filament, drop in a magnet ...); the writer emits the
  * machine's own pause command. Placed right after a [LayerStart], before anything on that layer
- * prints (as Flash Studio places a project's pause). [reason]: what asked for it, for the g-code comment.
+ * prints. [reason]: what asked for it, for the g-code comment.
  */
 class Pause(val reason: String) : Event
 

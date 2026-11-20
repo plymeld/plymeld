@@ -56,6 +56,8 @@ class Config(stack: ConfigStack, models: List<ModelObject>, machineArg: String? 
     private val ownKeys: Set<String>
 
     init {
+        // the settings read under a new name or left out (Migrations): told, not stopped
+        warnings += stack.migrated
         val own = stack.effective.values.map(::normalized)
         ownKeys = own.mapTo(HashSet()) { it.key }
         values = LinkedHashMap<String, Entry>().also { m -> for (e in own) m[e.key] = e; for (e in takenOver(own)) m.putIfAbsent(e.key, e) }

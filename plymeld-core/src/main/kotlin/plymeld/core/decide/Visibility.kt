@@ -82,8 +82,12 @@ class Visibility(val underside: Double, val bed: Double, val source: String, val
         return Visibility(underside, bed, source, away, doubleArrayOf(x / l, y / l, z / l), sample, quadrants)
     }
 
-    /** What hides a seam's point and how much its viewers count ([Exposure]) on these outer-wall [outlines] (per layer) with their [topsUm]; null when not sampled. */
-    fun exposure(outlines: List<List<plymeld.geom.Polygon>>, topsUm: LongArray): Exposure? = sample?.let { Exposure(outlines, topsUm, it, look) }
+    /**
+     * What hides a seam's point and how much its viewers count ([Exposure]) on these outer-wall [outlines] (per layer) with their
+     * [topsUm], the open outer-wall lines' footprints [bands] (per layer) material too; null when not sampled.
+     */
+    fun exposure(outlines: List<List<plymeld.geom.Polygon>>, topsUm: LongArray, bands: List<List<plymeld.geom.Polygon>> = emptyList()): Exposure? =
+        sample?.let { Exposure(outlines, topsUm, it, look, bands) }
 
     /** The direction term of a face whose normal's downward component is [down] (1 = facing straight down; 0 or less = level or facing up). */
     fun direction(down: Double): Double = if (down <= 0) 1.0 else 1.0 - (1.0 - underside) * minOf(1.0, down)
@@ -169,7 +173,7 @@ class Visibility(val underside: Double, val bed: Double, val source: String, val
             val a = plymeld.model.Resolver.resolveOrNull(setup, "method.quality.visibility.away", ctx)
             val v = plymeld.model.Resolver.resolveOrNull(setup, "plan.view_from", ctx)
             return Visibility((u.value as Number).toDouble(), (b?.value as Number?)?.toDouble() ?: 0.0,
-                "method.quality.visibility.under: ${u.from}; .bed: ${b?.from ?: "unset, 0"}; .away: ${a?.from ?: "unset, 1"}; plan.view_from: ${v?.let { "${it.value}, ${it.from}" } ?: "unset, all around"}",
+                "method.quality.visibility.under: ${u.from}; .bed: ${b?.from ?: "unset, 0"}; .away: ${a?.from ?: "unset, 1"}; plan.view_from: ${v?.let { "${it.value}, ${it.from}" } ?: "all around"}",
                 (a?.value as Number?)?.toDouble() ?: 1.0, viewOf(v?.value as String?), sampleOf(setup, ctx), quadrantsOf(setup, ctx))
         }
 

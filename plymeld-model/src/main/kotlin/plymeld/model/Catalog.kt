@@ -15,7 +15,6 @@ import plymeld.model.Kind.COUNT
 import plymeld.model.Kind.FLOW
 import plymeld.model.Kind.FRACTION
 import plymeld.model.Kind.LENGTH
-import plymeld.model.Kind.PERCENT
 import plymeld.model.Kind.SPEED
 import plymeld.model.Kind.TEMP
 import plymeld.model.Kind.TEXT
@@ -76,8 +75,8 @@ object Catalog {
         s("hardware.tool.bore", TOOL, LENGTH, "nozzle bore")
         s("hardware.tool.layer.height.max", TOOL, LENGTH, "thickest layer this nozzle prints (bounds a purge tower's gap between visits, flat layers' layer height, and the layers that follow the surfaces)")
         s("hardware.tool.layer.height.min", TOOL, LENGTH, "thinnest layer this nozzle prints (bounds flat layers' layer height and the layers that follow the surfaces)")
-        s("hardware.tool.head.nozzle.angle", TOOL, ANGLE, "the nozzle's cone: the angle of its side from horizontal, so a surface no steeper than it clears the cone (curved layers)")
-        s("hardware.tool.head.nozzle.height", TOOL, LENGTH, "how far the nozzle tip sits below the lowest other part of the loaded head (heater block, sock, duct, carriage): a curved band's whole rise must stay under it")
+        s("hardware.tool.head.nozzle.angle", TOOL, ANGLE, "the nozzle's cone: the angle of its side from horizontal, so a surface no steeper than it clears the cone (curved layers); unset = its machine model's toolhead's (hardware.model.<key>.toolhead.<key>.head.nozzle.angle)")
+        s("hardware.tool.head.nozzle.height", TOOL, LENGTH, "how far the nozzle tip sits below the lowest other part of the loaded head (heater block, sock, duct, carriage): a curved band's whole rise must stay under it; unset = its machine model's toolhead's (hardware.model.<key>.toolhead.<key>.head.nozzle.height)")
         s("hardware.tool.head.size.x", TOOL, LENGTH, "the loaded head's size along the machine's X axis, seen from below")
         s("hardware.tool.head.size.y", TOOL, LENGTH, "the loaded head's size along the machine's Y axis, seen from below")
         s("hardware.tool.head.nozzle.x", TOOL, LENGTH, "the nozzle's position within the head along X: its distance from the head's edge on the machine's -X side")
@@ -94,7 +93,7 @@ object Catalog {
         s("hardware.filament.cooling.layer.time.min", MATERIAL, TIME, "a layer should take at least this long, so it cools")
         s("hardware.filament.cooling.speed.min", MATERIAL, SPEED, "never slow below this for layer cooling")
         s("hardware.filament.cooling.fan_off_layers", MATERIAL, COUNT, "part fan stays off for this many first layers")
-        s("hardware.filament.cooling.fan", MATERIAL, PERCENT, "part fan speed once it is on")
+        s("hardware.filament.cooling.fan", MATERIAL, FRACTION, "part fan speed once it is on, a share of its full speed")
         // ---- spool: one physical reel
         s("hardware.filament.color", SPOOL, TEXT, "filament color as #RRGGBB")
         // ---- material x tool: values that depend on both the plastic and the hotend
@@ -107,7 +106,7 @@ object Catalog {
         s("hardware.filament.melt.flow.max", MATERIAL_TOOL, FLOW, "fastest the hotend can melt this plastic; every move is capped to it")
         s("hardware.filament.bridge.span.max", MATERIAL_TOOL, LENGTH, "the longest span this filament bridges cleanly between two anchors (mm): a bridge longer than this needs support under its middle")
         s("hardware.filament.overhang.share", MATERIAL_TOOL, FRACTION, "how far this filament's outer wall line may hang past the line below and hold, as a share of the line's width, cooled as it prints in this tool; the flattest face that holds follows from each layer's height (flatter faces get support, with support on, and count as unsupported in planning)")
-        s("hardware.filament.overhang.fan", MATERIAL_TOOL, PERCENT, "part fan while a line hangs past the one below: the cooling hardware.filament.overhang.share holds at; the fan returns to the layer's own after")
+        s("hardware.filament.overhang.fan", MATERIAL_TOOL, FRACTION, "part fan (a share of its full speed) while a line hangs past the one below: the cooling hardware.filament.overhang.share holds at; the fan returns to the layer's own after")
         s("hardware.filament.overhang.speed", MATERIAL_TOOL, SPEED, "fastest a line that hangs past the one below prints: the speed hardware.filament.overhang.share holds at; unset = not known (only the slow-down graded toward the bridge speed)")
         s("hardware.filament.retract.length", MATERIAL_TOOL, LENGTH, "filament pulled back before a travel")
         s("hardware.filament.retract.speed", MATERIAL_TOOL, SPEED, "retraction speed")
@@ -117,6 +116,8 @@ object Catalog {
         s("hardware.filament.retract.travel.min", MATERIAL_TOOL, LENGTH, "travels shorter than this do not retract")
         // the lift goes with the retraction (it was the plan's hardware.filament.retract.z_hop, a tool setting)
         s("hardware.filament.retract.z_hop", MATERIAL_TOOL, LENGTH, "lift the nozzle this much for a travel that retracts")
+        s("hardware.filament.retract.return.inside", MATERIAL_TOOL, BOOL, "an outer wall's restore after a retracted travel a line inside its start, then onto the start with nothing pushed")
+        s("hardware.filament.retract.wipe.inward", MATERIAL_TOOL, BOOL, "a wall loop's wipe a line inside it, then back along it, the whole retraction spread over it")
         s("hardware.filament.retract.wipe.enabled", MATERIAL_TOOL, BOOL, "wipe the nozzle along the path while retracting")
         s("hardware.filament.retract.wipe.distance", MATERIAL_TOOL, LENGTH, "length of the wipe")
         s("hardware.filament.retract.wipe.speed", MATERIAL_TOOL, SPEED, "speed of the wipe")
@@ -132,7 +133,7 @@ object Catalog {
             "equal weights: the earlier 5/2/0/1 were made-up values (use whatever makes sense); set per intent or object")
         s("method.search.pose.shortlist_margin", INTENT, FRACTION,
             "the first look at every pose (one plan each: flat layers at the baseline's height) shortlists the poses searched in full: the as-given pose and those scoring within this of the best there, PER UNIT OF WEIGHT in effect (as keep_margin); a pose left out is not searched; unset = every pose searched",
-            0.1, "placeholder: on the test models (3DBenchy, the overhang and bridge coupon, the test plate, the hole block, a 29-part trophy) under six weightings, the pose the full search chose sat at most 0.068 per unit of weight from the first look's best (the coupon), and the poses it left out of a large model 0.12 and more; 0.1 keeps every one of those choices")
+            0.1, "placeholder: on the bundled test models (3DBenchy, the overhang and bridge coupon, the test plate, the hole block) under six weightings, the pose the full search chose sits at most 0.068 per unit of weight from the first look's best (the coupon); 0.1 keeps every one of those choices")
         s("method.search.pose.keep_margin", INTENT, FRACTION,
             "the model's own orientation has standing: another pose must beat the as-given pose's best candidate by more than this score PER UNIT OF WEIGHT in effect (the score gap divided by the sum of the goal weights the decision measures, so the margin means the same at any total: a weight is a share) to turn the model",
             0.1, "placeholder: a tenth of a point per unit of weight, about a 10 % difference on one fully weighted measure")
@@ -174,7 +175,7 @@ object Catalog {
             0.25, "placeholder: about half a line width; not tuned")
         s("method.quality.visibility.show_through", INTENT, LENGTH,
             "how deep behind a visible surface a seam still shows through it: a seam whose viewing ray meets only material it leaves within this distance counts 1 - that distance / this (a bead's bulge behind a thin wall pushes the wall out); 0 = any material hides a seam",
-            2.0, "placeholder from one print: a part's seam 1.4 mm behind a visible wall showed as two faint vertical lines, where the visibility map counted it hidden; not measured")
+            2.0, "placeholder: not measured")
         // the stair-step measure (surface_step): each face's terrace edges per mm x each edge's depth
         // to this power. PLACEHOLDER: how fast a shallower edge fades from view is not measured
         s("method.quality.stair_step.depth_power", INTENT, FRACTION,
@@ -187,8 +188,7 @@ object Catalog {
             "the seam measure (seam_scar): a point seam tucked into a corner (a turn of at least plan.technique.corner_seam.corner_angle) as a share of a point seam on a smooth wall",
             0.0, "measured: a seam plate (`plymeld calibrate seams`) printed in PLA and graded by eye from the front (the plate's shares are the shipped defaults); one plate, one filament, grades in whole steps (hidden, faint, plain, glaring). A point seam in a 90 degree corner read hidden, where one in the middle of a flat face read faint")
         // the bond between layers as the strength goal measures it (bond.strength): the weakest bond's area times a
-        // factor for how it was laid. PLACEHOLDERS: no measurement here
-        // yet; the helix-layer coupon is the first that can fit them
+        // factor for how it was laid. PLACEHOLDERS: not measured
         s("method.strength.bond.fan_loss", INTENT, FRACTION,
             "how much of the bond between layers a full part fan costs, against no fan, the loss growing with the fan's share: the bond factor's fan term is 1 - fan_loss x fan",
             0.3, "placeholder: part cooling weakens the bond between layers (widely reported for FDM, magnitude varies); not measured here")
@@ -231,31 +231,37 @@ object Catalog {
             "the hidden core in thicker layers: every this many layers, the sparse infill the layers share is laid once on the last of them, the layers' height thick; 1 = off; bundled: as many layers as fit the tool's thickest layer")
         s("plan.technique.flat.height_ratio", INTENT, FRACTION,
             "the transition between layer heights: no layer after the first more than this much thicker than the one below it, and the layers before a band whose layers start thinner stepping down by about this much each; 0 = no limit (the bundled 1.5 is a placeholder)")
-        s("method.slicing.tolerance", INTENT, LENGTH, "outline simplification tolerance")
+        s("method.slicing.tolerance", INTENT, LENGTH, "outline simplification tolerance; variable-width walls: how much narrower (a side) than a wall loop needs an area may be where the loop joins pieces of itself across it")
         s("method.slicing.close_gaps", INTENT, LENGTH, "close gaps in slices narrower than twice this")
         s("plan.layer.walls.count", INTENT, COUNT, "wall loops")
         s("plan.layer.walls.style", INTENT, CHOICE, "wall style: fixed_width (loops of one width) or variable_width (loops only where they fit, variable-width center lines in thin areas); another slicer's file says classic or arachne",
             "classic", "a file from another slicer without the key: fixed-width walls, what plymeld always did")
-        s("plan.layer.walls.line.width.min", INTENT, LENGTH, "variable-width walls: narrowest line a thin area's center line is printed at (min_bead_width; read only with variable_width)")
-        s("plan.layer.walls.feature.min", INTENT, LENGTH, "variable-width walls: thinnest area that still gets a center line (min_feature_size; read only with variable_width)")
-        s("plan.layer.walls.length_factor.min", INTENT, FRACTION, "variable-width walls: an open center line shorter than this times its narrowest width is dropped (min_length_factor; read only with variable_width)",
+        s("plan.layer.walls.line.width.min", INTENT, LENGTH, "variable-width walls: narrowest line a thin area's center line is printed at; between walls (not at the model's surface) a leftover gets a line only where it is at least this less what the line may reach into the walls on each side (plan.layer.infill.wall_overlap of this width, at least the bead's rounded flank, layer height x (1 - pi/4)), a thinner one left empty rather than overlapped (min_bead_width; read only with variable_width)")
+        s("plan.layer.walls.line.width.max", INTENT, LENGTH, "variable-width walls: widest a wall line may be: a thin area's single line, and each of the lines an area too narrow for all the walls is shared among, is laid no wider (the number of lines across a place follows its width, every line between line.width.min and this, as near the set widths as can be); at least twice line.width.min, so one line can become two; unset = twice the inner wall's width, and at least twice line.width.min (read only with variable_width)")
+        s("plan.layer.walls.feature.min", INTENT, LENGTH, "variable-width walls: thinnest area at the model's surface that still gets a center line; where an area is narrower, however short the stretch, no line is laid (min_feature_size; read only with variable_width)")
+        s("plan.layer.walls.length_factor.min", INTENT, FRACTION, "variable-width walls: an open center line shorter than this times its narrowest width is dropped; in an area too narrow for all its walls, a middle line shorter than this times its width is not laid, the loop round it widening to fill its place (min_length_factor; read only with variable_width)",
             0.0, "a profile without min_length_factor applies no such filter: 0 = off, not a chosen value")
-        s("plan.layer.walls.transition_length", INTENT, LENGTH, "variable-width walls: center lines stay continuous through thinner stretches and pinches up to this long (wall_transition_length; read only with variable_width)")
+        s("plan.layer.walls.transition_length", INTENT, LENGTH, "variable-width walls: center lines stay continuous through thinner stretches and pinches up to this long, and a wall loop's piece shorter than this gives way to the center line running through it; in an area too narrow for all its walls, a stretch with a line count of its own shorter than this takes its neighbors' count, and where the count rises to an odd number the middle line starting there is laid as it is within this of the change, the lines beside it giving way to it (wall_transition_length; read only with variable_width)")
         s("plan.layer.walls.outer.line.width", INTENT, LENGTH, "outer wall line width")
         s("plan.layer.walls.inner.line.width", INTENT, LENGTH, "inner wall line width")
-        s("plan.layer.walls.inner_first", INTENT, BOOL, "print inner walls before the outer wall")
+        s("plan.layer.walls.order", INTENT, CHOICE, "the order each contour's walls are laid in: outer_first, inner_first, or inner_outer_inner",
+            "inner_outer_inner", "a layer's first line, its un-retraction and the travel's arrival land on hidden walls, not on the visible face, and the outer wall is still laid free (inner_first where there are fewer than three walls or the outer wall overhangs)")
         s("plan.seam", INTENT, CHOICE, "where wall loops start, a scarf seam's too (locked, or decided): corners (at a corner when the loop has one, inside corners first, each layer's seam nearest the one below), back (the back-most point) or least_visible (the point the seam measure counts least: its visibility, from the sampled viewing directions weighed by the quadrant they look from (method.quality.visibility.quadrant.*, around plan.view_from) and what hides it nearby (the object's other parts included), or an underside, times method.quality.seam.corner_share in a corner; ties to the point the viewer sees least first (a turned-away face before a front corner), then to a corner, then to the seam below, then the back); either way never on an edge hanging over the layer below when the loop has another place")
         s("plan.view_from", INTENT, CHOICE,
             "where the finished print is looked at from, for quality's measures (the visibility map): all_around (no face counts as turned away), front, back, left, right, above: the model's own sides as given (front = its small-y side, the side toward the printer's door when it prints as given), turned with whatever pose the plan gives it; a face turned away from the viewer counts method.quality.visibility.away by how squarely it faces away; a seam's viewing directions count by the quadrant they look from (method.quality.visibility.quadrant.*: front, left, right, back as the viewer sees them; alike with all_around or above); per object plan.object.<key>.view_from",
-            "all_around", "every face counts as seen from somewhere unless the job says where the print is looked at from (plymeld's choice)")
+            "front", "most prints have a front, the side they are modeled facing: looked at from all around, a plain round wall's seams stayed in line wherever a feature first put them, up the front face too; a model with no front of its own sets all_around (plymeld's choice)")
         s("plan.technique.corner_seam.corner_angle", INTENT, ANGLE, "the smallest turn of a wall loop that counts as a corner for its seam")
-        s("plan.technique.scarf_seam.where", INTENT, CHOICE, "scarf seams on outer walls (the loop starts thin and low, rising to the layer over plan.technique.scarf_seam.length, and ends re-printing that stretch thinning to nothing): none (plan.technique.scarf_seam.enabled false), smooth (only loops whose seam does not land on a corner: with plan.seam = corners, the loops with no corner), all")
+        s("plan.technique.scarf_seam.where", INTENT, CHOICE, "scarf seams on outer walls (the loop starts thin and low, rising to the layer over plan.technique.scarf_seam.length, and ends re-printing that stretch thinning to nothing): none (plan.technique.scarf_seam.enabled false), smooth (only loops whose seam does not land on a corner: with plan.seam = corners, the loops with no corner), all; a seam another part covers as plan.technique.scarf_seam.covered says")
+        s("plan.technique.scarf_seam.covered", INTENT, CHOICE, "what an outer wall gets where its seam is covered (pressed against another part of the object, within one line width of it, so hidden): point (a point seam: no ramp, no closing pass) or scarf (a scarf seam there too)")
         s("plan.technique.scarf_seam.length", INTENT, LENGTH, "how long a scarf seam's ramp is (at most half the loop)")
         s("plan.technique.scarf_seam.start", INTENT, FRACTION, "a scarf ramp's starting thickness, as a share of the layer")
+        s("plan.technique.scarf_seam.speed", INTENT, SPEED, "a scarf seam's ramp and its closing pass no faster than this")
+        s("plan.technique.scarf_seam.step", INTENT, LENGTH, "a scarf ramp's longest step")
+        s("plan.technique.scarf_seam.flow", INTENT, FRACTION, "a scarf seam's ramp and its closing pass laid with this times their plastic")
         s("plan.mechanism.adhesion.first_layer.line.width", INTENT, LENGTH, "line width on the first layer")
         s("plan.layer.top.under_parts", INTENT, BOOL, "a top surface that is mostly exposed runs under the OTHER parts standing on it (not under its own part rising further): its pattern unbroken, the top shell solid under those footprints too; objects of several parts only",
             true, "the top surface in the same pattern as with nothing printed on top of it")
-        s("plan.faces.sloped_top.z_antialiasing", INTENT, BOOL, "the sloped tops' surface technique is Z anti-aliasing (plan.faces.sloped_top.technique = \"z_antialiasing\"), flat layers only: where the model's top lies within a layer, that layer's lines are lowered onto it with as much less plastic (never thinner than the tool's thinnest layer), and the layer reaches out to where the top is that thin above its bottom, so a slope keeps no stair step of a whole layer",
+        s("plan.faces.sloped_top.z_antialiasing", INTENT, BOOL, "the sloped tops' surface technique is Z anti-aliasing (plan.faces.sloped_top.technique = \"z_antialiasing\"), flat layers only: where the object's top (all its parts together) lies within a layer, that layer's lines are lowered onto it with as much less plastic (never thinner than the thinnest layer of any tool its parts print with), and the layer reaches out to where the top is that thin above its bottom, so a slope keeps no stair step of a whole layer",
             false, "built opt-in, off until a print decides it")
         s("plan.layer.top.thickness", INTENT, LENGTH, "solid shell thickness under a top surface (the number of layers follows from the layer heights)")
         s("plan.layer.bottom.thickness", INTENT, LENGTH, "solid shell thickness over a bottom surface (the number of layers follows from the layer heights)")
@@ -276,12 +282,13 @@ object Catalog {
         s("plan.layer.top.line.width", INTENT, LENGTH, "top surface line width")
         s("plan.layer.infill.angle", INTENT, ANGLE, "infill line direction")
         s("plan.layer.infill.chord_tolerance", INTENT, LENGTH, "curved infill chord tolerance")
-        s("plan.layer.infill.wall_overlap", INTENT, FRACTION, "how far infill reaches into the walls, as a share of its width")
+        s("plan.layer.infill.wall_overlap", INTENT, FRACTION, "how far infill reaches into the walls, as a share of its width; a thin area's center line ending against a wall loop's turn reaches in as far, and a leftover between walls gets the narrowest line only where that line reaches into them no further than this share of its width a side; a concentric-inside-out ring narrowed along a wall reaches into it this share of its own width, and at half a line over the ring inside it by up to this share")
         s("plan.layer.infill.anchor_length.max", INTENT, LENGTH, "longest walk along the boundary that joins two infill lines: another slicer's (investigation); unset = plymeld's rule, three line spacings")
         // speeds: visible lines are capped by a speed of their own,
         // hidden ones print at the machine's fastest move; every move is capped by the melt rate
         s("plan.mechanism.motion.visible.speed", INTENT, SPEED, "speed of visible lines: outer walls, top and bottom surfaces")
         s("plan.mechanism.motion.speed.max", INTENT, SPEED, "the fastest any line prints, whatever its own speed; unset = no cap")
+        s("plan.mechanism.motion.speed.factor", INTENT, FRACTION, "every printing speed plymeld decides, times this (travels and retractions as they are; above 100 % never past the machine's printing speed)")
         s("plan.mechanism.motion.acceleration.max", INTENT, ACCEL, "the most any line accelerates, whatever its own acceleration; unset = no cap")
         s("plan.mechanism.motion.inner_walls.as_visible", INTENT, BOOL, "inner walls at the visible lines' speed and acceleration (plan.mechanism.motion.visible.*), so their ripple does not show through the outer wall in front of them; off: at the hidden lines'")
         s("plan.mechanism.cooling.slowdown.style", INTENT, CHOICE, "how a layer is slowed to its minimum layer time: hidden_first (the hidden lines first, the visible only for the rest) or even (every line by one factor)",
@@ -308,13 +315,22 @@ object Catalog {
         s("plan.mechanism.motion.detour.speck.extra.max", INTENT, LENGTH, "avoid_crossing: the length added to detour.speck.ratio.max times the straight travel that a route along the wall to or from a speck may still have",
             50.0, "plymeld's choice")
         s("plan.mechanism.motion.detour.inset", INTENT, LENGTH, "avoid_crossing: how far inside an island's outer wall (its center line) a travel within the island runs, so it stays over the island's own walls and fill; unset = the widest outer wall's line width on the layer (plymeld's choice: over the inner walls, clear of the outer one)")
-        s("plan.mechanism.motion.avoid_crossing", INTENT, BOOL, "travels go around the layer's other islands (their outer walls' convex hulls, detour.margin outside the wall) rather than straight over them, so a string lies over nothing, and a travel within one island stays inside it (detour.inset inside its outer walls: never out over an edge or across a notch in its outline;); a travel to or from an outer-wall speck that no route inside reaches runs along the outer wall the speck lines, retracting as usual, within detour.speck.ratio.max and detour.speck.extra.max (travels between a raised name's letter tips strung across the gaps); an island the travel leaves or enters cannot be avoided; a detour or route over detour.ratio.max times the straight travel plus detour.extra.max is not taken",
-            true, "on by default: travels between a purge tower and a part left strings embedded in the part between them, and travels across an engraved name within one island strung too; the margin and the cap are the detour.* settings (their bundled values placeholders, not measured)")
-        s("plan.mechanism.motion.no_retract_in_island", INTENT, BOOL, "a travel whose straight path stays inside the island being printed (the layer's piece it is on), crosses no wall line already laid on the layer nor any outer wall of the layer, and neither leaves nor enters a top surface or ironing, does not retract or lift; off = it retracts and lifts like any travel over hardware.filament.retract.travel.min; unset = decided per object by the plan on its planned layers, by the job's weights (the strings those travels risk, string_risk, against the restarts and the time of retracting them), said in the slice's output; earlier bundled true (a helix island's three runs each retracted, lifted, and restored for 1-2 mm moves inside it)")
+        s("plan.mechanism.motion.avoid_crossing", INTENT, BOOL, "travels go around the layer's other islands (their outer walls' convex hulls, detour.margin outside the wall) rather than straight over them, so a string lies over nothing, and a travel within one island stays inside it (detour.inset inside its outer walls: never out over an edge or across a notch in its outline;); a travel to or from an outer-wall speck that no route inside reaches runs along the outer wall the speck lines, retracting as usual, within detour.speck.ratio.max and detour.speck.extra.max (straight, travels between narrow tips string across the gaps); an island the travel leaves or enters cannot be avoided; a detour or route over detour.ratio.max times the straight travel plus detour.extra.max is not taken",
+            true, "on by default: a travel straight over another island leaves a string the next layer embeds in it, and one straight across a notch within an island strings too; the margin and the cap are the detour.* settings (their bundled values placeholders, not measured)")
+        s("plan.mechanism.motion.no_retract_in_island", INTENT, BOOL, "a travel whose straight path stays inside the island being printed (the layer's piece it is on), crosses no wall line already laid on the layer nor any outer wall of the layer, and neither leaves nor enters a top surface or ironing, does not retract or lift; off = it retracts and lifts like any travel over hardware.filament.retract.travel.min; unset = decided per object by the plan on its planned layers, by the job's weights (the strings those travels risk, string_risk, against the restarts and the time of retracting them), said in the slice's output (off, a small island's runs each retract, lift, and restore for 1-2 mm moves inside it)")
         s("plan.layer.bridge.flow", INTENT, FRACTION, "bridge extrusion multiplier")
         s("plan.mechanism.adhesion.brim.where", INTENT, CHOICE, "brim placement: no_brim (plan.mechanism.adhesion.brim.enabled off) or outer_only")
         s("plan.mechanism.adhesion.brim.width", INTENT, LENGTH, "brim width")
         s("plan.mechanism.adhesion.brim.gap", INTENT, LENGTH, "gap between brim and object")
+        s("plan.layer.sliver.width", INTENT, LENGTH, "an area of one filament thinner than this, touching another filament's, is printed by that neighbor, unless it lies along the object's outer surface (plan.layer.sliver.at_surface); unset = the thinnest area the walls print")
+        s("plan.layer.sliver.at_surface", INTENT, CHOICE, "a sliver (plan.layer.sliver.width) lying along the object's outer surface: own = it stays its own part's, laid by its own filament where a line fits and left empty where none does; neighbor = it goes to the neighboring filament like a sliver inside the object",
+            "own", "no filament is laid outside its own part where it shows: given to the neighbor, its plastic would show in the neighbor's color on the surface, and the neighbor's outline would step out over the layer below for a layer or two where nothing is modeled")
+        s("plan.mechanism.motion.short_walls.length", INTENT, LENGTH, "a wall line or loop shorter than this prints no faster than short_walls.speed; unset = none")
+        s("plan.mechanism.motion.short_walls.speed", INTENT, SPEED, "the fastest a short wall prints")
+        s("plan.mechanism.motion.short_walls.full_length", INTENT, LENGTH, "a wall between short_walls.length and this prints no faster than a speed rising in a straight line from short_walls.speed to its own; unset = short_walls.length (a single step)")
+        s("plan.mechanism.motion.steady.share", INTENT, FRACTION, "a line prints no faster than the speed at which this share of its length is laid at a steady speed, starting and stopping at rest at its acceleration; unset = no cap")
+        s("plan.mechanism.adhesion.small_footprint.area", INTENT, AREA, "a first layer under this area is a small footprint: an object standing on one with no brim gets a note when it is sliced")
+        s("plan.mechanism.adhesion.small_footprint.height_ratio", INTENT, FRACTION, "a footprint is small for its height when the object is taller than this many times the footprint's narrower side")
         s("plan.mechanism.adhesion.prime.line", INTENT, CHOICE, "the prime line: near the print, near it on a peel tab (alongside the brim), or none (plan.mechanism.adhesion.prime.enabled off); unset = by the print: none with a prime tower, tab otherwise")
         s("plan.mechanism.adhesion.prime.length", INTENT, LENGTH, "the prime line's length")
         s("plan.mechanism.adhesion.prime.gap", INTENT, LENGTH, "how far the prime line lies from the print")
@@ -419,7 +435,7 @@ object Catalog {
         s("plan.mechanism.purge.tower.side_share.min", INTENT, FRACTION, "each side of the purge tower at least this share of its height (a tall, thin tower sways); 0 = no minimum")
         s("plan.mechanism.purge.tower.width", INTENT, LENGTH, "purge tower width (along X): another slicer's (investigation); unset = plymeld's rule, a square tower sized by the purge (PurgeTower.square)")
         s("hardware.filament.purge.volume", MATERIAL_TOOL, Kind.VOLUME, "plastic purged into the tower after a change to this filament in this nozzle (hardware-owned)")
-        s("hardware.tool.heat.time", INTENT, TIME, "on a multi-nozzle machine, heat the next nozzle this long (print time) before its change")
+        s("hardware.tool.heat.time", INTENT, TIME, "on a multi-nozzle machine, heat the next nozzle this long (print time) before its change; unset = its machine model's toolhead's (hardware.model.<key>.toolhead.<key>.heat.time), else none")
         s("hardware.filament.temperature.idle_drop", INTENT, TEMP, "how far below printing temperature an idle nozzle is held on a multi-nozzle machine (0 = keep it at printing temperature)")
         s("plan.faces.under.wave_overhang", INTENT, BOOL, "the undersides over air are wave overhangs (plan.faces.under.technique = \"wave_overhang\"): each flat layer's bottom over air hanging off one side grown outward from the supported material beside it, bead by bead, each leaning on the last; a span (every bridge line landing on what is printed at both ends) stays a bridge, an area with support under it is the support's; what no front reaches is bridged",
             false, "off without the bundled config (an imported profile alone has no wave_overhang values to lay beads with); the bundled config turns it on (wave overhang, support, or nothing for an underside hanging off one side)")
@@ -435,7 +451,7 @@ object Catalog {
         s("plan.technique.ironing.flow", INTENT, FRACTION, "ironing flow, as a share of a full line")
         // bond-first cooling: what an object gets when the search (or plan.bond_cooling = on) chooses the bond between
         // its layers over the filament's own cooling; bundled as shares of the filament's values, placeholders
-        s("plan.technique.bond_cooling.fan", INTENT, PERCENT, "bond-first cooling: the part fan for the object's lines (overhangs keep the filament's overhang fan)")
+        s("plan.technique.bond_cooling.fan", INTENT, FRACTION, "bond-first cooling: the part fan (a share of its full speed) for the object's lines (overhangs keep the filament's overhang fan)")
         s("plan.technique.bond_cooling.layer.time.min", INTENT, TIME, "bond-first cooling: the object's minimum layer time (its layers stretched to it less than the filament's asks)")
         s("plan.technique.bond_cooling.temperature", INTENT, TEMP, "bond-first cooling: the object's nozzle temperature after the first layer (capped at the filament's temperature.max where set)")
         s("plan.technique.ironing.inset", INTENT, LENGTH, "keep ironing this far inside the edge (on top of half a line)")

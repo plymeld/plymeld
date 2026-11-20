@@ -172,18 +172,23 @@ object CurvedRegions {
 
     /**
      * The shifted-warp survey of [r]'s caps ([soupLayerMm]: the model's own layer height; [maxLayerMm]: the tool's thickest):
-     * per cap its best island (the start whose layers follow the most of the cap; ties, the thinnest own layers, then the higher start), or why none.
+     * per cap its best island (the start whose own layers remove the most stair-step from its top, [Island.gainMm3]; ties, the thinnest
+     * own layers, then the higher start), or why none (none removes any stair-step among them).
      * An island holding a part taller than the cap takes it in ([Island.shared], stage 6).
      */
     fun shifted(r: Result, p: Params, soupLayerMm: Double, maxLayerMm: Double): List<Pair<Cap, Any>> = r.caps.map { c -> c to bestIsland(r, p, c, soupLayerMm, maxLayerMm) }
 
-    /** Cap [c]'s best island ([shifted]): the start whose layers follow the most of the cap, or why it has none. */
-    fun bestIsland(r: Result, p: Params, c: Cap, soupLayerMm: Double, maxLayerMm: Double): Any {
+    /**
+     * Cap [c]'s best island ([shifted]): the start whose layers remove the most stair-step from its top, or why it has none.
+     * [acceptLoss]: a start whose own layers step more than they follow is still taken, the one that steps least (a plan's lock,
+     * which asks for the island whatever the measure says: [Island.gainMm3] says by how much it is worse); false, refused.
+     */
+    fun bestIsland(r: Result, p: Params, c: Cap, soupLayerMm: Double, maxLayerMm: Double, acceptLoss: Boolean = false): Any {
         var best: Island? = null
         var bestLayer = Double.POSITIVE_INFINITY
         val stop = maxOf(p.stepMm, p.minStartMm, c.zLoMm - SCAN_BELOW_MM)
-        // the starts, top down, each worked out on its own (in parallel: they share only the read-only survey; one
-        // large model's caps took ~370 s on one thread) and then judged in this order, so the choice and its ties are as before
+        // the starts, top down, each worked out on its own (in parallel: they share only the read-only survey; a large
+        // model's caps take minutes on one thread) and then judged in this order, so the choice and its ties are the same
         val starts = ArrayList<Double>()
         run { var zs = c.zHiMm - p.stepMm; while (zs >= stop) { starts += zs; zs -= p.stepMm } }
         val islands = arrayOfNulls<Any>(starts.size)
@@ -194,15 +199,15 @@ object CurvedRegions {
                 is Island -> {
                     if (s.layerMm < bestLayer) bestLayer = s.layerMm
                     // the most stair-step removed from its top (Island.gainMm3: what the decision weighs, estimated on the grid); of
-                    // starts removing as much, the thinnest own layers. Chosen by the cap followed most, one model's caps took starts
-                    // whose own layers (0.29 mm against flat 0.08) stepped more than they saved, and no island removed any
+                    // starts removing as much, the thinnest own layers. Chosen by the cap followed most, a cap could take a start
+                    // whose own layers (far thicker than the flat ones) step more than they save, and the island remove none
                     if (s.layerMm <= maxLayerMm + 1e-9 && (best == null || s.gainMm3 > best.gainMm3 + 1e-9 ||
                             (s.gainMm3 > best.gainMm3 - 1e-9 && s.layerMm < best.layerMm - 1e-9))) best = s
                 }
             }
         }
         best?.let { b ->
-            if (b.gainMm3 <= 0) return "no start removes stair-step from its top: its own layers step more than it follows (at best %+.3f mm³ at %.2f mm, %.3f mm layers against flat %.3f mm)"
+            if (b.gainMm3 <= 0 && !acceptLoss) return "no start removes stair-step from its top: its own layers step more than it follows (at best %+.3f mm³ at %.2f mm, %.3f mm layers against flat %.3f mm)"
                 .format(Locale.ROOT, -b.gainMm3, b.startMm, b.layerMm, soupLayerMm)
             return islandAt(r, p, c, b.startMm, soupLayerMm)
         }

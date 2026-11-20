@@ -19,7 +19,7 @@ class SchemaTest : StringSpec({
             Dimension.LENGTH to setOf(Kind.LENGTH), Dimension.AREA to setOf(Kind.AREA), Dimension.VOLUME to setOf(Kind.VOLUME),
             Dimension.TIME to setOf(Kind.TIME), Dimension.SPEED to setOf(Kind.SPEED), Dimension.ACCEL to setOf(Kind.ACCEL),
             Dimension.FLOW to setOf(Kind.FLOW), Dimension.ANGLE to setOf(Kind.ANGLE), Dimension.TEMPERATURE to setOf(Kind.TEMP),
-            Dimension.RATIO to setOf(Kind.FRACTION, Kind.PERCENT), Dimension.COUNT to setOf(Kind.COUNT), Dimension.DENSITY to setOf(Kind.DENSITY))
+            Dimension.RATIO to setOf(Kind.FRACTION), Dimension.COUNT to setOf(Kind.COUNT), Dimension.DENSITY to setOf(Kind.DENSITY))
         val bad = Schema.decls.filter { it.feeds != null }.mapNotNull { d ->
             val s = runCatching { Catalog[d.feeds!!] }.getOrNull() ?: return@mapNotNull "${d.path}: no setting ${d.feeds}"
             val ok = when (val t = d.type) {

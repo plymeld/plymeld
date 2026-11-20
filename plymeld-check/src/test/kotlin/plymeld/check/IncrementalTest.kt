@@ -27,6 +27,8 @@ class IncrementalTest : StringSpec({
         Triple("plan.layer.top.thickness", "1 mm", listOf("regions", "paths", "gcode")),
         Triple("plan.layer.walls.thickness", "1.32 mm", listOf("walls", "regions", "paths", "gcode")),
         Triple("plan.technique.flat.layer.height", "0.16 mm", listOf("slice", "walls", "regions", "paths", "gcode")),
+        // the caps by a line's length are the writer's: the paths are not planned again
+        Triple("plan.mechanism.motion.steady.share", "50%", listOf("gcode")),
     )
 
     for ((key, value, expected) in cases) {
@@ -43,6 +45,19 @@ class IncrementalTest : StringSpec({
             (out.toString() == fresh(key to value)) shouldBe true
             (out.toString() == first.toString()) shouldBe false   // control: the change had an effect
         }
+    }
+
+    "with short walls on, changing plan.mechanism.motion.short_walls.full_length re-runs only the g-code writer, and matches a from-scratch slice" {
+        // the block's hole loop (about 37 mm) is under 40 mm, its outer loop (about 118 mm) under 200 mm: the change slows it
+        val short = arrayOf<Pair<String, Any>>("plan.mechanism.motion.short_walls.length" to "40 mm", "plan.mechanism.motion.short_walls.speed" to "20 mm/s")
+        val inc = IncrementalSlicer(listOf(soup), "test")
+        val first = StringWriter()
+        inc.slice(setup(*short), first) shouldBe listOf("slice", "walls", "regions", "paths", "gcode")
+        val out = StringWriter()
+        val full = "plan.mechanism.motion.short_walls.full_length" to "200 mm"
+        inc.slice(setup(*short, full), out) shouldBe listOf("gcode")
+        (out.toString() == fresh(*short, full)) shouldBe true
+        (out.toString() == first.toString()) shouldBe false   // control: the change had an effect
     }
 
     "no change at all re-runs only the g-code writer" {

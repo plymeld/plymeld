@@ -4,8 +4,7 @@ package plymeld.core.calibrate
  * Edits that make the melt plate's controls (`plymeld calibrate melt` and CalibrationPlateTest) able to fail. The
  * writer lifts over every strip already laid before it travels (KlipperWriter's clearance), so a plate written
  * without its own lifts ("meltnolift") or with its strips thickest first ("meltthickfirst") is lifted by the writer anyway,
- * and the check rightly finds nothing wrong: the control is not caught. The CLI kept the old controls and refused every
- * melt plate for a while; one edit for both now.
+ * and the check rightly finds nothing wrong: such a control would not be caught. One edit serves the CLI and the test.
  */
 object MeltControls {
     /**

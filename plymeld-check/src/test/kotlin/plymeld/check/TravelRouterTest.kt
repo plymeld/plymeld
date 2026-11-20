@@ -67,8 +67,8 @@ class TravelRouterTest : StringSpec({
         val off = travel(gcode(false))
         crossesB(off) shouldBe true
     }
-    // the head's place is kept across layers (found in review: the first travel of a layer, from the purge tower's base or the
-    // last island of the layer below, was never routed); islands are also the open outer-wall pieces a scarfed loop is laid in
+    // the head's place is kept across layers (the first travel of a layer, from the purge tower's base or the last island
+    // of the layer below, is routed too); islands are also the open outer-wall pieces a scarfed loop is laid in
     "a travel from the last path of one layer to the first of the next is routed; a loop laid as three open pieces is an island" {
         val two: List<Step> = listOf(LayerStart(0, 200, 200), ObjectStart("box"), c, ObjectEnd("box"), LayerStart(1, 400, 200), ObjectStart("box"), a, b, ObjectEnd("box"))
         val routed = TravelRouter.route(PrintProgram(two, emptyList())).steps.filterIsInstance<Extrude>()
@@ -95,7 +95,7 @@ class TravelRouterTest : StringSpec({
         TravelRouter.detour(0.0, 0.0, 40_000.0, 0.0, listOf(bar)) shouldBe null          // a kilometre around: the straight hop stays
     }
 
-    // within one island: the travel stays inside it (combing; travels across an engraved name's notches strung).
+    // within one island: the travel stays inside it (combing; a travel straight across a notch strings).
     // A U (x 0..30, y 0..20, the notch x 10..20 above y 5); a path ending on its left arm (5, 18), the next starting on its
     // right arm (25, 18): the straight travel crosses the notch, the routed one goes down and through the base
     val u = Extrude("Outer wall", longArrayOf(0, 0, 30_000, 0, 30_000, 20_000, 20_000, 20_000, 20_000, 5_000, 10_000, 5_000, 10_000, 20_000, 0, 20_000), true, 200, 440, 200)
@@ -144,8 +144,8 @@ class TravelRouterTest : StringSpec({
         routedVia(u, inner(4_000, 10_000, 5_000, 18_000), Extrude("Support", longArrayOf(25_000, 20_300, 25_200, 20_300), false, 200, 440, 200)) shouldBe null
     }
 
-    // along the wall a speck lines (strings across a raised name's letter gaps, where every inset region of the
-    // letters' tips had thinned to nothing and combing left the travels between specks straight): a toothed loop, a base
+    // along the wall a speck lines (where every inset region of a narrow tip has thinned to nothing, combing would leave
+    // the travels between specks straight, stringing across the gaps between tips): a toothed loop, a base
     // y 0..5 with three teeth 6 mm wide up to y 15 (gaps x 6..12 and 18..24 above y 5), specks 0.3 mm past the first two
     // teeth's tips; the route between them goes in to the loop, along it down one tooth, across the base, up the next
     "a travel between specks past two teeth of a loop goes along the loop, never across the gap between them; 2 mm out it is not routed (the control)" {
@@ -163,7 +163,7 @@ class TravelRouterTest : StringSpec({
         via.toList().chunked(2).map { it[0] to it[1] } shouldBe listOf(3_000L to 15_000L, 6_000L to 15_000L, 6_000L to 5_000L, 12_000L to 5_000L, 12_000L to 15_000L, 15_000L to 15_000L)
         TravelRouter.alongWall(3_000.0, 15_300.0, 15_000.0, 17_000.0, layer) shouldBe null   // 2 mm past the tip: beyond 3 widths of the wall
         // through the router: two specks 0.3 mm past the same tooth's top, 2.3 mm apart; the straight travel crosses no wall
-        // but runs over air all the way (in front of a raised name's letters), so it goes along the top's center line
+        // but runs over air all the way (in front of the teeth), so it goes along the top's center line
         val loop = Extrude("Outer wall", teeth.xy, true, 200, 440, 200)
         fun speck(x: Long) = Extrude("Outer wall", longArrayOf(x, 15_300, x + 200, 15_300), false, 200, 440, 200)
         val routed = TravelRouter.route(PrintProgram(listOf(LayerStart(0, 200, 200), ObjectStart("box"), loop, speck(3_000), speck(5_500), ObjectEnd("box")), emptyList()))
@@ -180,8 +180,7 @@ class TravelRouterTest : StringSpec({
         TravelRouter.isSpeck(Extrude("Inner wall", longArrayOf(0, 0, 300, 0), false, 200, 440, 200)) shouldBe false
     }
 
-    // a thin U (an engraved name's notched shell, thinner than two insets, left its travels
-    // straight across its face): arms x 0..0.6 and 29.4..30 mm, base y 0..0.6 mm, so the island shrunk by the full inset (one
+    // a thin U (a notched shell thinner than two insets, whose travels would otherwise run straight across its face): arms x 0..0.6 and 29.4..30 mm, base y 0..0.6 mm, so the island shrunk by the full inset (one
     // outer wall, 0.44 mm) is empty; the travel from the left arm's middle (0.3, 18) to the right arm's (29.7, 18) runs down
     // the middle of the material
     val thinU = Extrude("Outer wall", longArrayOf(0, 0, 30_000, 0, 30_000, 20_000, 29_400, 20_000, 29_400, 600, 600, 600, 600, 20_000, 0, 20_000), true, 200, 440, 200)
@@ -240,7 +239,9 @@ class TravelRouterTest : StringSpec({
     // (0, 15); the next path starts in the base at (25, 2): straight from (0, 0) it stays in the base (so the router leaves it), from
     // (0, 15) it crosses the notch
     "a travel after a wipe is planned from where the wipe left the head: round the notch, not across it; avoid_crossing off crosses it (the control)" {
-        val wipe = listOf("hardware.filament.pla-generic.retract.wipe.enabled" to true, "hardware.filament.pla-generic.retract.wipe.distance" to "15 mm")
+        // the wipe along the wall itself (not stepped inside it: wipe.inward), so it takes the head up the arm
+        val wipe = listOf("hardware.filament.pla-generic.retract.wipe.enabled" to true, "hardware.filament.pla-generic.retract.wipe.distance" to "15 mm",
+            "hardware.filament.pla-generic.retract.wipe.inward" to false)
         fun travelAfterWipe(on: Boolean): List<DoubleArray> {
             val steps = listOf(LayerStart(0, 200, 200), ObjectStart("box"), u, inner(25_000, 2_000, 26_000, 3_000), ObjectEnd("box"))
             val g = StringWriter().also { KlipperWriter(settings(wipe + ("plan.mechanism.motion.avoid_crossing" to on)), emptyMap(), "test").write(PrintProgram(steps, emptyList()), it) }.toString().lines()

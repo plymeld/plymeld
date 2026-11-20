@@ -9,7 +9,7 @@ import java.util.Locale
 /**
  * Predict: print time and filament of a g-code file, from the machine's
  * own motion limits (machine description, with evidence). The same estimator the tests use as
- * their reference against QIDIStudio (2-7 % from QIDIStudio's own estimate on its files).
+ * their reference.
  * A machine missing a limit gets no time prediction, and says which limit is missing.
  */
 object Predict {

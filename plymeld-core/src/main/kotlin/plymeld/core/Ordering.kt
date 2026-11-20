@@ -1,9 +1,10 @@
 package plymeld.core
 
 /**
- * Path ordering within a layer to cut travel: greedy nearest-neighbor from the current
- * nozzle position. Open paths may be reversed (whichever end is nearer is entered);
- * closed loops are entered at their seam and never rotated (the seam is a quality choice).
+ * Path ordering within a layer to cut travel (and, given the cost of a retraction, retractions): greedy nearest-neighbor
+ * from the current nozzle position, then an improvement pass ([improve]). Open paths may be reversed (whichever end is
+ * nearer is entered, the pass may turn one); closed loops are entered at their seam and never rotated (the seam is a
+ * quality choice).
  *
  * Order constraints kept: groups are emitted in the given order (e.g. walls before
  * infill), and ordering happens only inside a group. A uniform grid over path endpoints
@@ -16,9 +17,11 @@ object Ordering {
      * `extra(x0, y0, x1, y1)`, when given, adds a cost (µm) to a travel, e.g. the equivalent
      * distance of the retraction it would need. It is evaluated only for candidates whose plain
      * distance could still win, so it may be expensive. It must be >= 0 (the search stops on
-     * distance alone).
+     * distance alone). A travel no longer than [freeUm] costs its length alone (one the writer never retracts:
+     * hardware.filament.retract.travel.min), and the improvement pass moves a path whose travel costs extra beside a path
+     * that ends within it ([improve]).
      */
-    fun order(paths: List<ToolPath>, startX: Long, startY: Long, extra: ((Long, Long, Long, Long) -> Double)? = null, improvePass: Boolean = true): List<ToolPath> {
+    fun order(paths: List<ToolPath>, startX: Long, startY: Long, extra: ((Long, Long, Long, Long) -> Double)? = null, improvePass: Boolean = true, freeUm: Double = 0.0): List<ToolPath> {
         if (paths.size <= 1) return paths
         val n = paths.size
         // endpoints: 2 per path (loops: both = seam)
@@ -54,7 +57,7 @@ object Ordering {
                         if (used[k / 2]) continue
                         var d = Math.hypot((ex[k] - px).toDouble(), (ey[k] - py).toDouble())
                         if (d >= bestD) continue
-                        if (extra != null) { d += extra(px, py, ex[k], ey[k]); if (d >= bestD) continue }
+                        if (extra != null && d > freeUm) { d += extra(px, py, ex[k], ey[k]); if (d >= bestD) continue }
                         bestD = d; best = k
                     }
                 }
@@ -71,18 +74,19 @@ object Ordering {
             px = q.xy[q.xy.size - 2]; py = q.xy[q.xy.size - 1]
             if (q.closed) { px = q.xy[0]; py = q.xy[1] }
         }
-        return if (improvePass) improve(out, startX, startY, extra) else out
+        return if (improvePass) improve(out, startX, startY, extra, freeUm = freeUm) else out
     }
 
     /**
      * 2-opt over the greedy order: reversing a stretch i..j of the sequence (open paths also flipped
      * end to end; closed loops keep their direction and seam) is kept when it lowers the total
-     * travel cost. Greedy nearest-first commits early and so depends on where it starts (hole block,
-     * a different end point on one layer changed the next layers' travel by ~10 %);
-     * the improvement pass removes much of that. Paths with overhang tiers are never flipped.
-     * A move is costed with `extra` only when its plain distance could still win.
+     * travel cost. Greedy nearest-first commits early and so depends on where it starts (a different end point on one
+     * layer changes the next layers' travel); the improvement pass removes much of that. A stretch of one open path is that path turned end to end. Paths with
+     * overhang tiers are never flipped. With [freeUm] (the travel that never retracts), a path whose travel costs extra is
+     * also moved beside a path ending within it (relocate, below). A move is costed with `extra` only when its plain
+     * distance could still win, and a travel no longer than [freeUm] not at all.
      */
-    fun improve(seq: List<ToolPath>, startX: Long, startY: Long, extra: ((Long, Long, Long, Long) -> Double)? = null, maxPasses: Int = 8): List<ToolPath> {
+    fun improve(seq: List<ToolPath>, startX: Long, startY: Long, extra: ((Long, Long, Long, Long) -> Double)? = null, maxPasses: Int = 8, freeUm: Double = 0.0): List<ToolPath> {
         val n = seq.size
         // O(n^2) per pass: groups above MAX_IMPROVE paths keep the greedy order (a compute bound,
         // not a quality choice)
@@ -93,7 +97,7 @@ object Ordering {
         fun outX(q: ToolPath) = if (q.closed) q.xy[0] else q.xy[q.xy.size - 2]
         fun outY(q: ToolPath) = if (q.closed) q.xy[1] else q.xy[q.xy.size - 1]
         fun dist(x0: Long, y0: Long, x1: Long, y1: Long) = Math.hypot((x1 - x0).toDouble(), (y1 - y0).toDouble())
-        fun cost(x0: Long, y0: Long, x1: Long, y1: Long) = dist(x0, y0, x1, y1) + (extra?.invoke(x0, y0, x1, y1) ?: 0.0)
+        fun cost(x0: Long, y0: Long, x1: Long, y1: Long): Double { val d = dist(x0, y0, x1, y1); return if (d <= freeUm || extra == null) d else d + extra(x0, y0, x1, y1) }
         val flippable = BooleanArray(n)
         // edge k = travel INTO p[k] (from the start for k = 0)
         val edge = DoubleArray(n)
@@ -101,13 +105,82 @@ object Ordering {
         fun prevY(k: Int) = if (k == 0) startY else outY(p[k - 1])
         fun refresh() { for (k in 0 until n) { edge[k] = cost(prevX(k), prevY(k), inX(p[k]), inY(p[k])); flippable[k] = p[k].closed || p[k].overhangShare == null } }
         refresh()
+        // A path reached or left by a travel that costs more than its length (one [extra] prices, a retraction) is taken out
+        // and put back beside a path whose end lies within [freeUm] of one of its own ends (an open one either way round), a
+        // travel that costs nothing extra, when that lowers the total. A stretch reversal cannot move a path the greedy order
+        // left for later: a short line between walls, beside the line it meets, reached once everything round it was laid by a
+        // retracted travel. Only such places are tried: every place in the group, each costed with [extra], would make
+        // the planning much slower.
+        fun relocate(): Boolean {
+            if (freeUm <= 0.0 || extra == null) return false
+            var moved = false
+            var i = 0
+            while (i < n) {
+                val q = p[i]
+                val retractedIn = edge[i] > dist(prevX(i), prevY(i), inX(q), inY(q)) + 1.0
+                val retractedOut = i + 1 < n && edge[i + 1] > dist(outX(q), outY(q), inX(p[i + 1]), inY(p[i + 1])) + 1.0
+                if (!retractedIn && !retractedOut) { i++; continue }
+                // what taking it out saves: its two travels, less the one that joins its neighbors (that one's plain length
+                // first, an upper bound on the saving; costed in full only when a place for it could win)
+                val bridgePlain = if (i + 1 < n) dist(prevX(i), prevY(i), inX(p[i + 1]), inY(p[i + 1])) else 0.0
+                val savedAtMost = edge[i] + (if (i + 1 < n) edge[i + 1] else 0.0) - bridgePlain
+                if (savedAtMost <= 1.0) { i++; continue }
+                var bridgeKnown = i + 1 >= n
+                var bridge = bridgePlain
+                var saved = savedAtMost
+                val ways = if (q.closed || !flippable[i]) listOf(q) else listOf(q, q.reversed())
+                var bestAdd = saved - 1.0; var bestT = -1; var bestQ = q
+                // slot t: before r[t] of the sequence without q (r[t] = p[t] for t < i, p[t + 1] after); t = n - 1: at the end
+                for (t in 0 until n) {
+                    if (t == i) continue                                       // where it is
+                    val ax = if (t == 0) startX else if (t - 1 < i) outX(p[t - 1]) else outX(p[t])
+                    val ay = if (t == 0) startY else if (t - 1 < i) outY(p[t - 1]) else outY(p[t])
+                    val b = if (t >= n - 1) null else if (t < i) p[t] else p[t + 1]
+                    val e = if (b == null) 0.0 else if (t < i) edge[t] else if (t == i) bridge else edge[t + 1]
+                    for (w in ways) {
+                        val dIn = dist(ax, ay, inX(w), inY(w)); val dOut = if (b != null) dist(outX(w), outY(w), inX(b), inY(b)) else Double.POSITIVE_INFINITY
+                        if (dIn > freeUm && dOut > freeUm) continue
+                        val plain = dIn - e + (if (b != null) dOut else 0.0)
+                        if (plain >= bestAdd) continue
+                        var add = cost(ax, ay, inX(w), inY(w)) - e
+                        if (b != null) add += cost(outX(w), outY(w), inX(b), inY(b))
+                        if (add >= bestAdd) continue
+                        if (!bridgeKnown) {
+                            bridge = cost(prevX(i), prevY(i), inX(p[i + 1]), inY(p[i + 1])); bridgeKnown = true
+                            saved = savedAtMost + bridgePlain - bridge
+                            if (bestT < 0) bestAdd = saved - 1.0
+                            if (add >= bestAdd) continue
+                        }
+                        bestAdd = add; bestT = t; bestQ = w
+                    }
+                }
+                if (bestT < 0) { i++; continue }
+                val old = p.toList(); val oldEdge = edge.copyOf()
+                p.removeAt(i)
+                p.add(bestT, bestQ)
+                // the travels between paths that were neighbors in the same order keep their cost; the rest (round the old
+                // place and the new) are costed again
+                val at = java.util.IdentityHashMap<ToolPath, Int>(n).also { m -> for ((k, x) in old.withIndex()) m[x] = k }
+                for (k in 0 until n) {
+                    val cur = at[p[k]] ?: -1
+                    val kept = cur >= 0 && (if (k == 0) cur == 0 else at[p[k - 1]].let { it != null && it == cur - 1 })
+                    edge[k] = if (kept) oldEdge[cur] else cost(prevX(k), prevY(k), inX(p[k]), inY(p[k]))
+                    flippable[k] = p[k].closed || p[k].overhangShare == null
+                }
+                moved = true
+                // the paths between its old and new places moved by one: look again from the earlier of the two
+                i = minOf(i, bestT)
+            }
+            return moved
+        }
         var pass = 0
         var improved = true
         while (improved && pass < maxPasses) {
             improved = false; pass++
-            for (i in 0 until n - 1) {
+            for (i in 0 until n) {
                 if (!flippable[i]) continue
-                for (j in i + 1 until n) {
+                // j = i: one open path turned end to end (greedy enters it at its nearer end, whatever that leaves for its exit)
+                for (j in (if (p[i].closed) i + 1 else i) until n) {
                     if (!flippable[j]) break                 // a stretch may not contain an unflippable path
                     // after reversal: prev(i) -> out(p[j]) (p[j] flipped: enters at its old exit), and
                     // in(p[i]) (old entry, now its exit) -> in(p[j+1])
@@ -132,6 +205,7 @@ object Ordering {
                     improved = true
                 }
             }
+            if (relocate()) improved = true
         }
         return p
     }
@@ -142,8 +216,7 @@ object Ordering {
      * The sweep runs across the lines (normal to the longest segment). Each open path is turned to
      * advance in the sweep direction; blocks are ordered by where they begin along the sweep (ties by
      * position along the lines). Travel is secondary here.
-     * Found: nearest-first started the testplate's top at a hole in the middle and went
-     * back and forth (74 of 171 run pairs out of sweep order; QIDIStudio 0 of 28).
+     * Nearest-first would start a top with holes (the testplate's) at a hole in the middle and go back and forth.
      */
     fun sweep(paths: List<ToolPath>, startX: Long, startY: Long): List<ToolPath> {
         if (paths.isEmpty()) return paths
@@ -167,8 +240,8 @@ object Ordering {
         // the violation monotonic surfaces forbid; blocks side by side, e.g. the two sides of a hole, may go in
         // either order). The block whose far edge is nearest is always allowed, so this never
         // stalls. The first block is one at the start of the sweep. Sorting by where each block
-        // begins was also violation-free but sent the nozzle back along the lines after every block
-        // beside a hole (testplate z 2.0 top: 1,243 mm of top-to-top travel vs QIDIStudio's 466).
+        // begins is also violation-free but sends the nozzle back along the lines after every block
+        // beside a hole.
         // Both sweep directions are planned; the one with less travel is kept.
         fun endX(p: ToolPath) = if (p.closed) p.xy[0] else p.xy[p.xy.size - 2]
         fun endY(p: ToolPath) = if (p.closed) p.xy[1] else p.xy[p.xy.size - 1]

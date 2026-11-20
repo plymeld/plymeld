@@ -13,8 +13,7 @@ import javax.imageio.ImageIO
 
 /**
  * The plate pictures (`plymeld render-plate`) on small hand-written g-code: each draws what the g-code holds, and refuses
- * g-code without what it draws. (Checked against the workspace scripts they were ported from, on real plates, when ported:
- * byte-identical PNGs.)
+ * g-code without what it draws.
  */
 class PlateRenderTest : StringSpec({
     val dir = Files.createTempDirectory("plate-render")

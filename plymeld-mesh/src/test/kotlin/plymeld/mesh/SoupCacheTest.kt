@@ -6,7 +6,7 @@ import io.kotest.matchers.shouldBe
 /**
  * [SoupCache]: a soup's value worked out once while it fits, the values' total held to the bound (the least recently used
  * dropped first), a value larger than the bound not kept, and keys by identity. The pose search on a model of millions of
- * triangles ran out of heap when every live soup's value was held; this is that bound. Control: a second soup with the
+ * triangles runs out of heap when every live soup's value is held; this is that bound. Control: a second soup with the
  * same coordinates is another key.
  */
 class SoupCacheTest : StringSpec({

@@ -106,8 +106,7 @@ class PlateHeightsTest : StringSpec({
         val tools = pr.partTools(together); var at = 0
         val objs = together.layout.placed.map { pl -> plymeld.core.check.PlateCheck.Obj(pl.name, pl.parts, tools.subList(at, at + pl.parts.size).also { at += pl.parts.size }) }
         plymeld.core.check.PlateCheck.together(text, objs, zBase).problems shouldBe emptyList()
-        // control: the plate read as one model, every object's outline on every layer, is refused (what made such a plate
-        // once need one shared height)
+        // control: the plate read as one model, every object's outline on every layer, is refused
         plymeld.core.check.ModelCheck.check(text, together.parts, zBase).isNotEmpty() shouldBe true
     }
 

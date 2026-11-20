@@ -267,9 +267,8 @@ class LiftWarp(override val zStart: Double, private val under: (Double, Double) 
                 * How far the bridge is printed from where the model has it (mm): its support's printed top less the support's
                 * own (a layer holds what is under its middle, so a 5.0 mm support prints to 4.98 on a 0.28 / 0.1 mm grid). [under]
                 * is already moved by it. The bridge's model warped for slicing is moved by it too ([modelShift]), so its
-                * underside lies at [zStart] and its top on the layer grid; left out, the strip sat [shift] off the grid in its
-                * lifted frame and its top came out as a sliver split over two layers (0.22 mm as two of 0.11; the
-                * 0.12 mm last layer of the arches on the 0.28 / 0.2 mm grid before it).
+                * underside lies at [zStart] and its top on the layer grid; left out, the strip would sit [shift] off the grid in
+                * its lifted frame and its top would come out as a sliver split over two layers.
                 */
                val shift: Double = 0.0) : ZWarp() {
     override val modelShift: Double get() = shift

@@ -60,7 +60,7 @@ class SparsePatternTest : StringSpec({
         (Math.abs(c / r - 1) < 0.10) shouldBe true
     }
 
-    // minimum_sparse_infill_area (Flash Studio fills the interiors of raised letters solid):
+    // minimum_sparse_infill_area (a small island's interior is laid solid, not as sparse stubs):
     // a 4 mm pillar's interior (about 5 mm2 inside its walls) is solid; the 30 mm block stays sparse.
     "a sparse piece smaller than minimum_sparse_infill_area is internal solid; control: 0 = off" {
         val two = List(n) { listOf(Polygon(longArrayOf(0, 0, 30_000, 0, 30_000, 30_000, 0, 30_000)), Polygon(longArrayOf(40_000, 0, 44_000, 0, 44_000, 4_000, 40_000, 4_000))) }

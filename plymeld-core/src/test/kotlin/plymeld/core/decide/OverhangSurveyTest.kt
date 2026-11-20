@@ -7,9 +7,9 @@ import plymeld.mesh.TriangleSoup
 /**
  * Support's survey leaves out an overhang region the generator lays no support in: one whose faces, seen from below, are
  * narrower everywhere than the narrowest column it lays (Support.columnWidthMm; the generator's speck filter,
- * Supports.dropSpecks, drops such faces). Found on the two-color Benchy: a cluster of 0.0 mm² of faces lying
- * across a 1.67 x 1.62 mm box passed the box's test (Support.minRegionWidthMm, 1.60 mm), was planned as a support spot,
- * and the slice printed no support in it (SupportCheck refused the file).
+ * Supports.dropSpecks, drops such faces). On the two-color Benchy a cluster of faces of almost no area lying
+ * across a 1.67 x 1.62 mm box passes the box's test (Support.minRegionWidthMm, 1.60 mm); planned as a support spot, the
+ * slice would print no support in it, which SupportCheck refuses.
  */
 class OverhangSurveyTest : StringSpec({
     val box = 1.6      // a tip with the XY gap on both sides (the bundled 0.8 + 2 x 0.4): the box's test

@@ -28,7 +28,13 @@ class CurvedIsland(val capId: Int, val startMm: Double, val topMm: Double, val l
                     * It holds a part taller than its cap (CurvedRegions.Island.shared, stage 6): its layers print that part's column level up
                     * to [topMm], where the flat layers land a layer and go on; its loops leave the flat layers up to there only.
                     */
-                   val shared: Boolean = false) {
+                   val shared: Boolean = false,
+                   /**
+                    * The stair-step its own layers remove from its top by the survey's measure (CurvedRegions.Island.gainMm3, mm³):
+                    * zero or below, they step more than flat layers there (taken only when a plan locks it with no start); NaN = not
+                    * measured.
+                    */
+                   val gainMm3: Double = Double.NaN) {
     /**
      * For each cell of the grid grown by one all round ((i + 1) * (ny + 2) + j + 1), whether it or a cell next to it is the
      * island's: what [covers] reads, one lookup a point (a pose search asks it of every sloped face under every plan). It
@@ -94,7 +100,7 @@ class CurvedIsland(val capId: Int, val startMm: Double, val topMm: Double, val l
      * The island's own layer height in warped space over [spanMm] (its start as printed, the flat top under the plan's start,
      * to its top): the span in equal layers, as near [layerMm] as keeps every layer at least [minLayerMm] where it dips most
      * (1 - dip / span of its height) and at most [maxLayerMm] where it does not dip; null when no whole number of layers does.
-     * (Layers of [layerMm] with what is left on top: the remainder layer, dipped, came out 0.06 mm thick.)
+     * (Layers of [layerMm] with what is left on top would leave a remainder layer, dipped, far thinner than any other.)
      */
     fun ownLayerMm(spanMm: Double, minLayerMm: Double, maxLayerMm: Double): Double? {
         val factor = 1.0 - (dip.maxOrNull() ?: 0.0) / spanMm
@@ -106,7 +112,7 @@ class CurvedIsland(val capId: Int, val startMm: Double, val topMm: Double, val l
     }
 
     /** The island with its grid moved by ([dx], [dy]): from the object's corner to where the object's corner is placed. */
-    fun placed(dx: Double, dy: Double) = CurvedIsland(capId, startMm, topMm, layerMm, x0 + dx, y0 + dy, cellMm, nx, ny, cells, dip, fi0, fj0, fwx, fwy, fdip, key, seedXMm, seedYMm, shared)
+    fun placed(dx: Double, dy: Double) = CurvedIsland(capId, startMm, topMm, layerMm, x0 + dx, y0 + dy, cellMm, nx, ny, cells, dip, fi0, fj0, fwx, fwy, fdip, key, seedXMm, seedYMm, shared, gainMm3)
         .also { it.nearCache = near() }
 
     override fun toString() = "island '%s' at (%.2f, %.2f): own layers from %.2f to %.2f mm, %.3f mm thick".format(java.util.Locale.ROOT, key, seedXMm, seedYMm, startMm, topMm, layerMm)
@@ -119,7 +125,7 @@ class CurvedIsland(val capId: Int, val startMm: Double, val topMm: Double, val l
 
     /**
      * A plan's lock on an island (plan.object.<key>.island.<key>): a point on its cap ([xMm], [yMm], from the posed object's
-     * corner), and optionally its start (from the object's bottom) and its own layer height; unset, the survey's best.
+     * corner), and optionally its start (from the object's bottom) and its own layer height; unset, the survey's best ([resolve]).
      */
     class Lock(val key: String, val xMm: Double, val yMm: Double, val startMm: Double? = null, val layerMm: Double? = null)
 
@@ -137,14 +143,16 @@ class CurvedIsland(val capId: Int, val startMm: Double, val topMm: Double, val l
             val fdip = DoubleArray(island.field.size) { q -> minOf(island.topMm - island.field[q], p.nozzleHeightMm, island.dipMm).coerceAtLeast(0.0) }
             // the survey's grid starts at the surveyed object's corner, so from the corner it starts at 0
             return CurvedIsland(island.cap.id, island.startMm, island.topMm, layerMm, 0.0, 0.0, r.cellMm, r.nx, r.ny, cells, dip,
-                island.window[0], island.window[1], island.window[2], island.window[3], fdip, key, seedXMm, seedYMm, island.shared)
+                island.window[0], island.window[1], island.window[2], island.window[3], fdip, key, seedXMm, seedYMm, island.shared, island.gainMm3)
         }
 
         /**
          * The islands [locks] name on the object of [parts] (as posed): each the cap holding its point (or a cell next to it),
-         * from its start (the survey's best unless locked), in its own layer height (the thinnest that keeps every layer at
-         * least the tool's thinnest unless locked, within it and [maxLayerMm]). Refused (IllegalArgumentException, saying why)
-         * when the point is on no cap, the cap has no island, or two islands share ground.
+         * from its start (unless locked, the survey's best: the start whose own layers remove the most stair-step from its top,
+         * or, where none removes any, the one that steps least, its loss kept in [gainMm3]), in its own layer height (the thinnest
+         * that keeps every layer at least the tool's thinnest unless locked, within it and [maxLayerMm]). Refused
+         * (IllegalArgumentException, saying why) when the point is on no cap, the cap has no island within the tool's layers, or
+         * two islands share ground.
          */
         fun resolve(parts: List<plymeld.mesh.TriangleSoup>, locks: List<Lock>, p: CurvedRegions.Params, soupLayerMm: Double, maxLayerMm: Double,
                     /** The survey of [parts] with [p], when the caller has made it (the decision, one for every candidate); null = made here. */
@@ -157,7 +165,9 @@ class CurvedIsland(val capId: Int, val startMm: Double, val topMm: Double, val l
                 val cap = capOf(r, l) ?: throw IllegalArgumentException("$at: no cap holds that point (a top sloping %.0f to %.1f deg, under the nozzle angle by the survey's margin, joined where the top is continuous): ".format(java.util.Locale.ROOT, CurvedRegions.FLAT_DEG, p.surveyDeg) +
                     (nearCells(r, l).firstOrNull()?.let { a -> r.top[a].takeIf { !it.isNaN() }?.let { "the top there is at ${f(it)} mm, flat or steeper" } } ?: "it is outside the object's footprint") +
                     "; the points are from the posed object's corner")
-                val s = if (l.startMm != null) CurvedRegions.islandAt(r, p, cap, l.startMm, soupLayerMm) else CurvedRegions.bestIsland(r, p, cap, soupLayerMm, maxLayerMm)
+                // with no start, the survey's best, even where its own layers step more than flat ones (the lock asks for it; its
+                // plan's facts say by how much: [gainMm3]); within the tool's thinnest and thickest layers, or refused
+                val s = if (l.startMm != null) CurvedRegions.islandAt(r, p, cap, l.startMm, soupLayerMm) else CurvedRegions.bestIsland(r, p, cap, soupLayerMm, maxLayerMm, acceptLoss = true)
                 if (s !is CurvedRegions.Island) throw IllegalArgumentException("$at: its cap (z ${f(cap.zLoMm)} to ${f(cap.zHiMm)} mm) has no island" + (if (l.startMm != null) " from ${f(l.startMm)} mm" else "") + ": $s")
                 require(!s.layerMm.isInfinite()) { "$at: from ${f(s.startMm)} mm its layers would dip by ${f(s.dipMm)} mm, more than the ${f(s.topMm - s.startMm)} mm to its top: start it lower" }
                 // the dilated surface is held within the nozzle angle at every cell's corners (CurvedRegions.limitCorners), so

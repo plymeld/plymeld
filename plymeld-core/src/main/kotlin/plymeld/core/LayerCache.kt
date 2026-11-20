@@ -43,7 +43,7 @@ object LayerCache {
     private class Entry(val value: Any, val bytes: Long, val read: Map<String, String>)
     private val map = LinkedHashMap<Key, Entry>(1024, 0.75f, true)
     private var bytes = 0L
-    /** The bound: `plymeld.layerCache.mb`, else 768 MB or a quarter of the heap, whichever is less (a 512 MB test JVM ran out of heap at 768). */
+    /** The bound: `plymeld.layerCache.mb`, else 768 MB or a quarter of the heap, whichever is less (at 768 a 512 MB test JVM runs out of heap). */
     @Volatile var maxBytes: Long = System.getProperty("plymeld.layerCache.mb")?.toLongOrNull()?.let { it shl 20 } ?: minOf(768L shl 20, Runtime.getRuntime().maxMemory() / 4)
     @Volatile var hits = 0L; private set
     @Volatile var misses = 0L; private set

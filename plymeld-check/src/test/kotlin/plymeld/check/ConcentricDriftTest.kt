@@ -8,8 +8,8 @@ import java.util.Locale
 
 /**
  * Concentric rings must stay at their intended distance from the edge: ring k at spacing * (k + 1/2).
- * A large oval showed coarse, stepped rings with radial "spokes" where Flash Studio's
- * are smooth ellipses; this measures the drift on a dense ellipse like that oval.
+ * Drifting rings on a large, densely sampled oval show as coarse, stepped rings with radial "spokes" instead of smooth
+ * ellipses; this measures the drift on a dense ellipse.
  */
 class ConcentricDriftTest : StringSpec({
     "rings on a dense ellipse keep their distance from the edge" {

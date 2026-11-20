@@ -48,4 +48,23 @@ class OrderingTest : StringSpec({
         // control: the start at a's far end really did reverse it
         Ordering.order(listOf(a, b), 10_500, 0, improvePass = false).first().xy[0] shouldBe 10_000L
     }
+
+    // a short line beside the end of a long one: greedy took the next long line (nearer) first and reached the short line
+    // last, from 20 mm away, by a retracted travel; it belongs between the two, each travel under the retraction's minimum
+    "a path whose travel would retract is moved beside a path ending within the free travel" {
+        val l = ToolPath(Feature.INNER_WALL, longArrayOf(0, 0, 10_000, 0), false, 450, 200)
+        val p = ToolPath(Feature.INNER_WALL, longArrayOf(10_200, 0, 30_000, 0), false, 450, 200)
+        val s = ToolPath(Feature.INNER_WALL, longArrayOf(10_000, 500, 10_100, 500), false, 450, 200)
+        val retract: (Long, Long, Long, Long) -> Double = { _, _, _, _ -> 26_700.0 }
+        fun retracted(seq: List<ToolPath>): Int {
+            var x = 0L; var y = 0L; var n = 0
+            for (q in seq) { if (Math.hypot((q.xy[0] - x).toDouble(), (q.xy[1] - y).toDouble()) > 1_000) n++; x = q.xy[q.xy.size - 2]; y = q.xy[q.xy.size - 1] }
+            return n
+        }
+        val fixed = Ordering.order(listOf(l, p, s), 0, 0, retract, freeUm = 1_000.0)
+        retracted(fixed) shouldBe 0
+        fixed.map { q -> listOf(l, p, s).indexOfFirst { it.xy[0] == q.xy[0] || it.xy[0] == q.xy[q.xy.size - 2] } } shouldBe listOf(0, 2, 1)
+        // control: without the free travel every move costs a retraction and the short line is left for last
+        retracted(Ordering.order(listOf(l, p, s), 0, 0, retract)) shouldBe 1
+    }
 })

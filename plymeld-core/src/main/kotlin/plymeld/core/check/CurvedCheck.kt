@@ -23,8 +23,9 @@ import java.util.Locale
  *      nozzle angle (hardware.tool.head.nozzle.angle) wherever it is printed; and the head around the nozzle clear of what is printed:
  *      with the head's outline known (hardware.tool.head.size.x/y, nozzle_x/y), the plastic under its rectangle at every point
  *      printed under the nozzle height (hardware.tool.head.nozzle.height) above the nozzle ([HeadGrid]); without it, the layer's
- *      whole rise (its highest line less its lowest) under the nozzle height, whatever the outline. Without the angle
- *      and height a curved band is refused.
+ *      whole rise (its highest line less its lowest) under the nozzle height, whatever the outline. The angle and height
+ *      are the tool's own, else its machine model's toolhead's (NozzleCone), the strictest of the object's tools; without
+ *      them a curved band is refused.
  *
  * Z speed is not judged here: the firmware holds every move to its max_z_velocity by its Z share, and the predictor
  * counts it.
@@ -50,7 +51,9 @@ object CurvedCheck {
      * bridges, also [frames]: no one warped space holds them all (a bridge's lifted layers stand where the support above its
      * ends is printed later), so the model's own check reads each frame on its own.
      */
-    class Read(val text: String, val parts: List<TriangleSoup>, val problems: List<String>, val curvedLayers: Int, val frames: List<Frame>? = null)
+    class Read(val text: String, val parts: List<TriangleSoup>, val problems: List<String>, val curvedLayers: Int, val frames: List<Frame>? = null,
+               /** Each curved layer of [text]'s real thickness along it, for the model's check (ModelCheck.Surface's thickness); null: none curved. */
+               val thickness: ModelCheck.Thickness? = null)
     /**
      * One frame of several lifted bridges: the g-code's layers read in it ([text], the start template and those layers, in
      * warped space), and the parts there (by their index in the object's parts): what stands on the bed, flat, or one
@@ -60,7 +63,9 @@ object CurvedCheck {
                 /** Its layers are flat, as printed (what stands on the bed; the whole object when there are no frames): Z anti-aliasing applies there. */
                 val flat: Boolean = true,
                 /** The part of each cut of [parts] its layers are judged against (ModelCheck.Surface's clip); null: all of it. */
-                val clip: ((Double, List<plymeld.geom.Polygon>) -> List<plymeld.geom.Polygon>)? = null)
+                val clip: ((Double, List<plymeld.geom.Polygon>) -> List<plymeld.geom.Polygon>)? = null,
+                /** Its curved layers' real thickness along them (ModelCheck.Surface's thickness); null: its layers flat. */
+                val thickness: ModelCheck.Thickness? = null)
 
     /**
      * How far a printed line's end may sit off its layer's surface (mm): the writer gives Z in whole µm, so half a µm
@@ -81,7 +86,9 @@ object CurvedCheck {
     private const val SLACK_MM = 0.0005
     private const val SLACK_DEG = 1e-6
 
-    private class Line(val idx: Int, val layer: Int, val x0: Double, val y0: Double, val z0: Double, val x1: Double, val y1: Double, val z1: Double, val feature: String = "")
+    private class Line(val idx: Int, val layer: Int, val x0: Double, val y0: Double, val z0: Double, val x1: Double, val y1: Double, val z1: Double, val feature: String = "",
+                       /** Its width as the file marks it (mm). */
+                       val w: Double = LINE_HALF_MM * 2)
 
     /** Where the head stands highest over the nozzle in a layer: the nozzle's point, and how much higher the plastic under the head is. */
     private class Worst(val line: Line, val x: Double, val y: Double, val z: Double, val overMm: Double)
@@ -314,7 +321,7 @@ object CurvedCheck {
 
         val problems = ArrayList<String>()
         val tip = lim.tip
-        if (tip == null) problems += "curved layers need the nozzle's angle and height (hardware.tool.<key>.head.nozzle.angle and head.nozzle.height), which the config does not give: the head's clearance over a curved layer cannot be judged"
+        if (tip == null) problems += "curved layers need the nozzle's angle and height of every tool printing the object (${plymeld.model.NozzleCone.WHERE}), which the config does not give: the head's clearance over a curved layer cannot be judged"
         var curvedCount = 0
         val head = tip?.reach?.takeIf { printed.isNotEmpty() }?.let { HeadGrid(printedAll, it) }
         fun headOver(at: String, w: Worst, t: Tip) {
@@ -479,6 +486,12 @@ object CurvedCheck {
         }
         val groupOf = IntArray(parts.size) { i -> if (banded) groups.indexOfFirst { i in it } else 0 }
         val warpedParts = parts.mapIndexed { i, p -> if (follows == Follows.LIFT && !bridge[i]) p else warps[groupOf[i]].warpSoup(p) }
+        // a curved layer's real thickness along it (by its warped height in the text; [fr]: that frame's layers, null: every
+        // curved layer): the model's check reads its lines' widths from their plastic per mm, which goes with it
+        fun thickness(fr: Int?): ModelCheck.Thickness {
+            val byZ = HashMap<Long, Int>(); for (k in 0 until layers) if (curved(k) && (fr == null || frame(k) == fr)) byZ[lzUm[k]] = k
+            return ModelCheck.Thickness { z, x, y -> byZ[Math.round(z * 1000)]?.let { k -> u(k, x, y, lz(k)) - u(k, x, y, below(k)) } ?: Double.NaN }
+        }
         // several lifted bridges: each frame's layers on their own, with the start template, and its parts
         val frames = if (!banded) null else {
             val ol = out.toString().lines()
@@ -488,10 +501,11 @@ object CurvedCheck {
                 for (i in 0 until marks.first()) sb.append(ol[i]).append('\n')
                 for ((j, m) in marks.withIndex()) if (frame(j) == fr) for (i in m until (if (j + 1 < marks.size) marks[j + 1] else ol.size)) sb.append(ol[i]).append('\n')
                 val idx = if (fr < 0) parts.indices.filter { !bridge[it] } else groups[fr]
-                Frame(if (fr < 0) "supports" else "bridge ${fr + 1}", sb.toString(), idx, idx.map { warpedParts[it] }, flat = fr < 0)
+                Frame(if (fr < 0) "supports" else "bridge ${fr + 1}", sb.toString(), idx, idx.map { warpedParts[it] }, flat = fr < 0,
+                    thickness = if (fr < 0) null else thickness(fr))
             }
         }
-        return Read(out.toString(), warpedParts, problems, curvedCount, frames)
+        return Read(out.toString(), warpedParts, problems, curvedCount, frames, thickness(null))
     }
 
     /**
@@ -504,9 +518,12 @@ object CurvedCheck {
      * surface no steeper than the nozzle angle (read on the warp itself); and the head clear of every line printed before
      * (HeadGrid, every layer from the first island layer on, flat ones included: a flat layer elsewhere stands beside
      * an island's higher plastic), or the layer's rise under the nozzle height without the head's outline.
+     * An object laid per part with a tool change on an island layer purges into the tower there: the tower's lines on an island
+     * layer stand at the top of the flat layer before it (the tower keeps the flat layers' heights), judged so, and are read
+     * on the island layer's height by the planar checks; the island's rules are for the model's lines.
      * The planar checks then read [Read.text] (the island layers flat at their warped heights) and [Read.frames]: the flat
      * layers against the parts without the islands' loops above their starts, each island's layers against its warped
-     * parts' loops of that island only.
+     * parts' loops of that island only (each part's, so the tool rule judges every island line by its own part's tool).
      */
     fun readIslands(text: String, parts: List<TriangleSoup>, zBase: Double, islands: List<plymeld.core.decide.CurvedIsland>, lim: Limits, lineOffset: Int = 0): Read {
         val bottom = merged(parts).bounds()[2]
@@ -544,7 +561,10 @@ object CurvedCheck {
 
         val printed = printedLines(lines)
         val lastPrinted = printed.lastOrNull()?.idx ?: -1
-        val byLayer = printed.groupBy { it.layer }
+        // an object laid per part: the purge tower's lines laid on an island layer (a tool change there) stand at the tower's own
+        // flat height, not on the island's surface; read as a flat layer's (the head's rule), the island's rules for the rest
+        val towerOn = printed.filter { frame(it.layer) >= 0 && it.feature == TOWER_FEATURE }.groupBy { it.layer }
+        val byLayer = printed.filter { !(frame(it.layer) >= 0 && it.feature == TOWER_FEATURE) }.groupBy { it.layer }
         // each island layer's warped height: the middle of its line ends' warped heights, to the µm
         val lzUm = LongArray(layers) { Long.MIN_VALUE }
         for ((k, ls) in byLayer) if (frame(k) >= 0) {
@@ -557,7 +577,7 @@ object CurvedCheck {
         fun below(k: Int): Double = (k - 1 downTo 0).firstOrNull { frame(it) == frame(k) && curved(it) }?.let { lz(it) } ?: startG[frame(k)]
 
         val tip = lim.tip
-        if (tip == null) problems += "curved islands need the nozzle's angle and height (hardware.tool.<key>.head.nozzle.angle and head.nozzle.height), which the config does not give: the head's clearance over an island's layer cannot be judged"
+        if (tip == null) problems += "curved islands need the nozzle's angle and height of every tool printing the object (${plymeld.model.NozzleCone.WHERE}), which the config does not give: the head's clearance over an island's layer cannot be judged"
         val head = tip?.reach?.takeIf { printed.isNotEmpty() }?.let { HeadGrid(printed, it) }
         fun headOver(at: String, w: Worst, t: Tip) {
             val r = t.reach ?: return
@@ -569,8 +589,17 @@ object CurvedCheck {
             for (b in ls.chunked(HEAD_BLOCK)) hg.judge(b)?.let { w -> val o = out; if (o == null || w.overMm > o.overMm) out = w }
             return out
         }
+        /** The top of the last flat layer before layer [k] (the file's mark): where the tower's lines on an island layer stand. */
+        fun flatBefore(k: Int): Double = (k - 1 downTo 0).firstOrNull { frameL[it] < 0 && !markZ[it].isNaN() }?.let { markZ[it] } ?: Double.NaN
         var curvedCount = 0
         for (k in 0 until layers) {
+            towerOn[k]?.let { ts ->
+                // on its own layer's height: the flat layer's before it (the tower keeps the flat layers' heights)
+                val tz = flatBefore(k)
+                ts.firstOrNull { s -> Math.abs(s.z0 - tz) > ON_SURFACE_MM || Math.abs(s.z1 - tz) > ON_SURFACE_MM }?.let { s ->
+                    problems += "layer ${k + 1} (curved island '${islands[frame(k)].key}'): the purge tower's line at Z${f(s.z1, 3)}, not the top of the flat layer before it (${f(tz, 3)}), where the tower's layer is (line ${s.idx + 1 + lineOffset})" }
+                if (curvedCount > 0 && tip != null && head != null) headOrdered(ts)?.let { headOver("layer ${k + 1} (the purge tower, on a curved island's layer)", it, tip) } else head?.add(ts)
+            }
             val ls = byLayer[k] ?: continue
             if (!curved(k)) {
                 // a flat layer printed after an island's layer stands beside its higher plastic: the head's rule reads it too
@@ -633,10 +662,18 @@ object CurvedCheck {
         val out = StringBuilder(text.length + text.length / 8)
         run {
             var x = Double.NaN; var y = Double.NaN; var z = Double.NaN; var zwNow = Double.NaN; var layer = -1
+            var feat = ""; var towerZ = Double.NaN
             for ((i, raw) in lines.withIndex()) {
                 if (i > 0) out.append('\n')
                 val l = raw.trim()
-                if (isLayer(l)) { layer++; out.append(raw); continue }
+                if (isLayer(l)) { layer++; towerZ = if (curved(layer)) flatBefore(layer) else Double.NaN; out.append(raw); continue }
+                if (l.startsWith(";TYPE:") || l.startsWith("; FEATURE:")) feat = l.substringAfter(':').trim()
+                // the purge tower's moves on an island layer at its own layer's height (judged above): read on the island layer's
+                val tm = if (layer >= 0 && curved(layer) && feat == TOWER_FEATURE && i >= firstLayer && i <= lastPrinted) move(l) else null
+                if (tm != null && (tm.z ?: z).let { !it.isNaN() && Math.abs(it - towerZ) <= ON_SURFACE_MM }) {
+                    out.append(if (tm.z != null || Math.abs(zwNow - lz(layer)) > 1e-9) withZ(raw, lz(layer)) else raw)
+                    x = tm.x ?: x; y = tm.y ?: y; z = tm.z ?: z; zwNow = lz(layer); continue
+                }
                 if (layer >= 0 && curved(layer)) {
                     if (l.startsWith(";Z:") || l.startsWith("; Z_HEIGHT:")) { out.append(l.substringBefore(':')).append(": ").append(f(lz(layer), 3)); continue }
                     if (l.startsWith(";HEIGHT:") || l.startsWith("; LAYER_HEIGHT:")) { out.append(l.substringBefore(':')).append(": ").append(f(lz(layer) - below(layer), 3)); continue }
@@ -663,10 +700,14 @@ object CurvedCheck {
         // against its warped parts' loops of that island only
         val ol = out.toString().lines()
         val marks = ol.indices.filter { isLayer(ol[it].trim()) }
+        // a frame's text keeps the other frames' tool changes (their layers left out): the tool in force on its layers is the
+        // file's (an island layer ending on the other tool had the next flat layer's lines read as that layer's first tool's)
+        val toolLine = Regex("^T\\d+$")
         fun frameText(fr: Int): String {
             val sb = StringBuilder()
             for (i in 0 until marks.first()) sb.append(ol[i]).append('\n')
-            for ((j, m) in marks.withIndex()) if (frame(j) == fr) for (i in m until (if (j + 1 < marks.size) marks[j + 1] else ol.size)) sb.append(ol[i]).append('\n')
+            for ((j, m) in marks.withIndex()) for (i in m until (if (j + 1 < marks.size) marks[j + 1] else ol.size))
+                if (frame(j) == fr || toolLine.matches(ol[i].substringBefore(';').trim())) sb.append(ol[i]).append('\n')
             return sb.toString()
         }
         // an island holding a taller part ends at its top (CurvedIsland.shared): above it, that part is the flat layers' again
@@ -678,8 +719,13 @@ object CurvedCheck {
         val frames = listOf(Frame("flat layers", frameText(-1), parts.indices.toList(), parts, flat = true, clip = flatClip)) +
             islands.indices.map { fr ->
                 val isl = islands[fr]
+                // each of its layers' real thickness along it (by its warped height): its lines' widths are read from their
+                // plastic per mm, which goes with it (an island's layer is thinner in one place than another: the Benchy's bow,
+                // 0.13 to 0.2 mm along one loop)
+                val byZ = HashMap<Long, Int>(); for (k in 0 until layers) if (frame(k) == fr && curved(k)) byZ[lzUm[k]] = k
                 Frame("island '${isl.key}'", frameText(fr), parts.indices.toList(), parts.map { warps[fr].warpSoup(it) }, flat = false,
-                    clip = { _, loops -> loops.filter { isl.holds(it) } })
+                    clip = { _, loops -> loops.filter { isl.holds(it) } },
+                    thickness = { z, x, y -> byZ[Math.round(z * 1000)]?.let { k -> u(k, x, y, lz(k)) - u(k, x, y, below(k)) } ?: Double.NaN })
             }
         return Read(out.toString(), parts, problems, curvedCount, frames)
     }
@@ -689,8 +735,8 @@ object CurvedCheck {
      * wall): the model cut flat every [WALL_STEP_MM] above each island's start, its loops the island holds (those the flat
      * layers leave to it), and along their outline every [WALL_ALONG_MM] where the model's side is steep (the outline moves
      * under [WALL_STEEP_MM] over the step: a top's contour is a top's, laid as one), a wall of the island's layer whose real
-     * thickness there spans that height and whose middle there lies on that cut (a layer is cut at its middle), within half a
-     * line and [WALL_SLACK_MM]. More than [WALL_MISS_MM] of outline unwalled
+     * thickness there spans that height and whose middle there lies on that cut (a layer is cut at its middle), within half the
+     * wall's own width (at least half a line) and [WALL_SLACK_MM]. More than [WALL_MISS_MM] of outline unwalled
      * on a cut is a problem.
      */
     private fun islandWalls(parts: List<TriangleSoup>, zBase: Double, islands: List<plymeld.core.decide.CurvedIsland>, startG: DoubleArray,
@@ -701,7 +747,10 @@ object CurvedCheck {
         for ((f, isl) in islands.withIndex()) {
             val layers = frameL.indices.filter { frameL[it] == f && curved(it) }
             if (layers.isEmpty()) continue
-            val walls = layers.associateWith { k -> ModelCheck.Grid(byLayer[k].orEmpty().filter { "wall" in it.feature.lowercase() }.map { doubleArrayOf(it.x0, it.y0, it.x1, it.y1) }) }
+            // each layer's walls by width: a wall's edge, half its own width out from its middle, reaches the outline (a lip as wide as
+            // two lines takes one wall that wide)
+            val walls = layers.associateWith { k -> byLayer[k].orEmpty().filter { "wall" in it.feature.lowercase() }.groupBy { Math.round(it.w * 100) }
+                .map { (_, ls) -> maxOf(LINE_HALF_MM, ls.maxOf { it.w } / 2) to ModelCheck.Grid(ls.map { doubleArrayOf(it.x0, it.y0, it.x1, it.y1) }) } }
             val zTopG = soup.bounds()[2] - zBase + isl.topMm
             val zs = generateSequence(startG[f] + WALL_STEP_MM / 2) { it + WALL_STEP_MM }.takeWhile { it < zTopG }.toList()
             if (zs.isEmpty()) continue
@@ -717,7 +766,7 @@ object CurvedCheck {
             for ((j, z) in zs.withIndex()) {
                 val held = cuts[j].filter { isl.holds(it) }
                 if (held.isEmpty()) continue
-                val next = ModelCheck.Grid(above[j].flatMap { lp -> (0 until lp.size).map { i -> doubleArrayOf(lp.x(i) / 1000.0, lp.y(i) / 1000.0, lp.x((i + 1) % lp.size) / 1000.0, lp.y((i + 1) % lp.size) / 1000.0) } })
+                val next = ModelCheck.Grid.ofLoops(above[j])
                 var missMm = 0.0; var at: DoubleArray? = null; var layerAt = -1
                 for (lp in held) for (i in 0 until lp.size) {
                     val ax = lp.x(i) / 1000.0; val ay = lp.y(i) / 1000.0; val bx = lp.x((i + 1) % lp.size) / 1000.0; val by = lp.y((i + 1) % lp.size) / 1000.0
@@ -731,7 +780,7 @@ object CurvedCheck {
                         // there only, so a feature shorter than a layer, between two middles, is no layer's (a 0.3 mm step of the
                         // Benchy's hull below its deck's top, which the flat layers missed too where their middles fell)
                         if (Math.abs(u(k, px, py, mid(k)) - z) > WALL_STEP_MM / 2 + 1e-9) continue
-                        if (walls.getValue(k).nearest(px, py, 2.0) <= LINE_HALF_MM + WALL_SLACK_MM) continue
+                        if (walls.getValue(k).any { (half, g) -> g.nearest(px, py, 2.0) <= half + WALL_SLACK_MM }) continue
                         missMm += len / n
                         if (at == null) { at = doubleArrayOf(px, py); layerAt = k }
                     }
@@ -742,11 +791,16 @@ object CurvedCheck {
         }
         return out
     }
+    /** The purge tower's lines' feature. */
+    private val TOWER_FEATURE = plymeld.core.Feature.TOWER.label
     const val WALL_STEP_MM = 0.1
     const val WALL_ALONG_MM = 0.25
     /** Steep: the outline moves at most this far over half a step (0.05 mm), so the side is steeper than 45 deg. */
     const val WALL_STEEP_MM = 0.05
-    /** Half a line (a 0.4 mm nozzle's) and the slack a wall's place has within its layer's thickness. plymeld's choice. */
+    /**
+     * Half a line (a 0.4 mm nozzle's: the least half width a wall is read with, a wider one by its own), and the slack a wall's
+     * place has within its layer's thickness. plymeld's choice.
+     */
     const val LINE_HALF_MM = 0.25
     const val WALL_SLACK_MM = 0.15
     /** As ModelCheck's "no wall along" rule takes it: more than this unwalled on a cut. */
@@ -758,14 +812,15 @@ object CurvedCheck {
     /** The lines printed in [lines], by layer (counted from its layer markers). */
     private fun printedLines(lines: List<String>): List<Line> {
         val printed = ArrayList<Line>()
-        var x = Double.NaN; var y = Double.NaN; var z = Double.NaN; var layer = -1; var feat = ""
+        var x = Double.NaN; var y = Double.NaN; var z = Double.NaN; var layer = -1; var feat = ""; var w = LINE_HALF_MM * 2
         for ((i, raw) in lines.withIndex()) {
             val l = raw.trim()
             if (isLayer(l)) { layer++; continue }
             if (l.startsWith(";TYPE:") || l.startsWith("; FEATURE:")) { feat = l.substringAfter(':').trim(); continue }
+            if (l.startsWith(";WIDTH:") || l.startsWith("; LINE_WIDTH:")) { w = l.substringAfter(':').trim().toDoubleOrNull() ?: w; continue }
             val m = move(l) ?: continue
             val nx = m.x ?: x; val ny = m.y ?: y; val nz = m.z ?: z
-            if (layer >= 0 && (m.e ?: 0.0) > 0 && !x.isNaN() && (nx != x || ny != y)) printed += Line(i, layer, x, y, z, nx, ny, nz, feat)
+            if (layer >= 0 && (m.e ?: 0.0) > 0 && !x.isNaN() && (nx != x || ny != y)) printed += Line(i, layer, x, y, z, nx, ny, nz, feat, w)
             x = nx; y = ny; z = nz
         }
         return printed

@@ -457,8 +457,8 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         }
         val tubes = widthList?.let { wl -> plymeld.core.calibrate.Tubes(wl.toLongArray(), Math.min(s.visibleSpeed, s.maxVolumetric / (hm * (wl.max() / 1000.0 - hm * (1 - Math.PI / 4)) * s.flowRatio)),
             s.visibleAccel, (bands.last().readToUm / h).toInt()) }
-        // the fit test, in the band nearest the filament's own print temperature (band 1's, the hottest,
-        // is "not what we want"; "Do the pedestals"): a peg (5 mm unless given: a placeholder, the concept's) and holes from
+        // the fit test, in the band nearest the filament's own print temperature (not band 1's, the hottest: a fit is read
+        // at the temperature parts print at), on a pedestal: a peg (5 mm unless given: a placeholder) and holes from
         // its size up in 0.1 mm steps; the block filling that band's read layers on a pedestal, the peg a column up to the
         // block's top; at a visible surface's speed and acceleration (the frame's until the frame left them)
         val ownC = if (Part.FIT !in selected) null else printC

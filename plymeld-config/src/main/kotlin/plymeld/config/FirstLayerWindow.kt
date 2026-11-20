@@ -10,8 +10,8 @@ import java.util.Locale
  * it where a print is set up ([decide]).
  *
  * ```
- * [hardware.filament.white.first_layer.window.c5-plate]
- * from = "firstlayer_white.gcode, tool 1, build plate c5-plate"
+ * [hardware.filament.my-pla.first_layer.window.textured-pei]
+ * from = "firstlayer_my-pla.gcode, tool 1, build plate textured-pei"
  * bore = "0.4 mm"
  * "210 C" = { height.min = "0.28 mm", speed.max = "120 mm/s" }
  * "220 C" = { height.min = "0.24 mm", speed.max = "120 mm/s" }

@@ -127,8 +127,8 @@ chosen per region of an object together with its pose.
   walls; planned inserts (a pause above a socket, the next layer laid onto what was placed).
 - **[Built]** Surface techniques: wave overhangs (undersides over air grown outward from what is printed beside
   them, without support), ironing, fuzzy skin, Z anti-aliasing of sloped tops (opt-in).
-- **[Built]** Curved top bands, layers that follow the underside, and lifted bridges; they need the tool's
-  nozzle angle and height set.
+- **[Built]** Curved top bands, layers that follow the underside, and lifted bridges; they need the nozzle's
+  angle and height, the tool's or its machine model's.
 - **[Partial]** The core still plans layer by layer; a move-based core is planned ([FEATURES.md](../FEATURES.md#under-the-hood)).
 - **[Planned]** A seamless outer wall, staggered walls, spiral (vase) mode, conical layers, free-air strands.
 

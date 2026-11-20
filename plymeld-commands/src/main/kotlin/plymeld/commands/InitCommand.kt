@@ -43,7 +43,7 @@ class InitFlow(terminal: Terminal, private val say: (String) -> Unit) {
     private val t: Terminal = sized(terminal)
 
     companion object {
-        /** 80 x 24: the classic terminal size (Claude's choice), for a terminal that reports none. */
+        /** 80 x 24: the classic terminal size (plymeld's choice), for a terminal that reports none. */
         const val FALLBACK_WIDTH = 80
         const val FALLBACK_HEIGHT = 24
 

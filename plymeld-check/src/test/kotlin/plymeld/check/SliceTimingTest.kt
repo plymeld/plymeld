@@ -7,7 +7,7 @@ import plymeld.mesh.Slicer
 import plymeld.mesh.StlReader
 
 /**
- * Where the slice stage's time goes on the default test model (3DBenchy, 225,706 triangles, closing radius 49 µm and resolution 12 µm as in the Q2 preset,
+ * Where the slice stage's time goes on the default test model (3DBenchy, 225,706 triangles, closing radius 49 µm and resolution 12 µm,
  * 240 layers): reading, cutting triangles into loops, and the clean-up (closing gaps with two
  * offsets per layer, then simplifying). A report for G1, not a pass/fail budget.
  */

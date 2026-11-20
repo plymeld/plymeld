@@ -13,7 +13,7 @@ enum class Entity(val label: String) {
 /** What a value is. Numbers are stored in the unit named here (mm, mm/s, ...), never in µm. */
 enum class Kind(val unit: String) {
     LENGTH("mm"), SPEED("mm/s"), ACCEL("mm/s²"), TEMP("°C"), COUNT(""), FRACTION("0..1"),
-    ANGLE("°"), BOOL(""), CHOICE(""), TEXT(""), TIME("s"), FLOW("mm³/s"), PERCENT("%"), VOLUME("mm³"), AREA("mm²"), DENSITY("g/cm³"),
+    ANGLE("°"), BOOL(""), CHOICE(""), TEXT(""), TIME("s"), FLOW("mm³/s"), VOLUME("mm³"), AREA("mm²"), DENSITY("g/cm³"),
 }
 
 /**

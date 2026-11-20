@@ -92,8 +92,8 @@ class ViewerState(val vp: Viewport3D) {
     fun fit() { val b = vp.gl { bounds() }; lock.withLock { camera.fit(b, aspect) }; requestFrame() }
     /**
      * Every control's state change goes through a snapshot, from whichever thread: the panel then redraws with it. A plain
-     * write from the screenshot's thread reached the picture (the frame thread reads the state) but not the legend, which
-     * showed hidden walls as ticked.
+     * write from another thread would reach the picture (the frame thread reads the state) but not the legend, which would
+     * show hidden walls as ticked.
      */
     private inline fun edit(block: () -> Unit) { Snapshot.withMutableSnapshot(block); requestFrame() }
 

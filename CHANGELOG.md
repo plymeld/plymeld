@@ -11,11 +11,369 @@ section the release's version and date.
 
 ### Added
 
+- The pre-print check finds plastic laid twice: a spot of a layer where two lines lie over each other further than
+  neighboring lines overlap by plan (their beads' rounded flanks, the slicing tolerance, a line end's reach into the walls,
+  `plan.layer.infill.wall_overlap`, and fuzzy skin's thickness allowed), wider than the narrowest place a line is laid in.
+  Ironing, wave beads, a line over itself without stopping, and sparse infill lines crossing each other are not judged.
+  `slice` reports it in a `laid twice:` line beside the seams and strings (the window's console too): the number of
+  spots, their area, the layers holding one, and the widest (its layer, place, width, area, and the two kinds of line),
+  with a picture of each such layer among the check's pictures. It does not refuse the file for them: the planner still
+  lays some plastic twice itself, in places on ordinary models.
+- A curved island over an object of parts in several filaments or settings (`plan.object.<key>.island.<key>`): every
+  part inside the island follows its layers, each laid by its own filament, settings, and tool in its turn of the layer,
+  the parts meeting in the island's layers as they do in flat ones. Each island layer is a layer among the flat ones: its
+  filaments are ordered and changed as any layer's (each layer starts with the filament the one before ended with), a
+  change there purges into the tower at the flat layer's height. It was refused ("an island is laid as one"). The
+  pre-print check reads each island line against its own part's tool. Not yet on a plate of several objects (refused,
+  saying so), and the plan does not weigh such an island unlocked: a plan locks it.
+- A curved island locked with no start where no start removes stair-step by the survey's measure takes the start that
+  steps least (it was refused: "no start removes stair-step from its top"); the plan's facts say how much more its own
+  layers step than flat layers there. Unlocked, such a cap still gets no island.
+- Short walls slower: with `plan.mechanism.motion.short_walls.length` set, a wall line or loop shorter than it prints
+  no faster than `short_walls.speed` (bundled: half the visible lines' speed, a placeholder). With
+  `short_walls.full_length` set too, a wall between the two lengths prints no faster than a speed rising in a straight
+  line from `short_walls.speed` to its own, the whole wall at that one speed; unset, it is a single step at `length`. A
+  scarfed loop counts as long as its loop. Unset, nothing changes.
+- A line no faster than it can hold steady: with `plan.mechanism.motion.steady.share` set, every printed line is laid no
+  faster than the speed at which that share of its length is laid at a steady speed, starting and stopping at rest at
+  its acceleration: `sqrt(acceleration * length * (1 - share))`, the whole line at one speed. Not the purge tower, the
+  prime line, a lifted bridge's own speeds over air, or a line of no length (it lays nothing). Unset, nothing changes.
+- `plymeld printer send` refuses a file with a number a printer may refuse or act wrongly on, before anything is sent,
+  naming each line: a value that is not a finite number, a move at a feed rate of 0 or below, a temperature, fan, or
+  wait below 0, an acceleration of 0 or below. It reads the file it is given, sliced by any build or by hand.
+- `plan.layer.sliver.width`: on an object of several filaments, how thin an area of one filament is handed to the
+  filament beside it (along the object's surface, as `plan.layer.sliver.at_surface` says). Unset, it is the thinnest
+  area the walls print, as before. The pre-print check allows a line that much further from its own tool's part inside
+  the object.
+- `plan.objects.gap`: the least distance between objects plymeld lays out on the bed. Unset, it is one outer wall
+  width, as before.
+- A note when an object stands on a small footprint with no brim: its first layer under
+  `plan.mechanism.adhesion.small_footprint.area` (100 mm², a placeholder), or the object taller than
+  `small_footprint.height_ratio` (3, a placeholder) times its first layer's narrower side. `plymeld slice` says so in
+  one line per object; nothing is refused or changed.
+- No wipe back along a line the head leaves below the line's highest point (a line or an edge strip laid sloping down
+  over a waved bridge): the wipe ran at the head's height, into the line where it rises. A waved bridge's last bead on
+  a layer is retracted and wiped before the layer change, on the layer it was laid on.
+- The wall order holds after a tool change: on a layer where the incoming filament lays no infill, all its inner walls
+  were laid ahead of its outer walls, whatever `plan.layer.walls.order` said. Its lines now keep their planned order there; where it lays infill, the infill
+  still comes first and the walls follow in their order.
+- Several multi-color objects on one plate: an object on several filaments was sliced on its own or refused. On each
+  layer each filament now lays its lines of every object in turn, so the plate changes tool no more often than one of
+  its objects would, with one purge tower beside them all. Copies of an object (`model.object.<key>.count`) can each
+  take settings of their own (`plan.object."<key>#2".…`), for trying variations side by side. The objects print
+  together, by height, each on its own flat layers; one object at a time is not written for such a plate yet.
+- A section of a model printed on its own: `model.object.<key>.section.min` and `.max` give a box in the model's own
+  coordinates, and only what is inside it prints. For trying a detail of a large model (one face, one small feature)
+  without the hours of the whole. By default its cut faces are left open (`section.faces = "open"`): the whole model is
+  planned as it would be, and only its lines inside the box are laid, so the section prints as that part of the whole
+  print would, with no walls or top added where it is cut; on the bed it is laid out by its box, so several copies fit. With `faces = "closed"` the model itself is cut
+  and its cut faces closed, and the section prints as an object of its own, standing on the bed; a part of a 3MF with
+  nothing in the box is left out.
+- Renamed settings are read under their new names: a config file, a plan file, or a g-code's recorded settings
+  (`slice --from`) that uses a name a release changed reads as the new one, its value converted, with a warning naming
+  both. `plymeld migrate FILE...` rewrites config and plan files to the current names, comments and the rest kept, each
+  change recorded for `plymeld journal --undo`.
+- `plan.technique.scarf_seam.speed`, `.step` and `.flow`: a scarf seam's ramp and its closing pass at their own speed
+  (half the visible lines' by default) and flow (100 %), the ramp rising in steps no longer than `.step` (1 mm, the length
+  that was fixed before).
+- A machine model's toolheads may carry a heat time (`hardware.model.<key>.toolhead.<key>.heat.time`): a tool that sets
+  no `heat.time` of its own heats ahead of a change by its model's. The Creator 5's is 15 s (a placeholder), so its tool
+  changes heat the next nozzle 15 s of printing ahead instead of waiting for it.
+- Z anti-aliasing (`plan.faces.sloped_top.technique = "z_antialiasing"`) on an object printed in several filaments or laid
+  part by part (part settings), alone and on a plate; it was laid as laid there. Every filament's lines are lowered onto
+  the object's whole top, all its parts together, so a part's face that another part covers is not lowered onto; on a
+  plate each object as its own setting says, on its own layers. A lowered line is never thinner than the thinnest layer
+  (`hardware.tool.<key>.layer.height.min`) of any tool the object's parts print with.
+- `plan.mechanism.motion.speed.factor`: every printing speed plymeld decides, times this, for a slower (or faster) print
+  without changing each speed: 75% for a print where finish matters more than time. Travels and retractions keep their
+  speeds; above 100% no speed goes past the machine's printing speed. The filament's melt cap, the minimum layer time
+  and the time prediction read the speeds scaled. Bundled 100%; set it for an object or a part as any plan value.
 - The documentation's start, [docs/README.md](docs/README.md): installing plymeld, and a first print from setting up to
   sending the file. Every command a tutorial shows is run by the tests as written. The window's finder lists the pages.
 
+### Changed
+
+- Variable-width walls lay an island too narrow anywhere for all its walls (a lens, a wedge, a ring, a strip, a
+  narrow stroke) by its local width: across each place as many lines as its width holds, each between
+  `plan.layer.walls.line.width.min` and the new `plan.layer.walls.line.width.max` (unset: twice the inner wall's width),
+  as near the set widths as can be; one line as wide as the place, two sharing it, from three the outer two at the outer
+  wall's width and the rest sharing what is left. Every pair of lines is a loop built from the outline, so the outer
+  loop is there on every layer where the island is two narrowest lines wide anywhere, closed, its seam placed as every
+  loop's: it turns back where the island narrows below two lines (a neck, a sliver, a long tip, each getting a line of its
+  own that meets the turn as a line meets a wall), and runs on into a short tip, out and back along its middle to the
+  tip's end. A middle line starts where three lines fit, the loop beside it giving way to its round start. A lens growing
+  from one line wide to three, which was laid as one line, then a small loop with a hole and two short end pieces, its
+  front edge bare, is one closed loop a layer, edge to edge; a ring 1 mm wide, two loops with a strip bare between them
+  all round, is two lines 0.51 mm wide. Each such island's lines are measured against its walls of before and kept only where no worse. Islands
+  wide enough for their walls somewhere are laid as before.
+- `seam_scar` counts an open outer-wall line's two ends as point seams (a line along the outline where no loop fits
+  starts and stops on the surface), reads a loop's jog only from the seams of what lies under it (a loop over nothing on
+  the layer below, a new island, has no jog), and counts open outer lines as hiding what lies behind them, as loops do.
+- Each contour's walls are laid in the order `plan.layer.walls.order` names (it replaces the old switch, `inner_first`):
+  `inner_outer_inner` by default, the walls past the one beside the outer wall, then the outer wall, then that one; so a
+  layer's first line, its un-retraction and the travel's arrival land on hidden walls, not on the visible face, and the
+  outer wall is still laid free. With fewer than three walls, or where the outer wall hangs out past the layer below,
+  inner first. The inner wall laid just before the outer one, and the one laid just after it, start nearest the outer
+  wall's start and end, so the head steps between them and the outer wall without a long travel. `inner_first` and `outer_first` (the order before) stay values.
+- An outer wall's restore after a retracted travel happens a line inside its start, and the head then moves onto the
+  start with nothing pushed (`hardware.filament.<key>.retract.return.inside`, on in the bundled filaments). Restored at the
+  start, the push left a blob on the visible face, where a scarf seam's ramp is thinnest.
+- After a wall loop, the outer wall or an inner one, the wipe steps a line inside it before running back along it, the
+  whole retraction spread over its moves (`retract.wipe.inward`, on in the bundled filaments), so its last ooze lands on
+  hidden material; no wipe follows a line lowered below its layer.
+- The bundled filaments wipe as they retract (`hardware.filament.<key>.retract.wipe.enabled = "true"`): the nozzle
+  retraces the path it just laid by the wipe distance (1 mm), so what oozes lands along the line, not in a blob where the
+  nozzle stopped. Off before; a filament of yours that sets it keeps its own.
+- Prints are looked at from their front by default (`plan.view_from = "front"`: the model's own front, its small-y side
+  as modeled, turned with its pose): quality's measures count its back less, and least-visible seams go there. Looked at
+  from all around (the default before), a plain round wall's seams stayed wherever a feature first put them, even in a
+  column up the front face from a detail low on it to the top edge. A model with no front of its own sets `all_around`.
+- Tool and filament changes are made over where the incoming filament first prints (the purge tower when there is one),
+  after the outgoing tool leaves the part with its usual retraction, wipe, and lift and travels there. The change was
+  made standing on the outgoing filament's last line, which left ooze on the part: on a plate, every change stood on
+  the last object's face.
+- On an object of several parts, an outer wall whose seam is pressed against another part (that part within one line
+  width of the seam on the layer) gets a point seam, not a scarf: the seam is hidden there, and the scarf's ramp and its
+  closing pass ran on from it onto the faces that show. On a small island of one filament inside another's part,
+  the ramp ran from a seam hidden against that part round the island's front corner and across its whole front, laying
+  a thin line and a second over it there. Least-visible seams count such a seam as the
+  point seam it is laid as, so they no longer avoid a covered spot because a scarf would be better elsewhere.
+  `plan.technique.scarf_seam.covered = "scarf"` (per object or part too) scarfs a covered seam as before; seams that are
+  not covered, and every seam of an object of one part, are laid as they were.
+- On an object of several filaments, a sliver of one filament (thinner than `plan.layer.sliver.width`) lying along the
+  object's outer surface stays its own part's: its own filament lays it where it is wide enough for a line
+  (`plan.layer.walls.feature.min`), and it is left empty where it is not. It went to the filament beside it, whose
+  plastic then showed in the wrong color on the surface, outside its own part, and whose outline stepped out over the
+  layer below for the layers the sliver was thin: where one filament's wall leans out over another's face, starting at
+  zero width on that face, the face's outer wall was laid 0.13 mm out over the leaning wall's place for a layer before
+  that wall's first line. A sliver inside the object, and one meeting the surface only end on, still goes to its neighbor
+  (it fills what would be a void), and between two parts of one filament with settings of their own every sliver does.
+  `plan.layer.sliver.at_surface = "neighbor"` (per object too) hands a sliver along the surface over as before. The
+  pre-print check refuses a line whose bead covers a stretch of the object's surface that is another tool's part
+  (beyond its tolerance; with `neighbor`, beyond the width handed over), reading each line's width from its plastic. On
+  an object with a curved island, it reads the flat layers' lines with the tool in force (an island layer's tool change
+  was left out of the flat layers' reading, so the next flat layer's lines were judged as the other tool's).
+- `slice` holds less in memory: the slicer's stages are let go once the file is written, before the pre-print check
+  reads it; the check reads the file line by line rather than holding it as a list of lines, keeps its look-up of each
+  layer's outline in flat arrays and lets it go once the layer is read. The file written is the same.
+- An island laid by its width is planned with less work: its lines' simplification, their measure against its walls, and
+  the grids its construction reads cost less. The file written is the same.
+
 ### Fixed
 
+- A top or bottom in round rings (`concentric-inside-out`) no longer leaves a dashed slit along its edge. Where the rings
+  run along a wall (an oval's sides and ends, a cylinder's edge), each arc stopped where its center met the edge of the
+  area, and a wedge of ground between the ring inside it and the wall, up to nearly a line wide, was laid by nothing.
+  Each ring now runs on past its arc there, its line narrowed to the ground left (its own reach into the wall a share of
+  its own width, `plan.layer.infill.wall_overlap`), down to half a line; two arcs it runs between become one line, and a
+  ring that fits all round narrowed becomes whole. Where a ring crosses the wall steeply, its arc ends as before. On the
+  test catalog's oval (`RingTopTest`), the widest spot left bare on a quarter of its top layer is 0.02 mm, against
+  0.12 mm without the narrowed lines, with nothing laid twice; a path with a narrowed stretch is written as straight
+  moves, not fitted to arcs.
+- A line no longer runs out along a short dead end at a junction and back. Where a thin area too small to keep all its
+  forks kept two of them, they were the two longest of those it was cutting, which could be a short trunk beside two
+  longer forks: its line ran down the trunk and back. It now keeps its own two longest forks. And where a narrow island
+  laid by its width has a short piece from a junction of its middle line to a dead end, covering nothing the line through
+  the junction does not, the piece is now left out instead of joined, so the line no longer runs out along it and back.
+  The lines in the small corners of the bundled Benchy and test plate follow their corners' longest forks. A dot of one
+  part beside another, left out on the object's surface, is still judged on its line as it would have been joined with
+  those dead ends, the lines that rule was set on.
+- A narrow island's outer line no longer runs out to a short tip's end and back where that covers nothing its own line
+  does not. Where the line of an island laid by its width runs into a tip narrower than the narrowest line, it went out
+  along the tip's middle to its end and came back; where the tip ends within the line's own bead beside it (no further
+  past it than an interior line's end reaches into the walls, `plan.layer.infill.wall_overlap`) and the line goes on
+  past the tip, the run is now left out. A corner the line turns keeps its run into the corner.
+- A narrow island's outer line no longer dips toward its outline where a slit is cut into it. Where an island laid by
+  its width has a slit narrower than its outline is sampled (a sliver of another part between two narrow strokes),
+  its width read round the slit's inner corner came out a few tens of microns, a stretch too short to keep a count of
+  its own; it took the two lines of its neighbors, and the outer loop's points there, drawn onto that narrow reading, ran
+  0.1 mm in toward the outline and back. Such a place, narrower than the narrowest line, now keeps its count, and the
+  loop turns at its mouth as at any place too narrow for it.
+- A fill line passing a corner of a wall no longer stops at it and starts again beside itself. Where a line of a fill
+  (a surface, internal solid, sparse infill, a bridge) only grazed the corner of what lies outside its area, it was cut
+  there into two lines, their round ends both laid against the corner, over each other by up to a line's width. Now the
+  two are one line laid past the corner wherever that lays less plastic twice: their ends closer together than a line
+  is wide, and the line laid through coming off its area by less than the ends would overlap.
+- Two wall loops no longer turn back over each other at a pinch. Where an area narrows between two notches (two pockets
+  cut into a face, the corners of four cells of a pattern) below what a loop needs, the loop is laid as two loops, one each
+  side; each turned back at the pinch, and their turns faced each other closer than a line apart, 0.25 to 0.4 mm laid
+  twice. The smaller loop is now cut back from the larger one to a line's spacing, the two touching as neighboring lines
+  do.
+- Where the line of an area too narrow for two walls forks, one pair of its branches runs through the fork and the
+  others give way to it. Where four branches met (two bands crossing, a corner of four cells of a pattern), both pairs
+  were joined through the fork and two lines lay over each other across its whole width, up to 0.9 mm; now the ends left
+  at the fork start where they reach into the line through it by `plan.layer.infill.wall_overlap` of their width. And the
+  pair run through a fork is the straightest one that leaves no branch lost: a short branch that gives way to the other
+  two along all its length was dropped, and where it led into a neck or a stub wider than the narrowest line, the neck
+  was left bare (a hole inside the walls, 0.35 mm wide, at a neck between two notches in an outline).
+- A narrow island's outer line no longer zigzags where a place about two to three lines wide gets a middle line. Where
+  its count rises from two lines to three, the outer loop steps toward the outline within a few points, and it moves
+  aside for the middle line's round start; each point moved across the line as read from its neighbors, which on that
+  step points along the line, so the step's points moved along it and the line went back and forth over itself, a
+  fraction of a millimeter, roughening its edge. The outer loop now moves across the outline at every point, the points
+  where it stops short of a corner too. Where an inner line moves aside entirely at a single point, it is no longer cut
+  into two ends lying over each other: the line goes on across.
+- Two fills sharing an edge no longer lay their edges over each other. Every fill of a layer (internal solid, sparse
+  infill, a bridge, a top) placed its lines against each edge of its area as against a wall: where two of them met, both
+  did, and their line ends and linking runs lay over each other along the edge, 0.25 to 0.38 mm wide. Now one fill owns
+  such an edge (a top, a bottom, a bridge, an internal bridge, internal solid, sparse, in that order) and lays its lines
+  against it as against a wall, and the other lays its lines against the owner's as against a wall's, with the same
+  line-end overlap (`plan.layer.infill.wall_overlap`). And a band of solid fill laid as loops (up to five lines wide, round
+  a hole) kept its loops at the band's mean width all round: where the band is narrower they ran on over its hole, over
+  sparse infill or a wall. They are now cut where they leave the band. Where the gaps between both fills' round line
+  ends meet, holes up to about 0.3 mm across remain along the edge.
+- Far fewer moves of a few microns in the walls of narrow areas. An area too narrow for its walls is laid by its local
+  width, its lines built from points on the outline's samples, two or three points to a sample a few microns apart, each
+  with a width of its own; the lines kept them all, so the printer was sent thousands of moves shorter than the slicing
+  tolerance (`method.slicing.tolerance`) carrying steps in width. Points closer together than the tolerance are now one,
+  its width keeping the plastic of the moves on either side; an open line's ends are left as they were.
+- Walls no longer run across the tip of a sharp notch in an area, or end against each other at a narrow neck. A loop's
+  place is found by shrinking the area's outline; at a notch sharper than 60 degrees that shrink cut the corner short,
+  keeping ground nearer the tip than the line fits, and the loop ran across the notch over the loop inside it. It now
+  keeps a line's distance from the tip. Where an area turns in beside a narrow neck, the shrink cut deeper at the turn
+  than the line needs and cut the neck through, and the loops grown from the two sides ended against each other or
+  crossed the cut twice; such a neck is now kept and one loop runs through it.
+- On an object of several filaments, a sliver of one filament too thin for a line that goes over to the filament around
+  it now takes the gap between them along. Parts meet a few microns apart, and that gap was left as a crack in the
+  neighbor's area, a hole of its own or one opening onto its edge, which the neighbor's walls looped round: three or four
+  lines over each other at the crack's end.
+- A small area laid by its local width (one too narrow anywhere for the set walls, such as a tooth along an outline) could
+  also get a bridge or solid infill across its own lines: where the walls laid no loop of theirs in it, they handed most of
+  it to infill, and that piece was taken back only when its first corner lay inside the area (a mitred tip of it lay a few
+  hundredths of a millimeter past the area's sharp corner). The area now hands nothing to infill.
+- A move inside a line whose plastic rounds to nothing in the file is now merged into the next move instead of written
+  as `E0`, where its point lies within the slicing tolerance of the straight move that replaces the two: a reader takes a
+  move without plastic for a travel, and the line broke in two there. A scarf seam's closing pass over a small loop, so broken, read to the pre-print check as a line of its own at
+  the line's full width over the loop's start; ironing lines broken the same way now read as one line.
+- A bridge's lines, over air or over sparse infill, ended with their middle on the edge of the area they fill: every line
+  end and every run linking two lines along that edge lay half a line over the walls and the infill beside it. They now
+  end where their bead touches the wall's and reach on by `plan.layer.infill.wall_overlap`, as every other interior
+  line does.
+- A hole of an area was sometimes read as another area's: a hole whose first corner touched a smaller area beside it (a
+  sliver a micron wide, as the space between two walls' lines can leave) was given to that area, and the area that does
+  hold it was taken to have none. Variable-width walls then laid lines up to 0.9 mm wide along the middle of that whole
+  area, over the infill, and none where they were needed: on a block with a plate of a second filament buried in it,
+  such lines over the infill, and the web between the block's side and the plate's end left bare. A hole now goes to the smallest area that holds it, judged at its first
+  corner not on that area's edge.
+- A model could now and then be cut wrong where the mesh was sliced on several threads at once (a slice's own parallel
+  work, the pre-print check's, or several slices in one process, as in the window): every thread wrote each cut
+  triangle's crossing point to one shared place, and another thread could overwrite it before it was read, leaving a
+  layer's outline missing pieces (walls absent along an outline, or a layer with nothing of the model on it). It
+  showed mostly in a process's first work, while the slicer's code still runs interpreted. Each cut now keeps its own.
+- The pre-print check refuses a hole inside the walls: a spot of a layer no line covers, closed in by walls alone (not
+  reaching the outline, an infill or surface line, or the infill region), wider than the narrowest place a line is laid
+  in (`plan.layer.walls.feature.min` and the slicing tolerance a side), reading each line's width from its plastic (on
+  a curved layer, whose thickness varies along it, on its own thickness where the line lies) and, where fuzzy skin is
+  on, its thickness wider a side. A lens laid as a loop and a line down its middle, its loop's turn and its line's end
+  0.25 to 0.29 mm apart on layer after layer, passed.
+- Variable-width walls keep a short line between walls where its area is wider than that narrowest place: a web between
+  an opening and the outside, where the inner walls on both sides end, was left bare between its two outer walls (0.72 mm
+  over 1.4 mm on a web 1.6 mm wide), its line dropped as too short; so were
+  the pockets where the inner walls part. The voids a round bead leaves in a sharp corner, narrower than that, stay empty.
+- Variable-width walls keep a thin area's fork into a corner where its area reaches out past the line's end by more than
+  that narrowest place: a strip's line ending in a head 1 mm across left its point bare, and where
+  three thin strips meet beside another part of the object the pruned forks left pockets 0.25 to 0.45 mm wide. A part's edge where another part of the object lies beside it counts as between walls, not as the surface. A
+  third line from a junction starts where it reaches into the line the other two make by the infill's wall overlap,
+  instead of laying the junction twice; ends on one point join the straightest pair first; and a junction's third line no
+  longer joins another line's end across a gap (it ran back out and over that line's fork).
+- Two loops with a slit between them too narrow for a line share it: each is half the slit wider and a quarter of it
+  nearer, its other edge in place (the outer wall's on the outline), within `plan.layer.walls.line.width.max`. A web 1 mm
+  wide between a hole and the side left a slit 0.12 mm wide between its two outer walls on every layer. A gap that opens
+  onto the area the walls hand to infill (between a loop and a short line in that area's corner) is that area's corner,
+  not a slit: a loop widened into it narrowed a ridge's infill pocket below what infill is handed and left it bare.
+- An area too narrow anywhere for all its walls that keeps its walls (where its lines laid by width would leave it no
+  better covered) now shares the slits between those walls too: a strip whose inner wall's two sides lay a slit apart
+  was left bare along that slit. A loop takes no more of a slit than its
+  own stretch across the slit is away, measured straight: where a lens-shaped loop's two sides converge, a side widened
+  by the gap seen along its normal reached over the other side.
+- On an object of several parts, a dot of one part's outer line (shorter than its width, beside another part) is left
+  out only on the object's surface; along a part's edge inside the object it is laid: where a narrow stroke of one
+  filament met another part through a neck too narrow for its loop, the pocket there was left bare, 0.25 to 0.45 mm
+  wide.
+- Fewer retractions for the short lines walls by width keep: a wall or infill path whose travel in or out would retract
+  is moved beside a path that ends within `hardware.filament.retract.travel.min` of it, a travel that never retracts; such
+  a travel counts its length alone when paths are ordered; an open line is turned end to end where its far end lies
+  nearer the next path; and lines meeting end to end within that travel are laid with one contour's walls (each went
+  with its own nearest contour, and a thin area's pieces between two contours were laid apart).
+- An outer line no longer steps back where the line beside it gives way to a middle line's round start: each point moved
+  across the track on its own, and one moved farther than the point before it landed behind it, a spike 15 to 30 µm
+  long turning about 159 degrees on every layer of a wedge. A point left behind, or
+  moved to within the slicing tolerance of the one before it, is left out.
+- Planning runs each layer as a task of its own on the cores: the slowest layers of a run (an object's first layers)
+  ran one after another on one core. The g-code is unchanged; a few of the walls' and paths' measures skip what lies too far away to count.
+- A loop's seam is aligned only with the seams of the loops under it on the layer below, as `seam_scar` reads a jog: a new
+  island took the corner nearest another island's seam.
+- A part narrowing to a ridge a line or two wide (variable-width walls) is laid as one line where two walls do not fit,
+  joined to the two walls it continues from, and as two walls where they do, along the whole stretch. Where the ridge's
+  width hovered at the width two walls need (its outline a little uneven, as a sliced curved face is), the wall loop came
+  and went along it: a string of closed loops a millimetre or so long overlapping each other across the whole width, and
+  fragments between them; where the loop ended, the single line started short of it, leaving a notch; a stretch of a
+  ridge between two loops, 1.2 mm of it 0.75 mm wide, was laid as a 0.4 mm stub across it (the line's corner forks were
+  pruned first, then its trunk read as a fork of its own and went too); and on an object of several parts, a short line
+  at such a ridge's end was dropped as a "speck" beside the other part, leaving 0.9 mm of a 0.78 mm ridge with no line.
+  Now pieces of a loop joined by an area at most the slicing tolerance a side narrower than the loop needs are one loop
+  (`method.slicing.tolerance`); a loop piece shorter than `plan.layer.walls.transition_length` gives way to the line
+  running through it; a line ending against a loop's turn reaches into it as an interior line's end does
+  (`plan.layer.infill.wall_overlap`); a line's forks are pruned as the line stood before, never its trunk; the pieces of a
+  band beside a stretch too thin for a line are kept, as wide as the band; a speck is left out beside another part only
+  where it runs into a sliver thinner than the narrowest line; a thin leftover between walls gets the narrowest line where
+  that line reaches into the walls no further than an interior line may (`plan.layer.infill.wall_overlap` of its width a
+  side; narrower, it is left empty); and a line of no length (its ends on one point) is not written, saving a restart
+  and a retraction for nothing.
+- A line is never laid where the area is narrower than `plan.layer.walls.feature.min`, however short the stretch: a
+  line 0.3 mm wide was printed through a gap 0.1 mm wide between a model's face and another part's tip, into that
+  part's place; it now stops either side of the gap, and two lines' ends are not joined across such a place. A small
+  area whose skeleton's forks all read as corners (its junction several points a few microns apart) keeps a line
+  through its two longest forks (it got a line a few microns long); a "speck" beside
+  another part is left out only where it is a sliver, not where it is wider somewhere than two narrowest lines; and a
+  thin sliver in an acute corner of the model's outline, beside the infill region, gets its line (it was left to infill
+  anchors that do not reach the outline).
+- The pre-print check refuses a stretch of the model's outline longer than a line with no line beside it where the model
+  holds one ("the model's outline has no line beside it"): it counted a wall within a whole line of the outline, so a
+  hole in a band a line or two wide, with walls on either side of it, passed. The model holds a line where a disc as
+  wide as `plan.layer.walls.feature.min`, and the slicing tolerance a side, fits against the outline (on the first layer,
+  in the outline drawn in by `hardware.plate.first_layer.squish`): an acute corner's tip and a place narrower than that
+  are not refused. Bare places on a band's two faces are one stretch, but not across a line lying between them.
+- The pre-print check of a curved island reads a wall by its own width: a lip as wide as two lines, laid as one wall that
+  wide, was refused as an unwalled side of the model.
+- The nozzle's angle and height (`hardware.tool.<key>.head.nozzle.angle` and `.height`), where the tool sets none, are its
+  machine model's toolhead's (`hardware.model.<key>.toolhead.<index>.head.nozzle.angle` and `.height`, as the bundled
+  Flashforge Creator 5 gives them) everywhere the cone is read: a curved island a plan locks (it was refused, "a curved
+  island needs hardware.tool.<key>.head.nozzle.angle"), the curved islands the plan weighs (not offered), the pre-print
+  check of a curved band or island (refused for want of the cone), support's order (a column was never finished first),
+  and the clearance every travel keeps over what is printed (the cone left out). The technique screen already read the
+  model's. An object printed with several tools takes the strictest cone among them: the narrowest angle and the lowest
+  tip. A value the tool sets still wins over its model's, and one it sets alone takes the other from the model.
+- A dead feed: with `plan.mechanism.motion.steady.share` set, a line of no length (a thin area's center line whose
+  points come out as one, at sharp tips) was capped to a speed of 0 and written `G1 F0`, at which a printer stopped the
+  print, beside a preheat comment of "NaN s"; and the pre-print check passed the file. Such a line is no longer capped.
+  The writer now fails the slice at any line holding such a number (the same rule as the send's), the templates' lines
+  included, rather than write it; a feed above 0 that rounds to F0 is written F1. The pre-print check refuses such a
+  line too, and a NaN or Infinity where plymeld's comments hold a number.
+- On an object of several parts, what counts as another part beside a part's lines (for a seam pressed against one, and
+  for a speck of outer wall left out in front of one) is the other parts as laid. It was the object's outline less the
+  part, which is closed (`method.slicing.close_gaps`) and so left hairline slivers along a round open edge that read as
+  another part there (along `ScarfCoveredTest`'s round base, 18 of the 97 points of its open outer wall).
+- A region's speed and acceleration caps (`mechanism.motion.speed.max` and `.acceleration.max` under
+  `plan.object.<key>.region.<key>`) apply to an object printed in several filaments, alone or on a plate, and to the other
+  objects on such a plate; they were ignored there.
+- The step from an inner wall onto the outer wall's start, and from it onto the wall beside it, goes unretracted only
+  within two line widths: in a narrow stroke, a longer step crossed the pocket's edge and drew strands.
+- A plate of several objects heats the next tool ahead of a change as one object does (`hardware.tool.<key>.heat.time`);
+  it waited at every change.
+- A retraction's wipe is written under the feature it wipes: the next path's `;TYPE:` and `;WIDTH:` lines came first, so
+  a wipe along an inner wall was labelled as the outer wall that followed.
+- A scarf seam is judged by its whole ramp, not its start alone, where it is placed and in the seam measure: the seam
+  goes where the most-seen point of its ramp is seen least. Seams started hidden in a small pocket another part
+  fills, and their 10 mm ramps ran out of it onto the face beside it. (A seam another part covers is now laid, and judged, as a
+  point seam: under Changed.)
+- Least-visible seams are planned up the whole wall, not layer by layer. Each layer's seam stayed in line with the one
+  below rather than pay the move to a better place on its own, so a seam drawn to the front by a feature low on the
+  wall ran up the front face above it to the top. Planned over all the layers a loop continues through, the move is
+  paid once where it costs least: on `SeamColumnTest`'s round column with a slot in its front, the seams above the slot
+  go to the back, in one line, not up the front face. Least-visible placement also counts a scarf seam's blemish as the seam
+  measure does (`method.quality.seam.scarf_share` of a point seam's); counted as a point seam's, a move to a less-seen
+  point looked worth more than it was.
 - `plymeld update` on the Linux command line's download gives the new files the permissions the download holds
   (rwxr-xr-x for the executable, rw-r--r-- for its libraries), where it gave them the shell's default (group-writable
   under a umask of 002). It says each check as it passes: the checksum, and the new executable's version.
@@ -31,24 +389,24 @@ section the release's version and date.
 
 - The purge tower stands beside the object by default: on its right, back, left or front, the first side with room on
   the bed, centered along it, `plan.mechanism.purge.tower.gap` (5 mm, a placeholder) clear of the object and its brim. It
-  stood at 70 % of the bed's width and depth, wherever the object was; a tower at the bed's corner, far from the object,
-  peeled off there twice. A place you set (`plan.mechanism.purge.tower.x` and `.y`, both) is kept.
+  stood at 70 % of the bed's width and depth, wherever the object was, often far from it; beside it, its first layer
+  holds where the object's does. A place you set (`plan.mechanism.purge.tower.x` and `.y`, both) is kept.
 - The purge tower above its first layer is laid at `plan.mechanism.purge.tower.speed`, the visible lines' speed unless
-  set (it was the hidden lines', the machine's print speed: 300 mm/s on a Creator 5, beside walls laid at 100). Set it
-  faster where a tower is known to hold.
+  set (it was the hidden lines', the machine's print speed, often several times the walls' beside it). Set it faster
+  where a tower is known to hold.
 
 ### Fixed
 
 - After a pause, every nozzle's temperature is set back to what it was and the tool in hand waited for before printing
-  resumes. A Creator 5 turns its nozzles off while paused (the bed kept warm): where no tool change follows the pause to
-  heat the tool, printing would resume with a cold nozzle. A printer that keeps them on resumes at once.
+  resumes. A printer may turn its nozzles off while paused (the bed kept warm): where no tool change follows the pause
+  to heat the tool, printing would resume with a cold nozzle. A printer that keeps them on resumes at once.
 - A purge tower's tool changes start their purge at a different corner of their band in turn (four, layer by layer and
   change by change), where every change started at one point: a nozzle back from the dock lays its first plastic there,
-  and on a two-color nameplate all 188 changes put it in one spot, by the tower corner that peeled. Each change purges as
-  much as before; the rest of its band fills from the other side.
+  and every change put it in one spot. Each change purges as much as before; the rest of its band fills from the other
+  side.
 - A purge tower's first layer is laid at the first layer's line width and spacing, as the object's is: it was laid at
   the tower's own (the nozzle's) width, narrower and with less plastic per millimeter than the object's first layer
-  beside it (0.4 mm against 0.5 mm, 0.038 against 0.051 mm of filament per mm, on a two-color nameplate).
+  beside it (0.4 mm against 0.5 mm with a 0.4 mm nozzle).
 
 ## [0.20261109.0] - 2026-11-09
 
@@ -74,30 +432,28 @@ section the release's version and date.
 
 ### Fixed
 
-- A purge tower's hold on the bed, after one came loose twice. After a tool change the new filament lays its purge lines inside the tower first and
+- A purge tower's hold on the bed. After a tool change the new filament lays its purge lines inside the tower first and
   its wall last, so its first, least even plastic goes inside, not on the edge: every change had started the wall at
-  the same corner, piling a blob there each time (188 times on a two-color nameplate), and that corner peeled off the
-  bed. The tower's brim reaches into its outline (`plan.mechanism.purge.tower.brim.overlap`, a placeholder: a quarter
-  of a first-layer line) so the two fuse; it only touched the tower, laid by another tool before it, and the brim
-  stayed down while the tower lifted off it. The brim is twice as wide as the object's brim would be (it was as wide).
+  the same corner, piling a blob there each time. The tower's brim reaches into its outline
+  (`plan.mechanism.purge.tower.brim.overlap`, a placeholder: a quarter of a first-layer line) so the two fuse; it only
+  touched the tower, laid by another tool before it, and a brim that only touches can stay down while the tower lifts
+  off it. The brim is twice as wide as the object's brim would be (it was as wide).
 - Requests to a printer are plain HTTP/1.1. They asked the printer's web server to switch to HTTP/2 on each new
-  connection (an upload's included), which printers' small servers do not speak; a Creator 5 refused several uploads
-  in a row ("Download failed" on its screen) where the same files had gone through before.
+  connection (an upload's included), which printers' small servers do not speak, and a printer could refuse an upload
+  for it.
 - A printer refusing a request says why where it gives a reason: a Flashforge printer's answer other than HTTP 200 is
-  quoted after the status. A refusal it cuts short (it answers, then closes the connection before its reason arrives,
-  as a Creator 5 did refusing an upload) is said to be a refusal, where plymeld said it "could not reach" the printer.
+  quoted after the status. A refusal it cuts short (it answers, then closes the connection before its reason arrives)
+  is said to be a refusal, where plymeld said it "could not reach" the printer.
 - On a model of several parts in different filaments, a part's outer-wall speck (a wall line kept only because it lines
   the outline, where the part is too thin for a loop) shorter than a line width is left out where another part lies
   within a line of it: the other part fills the outline there. Each was a dot of filament stopped and restarted on the
-  visible face every layer; on a two-color nameplate, 142 of them stacked into columns of blobs on the lettering's face.
+  visible face every layer, stacking into a column of blobs.
 - Least-visible seams on a model of several parts in different filaments: a part's edge pressed against another part is
   covered by it and hides a seam. Each part's seams were placed seeing that part alone, so such an edge read as an
-  open wall, and the seams went to corners on the visible face instead. On a two-color nameplate, the inlaid lettering's
-  seams on the front face went from 587 to 205 of about 1,700, and the seam measure from 6.5 to 1.5 mm².
+  open wall, and the seams went to corners on the visible face instead.
 - After a tool change, the new filament's first lines on the model are its infill on that layer, hidden inside it, then
   the rest in their usual order. Its outer wall had come first: a nozzle back from the dock lays its first, least even
-  lines on the visible surface. On a two-color nameplate, every one of 94 changes back to the base color began on the
-  lettering's front face. On a layer where the filament has no infill, its inner walls come first, before any outer
+  lines on the visible surface. On a layer where the filament has no infill, its inner walls come first, before any outer
   wall. A line laid after another than it was planned after retracts on the travel into it.
 - The installed window's update check never ran: the release feed's address was packaged beside the executables, where
   the window did not look. It is now built into both executables.
@@ -105,9 +461,7 @@ section the release's version and date.
   not know: `printer status` says busy, an upload waits, and `printer watch` keeps watching until the print has ended.
 - A purge tower's first layer is solid wall to wall. Where the first layer is thicker than the layers above it, its purge
   takes fewer lines than the tower holds, and the rest was left empty: the tower stood on its outline, its brim and a
-  strip of purge, and the next layer's purge lines over the empty part were laid in the air above the bed. On a
-  two-filament print with a 0.28 mm first layer under 0.08 mm layers, about three quarters of the tower's first layer
-  was empty; that print's tower came loose partway up.
+  strip of purge, and the next layer's purge lines over the empty part were laid in the air above the bed.
 
 ## [0.20261108.0] - 2026-11-08
 
@@ -169,8 +523,7 @@ section the release's version and date.
   with `support = "always"` (its box as `min` and `max` as before, or a height range). A locked spot for every object at
   once is no longer possible; each object names its own. Configs with the old key are refused.
 - The minimum layer time counts a travel's detour (round the layer's other islands, or inside its own) as the head goes,
-  not as the straight line it replaces, so a layer is slowed only by what it still falls short. On the 3DBenchy, 25
-  slowed layers each run up to 0.04 s faster.
+  not as the straight line it replaces, so a layer is slowed only by what it still falls short.
 - A concentric top or bottom (outside-in or inside-out) is laid as one path where its rings lie side by side: each ring
   starts at its point nearest where the last ended and joins onto it, so the surface has one start and one end, not
   a radial line of starts and stops, one per ring. A ring cut by a hole is still its own piece.
@@ -179,8 +532,7 @@ section the release's version and date.
   over a finished bridge. It always went from +X, which suited only a head reaching least towards +X.
 - G-code files are shorter: a line width or acceleration already in force is not written again, and no travel goes to
   where the head already is (a scarf seam's ramp, loop and down pass each wrote all three). The motion is unchanged:
-  every move runs with the same width, acceleration and feed rate as before. On the 3DBenchy, 1,570 width lines,
-  2,590 acceleration lines and 1,055 zero-length travels fewer.
+  every move runs with the same width, acceleration and feed rate as before.
 - One seam vocabulary. `plan.seam` says where wall loops start, in the same words everywhere: `corners`, `back`,
   `least_visible` (were `corner_seam`, `back_seam`, `least_visible_seam`). Scarf seams are a switch beside it,
   `plan.technique.scarf_seam.enabled` (was `plan.seam = "scarf_seam"` with `scarf_seam.plain_style`, now gone).
@@ -206,8 +558,8 @@ section the release's version and date.
   tell that typing went in. The README says where the portable zip's command line is (`current\cli\plymeld.exe`): its
   top `plymeld.exe` opens the window.
 - A purge tower's first layer is laid at the first layer's speed, no faster than the model's own first layer. It was laid
-  at the tower's own speed (the hidden lines', about 250 mm/s on a Creator 5 where the model's first layer went at
-  100-120), and a tower came loose during a print.
+  at the tower's own speed (the hidden lines', often twice the model's first layer or more), too fast for a first
+  layer to hold the bed.
 - Wave overhangs: where the fronts close in from two sides (the roof over a narrow slot), the strip they leave between
   them gets a bead along its middle. It was left unlaid and not bridged: on the 3DBenchy, a strip 0.6 mm wide and 6 mm
   long over the stern's slot.
@@ -223,10 +575,8 @@ section the release's version and date.
   of weight, a placeholder) of the best there. `plan` lists each pose left out with its first-look score; unset the
   margin to search every pose. On the test models every choice is the same as before.
 - A model of many parts slices faster, with the same g-code: the parts' outlines are merged layer by layer side by
-  side, and the pose search merges each cross-section it reads once, not once per candidate plan. On a 29-part,
-  4.7-million-triangle model the slice took half the time (54 s to 28 s) and the seam decision less than half. The
-  search reuses one placed copy of the model per pose across its measures, and the retraction decision routes its two
-  sides at once (on that model the pose search 154 s to 129 s, the retraction decision 27 s to 20 s).
+  side, and the pose search merges each cross-section it reads once, not once per candidate plan. The search reuses one
+  placed copy of the model per pose across its measures, and the retraction decision routes its two sides at once.
 - The pose search spends its time where a pose can still win: the overhangs of a pose are surveyed only when the pose
   is looked at in detail, and a pose whose best possible score cannot reach the best candidates (lying on its side,
   needing support under most of the model) is ruled out without its strength and time estimates. `plan` says which
@@ -246,8 +596,7 @@ section the release's version and date.
 
 - A 3MF whose parts are all on one filament is said to have its parts "all on one filament" (it said "sliced as one
   body", which depends on the config as well).
-- Deciding how to print a model is faster: on 3DBenchy the pose and technique search takes about a quarter less time,
-  with the same decisions and the same g-code. The slicer prepares each posed model once rather than for each cut, and
+- Deciding how to print a model is faster, with the same decisions and the same g-code. The slicer prepares each posed model once rather than for each cut, and
   finding what an overhang stands on looks only at the faces under it. On a large model, where the search stops at its
   time limit (`method.search.time.max`), it measures more candidates in that time.
 - `plymeld calibrate ironing` and `plymeld calibrate seams` print their first layer at the filament's first-layer

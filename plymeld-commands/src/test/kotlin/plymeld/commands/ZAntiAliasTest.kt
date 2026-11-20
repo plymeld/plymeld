@@ -229,7 +229,7 @@ class ZAntiAliasTest : StringSpec({
 
     // the checks, on the 10 deg wedge's file, with the rule the slice command makes (from the model and the config)
     val setup by lazy { p10.result.setup }
-    val rule by lazy { Expectations.forZaa(setup, plan10.parts, zBase, false)!! }
+    val rule by lazy { Expectations.forZaa(setup, listOf(0 to plan10.parts), zBase, false)!! }
     fun gProblems(g: String, withRule: Boolean = true): List<String> {
         val sf = ModelCheck.Surface(plan10.parts, zBase, g, zaaMinMm = rule.minMm)
         return GcodeCheck.check(g, Expectations.forSetup(setup, sf::at, zaa = if (withRule) rule else null))
@@ -265,7 +265,9 @@ class ZAntiAliasTest : StringSpec({
         val off = product("wedge10.stl"); val pl = off.decide()
         val inc = plymeld.core.IncrementalSlicer(pl.parts, "test", "wedge10.stl", technique = pl.layout.techniques.single())
         val first = StringWriter().also { inc.slice(off.result.setup, it) }.toString()
-        val onSetup = p10.result.setup
+        // the setup as the plan leaves it: deciding the plan writes its decisions into the settings, so it is decided here
+        // (read before any other test decided it, the setup lacked the in-island retraction's lock and the slice re-ran that stage)
+        val onSetup = plan10.let { p10.result.setup }
         val again = StringWriter()
         // no "retraction" stage: the plan decided the in-island retraction and wrote it into the settings, so the slice takes the lock
         inc.slice(onSetup, again) shouldBe listOf("slice", "walls", "regions", "paths", "gcode")

@@ -2,7 +2,7 @@ package plymeld.cli
 
 /**
  * A Windows console shows plymeld's text in its own code page (437 by default in many places), while plymeld writes
- * UTF-8: its chooser's pointer and keys (❯, ↑ · ↓), °, ², → came out as `Γ¥»`, `Γåæ`. So, writing to a console window on
+ * UTF-8: its chooser's pointer and keys (❯, ↑ · ↓), °, ², → come out as `Γ¥»`, `Γåæ`. So, writing to a console window on
  * Windows, the console is switched to UTF-8 (code page 65001) for the run and given its own back when plymeld exits.
  * Nothing changes when the output goes to a file or a pipe (no console to show it), or off Windows.
  */
