@@ -142,7 +142,12 @@ class OverhangRegion(val index: Int, val region: Coordination.Volume.Region, val
                      /** The model surface its column stands on (mm², the support interface's bottom; 0 on the bed): [Overhangs.baseArea]. */
                      val baseMm2: Double = 0.0,
                      /** Its droop-equivalent area: [areaMm2] weighted by severity (PoseDecision.severity); what support under it prevents. */
-                     val severityMm2: Double = areaMm2) {
+                     val severityMm2: Double = areaMm2,
+                     /**
+                      * The heights (mm above the posed model's bottom, ascending) of its level faces above its lowest point: where
+                      * a level underside starts over air higher up than the region's bottom ([Cantilever.readings]).
+                      */
+                     val flatFromMm: DoubleArray = DoubleArray(0)) {
     val id: String get() = "overhang #${index + 1}"
     val standsOn: String get() = standsOnMm?.let { "the model's surface %.2f mm up".format(Locale.ROOT, it) } ?: "the bed"
     /** The column's height: from what it stands on to the lowest point of the overhang. */
@@ -178,17 +183,22 @@ object Overhangs {
                 if (o != null) { val a = find(o); val c = find(i); if (a != c) parent[c] = a }
             }
         }
-        class Acc { var x0 = Double.POSITIVE_INFINITY; var x1 = Double.NEGATIVE_INFINITY; var y0 = x0; var y1 = x1; var z0 = x0; var z1 = x1; var a = 0.0; var vol = 0.0; var sevA = 0.0 }
+        // per cluster: its box, area, column, droop, and the heights of its level faces (in microns: positions within one are one)
+        class Acc { var x0 = Double.POSITIVE_INFINITY; var x1 = Double.NEGATIVE_INFINITY; var y0 = x0; var y1 = x1; var z0 = x0; var z1 = x1; var a = 0.0; var vol = 0.0; var sevA = 0.0
+            val flatUm = java.util.TreeSet<Long>() }
         val acc = HashMap<Int, Acc>()
         val c = p.coords
         for (i in 0 until n) {
             if (!needs[i]) continue
             val g = acc.getOrPut(find(i)) { Acc() }
             val o = 9 * i
+            var lo = Double.POSITIVE_INFINITY; var hi = Double.NEGATIVE_INFINITY
             for (k in 0 until 3) {
                 val x = c[o + 3 * k].toDouble(); val y = c[o + 3 * k + 1].toDouble(); val z = c[o + 3 * k + 2].toDouble()
                 g.x0 = minOf(g.x0, x); g.x1 = maxOf(g.x1, x); g.y0 = minOf(g.y0, y); g.y1 = maxOf(g.y1, y); g.z0 = minOf(g.z0, z); g.z1 = maxOf(g.z1, z)
+                lo = minOf(lo, z); hi = maxOf(hi, z)
             }
+            if (hi - lo < 1e-3) g.flatUm += Math.round((lo - b[2]) * 1000)
             g.a += area[i]; g.vol += area[i] * (zc[i] - b[2]); g.sevA += area[i] * (sev?.get(i) ?: 1.0)
         }
         val wideBox = acc.filter { (_, g) -> g.a > 0 && minOf(g.x1 - g.x0, g.y1 - g.y0) >= minWidthMm - 1e-9 }
@@ -205,7 +215,8 @@ object Overhangs {
             Triple(region, g, standsOn(p, (g.x0 + g.x1) / 2, (g.y0 + g.y1) / 2, g.z0)?.let { it - b[2] })
         }
         val bases = baseAreas(p, b, regions.map { it.first to it.third }, poseLabel)
-        return regions.mapIndexed { i, (region, g, so) -> OverhangRegion(i, region, g.a, g.vol, so, bases[i], g.sevA) }
+        return regions.mapIndexed { i, (region, g, so) -> OverhangRegion(i, region, g.a, g.vol, so, bases[i], g.sevA,
+            g.flatUm.map { it / 1000.0 }.filter { it > region.fromMm + 1e-3 }.toDoubleArray()) }
     }
 
     /** One region's faces for [holdsWidthCached]: the pose, the width, and the faces themselves (compared whole). */

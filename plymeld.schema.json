@@ -3288,7 +3288,7 @@
               "additionalProperties": false,
               "properties": {
                 "technique": {
-                  "description": "the surface technique locked on the undersides over air: wave_overhang = each flat layer's bottom over air that hangs off one side grown outward from the supported material beside it, bead by bead, each bead laid against the one before at plan.technique.wave_overhang's spacing, flow, and speed (a span, every bridge line landing on what is printed at both ends, stays a bridge; an area with support under it is the support's; what no front reaches is bridged); as_laid = bridged, as before. Bundled: wave_overhang (wave overhang, support, or nothing for an underside hanging off one side; never bridged)",
+                  "description": "the surface technique locked on the undersides over air: wave_overhang = each flat layer's bottom over air that hangs off one side grown outward from the supported material beside it, bead by bead, each bead laid against the one before at plan.technique.wave_overhang's spacing, flow, and speed (a span, every bridge line landing on what is printed at both ends, stays a bridge; an area with support under it is the support's; what no front reaches is bridged); as_laid = bridged: a span across it, between the printed supports; an area hanging off one side outward from its supported edge, every line it can anchor landing on it at one end; the pre-print check warns of a bridge line over air with nothing under either end. Bundled: wave_overhang (wave overhang, support, or nothing for an underside hanging off one side; never bridged)",
                   "enum": [
                     "wave_overhang",
                     "as_laid"
@@ -5539,7 +5539,7 @@
               "additionalProperties": false,
               "properties": {
                 "technique": {
-                  "description": "the surface technique locked on the undersides over air: wave_overhang = each flat layer's bottom over air that hangs off one side grown outward from the supported material beside it, bead by bead, each bead laid against the one before at plan.technique.wave_overhang's spacing, flow, and speed (a span, every bridge line landing on what is printed at both ends, stays a bridge; an area with support under it is the support's; what no front reaches is bridged); as_laid = bridged, as before. Bundled: wave_overhang (wave overhang, support, or nothing for an underside hanging off one side; never bridged)",
+                  "description": "the surface technique locked on the undersides over air: wave_overhang = each flat layer's bottom over air that hangs off one side grown outward from the supported material beside it, bead by bead, each bead laid against the one before at plan.technique.wave_overhang's spacing, flow, and speed (a span, every bridge line landing on what is printed at both ends, stays a bridge; an area with support under it is the support's; what no front reaches is bridged); as_laid = bridged: a span across it, between the printed supports; an area hanging off one side outward from its supported edge, every line it can anchor landing on it at one end; the pre-print check warns of a bridge line over air with nothing under either end. Bundled: wave_overhang (wave overhang, support, or nothing for an underside hanging off one side; never bridged)",
                   "enum": [
                     "wave_overhang",
                     "as_laid"
@@ -7862,7 +7862,7 @@
               "additionalProperties": false,
               "properties": {
                 "technique": {
-                  "description": "the surface technique locked on the undersides over air: wave_overhang = each flat layer's bottom over air that hangs off one side grown outward from the supported material beside it, bead by bead, each bead laid against the one before at plan.technique.wave_overhang's spacing, flow, and speed (a span, every bridge line landing on what is printed at both ends, stays a bridge; an area with support under it is the support's; what no front reaches is bridged); as_laid = bridged, as before. Bundled: wave_overhang (wave overhang, support, or nothing for an underside hanging off one side; never bridged)",
+                  "description": "the surface technique locked on the undersides over air: wave_overhang = each flat layer's bottom over air that hangs off one side grown outward from the supported material beside it, bead by bead, each bead laid against the one before at plan.technique.wave_overhang's spacing, flow, and speed (a span, every bridge line landing on what is printed at both ends, stays a bridge; an area with support under it is the support's; what no front reaches is bridged); as_laid = bridged: a span across it, between the printed supports; an area hanging off one side outward from its supported edge, every line it can anchor landing on it at one end; the pre-print check warns of a bridge line over air with nothing under either end. Bundled: wave_overhang (wave overhang, support, or nothing for an underside hanging off one side; never bridged)",
                   "enum": [
                     "wave_overhang",
                     "as_laid"

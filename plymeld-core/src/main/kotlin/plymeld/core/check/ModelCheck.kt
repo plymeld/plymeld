@@ -36,12 +36,17 @@ import java.util.Locale
  *    cut at the middle of the layer below) that has a wave bead in it, laid all over: no point of it, where a line's center could go, more than a line's width
  *    from every line of the layer (a gap wider than a line between beads). Refused over [AIR_MM2] unlaid; wave beads are
  *    laid a spacing apart, and what no front reaches is bridged, so the planner leaves none;
+ *  - held bridge: a bridge line over air with nothing under either end, neither the model below nor support
+ *    ([bridgeProblems]): it is laid in the air with nothing to start or end on. Reported ([Result.said]), not refused,
+ *    while the planner still lays such lines where the plan accepts them (support locked off or kept off a region, a
+ *    sliver the wave overhangs leave to bridges, locked support spots that leave an overhang out);
  *  - tool (when the config's part tools are given): the model's lines printed by the tool (the T command in force) the
  *    config's loadout assigns the part whose own cross-section holds them; and on the object's outer surface, no line's
  *    bead covering a stretch of the outline that belongs to another tool's part alone (a filament showing outside its own
  *    part).
  *
- * Support, brim, purge tower, and the start template's lines are not the model's and are not judged.
+ * Support, brim, purge tower, and the start template's lines are not the model's and are not judged; support is read for
+ * what it holds up (the held-bridge rule).
  */
 object ModelCheck {
     private val TOOL = Regex("T\\d+")
@@ -81,6 +86,8 @@ object ModelCheck {
         "Gap infill", "Ironing")
     /** A wave bead (laid in its own layer or carried into the one above): a layer with one lays the area over air ([airProblems]). */
     private val WAVES = setOf("Wave overhang", ABOVE)
+    /** Support and its interface, as the file names them: not the model's, read for what they hold up ([bridgeProblems]). */
+    private val SUPPORT = setOf("Support", "Support interface")
 
     /**
      * [parts]: the placed meshes in bed coordinates; [zBaseMm]: the height of the bed in their frame
@@ -118,11 +125,12 @@ object ModelCheck {
 
     /**
      * The check's outcome: its [problems] (the file is refused on any), and the laid-twice rule's measure over every layer
-     * ([DoubledCheck.Summary]: reported, and among the problems only when [DoubledCheck.REFUSES]).
+     * ([DoubledCheck.Summary]: reported, and among the problems only when [DoubledCheck.REFUSES]), and what it [said]
+     * without refusing: the held-bridge rule's findings ([bridgeProblems]), reported until the planner lays no such line.
      */
-    class Result(val problems: List<String>, val laidTwice: DoubledCheck.Summary)
+    class Result(val problems: List<String>, val laidTwice: DoubledCheck.Summary, val said: List<String> = emptyList())
 
-    /** As [check], with the laid-twice rule's measure ([Result]). */
+    /** As [check], with the laid-twice rule's measure and the held-bridge rule's findings ([Result]). */
     fun checkAll(text: String, parts: List<TriangleSoup>, zBaseMm: Double, tolUm: Long = 100, maxProblems: Int = 30,
                  imagesDir: java.nio.file.Path? = null, surface: Surface? = null, partTools: List<Int>? = null, zaa: ZaaRule? = null,
                  progress: plymeld.program.Progress = plymeld.program.Progress.NONE, handOverMm: Double = 0.0, featureMinMm: Double = 0.0,
@@ -144,7 +152,7 @@ object ModelCheck {
         val per = plymeld.core.Parallel.map(layers.size, progress.Counter("model check", layers.size)) { k ->
             val lo = layerProblems(sf, k, tol, imagesDir, zaa, featureMinMm, if (k == 0) firstLayerInsetMm else 0.0, fuzzMm, infillMinMm, slicingTolMm, endOverlap)
             LayerOut(lo.problems + airProblems(sf, k, tol, imagesDir) + toolProblems(sf, k, tol + handOverMm, partTools) + surfaceToolProblems(sf, k, tol + surfaceHandOverMm, partTools),
-                lo.twice, lo.picture).also { sf.release(k) } }
+                lo.twice, lo.picture, said = bridgeProblems(sf, k, tol, imagesDir)).also { sf.release(k) } }
         // the layers' pictures, one at a time once every layer is read: drawn by the layers' own tasks, a picture each
         // (an image of about 4 MB, its line list and its PNG encoding) on every core at once takes a 512 MB test JVM to its
         // limit where a slice holds a spot laid twice on dozens of layers
@@ -154,7 +162,8 @@ object ModelCheck {
             if (p.uncoveredIs == null) ModelCheckPlot.write(file, p.title, sf.wallLoops(k), lines, p.outPts, p.uncPts, p.cx, p.cy)
             else ModelCheckPlot.write(file, p.title, sf.wallLoops(k), lines, p.outPts, p.uncPts, p.cx, p.cy, uncoveredIs = p.uncoveredIs) }
         return Result(per.flatMap { it.problems }.take(maxProblems),
-            DoubledCheck.Summary(per.indices.mapNotNull { k -> per[k].twice.takeIf { it.spots.isNotEmpty() || it.capped }?.let { DoubledCheck.Layer(layers[k].z, "", it) } }))
+            DoubledCheck.Summary(per.indices.mapNotNull { k -> per[k].twice.takeIf { it.spots.isNotEmpty() || it.capped }?.let { DoubledCheck.Layer(layers[k].z, "", it) } }),
+            per.flatMap { it.said }.take(maxProblems))
     }
 
     /** The unlaid area over air a waved layer may leave (mm2): a few sampling cells, so a corner's rounding is not one. */
@@ -209,6 +218,78 @@ object ModelCheck {
         val file = imagesDir?.resolve("z%07.3f.png".format(Locale.ROOT, layer.z))
         if (file != null && !java.nio.file.Files.exists(file))
             ModelCheckPlot.write(file, problem, sf.loops(k) + air, layer.segs.map { doubleArrayOf(it.x0, it.y0, it.x1, it.y1, it.w, if (it.wall) 1.0 else 0.0) }, emptyList(), pts, fx, fy, "over air, no line within a line")
+        return listOf(problem)
+    }
+
+    /**
+     * The held-bridge rule: a bridge line over air (the model's cut below the layer, [Surface.below], not under its middle
+     * nor within half its width and the tolerance of it: a line beside a step rests on the step's edge) that nothing holds
+     * at either end. An end is held where printed material lies under it, or under the point one line width past it (the
+     * probe the planner's bridge direction reads, Bridges): the model's cut below the layer, within the same reach, or a support
+     * line within reach (the two beads' half widths and the tolerance) in a layer below, the highest such, with no surface
+     * of the model between it and this layer ([Surface.modelTopUnder]). A bridge line is a straight run of a bridge's
+     * moves (a move continuing another in line, within the tolerance, extends it) longer than three line widths: the planner
+     * links two lines no further apart than three spacings, so a link along an edge is never one. The first layer stands on
+     * the bed; a move in a warped frame (its height changing along it, or read in warped space, [Surface.thickness]) is not
+     * judged: the cut below a warped layer is not what lies under it.
+     */
+    private fun bridgeProblems(sf: Surface, k: Int, tol: Double, imagesDir: java.nio.file.Path?): List<String> {
+        val layer = sf.layerLines[k]
+        if (layer.z - layer.h < 1e-6) return emptyList()
+        // a move of a layer read in warped space (a curved layer, a lifted bridge: its thickness known along it) is not judged
+        val moves = layer.segs.filter { it.feature == "Bridge" && (it.z0.isNaN() || it.z1.isNaN() || Math.abs(it.z0 - it.z1) < 1e-6) &&
+            sf.thickness?.at(layer.z, (it.x0 + it.x1) / 2, (it.y0 + it.y1) / 2)?.isNaN() != false }
+        if (moves.isEmpty()) return emptyList()
+        // the straight runs: a move continuing the one before (same run, starting where it ends) in line with it
+        val lines = ArrayList<DoubleArray>()   // x0, y0, x1, y1, width
+        var cur: DoubleArray? = null; var curRun = -1
+        for (s in moves) {
+            val c = cur
+            if (c != null && s.run == curRun && Math.hypot(s.x0 - c[2], s.y0 - c[3]) <= 1e-6) {
+                val len = Math.hypot(s.x1 - c[0], s.y1 - c[1])
+                // the joint's distance from the line through the run's start and the move's end
+                val off = if (len == 0.0) 0.0 else Math.abs((s.x1 - c[0]) * (c[3] - c[1]) - (s.y1 - c[1]) * (c[2] - c[0])) / len
+                val forward = (c[2] - c[0]) * (s.x1 - s.x0) + (c[3] - c[1]) * (s.y1 - s.y0) > 0
+                if (off <= tol && forward) { c[2] = s.x1; c[3] = s.y1; c[4] = maxOf(c[4], s.w); continue }
+            }
+            cur = doubleArrayOf(s.x0, s.y0, s.x1, s.y1, s.w).also { lines += it }; curRun = s.run
+        }
+        val below = Grid.ofLoops(sf.below(k))
+        val bottom = layer.z - layer.h
+        /** Whether the model below lies under a bead [w] wide centered at (x, y): under its center, or within its half width and the tolerance. */
+        fun onBelow(x: Double, y: Double, w: Double): Boolean = below.inside(x, y) || below.nearest(x, y, w / 2 + tol) <= w / 2 + tol
+        /** Whether printed material lies under (x, y) for a line [w] wide: the model below, or support with no model between. */
+        fun held(x: Double, y: Double, w: Double): Boolean {
+            if (onBelow(x, y, w)) return true
+            for (j in k - 1 downTo 0) {
+                val g = sf.supportGrid(j) ?: continue
+                val reach = sf.layerLines[j].support.maxOf { it.w } / 2 + w / 2 + tol
+                if (g.nearest(x, y, reach) > reach) continue
+                val top = sf.modelTopUnder(x, y, bottom) ?: return true
+                return sf.layerLines[j].z > top + 1e-6
+            }
+            return false
+        }
+        val loose = lines.filter { l ->
+            val len = Math.hypot(l[2] - l[0], l[3] - l[1])
+            val w = l[4]
+            if (len <= 3 * w) return@filter false
+            if (onBelow((l[0] + l[2]) / 2, (l[1] + l[3]) / 2, w)) return@filter false
+            val ux = (l[2] - l[0]) / len; val uy = (l[3] - l[1]) / len
+            !(held(l[0], l[1], w) || held(l[0] - ux * w, l[1] - uy * w, w) || held(l[2], l[3], w) || held(l[2] + ux * w, l[3] + uy * w, w))
+        }
+        if (loose.isEmpty()) return emptyList()
+        val total = loose.sumOf { Math.hypot(it[2] - it[0], it[3] - it[1]) }
+        val longest = loose.maxBy { Math.hypot(it[2] - it[0], it[3] - it[1]) }
+        val problem = "layer at z ${f(layer.z, 3)}: ${loose.size} bridge line(s) over air, ${f(total, 1)} mm in all (about ${f(loose.sumOf { Math.hypot(it[2] - it[0], it[3] - it[1]) * it[4] }, 1)} mm2), " +
+            "rest on nothing at either end: no model and no support under them (the longest from ${f(longest[0], 2)}, ${f(longest[1], 2)} to ${f(longest[2], 2)}, ${f(longest[3], 2)}); " +
+            "a bridge line over air needs printed material under at least one end"
+        val file = imagesDir?.resolve("z%07.3f.png".format(Locale.ROOT, layer.z))
+        if (file != null && !java.nio.file.Files.exists(file)) {
+            val pts = loose.flatMap { l -> val n = maxOf(1, Math.ceil(Math.hypot(l[2] - l[0], l[3] - l[1]) / 0.25).toInt()); (0..n).map { i -> doubleArrayOf(l[0] + (l[2] - l[0]) * i / n, l[1] + (l[3] - l[1]) * i / n) } }
+            ModelCheckPlot.write(file, problem, sf.loops(k) + sf.below(k), layer.segs.map { doubleArrayOf(it.x0, it.y0, it.x1, it.y1, it.w, if (it.wall) 1.0 else 0.0) }, emptyList(), pts,
+                (longest[0] + longest[2]) / 2, (longest[1] + longest[3]) / 2, "bridge line held at neither end")
+        }
         return listOf(problem)
     }
 
@@ -342,7 +423,9 @@ object ModelCheck {
 
     /** One layer's problems and its laid-twice reading ([DoubledCheck]); the bare-outline and hole rules' readings, where read. */
     private class LayerOut(val problems: List<String>, val twice: DoubledCheck.Reading, val picture: Picture? = null,
-                           val bare: Bare? = null, val hole: HoleCheck.Hole? = null, val floor: Double = Double.NaN)
+                           val bare: Bare? = null, val hole: HoleCheck.Hole? = null, val floor: Double = Double.NaN,
+                           /** What the layer's rules found and say without refusing ([Result.said]). */
+                           val said: List<String> = emptyList())
 
     /**
      * What the check measures on one layer, for `plymeld render`'s marks: [twice], the laid-twice rule's spots; the hole
@@ -664,7 +747,8 @@ object ModelCheck {
         return Bare(longest, lx, ly, pts)
     }
 
-    internal class LayerLines(val z: Double, val h: Double, val segs: List<Seg>)
+    /** A layer's model lines [segs], and its [support] lines (support and its interface: what holds a bridge line's end, [bridgeProblems]). */
+    internal class LayerLines(val z: Double, val h: Double, val segs: List<Seg>, val support: List<Seg> = emptyList())
 
     /**
      * The model cut at a g-code's layers (mid heights, one pass of the mesh slicer for all of them), each
@@ -693,7 +777,7 @@ object ModelCheck {
                    */
                   val cut: DoubleArray? = null,
                   /** A curved layer's real thickness along it (CurvedCheck's Read and Frame), for its lines' beads ([layers]); null: every layer flat. */
-                  thickness: Thickness? = null) {
+                  internal val thickness: Thickness? = null) {
         /** Whether an outline point lies on the open section's cut (within [tolMm] of a side of the box). */
         fun onCut(x: Double, y: Double, tolMm: Double): Boolean = cut != null &&
             (Math.abs(x - cut[0]) <= tolMm || Math.abs(x - cut[1]) <= tolMm || Math.abs(y - cut[2]) <= tolMm || Math.abs(y - cut[3]) <= tolMm)
@@ -762,6 +846,21 @@ object ModelCheck {
         }
         /** Whether this g-code has a layer at [layerZ]. */
         fun has(layerZ: Double): Boolean = byZ.containsKey(Math.round(layerZ * 1000))
+        // each layer's support lines as a grid, made when first asked for and kept (support lines are few): a bridge line's
+        // end looks down through the layers below it for them ([bridgeProblems])
+        private val supportGrids = arrayOfNulls<Grid>(layerLines.size)
+        /** Layer [k]'s support lines as a grid; null when it has none. */
+        internal fun supportGrid(k: Int): Grid? {
+            val s = layerLines[k].support
+            if (s.isEmpty()) return null
+            return supportGrids[k] ?: Grid(s.map { doubleArrayOf(it.x0, it.y0, it.x1, it.y1) }).also { supportGrids[k] = it }
+        }
+        /**
+         * The highest of the model's upward-facing surfaces straight under (x, y) below the g-code height [zMm] (in the
+         * g-code's frame); null when nothing of the model is under it there (down to the bed).
+         */
+        internal fun modelTopUnder(x: Double, y: Double, zMm: Double): Double? =
+            parts.mapNotNull { plymeld.core.decide.Overhangs.standsOn(it, x, y, zMm + zBaseMm) }.maxOrNull()?.let { it - zBaseMm }
     }
 
     /**
@@ -782,6 +881,7 @@ object ModelCheck {
     internal fun layers(text: String, thickness: Thickness? = null): List<LayerLines> {
         val out = ArrayList<LayerLines>()
         var segs = ArrayList<Seg>(); var z = Double.NaN; var h = 0.2; var started = false
+        var sup = ArrayList<Seg>()
         // the lines laid in this layer's block for the layer above (ABOVE): carried into the next layer's
         var above = ArrayList<Seg>()
         var x = Double.NaN; var y = Double.NaN; var zc = Double.NaN; var w = 0.4; var feature = ""; var tool = 0
@@ -818,7 +918,7 @@ object ModelCheck {
             }
             path.clear()
         }
-        fun flush() { endPath(); broken = true; if (started && !z.isNaN()) out += LayerLines(z, h, segs); segs = above; above = ArrayList() }
+        fun flush() { endPath(); broken = true; if (started && !z.isNaN()) out += LayerLines(z, h, segs, sup); segs = above; above = ArrayList(); sup = ArrayList() }
         for (raw in text.lineSequence()) {
             val l = raw.trim()
             if (l.startsWith(";LAYER_CHANGE") || l.startsWith("; CHANGE_LAYER")) { flush(); started = true; continue }
@@ -853,7 +953,14 @@ object ModelCheck {
                     (if (feature == ABOVE) above else segs) += s
                     path += s to e / Math.hypot(nx - x, ny - y)
                 }
-            } else if (nx != x || ny != y || e < 0) { endPath(); broken = true }     // a travel or a retraction ends it (a feed rate alone does not)
+            } else {
+                // a support line: kept apart from the model's, for what it holds up
+                if (started && e > 0 && !x.isNaN() && (nx != x || ny != y || arc) && feature in SUPPORT) {
+                    if (arc) arcChords(x, y, nx, ny, x + (num('I') ?: 0.0), y + (num('J') ?: 0.0), ws[0] == "G2") { ax, ay, bx, by -> sup += Seg(ax, ay, bx, by, w, false, tool, nz, nz, feature = feature) }
+                    else sup += Seg(x, y, nx, ny, w, false, tool, zc, nz, feature = feature)
+                }
+                if (nx != x || ny != y || e < 0) { endPath(); broken = true }     // a travel or a retraction ends it (a feed rate alone does not)
+            }
             x = nx; y = ny; zc = nz
         }
         flush()

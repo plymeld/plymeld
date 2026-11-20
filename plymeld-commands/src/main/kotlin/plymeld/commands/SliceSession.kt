@@ -263,7 +263,8 @@ class SliceSession(private val keepSlicers: Boolean = true) {
                 plymeld.core.check.ModelCheck.checkAll(fr.text, fr.parts, zBase, imagesDir = Path.of("$output.check", fr.name.replace(' ', '_')).also { Files.createDirectories(it) },
                     surface = frameSurfaces!![i], partTools = fr.partIndex.map { partTools[it] }, zaa = if (fr.flat) zaa else null, progress = progress,
                     handOverMm = handOver(0), featureMinMm = featureMin(0), firstLayerInsetMm = firstInset(0), surfaceHandOverMm = surfaceHandOver(0), fuzzMm = fuzz(0), infillMinMm = infillMin(0),
-                    slicingTolMm = slicingTol(0), endOverlap = endOverlap(0)).let { r -> plymeld.core.check.ModelCheck.Result(r.problems.map { "${fr.name}: $it" }, r.laidTwice.at(fr.name)) } }
+                    slicingTolMm = slicingTol(0), endOverlap = endOverlap(0)).let { r ->
+                        plymeld.core.check.ModelCheck.Result(r.problems.map { "${fr.name}: $it" }, r.laidTwice.at(fr.name), r.said.map { "${fr.name}: $it" }) } }
             else listOf(plymeld.core.check.ModelCheck.checkAll(checkText, checkParts, zBase, imagesDir = Path.of("$output.check"), surface = surface, partTools = checkTools, zaa = zaa, progress = progress,
                 handOverMm = handOver(0), featureMinMm = featureMin(0), firstLayerInsetMm = firstInset(0), surfaceHandOverMm = surfaceHandOver(0), fuzzMm = fuzz(0), infillMinMm = infillMin(0),
                 slicingTolMm = slicingTol(0), endOverlap = endOverlap(0)))
@@ -272,6 +273,8 @@ class SliceSession(private val keepSlicers: Boolean = true) {
         val laidTwice = modelResults.fold(plate?.laidTwice ?: plymeld.core.check.DoubledCheck.Summary.NONE) { a, r -> a + r.laidTwice }
         plate?.let { echo("check: ${plan.layout.placed.size} objects, ${if (sequential) "one at a time: each object's run of layers" else "together: each object's lines, by the file's object markers,"} read against that object alone") }
         (plate?.curvedLayers ?: curved?.curvedLayers)?.takeIf { it > 0 }?.let { echo("check: $it curved layer(s) read in warped space (the check's own warp, from the model)") }
+        // the held-bridge rule's findings (ModelCheck.Result.said): reported, not refused
+        for (s in plate?.said.orEmpty() + modelResults.flatMap { it.said }) echo("warning: check: $s (reported, not refused; a picture of the layer in $output.check)")
         echo("laid twice: ${laidTwice.words()}" + (if (laidTwice.spots == 0 || plymeld.core.check.DoubledCheck.REFUSES) "" else
             " (the pre-print check's laid-twice rule, reported, not refused; a picture of each layer with one in $output.check)"))
         val took = (System.nanoTime() - t1) / 1_000_000
