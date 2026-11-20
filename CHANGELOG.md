@@ -88,6 +88,8 @@ section the release's version and date.
   without changing each speed: 75% for a print where finish matters more than time. Travels and retractions keep their
   speeds; above 100% no speed goes past the machine's printing speed. The filament's melt cap, the minimum layer time
   and the time prediction read the speeds scaled. Bundled 100%; set it for an object or a part as any plan value.
+- The documentation's start, [docs/README.md](docs/README.md): installing plymeld, and a first print from setting up to
+  sending the file. Every command a tutorial shows is run by the tests as written. The window's finder lists the pages.
 
 ### Changed
 

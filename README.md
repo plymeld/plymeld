@@ -123,6 +123,7 @@ try things with.
 
 | what | where |
 |---|---|
+| Installing, a first print, and using plymeld | [docs/README.md](docs/README.md) |
 | What plymeld is trying to be | [docs/philosophy.md](docs/philosophy.md) |
 | Features, and what may come next | [FEATURES.md](FEATURES.md) |
 | The published work plymeld builds on | [CREDITS.md](CREDITS.md) |
@@ -160,7 +161,7 @@ try things with.
 | `plymeld-ui` | the desktop window (Compose Multiplatform, an OpenGL 3D view through LWJGL) |
 | `tools/` | build, packaging, regression, and measurement scripts |
 | `test-models/` | models the tests slice, with independently computed reference values ([test-models/MANIFEST.md](test-models/MANIFEST.md)), and the config they slice with |
-| `docs/` | what plymeld is trying to be, and the logo |
+| `docs/` | the documentation ([docs/README.md](docs/README.md)), and the logo |
 
 ## Contributing
 
