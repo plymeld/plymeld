@@ -112,8 +112,9 @@ scratch.
 
 ### 2.7 A command line and a window from one model of the commands
 
-- **[Built]** The command line: `slice`, `plan`, `config`, `schema`, `layers`, `calibrate`, `render-plate`,
-  `printer`, `edit`, `journal`, `commands`, and `investigate`.
+- **[Built]** The command line: `slice`, `plan`, `config`, `schema`, `layers`, `calibrate`, `render`,
+  `render-plate`, `printer`, `edit`, `journal`, `migrate`, `commands`, `investigate`, `init`, `report`, `updates`, and
+  `update`.
 - **[Partial]** The desktop window, built from the same declaration of commands so the two cannot differ: open
   or drop models, the job's steps (model, printer, what matters, plan), settings pages with each value's
   source, a finder over commands and settings, asking the printer, sending, updates.
