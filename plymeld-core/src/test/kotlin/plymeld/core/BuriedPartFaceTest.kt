@@ -20,9 +20,10 @@ import plymeld.geom.Polygon
  *  - at each end of the hole, in front of it: the widest spot no line covers (IslandCheck, the measure the walls hold a
  *    narrow island's lines to), against that measure's limit for lines that lay an area well.
  * Controls, each seen to fail: the line's end reaching into a wall only where the wall's nearest point lies ahead of it
- * (the rule before), which leaves a pocket where the line meets the turn; and a loop widened at a slit keeping no point
- * before the slit along its edge (the rule before), which widens and slants the face's outer wall along the whole face
- * from that pocket.
+ * (the rule before), which leaves a pocket where the line meets the turn; an outer wall sharing a slit beside it as an
+ * inner wall does (the rule before), which widens and moves the face's outer wall at that pocket; and, with both, a loop
+ * widened at a slit keeping no point before the slit along its edge (the rule before), which widens and slants it along
+ * the whole face from the pocket.
  */
 class BuriedPartFaceTest : StringSpec({
     val face0 = 97_353L              // the face on the layer below the hole (µm)
@@ -35,8 +36,9 @@ class BuriedPartFaceTest : StringSpec({
     val through = listOf(block(face1), Polygon(longArrayOf(96_050, 98_709, 96_015, 98_724, 96_000, 98_759, 96_000, 99_510, 96_015, 99_545, 96_050, 99_560,
         103_950, 99_560, 103_985, 99_545, 104_000, 99_510, 104_000, 98_759, 103_985, 98_724, 103_950, 98_709)))
     val wo = 440L; val h = 80L; val tol = 13L
-    fun walls(o: List<Polygon>, ahead: Boolean = true, anchored: Boolean = true) =
-        Walls.arachne(o, 3, wo, wo, h, 300, 150, 2.0, 300, toleranceUm = tol, endOverlap = 0.25, maxBeadUm = 880, reachAhead = ahead, slitsAnchored = anchored)
+    fun walls(o: List<Polygon>, ahead: Boolean = true, anchored: Boolean = true, outerFixed: Boolean = true) =
+        Walls.arachne(o, 3, wo, wo, h, 300, 150, 2.0, 300, toleranceUm = tol, endOverlap = 0.25, maxBeadUm = 880, reachAhead = ahead, slitsAnchored = anchored,
+            outerWallsFixed = outerFixed)
 
     /** The face's outer wall as (x, distance from the face, width) at each of its points along the face, by x. */
     fun faceWall(r: LayerWalls, face: Long): List<DoubleArray> {
@@ -78,24 +80,39 @@ class BuriedPartFaceTest : StringSpec({
         val bc = walls(through, anchored = false)
         val (dStepC, wStepC) = steps(faceWall(bc, face1)); val (dShiftC, wShiftC) = layerShift(a, bc)
         println("outer wall: step $dStep um, width step $wStep um, shift between layers $dShift um, width $wShift um; control (no anchor before a slit, line ends as before): step $dStepC, $wStepC; shift $dShiftC, $wShiftC")
-        (dStep <= tol && wStep <= tol && dShift <= tol && wShift <= tol) shouldBe true
-        // control: the line ends as before leave pockets, read as slits, and the widening runs along the whole face
-        val bcc = walls(through, ahead = false, anchored = false)
+        (dStep == 0.0 && wStep == 0.0 && dShift == 0.0 && wShift == 0.0) shouldBe true
+        // control: the line ends, the outer wall's share and the anchor as before: pockets read as slits, and the outer
+        // wall's widening runs along the whole face
+        val bcc = walls(through, ahead = false, anchored = false, outerFixed = false)
         val (dShiftCC, wShiftCC) = layerShift(a, bcc)
-        println("control, both rules as before: shift between layers $dShiftCC um, width $wShiftCC um")
+        println("control, the three rules as before: shift between layers $dShiftCC um, width $wShiftCC um")
         (dShiftCC > tol && wShiftCC > tol) shouldBe true
     }
 
-    "a loop widened at a slit near the end of a long edge keeps its place and width along the rest of the edge" {
+    "an outer wall keeps its width and place with a slit behind it" {
         // the slit: the pocket the line's end leaves when it reaches into walls only ahead of it (the rule before)
+        fun spread(r: LayerWalls): Pair<Double, Double> {
+            val f = faceWall(r, face1)
+            return (f.maxOf { it[1] } - f.minOf { it[1] }) to (f.maxOf { it[2] } - f.minOf { it[2] })
+        }
+        val (d, w) = spread(walls(through, ahead = false))
+        val (dC, wC) = spread(walls(through, ahead = false, outerFixed = false))
+        println("the face's outer wall with a slit behind it: its distance from the face varies by $d um, its width by $w um; control (the outer wall shares the slit): $dC, $wC um")
+        (d == 0.0 && w == 0.0) shouldBe true
+        (dC > 0.0 && wC > tol) shouldBe true
+    }
+
+    "a loop widened at a slit near the end of a long edge keeps its place and width along the rest of the edge" {
+        // the slit: the pocket the line's end leaves when it reaches into walls only ahead of it (the rule before), read
+        // beside the face's outer wall sharing it (the rule before), a loop beside a slit at the far end of a long edge
         fun middle(r: LayerWalls): Pair<Double, Double> {
             val fa = faceWall(walls(below), face0); val fb = faceWall(r, face1)
             val xs = (0..60).map { 97_000.0 + it * 100.0 }
             return xs.maxOf { Math.abs(at(fa, it).first - at(fb, it).first) } to xs.maxOf { Math.abs(at(fa, it).second - at(fb, it).second) }
         }
-        val (d, w) = middle(walls(through, ahead = false))
-        val (dC, wC) = middle(walls(through, ahead = false, anchored = false))
-        println("outer wall along the face's middle 6 mm beside a slit at its end: moved $d um, width changed $w um; control (no point kept before the slit): $dC, $wC um")
+        val (d, w) = middle(walls(through, ahead = false, outerFixed = false))
+        val (dC, wC) = middle(walls(through, ahead = false, anchored = false, outerFixed = false))
+        println("a loop along the face's middle 6 mm beside a slit at its end: moved $d um, width changed $w um; control (no point kept before the slit): $dC, $wC um")
         (d <= tol && w <= tol) shouldBe true
         (wC > tol) shouldBe true
     }

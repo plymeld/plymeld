@@ -9,6 +9,15 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Changed
+
+- An outer wall is never widened or moved to share a slit behind it. Where a slit too narrow for a line lies between
+  the outer wall (round the outline or round a hole) and the line inside it, the outer wall keeps its width and place
+  along the face, and the inner wall beside the slit takes all of it (it took half, the outer wall the other half); two
+  inner walls still share a slit between them half each. Where only the outer walls cross an area (a web between a hole
+  and the side about two lines wide), the slit between them stays, inside the part: up to 0.12 mm wide on a web 1.0 mm
+  wide, narrower than the pre-print check's hole floor.
+
 ### Fixed
 
 - A part of another filament buried just behind a face no longer moves the face's outer wall. Where the area in front of
