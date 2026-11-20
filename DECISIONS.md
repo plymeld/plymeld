@@ -2310,3 +2310,37 @@ its middle about 0.02 mm further in, 0.03 mm wider); a shared slit's widening st
 buried part's underside is not a surface of the object (the regions are classified against the whole object, all its
 parts together), so the shell rules put no solid layers under it and none as its bottom: its first layer and the first
 filament's lines beside it lie over the sparse infill below, as the interior of a part of one filament does.
+
+## 67. Every executable the release ships runs every command before the draft; the command line carries traced metadata (2026-11-20)
+
+**Context.** The tests run on the JVM, and the release ships the command line and the window as GraalVM native images.
+A native image reaches what its analysis cannot see (the JDK's imaging, AWT, whose libraries call back into Java through
+JNI; reflection; resources) only through reachability metadata. Without it, a command that draws with AWT (`render`,
+`render-plate`, `layers --png`, the calibration pages, the pre-print check's pictures) stops in a native image as AWT's
+library loads; a test on the JVM cannot see that, only a run of the built executable can.
+
+**Decision.** The command line carries metadata traced by GraalVM's agent over a run of every command
+(`plymeld-cli/src/main/resources/META-INF/native-image`, in its jar, so native-image reads it on both platforms;
+`tools/native-smoke.sh trace`, with and without a display, leaving out what the terminal library and JNA reach on the
+JVM, since in a native image the terminal library picks its own interface; in a home with no font cache, so the
+system's fontconfig is asked through JNI). As the window does, the command line takes its own folder as java.home, and
+the folder holds a `lib/` (with the JDK's `fontconfig.bfc` where the JDK has one): the JDK's fonts read java.home, and on
+Linux ask fontconfig only when its `lib/` is there. `tools/native-smoke.sh check` runs every
+command with a built executable, each held to its exit status and to what proves its work ran, a command that needs a
+printer, a terminal, or a release feed held to its refusal without one. CI runs it on every pull request with the native
+command line it builds; the release runs it on every executable it packages, on Linux (the tar's command line, the
+AppImage's command line and window) and on Windows (the package's command line and window), and creates the draft only
+after both platforms pass. `NativeSmokeCoverageTest` holds the smoke run to the command tree, with a not-yet ledger
+for a command that cannot run there.
+
+**Rejected.** Hand-written metadata for AWT: it covers what someone thought of, and the agent records what a run
+reaches. A check of the picture-writing commands alone: the same gap can open on any library a command reaches (a
+protocol, a parser, a terminal), and the cost of running every command is minutes. Building the window natively in CI
+as well: it takes most of a runner's memory and much longer than the command line; the release runs it on both
+platforms before any draft. Creating the draft first and running the checks after: a failed check would leave a draft
+holding packages that were never checked.
+
+**Consequences.** A pull request waits for a native build of the command line beside the tests. A release waits for
+both platforms' checks before its draft exists, and the draft gets every package at once. A change that reaches
+something new natively traces again and commits the metadata's diff. Windows' own imaging library is checked by the
+Windows run, not traced: a gap there fails the release, to be traced on Windows.

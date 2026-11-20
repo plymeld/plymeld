@@ -137,6 +137,42 @@ jobs:
             ~/.cache/plymeld-regress/
           retention-days: 14
 
+  # The tests above run on the JVM; the release ships the command line as a GraalVM native image, which reaches what
+  # native-image cannot see (the JDK's imaging and its JNI calls, reflection, resources) only through its reachability
+  # metadata (plymeld-cli/src/main/resources/META-INF/native-image). This builds that native command line as the
+  # release does and runs every command with it (tools/native-smoke.sh). The window's native build is left to the
+  # release, which smokes it on both platforms: it takes most of a runner's memory and much longer.
+  native:
+    name: Native command line
+    needs: changes
+    if: needs.changes.outputs.docs_only != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      # the release's pinned GraalVM (release.yml)
+      - uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '21.0.7'
+          distribution: graalvm
+          github-token: ${{ github.token }}
+          cache: gradle
+      - name: Check the Gradle wrapper jar
+        run: echo "238e777fcddd7e34f9708186085def2abd6e08e658505b38718d79d74c21abd5  gradle/wrapper/gradle-wrapper.jar" | sha256sum -c -
+      - name: The command line's jars
+        run: ./gradlew -Pkotlin.daemon.jvmargs=-Xmx2g :plymeld-cli:installDist
+      - name: The native command line
+        run: tools/build-native.sh
+      - name: Every command, run by the native command line
+        run: tools/native-smoke.sh check plymeld-cli/build/native/plymeld "$RUNNER_TEMP/smoke"
+      - name: Keep the smoke run's files of a failed run
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-smoke
+          path: ${{ runner.temp }}/smoke/
+          retention-days: 14
+
   slow:
     name: Slow tests
     needs: fast

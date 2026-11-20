@@ -31,6 +31,14 @@ section the release's version and date.
   slanting along the whole face from one end of the part to the other on every layer the part spans, with a step at its
   end: the wall stepped in at the layer where the part begins and out at the layer after it ends, and sideways at the
   part's end on every layer between.
+- The packaged Linux command line draws pictures. Every command that writes one stopped with an error before writing
+  it: `plymeld render`, `plymeld render-plate`, `plymeld layers --png`, the instructions page's picture of
+  `plymeld calibrate` (after writing the plate's g-code), and `plymeld slice` where the pre-print check draws a layer.
+  The machine's preview pictures in the g-code were not affected. The command line's folder now holds a `lib/` folder,
+  where the fonts of a picture's text find their configuration; `plymeld update` makes it in an install from the tar.
+- `plymeld updates --check` and `plymeld update` say in one line that they could not reach the update feed, naming its
+  address, where they stopped with a Java stack trace.
+- `plymeld schema --markdown` refuses a page that does not exist by name, where it stopped with a Java stack trace.
 
 ## [0.20261120.0] - 2026-11-20
 

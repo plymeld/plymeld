@@ -20,7 +20,8 @@ dependencies {
 }
 
 // The repository files outside this module that its tests read (DocsConsistencyTest: the published Markdown; the
-// calibration tests: the test config in test-models/config), declared as the tests' inputs: a change to one runs them
+// calibration tests: the test config in test-models/config; NativeSmokeCoverageTest: tools/native-smoke.sh), declared
+// as the tests' inputs: a change to one runs them
 // again, and they are never skipped as up to date while the text has changed (the commit check,
 // tools/git-hooks/pre-commit, trusts Gradle's up-to-date checks); every test task's (test, and the commit check's
 // fastTest / slowTest)
@@ -30,6 +31,7 @@ tasks.withType<Test>().configureEach {
         .withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("rootDocs")
     inputs.files(listOf("docs", "tools", "test-models").map { d -> fileTree(rootDir.resolve(d)) { include("**/*.md", "**/*.toml") } })
         .withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("docs")
+    inputs.file(rootDir.resolve("tools/native-smoke.sh")).withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("nativeSmoke")
 }
 
 // Bake the project version into a resource the commands read at runtime (PlymeldVersion), and the release feed the

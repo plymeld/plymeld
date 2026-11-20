@@ -36,6 +36,7 @@ Requires **JDK 21**. The Gradle wrapper fetches Gradle, Kotlin, and every depend
 ./gradlew :plymeld-cli:run --args="--version"
 ./gradlew :plymeld-ui:run                 # the desktop window
 tools/build-native.sh                    # a GraalVM native binary (after installDist; needs GraalVM 21, GRAALVM_HOME)
+tools/native-smoke.sh check plymeld-cli/build/native/plymeld   # every command, run by the native binary
 ```
 
 Gradle's build cache and configuration cache are on (`gradle.properties`), so a build with no change
@@ -67,7 +68,8 @@ tree) is checked out into a check worktree of its own (`~/.cache/plymeld-commit-
 there, every module's main and test code (`gradlew testClasses`). A commit that does not compile is
 refused, with the errors and the log's path. The tests run in CI (`.github/workflows/ci.yml`) on every push
 and pull request: `gradlew fastTest` (every suite but the slow ones listed in `tools/slow-suites.txt`),
-then `gradlew slowTest` (those alone). To run them locally as well: `PLYMELD_COMMIT_CHECK=tests` makes the
+then `gradlew slowTest` (those alone); beside them, the native command line is built and runs every command
+(`tools/native-smoke.sh check`). To run them locally as well: `PLYMELD_COMMIT_CHECK=tests` makes the
 pre-commit run `gradlew fastTest`, and `PLYMELD_SLOW_CHECK=1` makes `tools/git-hooks/post-commit` queue the
 commit for the slow suites, one commit at a time (`tools/slow-check.sh status`). `gradlew test` runs
 everything. And `tools/git-hooks/commit-msg` refuses a commit that changes `src/main` code with no doc,

@@ -9,8 +9,14 @@ import plymeld.commands.UpdateFeed
  * in UTF-8 for the run first ([WindowsConsole]), so plymeld's text shows as written. When the user has turned update
  * checks on (`plymeld updates --set notify`), every run asks the release feed in the background, at most once a day,
  * and a newer release is said on stderr after the command ([UpdateFeed.forRun]); `updates` itself says it its own way.
+ * A native executable has no java.home, which the JDK's fonts read as they start (every picture with text in it), so it
+ * is the executable's own directory, as the window does: the native build puts the JDK libraries it draws with there,
+ * and a lib/ folder, where the fonts look for a configuration (on Linux they ask the system's fontconfig only when the
+ * folder is there).
  */
 fun main(args: Array<String>) {
+    if (System.getProperty("java.home") == null) ProcessHandle.current().info().command().orElse(null)
+        ?.let { java.nio.file.Path.of(it).toAbsolutePath().parent?.toString() }?.let { System.setProperty("java.home", it) }
     WindowsConsole.useUtf8()
     val updates = if (args.firstOrNull() == "updates") null else UpdateFeed.forRun()
     val status = Commands.run(args.toList())

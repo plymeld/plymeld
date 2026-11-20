@@ -69,6 +69,22 @@ class InstallsTest : StringSpec({
         dir.toFile().deleteRecursively()
     }
 
+    "an empty folder the tar holds is made in the install; control: an install already holding it keeps its files there" {
+        val dir = Files.createTempDirectory("plymeld-replace-dir")
+        val installed = Files.createDirectories(dir.resolve("opt"))
+        Files.writeString(installed.resolve("plymeld"), "old")
+        val staged = Files.createDirectories(dir.resolve("opt/.plymeld-update-1/plymeld"))
+        Files.createDirectories(staged.resolve("lib"))
+        val files = listOf(Files.writeString(staged.resolve("plymeld"), "new"))
+        Files.isDirectory(installed.resolve("lib")) shouldBe false
+        Installs.Tar.replace(staged, files, installed)
+        Files.isDirectory(installed.resolve("lib")) shouldBe true
+        Files.writeString(installed.resolve("lib/mine.txt"), "kept")
+        Installs.Tar.replace(staged, emptyList(), installed)
+        Files.readString(installed.resolve("lib/mine.txt")) shouldBe "kept"
+        dir.toFile().deleteRecursively()
+    }
+
     "the tar install updated whole from a served release; controls: a wrong checksum or a wrong version changes nothing".config(enabled = linux) {
         val served = HashMap<String, ByteArray>()
         val server = com.sun.net.httpserver.HttpServer.create(java.net.InetSocketAddress("127.0.0.1", 0), 0)

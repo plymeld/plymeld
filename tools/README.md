@@ -15,12 +15,14 @@ Kotlin, in the modules.
 | `git-hooks/commit-msg` | "text matches reality": a commit changing `src/main` code with no doc, `*.md` or schema change needs `no-docs: <reason>` in its message |
 | `bench_cli.sh <model> <settings>` | whole-process wall time, JVM launcher against the native binary, and that both write the same g-code |
 | `build-native.sh` / `.cmd`, `build-native-ui.sh` / `.cmd` | GraalVM native executables of the CLI and the window |
+| `native-smoke.sh check <executable> [--window <executable>] \| trace` | every command on small jobs, each held to its exit status and its output: `check` fails when a case fails (CI runs it on the native command line, the release on every executable it packages, both platforms, before the draft); `trace` runs them on the JVM under GraalVM's tracing agent into the CLI's native-image metadata (`docs/dev/testing.md`) |
 | `package-velopack.cmd` | installers, portable zip, AppImage and update feed with Velopack |
 | `windows-ui-tests.ps1` | the window's tests (`WindowDriveTest`, `WindowRunsTest`) on a Windows JDK, Windows' own natives, from a WSL build (`gradlew :plymeld-ui:windowsTestLib`) with JUnit's console launcher |
 
 A version tag on `main` (`v0.YYYYMMDD.N`, the release's date in UTC) runs these in CI (`.github/workflows/release.yml`),
 built with that version (`-Pplymeld.version`; any other build is `0.0.0-dev`): the native builds on Linux and Windows
-runners, Velopack's packages for each, and the Linux command line's tar, uploaded to a draft GitHub release. A release
+runners, Velopack's packages for each, and the Linux command line's tar, uploaded to a draft GitHub release once every
+executable of both platforms has passed `native-smoke.sh check`. A release
 needs no commit of its own. Its Gradle distribution and dependencies come from caches kept on `main` for each runner
 (`.github/workflows/release-cache.yml`, run when the Gradle build files change and twice a week), so a release does not
 depend on downloading them.
