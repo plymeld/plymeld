@@ -2344,3 +2344,61 @@ holding packages that were never checked.
 both platforms' checks before its draft exists, and the draft gets every package at once. A change that reaches
 something new natively traces again and commits the metadata's diff. Windows' own imaging library is checked by the
 Windows run, not traced: a gap there fails the release, to be traced on Windows.
+
+## 68. A bridged area hanging off one side is laid outward from its supported edge; the check reports a bridge line held at neither end (2026-11-20)
+
+**Context.** Where undersides are laid as bridges (`plan.faces.under.technique = "as_laid"`), a flat layer's area over
+air that hangs off one side (joined to printed material along one edge, nothing under it) was bridged across itself.
+The bridge direction scores each angle, every 5 degrees, by the share of line length landing on the layer below at both
+ends (probed one line width past each end). A bridge's region reaches two line widths into the material around it, to
+anchor its lines; over an area hanging off one side, no line over air lands on printed material at both ends at any
+angle, so the only lines scoring were those lying on that anchor strip, over printed material, along the supported
+edge. The edge's direction won: every such area got it, areas hanging off one edge at different angles alike, and
+their lines across them rested on nothing at either end. The pre-print check had no rule for bridge lines and passed
+the file.
+
+**Decision.** The bridge direction of an area over air, where the layer's undersides are laid as bridges (as laid, or a
+layer outside the wave overhangs' heights, `plan.faces.under.from` and `.to`), is chosen per area as before, by the
+share anchored at both ends, unless no line over air (its middle not on the layer below) lands on printed material at
+both ends at any angle while some lands on it at one end: then it is the angle with the largest share of its lines over
+air anchored at one end at least, ties to the shortest longest line, the existing tie rule. Each area hanging off one
+side is laid outward from its own supported edge. It needs no number beyond the score's own (the probe of one line
+width, the 5 degree step). A span, where some line over air is anchored at both ends, keeps the score by both ends; an
+area with nothing under it at any end keeps it too. The pre-print check finds a bridge line over air (a straight run of
+a bridge's moves longer than three line widths, the planner linking lines no further apart than three spacings, so a
+link along an edge is never one; over air where the model's cut below the layer is neither under its middle nor within
+half its width and the tolerance of it, so a line beside a step, its bead on the step's edge, is not) when nothing holds
+either end: an end is held where the model's cut below the layer (within the same reach), or a support line in a layer
+below with no surface of the model between them (a ray down the mesh), lies under it or one line width past it. It is
+reported, not refused, as decision 48's rule is: a warning line of the slice names the layer, the count and length of
+such lines, and where the longest lies, with a picture of the layer. A move read in warped space (a curved layer, a
+lifted bridge) is not judged: the cut below a warped layer is not what lies under it.
+
+**Rejected.** The outward rule for every bridge over air, the wave overhangs' leftovers included: the default
+technique's output stays as it is; what the waves leave to bridges (a sliver hanging off one side narrower than the
+neck the fronts cross, a piece with no anchor) is a question of its own. A fixed fallback angle, or the direction
+square to the supported edge: an arm leaving an edge at a slant laid square to the edge starts most lines on its side,
+over air; the one-end share finds the arm's own direction. Refusing the file: the planner still lays such lines where
+the plan accepts them or leaves them by another rule, each a cause of its own (Consequences), and the test suite slices
+several; refused, those plans could not be printed at all, and a user who locked support off over an area has already
+been warned it prints over air. Counting any support under an end however far below: support under a lower part of the
+model, with that part between, holds that part, not the line.
+
+**Consequences.** An as-laid underside hanging off one side gets lines landing on what is printed at one end; nothing
+is held up at the other, and the area still needs support or wave overhangs to print well (the search requires support
+under such a cantilever where support is decided per overhang). The check reads support's lines for this (only the
+model's were read before). Open, each a planner cause the rule reports:
+- with the pose locked and one way of laying the object at one layer height, the decision measures nothing, and
+  support decided per overhang is not surveyed: no support is chosen and no cantilever is said;
+- a plan file's support spots lock support to those spots alone: a re-plan keeping one of two chosen spots leaves the
+  other overhang, a cantilever, without support, and says nothing;
+- a region whose support is kept off (`support = "never"`), and support locked off: what only support lays prints over
+  air (the plan warns of the second);
+- a sliver hanging off one side that the wave overhangs leave to bridges, laid along itself.
+Tests: BridgesTest (three arms at 45, 90, and 135 degrees off a bar laid along themselves, seen at 0 degrees each
+before; outward off, 0 degrees as before; spans bridged across, either way), HeldBridgeCheckTest (bridge lines across an
+arm found and not among the problems; controls: along it from the bar, a line beside the bar with its bead on the
+bar's edge, over support one layer of gap down, and links shorter than three widths, none found; the line beside the
+bar 1 mm further out, and support under a plate of the model below the arm, found), CantileverBridgeTest (the arms
+sliced as laid with support off: each arm's lines along it, nothing reported, seen at 0 degrees each before; a span
+bridged across; a slab held only from above reported, with support unset and locked off).

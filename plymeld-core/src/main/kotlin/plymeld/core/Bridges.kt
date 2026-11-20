@@ -12,7 +12,8 @@ import plymeld.geom.Polygons
  * Ties go to the angle whose LONGEST line is shortest: the longest unsupported span is the one
  * that sags. Not the anchored LENGTH: it differs between angles by hatching noise alone, so a
  * region anchored all round would never tie and the pick would be arbitrary (on the hole block an arbitrary angle lays
- * lines too far apart along the edges to link, a retraction each).
+ * lines too far apart along the edges to link, a retraction each). Where undersides are laid as bridges, an area no line
+ * over air spans (one hanging off one side) is laid outward from its supported edge, each line anchored at one end ([best]).
  */
 object Bridges {
     /** One family of sparse lines below: direction (deg), spacing, and grid offset (µm), as Hatch lays them. */
@@ -68,18 +69,38 @@ object Bridges {
         return bestA
     }
 
-    fun bestAngle(bridge: List<Polygon>, below: List<Polygon>, spacingUm: Long, probeUm: Long): Double = best(bridge, below, spacingUm, probeUm).first
+    /**
+     * The bridge direction for [bridge] over [below]. [outward]: an area hanging off one side is laid outward from its
+     * supported edge ([best]); where undersides are laid as bridges (plan.faces.under.technique = "as_laid", or a layer
+     * outside the wave overhangs' heights). Off, the score by both ends decides alone, as for the bridges the wave overhangs
+     * leave and for spans by design (a layer following an underside over the bed's hollow, a lifted bridge).
+     */
+    fun bestAngle(bridge: List<Polygon>, below: List<Polygon>, spacingUm: Long, probeUm: Long, outward: Boolean = false): Double =
+        best(bridge, below, spacingUm, probeUm, outward).first
 
     /**
      * Whether [bridge] is a SPAN: at its best angle every line lands on [below] at both ends (bridging
      * stays for a span between two printed supports; an underside hanging off one side is never bridged, it gets wave
      * overhangs, support, or nothing).
      */
-    fun spanned(bridge: List<Polygon>, below: List<Polygon>, spacingUm: Long, probeUm: Long): Boolean = best(bridge, below, spacingUm, probeUm).second >= 1.0 - 1e-9
+    fun spanned(bridge: List<Polygon>, below: List<Polygon>, spacingUm: Long, probeUm: Long): Boolean = best(bridge, below, spacingUm, probeUm, false).second >= 1.0 - 1e-9
 
-    /** The best angle and its score (the share of line length anchored at both ends, unanchored counting against it). */
-    private fun best(bridge: List<Polygon>, below: List<Polygon>, spacingUm: Long, probeUm: Long): Pair<Double, Double> {
+    /**
+     * The best angle and its score (the share of line length anchored at both ends, unanchored counting against it).
+     *
+     * [outward]: an area hanging off one side (a CANTILEVER: at no angle does a line over air land on [below] at both ends) is
+     * laid outward from its supported edge instead: the angle with the largest share of its lines over air anchored at one end
+     * at least, ties going to the shortest longest line as above. Scored by both ends, such an area's only lines anchored at
+     * both ends are those lying on its anchor (the region reaches into the material around it), so its pick followed the
+     * supported edge's direction, every line over air landing on nothing at either end. A line is over air when its middle
+     * is not on [below]. An area with nothing under it at any end at any angle keeps the score by both ends.
+     */
+    private fun best(bridge: List<Polygon>, below: List<Polygon>, spacingUm: Long, probeUm: Long, outward: Boolean): Pair<Double, Double> {
         var bestA = 0.0; var bestScore = Double.NEGATIVE_INFINITY; var bestMaxLen = Double.POSITIVE_INFINITY
+        // outward from the supported edge: the share of the lines over air anchored at one end at least, per angle
+        var oneA = 0.0; var oneShare = Double.NEGATIVE_INFINITY; var oneMaxLen = Double.POSITIVE_INFINITY
+        // whether a line over air lands on [below] at both ends at some angle (a span), and at one end at some angle
+        var spansAir = false; var holdsAir = false
         val groups = Polygons.group(below)
         fun supported(x: Double, y: Double): Boolean {
             val px = Math.round(x); val py = Math.round(y)
@@ -89,6 +110,7 @@ object Bridges {
         while (a < 180.0) {
             val segs = Hatch.lines(bridge, a, spacingUm)
             var anchored = 0.0; var total = 0.0; var maxLen = 0.0
+            var airOne = 0.0; var airTotal = 0.0; var airMaxLen = 0.0
             for (i in segs.indices step 4) {
                 val x0 = segs[i].toDouble(); val y0 = segs[i + 1].toDouble(); val x1 = segs[i + 2].toDouble(); val y1 = segs[i + 3].toDouble()
                 val len = Math.hypot(x1 - x0, y1 - y0)
@@ -98,14 +120,23 @@ object Bridges {
                 val a1 = supported(x1 + ux * probeUm, y1 + uy * probeUm)
                 anchored += if (a0 && a1) len else -len
                 total += len; maxLen = maxOf(maxLen, len)
+                if (!supported((x0 + x1) / 2, (y0 + y1) / 2)) {
+                    if (a0 && a1) spansAir = true
+                    if (a0 || a1) { holdsAir = true; airOne += len }
+                    airTotal += len; airMaxLen = maxOf(airMaxLen, len)
+                }
             }
             if (total == 0.0) { a += 5.0; continue }
             val score = anchored / total
             if (score > bestScore + 1e-9 || (Math.abs(score - bestScore) <= 1e-9 && maxLen < bestMaxLen)) {
                 bestScore = score; bestA = a; bestMaxLen = maxLen
             }
+            if (airTotal > 0) {
+                val share = airOne / airTotal
+                if (share > oneShare + 1e-9 || (Math.abs(share - oneShare) <= 1e-9 && airMaxLen < oneMaxLen)) { oneShare = share; oneA = a; oneMaxLen = airMaxLen }
+            }
             a += 5.0
         }
-        return bestA to bestScore
+        return (if (outward && !spansAir && holdsAir) oneA else bestA) to bestScore
     }
 }

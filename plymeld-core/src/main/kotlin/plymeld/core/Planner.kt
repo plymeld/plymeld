@@ -1339,15 +1339,17 @@ object Planner {
             // infill beside it), then reach on by [grow] (infill_wall_overlap of the line), as every interior line's (hatch).
             // Clipped on the region's edge itself, every line end and every linking run would lie half a line over the walls
             // and the infill beside it (the pre-print check's laid-twice rule)
+            // [outward]: an area hanging off one side laid outward from its supported edge (Bridges.bestAngle), where the
+            // layer's undersides are laid as bridges
             fun bridgeEach(region: List<Polygon>, below: List<Polygon>, bw: Long, h: Long, out: MutableList<ToolPath>, grow: Long,
                            feature: Feature = Feature.BRIDGE,
-                           families: List<Bridges.Family>? = null, owners: ((Long) -> List<Polygon>)? = null) {
+                           families: List<Bridges.Family>? = null, owners: ((Long) -> List<Polygon>)? = null, outward: Boolean = false) {
                 val sp = Walls.spacing(bw, h)
                 // beside a fill that owns the edge, against that fill's beads as against a wall's (hatch)
                 val beside = owners?.invoke(contactInset(bw, h) - grow).orEmpty()
                 for ((o, hs) in Polygons.group(region)) {
                     val piece = listOf(o) + hs
-                    val angle = families?.let { Bridges.internalAngle(piece, below, it, sp, bw) } ?: Bridges.bestAngle(piece, below, sp, bw)
+                    val angle = families?.let { Bridges.internalAngle(piece, below, it, sp, bw) } ?: Bridges.bestAngle(piece, below, sp, bw, outward)
                     val hatchIn = Offset.offset(piece, grow - contactInset(bw, h)).let { g -> if (beside.isEmpty() || g.isEmpty()) g else Booleans.difference(g, beside) }
                     val (segs, idx) = Hatch.indexed(hatchIn, angle, sp).let { (sg, ix) -> Hatch.throughGrazes(sg, ix, hatchIn, bw) }
                     for (chain in plymeld.geom.Linker.link(segs, idx, hatchIn, 3 * sp)) out.add(ToolPath(feature, chain, false, bw, h, null))
@@ -1496,7 +1498,10 @@ object Planner {
                 }
             }
             if (bottomFill.isNotEmpty()) surface(bottomFill, Feature.BOTTOM, solidW, Walls.spacing(solidW, h), listOf(solidAngle), s.bottomPattern, ownersOf(0))
-            if (airBridge.isNotEmpty()) bridgeEach(airBridge, airBelow, bw, h, paths, grow = Math.round(s.infillWallOverlap * bw), owners = ownersOf(1))
+            // above the first layer, a layer whose undersides are not grown as wave overhangs lays an area hanging off one side
+            // outward from its supported edge; a layer with waves bridges only what they leave, as the score by both ends picks
+            if (airBridge.isNotEmpty()) bridgeEach(airBridge, airBelow, bw, h, paths, grow = Math.round(s.infillWallOverlap * bw), owners = ownersOf(1),
+                outward = !first && !waveHere)
             if (ib.isNotEmpty()) {
                 val support = Booleans.difference(allPrinted[i - 1], allSparse[i - 1])
                 val across = whole?.sparseFamilies?.get(i - 1) ?: sparseFamilies(s, i - 1, layerTopsUm[i - 1], hs[i - 1], spanAngle(i - 1), spanBase[i - 1] ?: s.infillAngleDeg, sparseCenter)

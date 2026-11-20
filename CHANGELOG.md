@@ -39,6 +39,19 @@ section the release's version and date.
 - `plymeld updates --check` and `plymeld update` say in one line that they could not reach the update feed, naming its
   address, where they stopped with a Java stack trace.
 - `plymeld schema --markdown` refuses a page that does not exist by name, where it stopped with a Java stack trace.
+- Where undersides are laid as bridges (`plan.faces.under.technique = "as_laid"`), an area hanging off one side is now
+  bridged outward from its supported edge, each line anchored on what is printed at one end. No line over such an area
+  lands on printed material at both ends, and the bridge direction, which favors lines anchored at both ends, took the
+  lines lying on its anchor (the strip where the bridge reaches into the material around it) for those: every such area
+  got its supported edge's direction, its lines across it resting on nothing at either end, and areas hanging off one
+  edge at different angles all got the same direction. Now, where no line over air can land on printed material at both
+  ends, the direction is the one with the most of its lines over air anchored at one end at least, per area. A span
+  between two printed supports is bridged across it as before, and undersides grown as wave overhangs (the default) are
+  laid as before.
+- The pre-print check reports a bridge line over air with nothing under either end: neither the model below it, nor
+  support with no part of the model between (a line's end held where printed material lies under it or one line width
+  past it). A warning line of the slice says the layer, how many lines and how long, and where the longest lies, with a
+  picture of the layer; the file is not refused for it.
 
 ## [0.20261120.0] - 2026-11-20
 

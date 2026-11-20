@@ -57,8 +57,8 @@ replace them with yours.
 - Curved techniques: curved top bands, layers that follow the underside, and lifted bridges.
 
 **Checks before you print.** `plymeld slice` reads its own g-code back and checks it against the machine
-(limits, retraction, travels, tools, start, and end) and against the model (lines outside it, and outlines
-left without walls), and predicts time and filament.
+(limits, retraction, travels, tools, start, and end) and against the model (lines outside it, outlines left
+without walls, and, as a warning, bridge lines over air with nothing under either end), and predicts time and filament.
 
 **Draws any g-code.** `plymeld render` pictures what a g-code file lays down, read from the file alone: any layer,
 any cut through it (each line crossing the plane as its bead's cross-section), its outside from a side or in 3D,
