@@ -87,8 +87,7 @@ object TechniqueRender {
          */
         fun beadWidth(m: Move): Double {
             if (filamentDiameter.isNaN() || m.height.isNaN() || m.height <= 0) return m.width
-            val a = m.ePerMm * Math.PI * filamentDiameter * filamentDiameter / 4
-            return a / m.height + m.height * (1 - Math.PI / 4)
+            return plymeld.program.Bead.width(m.ePerMm * Math.PI * filamentDiameter * filamentDiameter / 4, m.height)
         }
         fun layer(i: Int): List<Move> = moves.filter { it.layer == i }
         /** The layer whose stated Z is nearest [z]. */
@@ -231,15 +230,15 @@ object TechniqueRender {
     private val CONTEXT = Color(0xD2, 0xD2, 0xD2)
     private val LAYER_COLORS = listOf(Color(0x2C, 0x5A, 0xA0), Color(0xE0, 0x8A, 0x1E))
     /** The tools, T0 first (blue, red, green, purple). */
-    private val TOOL_COLORS = listOf(Color(0x2C, 0x5A, 0xA0), Color(0xC8, 0x32, 0x32), Color(0x33, 0xA0, 0x2C), Color(0x6A, 0x3D, 0x9A))
-    private val EXTRA = mapOf(
+    internal val TOOL_COLORS = listOf(Color(0x2C, 0x5A, 0xA0), Color(0xC8, 0x32, 0x32), Color(0x33, 0xA0, 0x2C), Color(0x6A, 0x3D, 0x9A))
+    internal val EXTRA = mapOf(
         "Wave overhang" to Color(0x1C, 0x9C, 0xD8), "Bridge tack" to Color(0xD6, 0x4F, 0x8F), "Prime tower" to Color(0x80, 0x80, 0x80),
         "Custom" to Color(0xAA, 0xAA, 0xAA))
-    private val FALLBACK = listOf(Color(0x6A, 0x3D, 0x9A), Color(0xB1, 0x59, 0x28), Color(0x33, 0xA0, 0x2C), Color(0xFB, 0x9A, 0x99))
+    internal val FALLBACK = listOf(Color(0x6A, 0x3D, 0x9A), Color(0xB1, 0x59, 0x28), Color(0x33, 0xA0, 0x2C), Color(0xFB, 0x9A, 0x99))
     /** A gradient, first to last (dark blue, teal, yellow-green, orange, red). */
-    private val RAMP = listOf(Color(0x2B, 0x3A, 0x9F), Color(0x1F, 0x9E, 0x89), Color(0xB5, 0xDE, 0x2B), Color(0xF5, 0x8C, 0x1E), Color(0xC8, 0x1E, 0x1E))
+    internal val RAMP = listOf(Color(0x2B, 0x3A, 0x9F), Color(0x1F, 0x9E, 0x89), Color(0xB5, 0xDE, 0x2B), Color(0xF5, 0x8C, 0x1E), Color(0xC8, 0x1E, 0x1E))
 
-    private fun ramp(t: Double): Color {
+    internal fun ramp(t: Double): Color {
         val s = t.coerceIn(0.0, 1.0) * (RAMP.size - 1)
         val i = min(floor(s).toInt(), RAMP.size - 2); val u = s - i
         val a = RAMP[i]; val b = RAMP[i + 1]
@@ -250,12 +249,12 @@ object TechniqueRender {
         GcodeRender.colors[f] ?: EXTRA[f] ?: seen.getOrPut(f) { FALLBACK[seen.size % FALLBACK.size] }
 
     /** A round length near a fifth of [span]: 1, 2, or 5 times a power of ten. */
-    private fun niceBar(span: Double): Double {
+    internal fun niceBar(span: Double): Double {
         val raw = span / 5; val p = 10.0.pow(floor(log10(raw)))
         return listOf(1.0, 2.0, 5.0, 10.0).map { it * p }.last { it <= max(raw, p) }
     }
 
-    private fun fmt(v: Double): String = if (abs(v - Math.round(v)) < 1e-9) Math.round(v).toString() else "%.3g".format(java.util.Locale.ROOT, v)
+    internal fun fmt(v: Double): String = if (abs(v - Math.round(v)) < 1e-9) Math.round(v).toString() else "%.3g".format(java.util.Locale.ROOT, v)
 
     /**
      * Draws [panels] side by side under [title], all in [view] and at one scale, into [out] (PNG). [zScale] stretches Z in

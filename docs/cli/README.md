@@ -233,6 +233,82 @@ Each prints the change and checks it before writing; `--dry-run` writes nothing,
 the change back. The other plates write a sheet to grade (`readings`), then turn the graded sheet into a config file
 (`values`) to add with `-cf`.
 
+## Look at a g-code
+
+```
+plymeld render part.gcode --layer 60
+```
+
+`plymeld render` draws what a g-code file lays down, read from the file alone: a file plymeld wrote, an older one, or
+one from elsewhere. Nothing is sliced and nothing reaches a printer. Each line is drawn as wide as the plastic it lays,
+at a scale that sets the closest lines at least 3 pixels apart, and every picture's caption says exactly what it shows:
+the layer and its height, the side it is seen from, the scale, and how the lines are drawn and colored. The pictures
+go in `part.render/` beside the file (`-o` puts them elsewhere), one a view, named from it (`layer-0060.png`); with no
+view option, the middle layer is drawn.
+
+```
+plymeld render part.gcode --layer-at-z 12.4 --around 131.2,104.5 --span 8 --show seams
+```
+
+A check message gives a height and a point on the bed: `--layer-at-z` takes the layer that height falls in, and
+`--around` with `--span` draws the square of that side round the point, here with the seams marked.
+
+```
+plymeld render part.gcode --cut-y 110 --z-range 0..6 --cut-depth 0.3
+```
+
+A cut through the print, seen from the side: each line crossing the plane is drawn as its bead's cross-section, so the
+walls, the layers, and how they meet show as they will be printed. `--cut-y` is seen from the front, `--cut-x` from the
+right, `--cut-line` along any line on the bed, and `--cut-plane` through any plane; `--cut-z` is a level plane seen from
+above, which meets a curved layer or a lowered line wherever its bead is. Heights are stretched so a layer is at least
+3 pixels tall (the caption gives the factor; `--height-stretch 1` keeps true proportions), `--z-range` draws only
+some heights, and `--cut-depth` adds the lines running beside the plane, lighter.
+
+```
+plymeld render part.gcode --layer-range 1..40 --layer-step 5 --same-frame --sheet layers.png
+```
+
+Several pictures in one run, each in its own file and all of them in one sheet; `--same-frame` draws them at one scale
+in one frame, for flipping through.
+
+```
+plymeld render part.gcode --layer 30 --color-by tool --only-tool 1 --others faint
+```
+
+Lines colored by the tool that lays them, in the filaments' own colors where the file states them; the `--only-...`
+options choose lines by object, tool, or feature, and `--others faint` keeps the rest in gray. `--list-objects` and
+`--list-features` print the names a file uses.
+
+```
+plymeld render part.gcode --outside front --3d --3d-from 30,20
+```
+
+The whole print: `--outside` from the front, back, left, right, or top shows its outermost lines (the nearest bead at
+each point, not a cut), and `--3d` shows it in 3D from the front-left above, or from where `--3d-from` says (a turn
+round to the right of the front, and a tilt up, in degrees).
+
+```
+plymeld render part.gcode --layer-at-z 12.4 --outline-of part.stl --mark-bare --mark-laid-twice
+```
+
+The model and the check: `--outline-of` draws the model's outline over the lines (a layer at its middle height, a cut
+on its plane), placed where plymeld placed it for the file. `--mark-bare` marks the ground no line covers inside the
+walls and the outline left bare, and `--mark-laid-twice` the plastic laid twice, each by the pre-print check's own
+rules with the settings in the file's source block, their sizes in the caption. They read a file of one object, sliced
+by plymeld, with the model it was sliced from.
+
+```
+plymeld render new.gcode --layer 12 --compare-with old.gcode
+```
+
+Two files compared: each picture becomes three panels, this file, the other drawn with the same options in the same
+frame and at the same scale, and where they differ (only in this file, only in the other, or in both but not alike).
+It shows what a change of settings or of plymeld's version changed in what is laid down.
+
+`plymeld render-plate` is for calibration plates: a fixed set of pictures for reviewing a plate before printing it (a
+top view by flow, the front by temperature, an isometric diagram labeled from the plate's page). `plymeld render` draws
+any file, in the views its options ask for.
+
 ## Every command
 
 The [command reference](reference/README.md) is written from the commands themselves, so it says what `--help` says.

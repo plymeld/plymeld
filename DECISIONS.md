@@ -2092,3 +2092,137 @@ before read 0.298 mm² and 0.120 mm; plastic laid twice no more than the control
 with nothing laid twice; the test seen to fail on the code before); SurfaceFillTest (circles on an oval with a square hole
 run on beside both, each narrowed point's cross-section within the reach, none narrower than half a line; control,
 without the reach: none narrowed).
+
+## 65. `plymeld render` draws any g-code, its options held to seven rules (2026-11-19)
+
+**Context.** Every picture of a g-code was a test's or a calibration plate's (`render-plate`, the techniques' sample
+toolpaths, the check's failure pictures), each with its own reader, scale, and words. Looking at a layer, a spot a check
+message names, or a feature of any file meant writing code. A general command needs options a stranger can read without
+the code beside them.
+
+**Decision.** `plymeld render FILE.gcode` draws what a file lays down, from the file alone: no slicing, no printer, any
+file, plymeld's or not. Its options follow seven rules. (1) One option, one meaning: no option takes two kinds of value, and no
+value has a language beyond a list, a range (`A..B`), or a point (`X,Y`). (2) The name says what the number is: a layer
+number and a height never share an option (`--layer` against `--layer-at-z`, as `slice` has `--pause-at-layer` and
+`--pause-at-z`). (3) Three families told apart by their first word: a view option makes a picture (`--layer...`), an
+`--only-...` option chooses lines, everything else styles or frames every picture of the run. (4) Order never matters.
+(5) Nothing is silently ignored: an option that applies to no picture asked for is refused, naming it and what it needs,
+and two that cannot both hold are refused, naming both; a default the file cannot honor falls back and says so (a file
+naming no features is drawn in one color, with a note), where the same value asked for explicitly is refused. (6) Units
+and numbering are fixed and in the help: lengths in mm (a bare number or `5mm`), the first layer 1, tools by the file's
+own numbers. (7) Every caption states exactly what was drawn: the layer and its height and thickness, the side it is
+seen from, the scale, the frame, and how lines are drawn, colored, chosen, and marked.
+
+A line is as wide as the plastic it lays: the bead model's cross-section (one definition, `plymeld.program.Bead`, which
+the techniques' sample pictures now use too) from the filament the move feeds, on its declared height or its layer's
+thickness. The default scale sets the closest lines in view at least 3 px apart (beads side by side at the bead model's
+spacing, leaving out a move that lays less than half its path's declared width and then the narrowest 1 % of the length
+laid in view: a scarf's ramp or a line's tapered end, which lie on or into a line rather than beside it), the drawing between 1000 and 4096 px on its longer side; where 3 px cannot be
+had, each feature's area is drawn as a flat region with a darker outline and the run names the `--span` at which the
+lines would resolve; `--allow-unresolved-lines` draws them anyway. Such a picture at the default scale is at most 2048
+px on its longer side (plymeld's choice, half the largest drawing's): a region and its outline read at that size, and
+the largest size drew four times the pixels for nothing finer (a whole-print 3D view's command took about two thirds of
+the time at 2048 px); a scale given (`--px-per-mm`, `--picture-size`) or `--allow-unresolved-lines` keeps its own size, and a
+picture seen from the side whose layers alone are too thin to resolve is made no larger either. Consecutive moves of one color turning
+less than 60 degrees are drawn as one stroke, its edge darker and drawn round the stroke as a whole, so neighbors (a
+fill's next pass, a stroke of its own) read apart at their true width; in flat regions each bead is widened by a pixel
+and a half, so lines too close to show close up into one area rather than a pattern of gaps. Arcs are chorded through the
+check's own arc code (`ModelCheck.arcChords`) to within half a micron of the curve. The file is streamed: read once
+to index its layers (each layer's byte offset and the reader's state there), then each picture reads only the layers it
+draws. A
+file plymeld wrote gives its filaments' colors and diameters from its source block. Pictures go to `<file>.render/` (the
+file's name without `.gcode`), one file a view named from it (`layer-0060.png`); PNG by default, SVG on request, from
+the same drawing code.
+
+**Rejected.** Growing `render-plate` into the general command: its pictures are built for one plate's layout (a front
+by temperature, an isometric labeled from the plate's page); it stays as it is and may become views of `render` later.
+One `--view` option with a small language (`--view layer:60`, `--view cut:y=110`): every view's values in one string,
+read by rules a stranger has to learn. Accepting a layer or a height in one option (`--layer 60` or `--layer 12.4mm`):
+a number alone could be either. A fixed scale or picture size: a large part's layer drawn too coarse for its lines to
+read, aliased into patterns that look like defects. Drawing lines at a share of their width so neighbors read apart (the
+sample pictures' way): the gaps shown are not in the print; a darker edge keeps the true width. The strict minimum
+spacing for the scale: a scarf's ramp, laid on the wall at nearly no width, asked for 800 px per mm on a 30 mm part.
+Reading the whole file into memory: a file of hundreds of megabytes would need gigabytes for its moves.
+
+A cut draws each line crossing its plane as its bead's cross-section where the plane meets it: the bead model's section
+swept along the line and cut by the plane (an affine image of the section, so a line crossing at a slant is drawn as
+wide as the plane meets it); a line meeting the plane at less than 3 degrees runs along it and is drawn only within
+`--cut-depth`, from the side. A cut seen from the side has its heights stretched so the thinnest layer crossed is at
+least 3 px tall (the factor in the caption); a level cut (`--cut-z`) is seen from above, each bead whose height range it
+crosses drawn as wide as the bead is at that height, whichever layer laid it. A cut seen from the side reads every
+layer it may cross, in pieces of 8 layers on the processors available, put together in print order: the moves one
+reading gives, the picture the same bytes on any number of threads.
+
+The outside (`--outside`) and 3D (`--3d`) views are orthographic and drawn into a depth buffer: every chosen move a
+round bead swept along it (as wide as its plastic, as tall as its layer, stretched as the heights are), the nearest kept
+at each pixel and shaded as a tube, the file read a run of 64 layers at a time; where the lines cannot be resolved, flat
+colors with an outline at every change of color and every step in depth of more than 1 mm. Each pixel shows the
+nearest bead, and of beads at exactly the same depth the one printed first, so the picture does not depend on the order
+the beads are drawn in. They are drawn nearest first where print order allows it: seen from above, in exactly the
+reverse of print order (the top layers first), from below in print order; a coarse map of 16 px tiles holds each tile's
+farthest depth drawn, and a bead behind the whole of a tile (its middle line's nearest depth over the stretch beside the
+tile, less its bulge) passes the tile over without reading its pixels. Seen level from a side, print order is not
+nearest first and no tile is passed over: working out a tile's farthest depth again after every bead cost more than it
+saved (an outside view from the front took three times as long). The work is shared out over the processors available:
+the file is read in pieces of 8 layers, 8 pieces at once (each from its own offset through the index, so 64 layers are
+in memory at a time as before, and the pieces are the same whatever the number of threads), and each batch's beads are
+drawn by bands of 16 rows (one tile) at once, every band drawing the beads that reach it in the same order; a pixel belongs to one
+band, which draws into it in the order a single thread would, so the picture is the same bytes on any number of threads
+(no option sets the number: plymeld has none for such work, and the result does not depend on it). Rejected: a buffer
+for each thread merged by depth at the end, a whole picture's buffers again for every thread, which a 256 MB heap does
+not hold at 18 threads. The first pass a whole-print view needs (the extent it draws as it sees it, the gradient's
+range, the closest lines' spacing and the thinnest layer) is made in the index's own reading, so the file is read once
+before it is drawn rather than twice. The index reads before it knows all the file states, so those sums are made on
+what is known at each move and kept only where that held to the end; the view reads the file again for its first pass
+where a filament diameter is stated after moves of its tool (a settings block at the file's
+end), where a layer's thickness changed while it was read (a height declared after moves that declare none), where a
+layer counted from is one the view does not read (`--z-range` against a layer's own heights), or for a tool numbered 64
+or more. A bead that runs at least 4 brush widths across and up is drawn along each row's span, the columns its stadium
+(the brush swept along the move) reaches on that row worked out exactly, one more each side, and only those pixels
+tested, not its whole bounding box, which is mostly empty; a shorter or level bead takes whole rows of its box, which
+cost less than its spans (plymeld's choice of 4: spans for every bead drew a small print's 3D view slower, and a large
+file's faster). A row of tiles the bead is hidden in all through is passed over before its spans are worked
+out. The shading is kept in 256 steps a pixel (a byte, so a
+whole-print picture's buffers stay under 11 bytes a pixel); against the floating shade it replaced, a shaded pixel's
+channel moves by at most one level (the step is 1/510 of the bulge, a quarter of a level at most before rounding), and
+flat pictures are unchanged. `--compare-with` draws the
+other file with the same options, both in the frame that holds the two at the finer scale, and compares them pixel by
+pixel (alike within 24 levels a channel, for an edge's smoothing).
+
+`--mark-bare` and `--mark-laid-twice` are the pre-print check's own readings, not a second measure: ModelCheck.marks runs
+the check's layer reading (the bare-outline, hole, and laid-twice rules) on the layers drawn, with the settings the check
+reads for the object (resolved from the file's source block and the model, planned again with every decision locked as
+`slice --from` does). Both need the model (`--outline-of`): the bare rules read its cross-section, and the settings the
+check reads are the object's. A file of one object on flat layers only: the check reads a plate's objects and a curved
+band each in its own frame, not built here yet, and refused. `--outline-of` cuts the model's triangles by the picture's
+plane; a file without a source block takes the model as its file places it, and says so.
+
+**Consequences.** Every view, framing, choosing lines, coloring, marks, the model's outline and the check's measures,
+the sheet, PNG and SVG are built. `--only-part` is refused for every file plymeld reads today: none names its parts. `render-plate`
+and its pictures are unchanged; the techniques' sample pictures are unchanged (the bead width they read is the same
+number by the same formula). Tests on synthetic g-code only: RenderLayerTest (lines where they lie and nowhere else,
+control: a line left out; widths from the plastic, control: as declared; arcs against the same path in 4000 short lines,
+fewer than 0.1 % of pixels differing, control: a half circle, and the test seen to fail with the arc reader taken out;
+the lines `--only-object` chooses; the legibility rule's regions and `--span`; a file that marks no layers and names
+nothing; `--layer-at-z`; the sheet; the same bytes for the same options, PNG and SVG), RenderRefusalTest (every refusal,
+naming its options; control: each option accepted where it applies), RenderCutTest (a cut through a box of two walls
+shows four bead sections a layer at the walls' places, three layers tall, control: one wall, two sections; the side
+each cut is seen from, control: a line drawn the other way; a level cut meets a lowered line of the layer above,
+control: a higher cut does not meet the layer below; `--cut-depth`; the cut options' refusals), RenderSolidTest (the
+outside from the front shows the front wall's tool, control: from the back the other; from the top the top layer, and 3D
+from straight above draws the same, control: from the front-left above it does not; `--compare-with` marks the line two
+files differ by, control: a file against itself differs nowhere; the refusals), RenderMarksTest (on the generated hole
+block sliced with the sample config: the model's outline along the block's sides, control: none without
+`--outline-of`; a wall move laid again marked laid twice and one left out marked bare, control: the file as sliced marks
+neither; the refusals), RenderSolidBytesTest (eight whole-print views of a synthetic print, PNG and SVG, the same bytes
+as recorded from the plain one-pass depth buffer; seen to fail with the tie rule for beads at the same depth taken out;
+five views and a cut of a 40-layer print, and of the same print marking no layers, the same bytes on 1, 3, and 8
+threads, seen to fail with the pieces used out of order on several threads, for the views and for the cut), IndexSurveyTest (the first pass made in the index's reading is the view's own pass, bit for bit, for
+every coloring, both line widths, lines chosen and kept, several views, and a file marking no layers, seen to fail with
+the part fan taken at double precision; a diameter stated at the end and a height declared late give none, control: the
+same print stating them first gives one), CapsuleSpanTest (4000 random beads, of no length, under a pixel, off the
+picture, steep, shallow, and long, and 300 heaps of them with beads at the same depth: the same pixels and values as
+the bounding-box routine drawn in print order, drawn in print order, in reverse, with tiles passed over, and by bands;
+seen to fail with one round end left out of the span; control: in reverse without the same-depth rule, two beads at
+one depth differ), RenderLargeTest (a slow suite: 2500 layers, 15 MB, drawn in 3D in a JVM of its own with a 64 MB
+heap within 30 s, 1.5 s measured; control: a 24 MB heap runs out).

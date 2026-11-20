@@ -45,7 +45,7 @@ class Plymeld : CliktCommand(name = "plymeld") {
 
     override fun help(context: com.github.ajalt.clikt.core.Context) =
         "plymeld — a 3D print slicer. Commands: slice (models to g-code), plan (how plymeld would print the models, and why), and config (what the config adds up to), " +
-            "each with config files (-cf), config values (-cv), and models (-m); schema (the config's JSON Schema, or the settings reference); calibrate (a calibration plate for one filament); render-plate (pictures of a plate from its g-code); layers (inspect a model's slices); " +
+            "each with config files (-cf), config values (-cv), and models (-m); schema (the config's JSON Schema, or the settings reference); calibrate (a calibration plate for one filament); render (pictures of what any g-code file lays down); render-plate (pictures of a plate from its g-code); layers (inspect a model's slices); " +
             "printer (talk to the machine's printer over its connection in the config: status, watch, camera, files, send, pause, resume, cancel, loadout, which compares what it has loaded with the config's, and credential, which sets one in its secrets file; each says what it sends); " +
             "investigate (slice, plan, check, config with the settings in a project or g-code file, to compare plymeld's result with that file — never how a print is set up — and predict, the time and filament of any g-code file); " +
             "commands (every command and option plymeld has, and every config path, as the UI reads them; or the command reference as Markdown pages); " +
@@ -65,7 +65,7 @@ class Plymeld : CliktCommand(name = "plymeld") {
 object Commands {
     /** The command tree, fresh (Clikt commands hold their parsed values, so each parse gets its own). */
     fun tree(): Plymeld = Plymeld().subcommands(SliceCommand(), PlanCommand(), ShowConfigCommand(), SchemaCommand(), LayersCommand(), CalibrateCommand(),
-        RenderPlateCommand(), PrinterCommand(), InvestigateCommand(), CommandsCommand(), EditCommand(), JournalCommand(), InitCommand(), ReportCommand(), UpdatesCommand(), UpdateCommand(), MigrateCommand())
+        RenderCommand(), RenderPlateCommand(), PrinterCommand(), InvestigateCommand(), CommandsCommand(), EditCommand(), JournalCommand(), InitCommand(), ReportCommand(), UpdatesCommand(), UpdateCommand(), MigrateCommand())
 
     /**
      * Runs a command line as the CLI does and returns the exit status. Refusals (plymeld's own `require` / `error`
