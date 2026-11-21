@@ -22,6 +22,8 @@ data class MachineDescription(
     /** Motion limits (Klipper names: max_velocity, max_accel, max_z_velocity, max_z_accel, square_corner_velocity), each with evidence. */
     val motion: Map<String, MotionLimit> = emptyMap(),
     val notes: List<String> = emptyList(),
+    /** How pressure advance is set mid-print on this model; null = plymeld knows no way to set it. */
+    val pressureAdvance: PressureAdvanceCommand? = null,
 ) {
     private val byWord = commands.associateBy { it.word.uppercase() }
 
@@ -49,6 +51,17 @@ data class MachineDescription(
 }
 
 data class Command(val word: String, val purpose: String = "", val evidence: List<Evidence>)
+
+/**
+ * The g-code that sets pressure advance mid-print for the tool in hand: [template] in plymeld's template language, the
+ * name `pressure_advance` standing for the value in [unit] ("s" or "ms"), with its [evidence].
+ */
+data class PressureAdvanceCommand(val template: String, val unit: String, val evidence: List<Evidence>) {
+    init { require(unit in UNITS) { "pressure advance unit '$unit' is not one of ${UNITS.joinToString()}" } }
+    /** [seconds] in the command's unit. */
+    fun inUnit(seconds: Double): Double = if (unit == "ms") seconds * 1000 else seconds
+    companion object { val UNITS = listOf("s", "ms") }
+}
 
 /**
  * kind, strongest first: `tested` (printed on the machine, result recorded), `firmware_config`

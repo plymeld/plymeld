@@ -77,6 +77,13 @@ object Models {
             Toolhead(index.toIntOrNull() ?: error("hardware.model.$key.toolhead.$index: a toolhead is keyed by its index, from 0"),
                 geometry, evidence(ev?.value as? String, ev ?: es.first()) + elsewhere, at("heat.time")?.let { qty(it, Dimension.TIME) })
         }.sortedBy { it.index }
+        // how it sets pressure advance: its command and the unit the command takes, the evidence set beside them
+        val paCommand = c.entry(base + listOf("pressure_advance", "command"))
+        val pressureAdvance = paCommand?.let { e ->
+            val unit = (c.entry(base + listOf("pressure_advance", "unit"))?.value as? String) ?: "s"
+            val ev = c.entry(base + listOf("evidence", "pressure_advance"))?.takeIf { origin(it) == origin(e) }
+            plymeld.machine.PressureAdvanceCommand((e.value as String).trim(), unit, evidence(ev?.value as? String, e))
+        }?.takeIf { it.template.isNotEmpty() }
         return MachineDescription(
             id = key,
             name = text("name") ?: key,
@@ -88,6 +95,7 @@ object Models {
             toolheads = toolheads,
             motion = motion,
             notes = text("notes")?.lines()?.filter { it.isNotBlank() } ?: emptyList(),
+            pressureAdvance = pressureAdvance,
         )
     }
 

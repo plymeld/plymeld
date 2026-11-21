@@ -4,7 +4,7 @@
 
 [Command reference](README.md)
 
-Make a calibration plate for one filament (--filament, --tool), printed exactly as specified: one subcommand per plate, in the order to run them (each plate's results lean on the ones before it): 'melt' (the melt rate: a column per temperature, a row per flow, each row's flow printed beside it. Run it first: an accurate melt rate drives so much of the rest, and the other plates are not reliable until it is measured); 'flow' (the flow ratio: a column per temperature, a patch per ratio, each patch solid at its own ratio and its top laid at its column's temperature; after the melt plate); 'first-layer' (the first layer: nozzle height x first-layer speed by temperature, one layer of tiles in one piece, a column per temperature and a row per speed and height (a frame over their walls and a border round the base to peel it by); after the flow plate); 'motion' (the machine: the speed and acceleration a visible wall holds without ringing, per direction: one cross-shaped tower, twelve faces at six speeds (one along X and one along Y each), a band per acceleration, the top band's fastest faces at the machine's limits; graded per cell, the readings become the machine's visible speed and acceleration; after the first-layer plate (the tower, shaken at the machine's limits, needs a first layer that holds)); 'filament' (the filament's other tests by temperature band, once its melt rate and flow ratio are measured: overhangs, bridges, stringing, line widths, fit (--tests picks a subset)); 'ironing' (the ironing values: one flat slab whose top is divided into zones, each ironed with its own combination of flow, line spacing, speed, angle, and inset, a control zone per speed left as laid; graded zone by zone, the readings become the ironing values); 'seams' (the seam measure's shares: eight hollow pieces on one slab, each with its outer wall's seam laid one way (a point seam or plymeld's scarf, on a round wall, mid-face, in a corner, on a face leaning 30 and 45 degrees); graded piece by piece for how far away the seam shows, the ratios become method.quality.seam.scarf\_share, .corner\_share and method.quality.visibility.under). Every plate but the melt and flow plates also checks its g-code against its specification and writes an instructions page. Readings and write-backs sit under their plate: `melt values`, `flow values`, `first-layer values`, `motion readings`, `motion values`, `ironing readings`, `ironing values`, `seams readings`, `seams values`.
+Make a calibration plate for one filament (--filament, --tool), printed exactly as specified: one subcommand per plate, in the order to run them (each plate's results lean on the ones before it): 'melt' (the melt rate: a column per temperature, a row per flow, each row's flow printed beside it. Run it first: an accurate melt rate drives so much of the rest, and the other plates are not reliable until it is measured); 'flow' (the flow ratio: a column per temperature, a patch per ratio, each patch solid at its own ratio and its top laid at its column's temperature; after the melt plate); 'pressure-advance' (the pressure advance: straight walls printed slow, fast, slow, each at its own value, read for a groove or a ridge just after each speed change; the value is where the grooves turn into ridges, each value twice; then a confirm plate at three flow steps (--confirm); beside the flow plate, after the melt plate); 'first-layer' (the first layer: nozzle height x first-layer speed by temperature, one layer of tiles in one piece, a column per temperature and a row per speed and height (a frame over their walls and a border round the base to peel it by); after the flow plate); 'motion' (the machine: the speed and acceleration a visible wall holds without ringing, per direction: one cross-shaped tower, twelve faces at six speeds (one along X and one along Y each), a band per acceleration, the top band's fastest faces at the machine's limits; graded per cell, the readings become the machine's visible speed and acceleration; after the first-layer plate (the tower, shaken at the machine's limits, needs a first layer that holds)); 'filament' (the filament's other tests by temperature band, once its melt rate and flow ratio are measured: overhangs, bridges, stringing, line widths, fit (--tests picks a subset)); 'ironing' (the ironing values: one flat slab whose top is divided into zones, each ironed with its own combination of flow, line spacing, speed, angle, and inset, a control zone per speed left as laid; graded zone by zone, the readings become the ironing values); 'seams' (the seam measure's shares: eight hollow pieces on one slab, each with its outer wall's seam laid one way (a point seam or plymeld's scarf, on a round wall, mid-face, in a corner, on a face leaning 30 and 45 degrees); graded piece by piece for how far away the seam shows, the ratios become method.quality.seam.scarf\_share, .corner\_share and method.quality.visibility.under). Every plate but the melt and flow plates also checks its g-code against its specification and writes an instructions page. Readings and write-backs sit under their plate: `melt values`, `flow values`, `pressure-advance readings`, `pressure-advance values`, `first-layer values`, `motion readings`, `motion values`, `ironing readings`, `ironing values`, `seams readings`, `seams values`.
 
 Usage: `plymeld calibrate [<options>] <command> [<args>]...`
 
@@ -12,6 +12,7 @@ Subcommands:
 
 - [`melt`](#plymeld-calibrate-melt): The melt plate, run first: the filament's maximum flow at each temperature, as a table printed in plastic: a column per temperature (--temps, --step), a row per flow (--flow-step), each row the same line at its own speed, its flow printed beside it and each column's temperature in front of it.
 - [`flow`](#plymeld-calibrate-flow): The flow plate, after the melt plate: the filament's flow ratio at each temperature: a column per temperature (--temps, --step), a square patch per flow ratio (--flow-ratios), each patch solid at its own ratio with its lines exactly the bead spacing apart, its top laid at its column's temperature; each patch's ratio printed beside its row and each column's temperature in front of it.
+- [`pressure-advance`](#plymeld-calibrate-pressure-advance): The pressure-advance plate, after the melt plate (its fast speed is held to the melt rate) and beside the flow plate: straight single-line walls on one base, each printed the same way on every layer, slow, then fast, then slow, at its own pressure advance, set just before it.
 - [`first-layer`](#plymeld-calibrate-first-layer): The first-layer plate: one layer of first-layer tiles laid out as a table, one piece: a column per temperature (--temps, --step; coolest first, heating and priming between columns), and in each column a group of rows per speed (--first-speeds), a row per nozzle height in each (--first-heights), every tile a strip of the same size; each column's temperature, each speed, and each row's height raised on a base along the plate's front and left.
 - [`motion`](#plymeld-calibrate-motion): The motion plate, once per printer: one hollow cross-shaped tower whose twelve faces print at six speeds (--motion-speeds; one face along X and one along Y for each) and whose bands print at one acceleration each (--motion-accels), the fastest face of the top band at the machine's limits (the control), each face's speed printed on the slab in front of it; the tower at one temperature (the filament's temperature.print, or --print-temp), the slab's first layer at the filament's first-layer temperature.
 - [`filament`](#plymeld-calibrate-filament): The filament plate, once its melt rate and flow ratio are measured: the filament's other families of tests (--tests: overhangs, bridges, stringing, line widths, fit) with the temperature varied by band of height, each family on a base of its own, packed to fit the bed, with each family's predicted time and filament.
@@ -117,6 +118,73 @@ Options:
 - `--plate-gcode=<plate>`: the flow plate's g-code, as plymeld wrote it: named, with the plymeld that made it, in the comment
 - `--dry-run`: print the change and check it; write nothing
 - `--journal=<journal>`: record the change in this journal file; default: the config journal in plymeld's state folder (config.journal.json)
+- `-h, --help`: Show this message and exit
+
+## `plymeld calibrate pressure-advance`
+
+The pressure-advance plate, after the melt plate (its fast speed is held to the melt rate) and beside the flow plate: straight single-line walls on one base, each printed the same way on every layer, slow, then fast, then slow, at its own pressure advance, set just before it. Too little leaves the line thin just after the speed-up (a groove up the wall) and fat just after the slow-down (a ridge); too much the other way round. The find plate prints two rows, the front one's values rising, the back one's falling (each value twice), a corner beside each wall to confirm it, the values 0 and, each a fixed ratio below the next, from the plate's top (the tool's ceiling, or the highest value whose walls fit the bed) (hardware.tool.&lt;key&gt;.calibrate.pressure\_advance.max) down to the tool's lowest (.min), or --values, or evenly inside --bracket for a fine plate; the confirm plate (--confirm VALUE --confirm-step S) prints the value and its neighbors at three flow steps; on a machine that sets its own (firmware.own\_pressure\_advance), --confirm machine checks its value with no command written. Each wall's value is printed in front of it in milliseconds, a hole marks each speed change. `pressure-advance readings` writes the sheet to fill in; `pressure-advance values` turns it into the filament's pressure advance (hardware.filament.&lt;key&gt;.pressure\_advance), or the tool's with --into tool.
+
+Usage: `plymeld calibrate pressure-advance [<options>] [<command>] [<args>]...`
+
+Subcommands:
+
+- [`readings`](#plymeld-calibrate-pressure-advance-readings): Write the readings sheet for a printed pressure-advance plate: an entry per wall with its value, each reading '?'.
+- [`values`](#plymeld-calibrate-pressure-advance-values): Turn a filled-in pressure-advance readings sheet into a pressure advance: on the find plate the middle of the bracket between the highest groove and the lowest ridge at the speed-up marks (flat walls inside it), refused when nothing flips, the two rows disagree by more than one step (one wall's place on the plate), the readings are out of order, a corner contradicts its wall, or a wall's two marks read alike; on the confirm plate whether the value holds at the three flow steps, depends on the flow, or gives none.
+
+Options:
+
+- `-cf, --config-file=FILE|GLOB`: a config file (.toml or .json) or a glob of them; repeatable, read in order (a glob's matches in natural order); later files win; none given: every .toml file in plymeld's config folder (secrets.toml aside)
+- `-cv, --config-value=<path=value>`: one config value, e.g. job.priorities.speed=5 or plan.technique.flat.layer.height=0.2mm; repeatable; wins over every file
+- `--machine=<key>`: the machine that prints (hardware.machine.&lt;key&gt;; its loadout gives the plate, tools, and filaments); default: job.machine, else the only machine the config defines
+- `-o, --output=<file>`: g-code file to write (required for a plate)
+- `--filament=<name>`: the filament to calibrate: any the config or plymeld's bundled set defines (e.g. pla-generic), loaded or not; a new one with --like; default: the one the machine's loadout puts on --tool
+- `--like=<name>`: for a --filament the config does not define: start it from this one's values (placeholders until measured)
+- `--tool=<n>`: the machine's tool (its index, from 1) to print with (default: 1)
+- `--plate=<key>`: the build plate (hardware.plate.&lt;key&gt;): its bed temperature for the filament; plymeld's own are pei and cool; default: the one loaded on the machine (hardware.machine.&lt;key&gt;.loadout.plate), else the only one the config defines itself
+- `--no-level`: do not run the machine's bed levelling (hardware.machine.&lt;key&gt;.gcode.level) before the plate
+- `--values=<s,s,...>`: the find plate's values (s, or 40ms), rising, each printed twice; default: 0 and 10 values from the tool's lowest (hardware.tool.&lt;key&gt;.calibrate.pressure\_advance.min) to the plate's top, each a fixed ratio below the next: the tool's ceiling (.max), or the highest value whose walls fit the bed
+- `--bracket=<low-high>`: a fine find plate: 11 values evenly from LOW to HIGH (s), the bracket a first plate gave (`pressure-advance values` prints it)
+- `--confirm=S|machine`: the confirm plate: the value (s) and its neighbors, each at three flow steps; 'machine' on a machine that sets its own (hardware.machine.&lt;key&gt;.firmware.own\_pressure\_advance): its own value, no command written
+- `--confirm-step=<s>`: with --confirm VALUE: the step (s) from the value to each neighbor, the step of the plate that gave it (`pressure-advance values` prints it)
+- `--speeds=<slow,fast>`: the walls' slow and fast speeds (mm/s); default: a visible wall's speed (plan.mechanism.motion.visible.speed) and the machine's print speed (hardware.machine.&lt;key&gt;.motion.print.speed), each held to the filament's maximum flow
+- `-h, --help`: Show this message and exit
+
+### `plymeld calibrate pressure-advance readings`
+
+Write the readings sheet for a printed pressure-advance plate: an entry per wall with its value, each reading '?'. Replace each '?' with groove, flat, or ridge (just after the speed-up and the slow-down marks; a corner: bulge, sharp, or round), then turn the sheet into a pressure advance with `calibrate pressure-advance values`.
+
+Usage: `plymeld calibrate pressure-advance readings [<options>] <plate>`
+
+Arguments:
+
+- `<plate>`: the pressure-advance plate's g-code, as `plymeld calibrate pressure-advance` wrote it
+
+Options:
+
+- `-o, --output=<file>`: write the sheet to this TOML file (default: print it)
+- `-h, --help`: Show this message and exit
+
+### `plymeld calibrate pressure-advance values`
+
+Turn a filled-in pressure-advance readings sheet into a pressure advance: on the find plate the middle of the bracket between the highest groove and the lowest ridge at the speed-up marks (flat walls inside it), refused when nothing flips, the two rows disagree by more than one step (one wall's place on the plate), the readings are out of order, a corner contradicts its wall, or a wall's two marks read alike; on the confirm plate whether the value holds at the three flow steps, depends on the flow, or gives none. Writes it into the config file that defines the filament (among the files -cf names; else plymeld's config folder's), or the tool's with --into tool, the plate, its conditions, and the bracket in the comment above it; prints the change, checks it, writes it, and records it for `plymeld journal --undo`.
+
+Usage: `plymeld calibrate pressure-advance values [<options>] <readings>`
+
+Arguments:
+
+- `<readings>`: the filled-in readings sheet, as `plymeld calibrate pressure-advance readings` wrote it
+
+Options:
+
+- `-cf, --config-file=FILE|GLOB`: a config file (.toml or .json) or a glob of them; repeatable, read in order (a glob's matches in natural order); later files win; none given: every .toml file in plymeld's config folder (secrets.toml aside)
+- `-cv, --config-value=<path=value>`: one config value, e.g. job.priorities.speed=5 or plan.technique.flat.layer.height=0.2mm; repeatable; wins over every file
+- `--machine=<key>`: the machine that prints (hardware.machine.&lt;key&gt;; its loadout gives the plate, tools, and filaments); default: job.machine, else the only machine the config defines
+- `--tool=<n>`: the machine's tool (its index, from 1) the plate printed with; default: 1 (the first-layer plate: the tool its g-code names)
+- `--filament=<name>`: the filament the plate printed; default: the one the machine's loadout puts on --tool
+- `--plate-gcode=<plate>`: the pressure-advance plate's g-code, as plymeld wrote it: named, with the plymeld that made it, in the comment
+- `--dry-run`: print the change and check it; write nothing
+- `--journal=<journal>`: record the change in this journal file; default: the config journal in plymeld's state folder (config.journal.json)
+- `--into=filament|tool`: write the value as the filament's (hardware.filament.&lt;key&gt;.pressure\_advance, the default) or the tool's (hardware.tool.&lt;key&gt;.pressure\_advance)
 - `-h, --help`: Show this message and exit
 
 ## `plymeld calibrate first-layer`

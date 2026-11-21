@@ -1,6 +1,5 @@
 package plymeld.commands
 
-import com.github.ajalt.clikt.core.UsageError
 import com.github.ajalt.clikt.core.parse
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
@@ -56,10 +55,10 @@ class FlowValuesTest : StringSpec({
 
     "refused: a column with no good patch, one temperature twice, a filament the config files do not define" {
         val dir = copy(); val f = dir.resolve("01_FILAMENTS.toml"); val original = Files.readString(f)
-        shouldThrow<UsageError> { run(dir, "210=1.06+") }.message!! shouldContain "above the plate's range"
-        shouldThrow<UsageError> { run(dir, "210=0.94-") }.message!! shouldContain "below the plate's range"
-        shouldThrow<UsageError> { run(dir, "210=1", "210=0.98") }.message!! shouldContain "given twice"
-        shouldThrow<UsageError> { run(dir, "--filament", "pla-generic", "210=1") }.message!! shouldContain "not defined in your config files"
+        shouldThrow<RuntimeException> { run(dir, "210=1.06+") }.message!! shouldContain "above the plate's range"
+        shouldThrow<RuntimeException> { run(dir, "210=0.94-") }.message!! shouldContain "below the plate's range"
+        shouldThrow<RuntimeException> { run(dir, "210=1", "210=0.98") }.message!! shouldContain "given twice"
+        shouldThrow<RuntimeException> { run(dir, "--filament", "pla-generic", "210=1") }.message!! shouldContain "not defined in your config files"
         Files.readString(f) shouldBe original
     }
 })

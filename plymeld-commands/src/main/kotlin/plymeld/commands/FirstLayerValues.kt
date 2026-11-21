@@ -28,26 +28,26 @@ class FirstLayerValuesCommand : FilamentValuesCommand("first-layer plate") {
     override fun run() {
         val gcode = plateGcode ?: throw UsageError("--plate-gcode is needed: the first-layer plate's g-code gives its columns, heights, speeds, filament, tool, and build plate")
         val plate = try { FirstLayerRecord.read(java.nio.file.Files.readString(gcode), gcode.fileName.toString()) }
-            catch (e: IllegalArgumentException) { throw UsageError(e.message ?: "not a first-layer plate") }
+            catch (e: IllegalArgumentException) { throw IllegalArgumentException(e.message ?: "not a first-layer plate") }
         val given = readings.map { parse(it) }
-        given.groupBy { it.tempC }.filterValues { it.size > 1 }.keys.firstOrNull()?.let { throw UsageError("$it C is given twice: one reading per column") }
+        given.groupBy { it.tempC }.filterValues { it.size > 1 }.keys.firstOrNull()?.let { throw IllegalArgumentException("$it C is given twice: one reading per column") }
         val temps = plate.columns.map { it.tempC }
         val missing = temps - given.map { it.tempC }.toSet()
-        if (missing.isNotEmpty()) throw UsageError("the plate's columns are ${temps.joinToString { "$it C" }}: give a reading for each (${missing.joinToString { "$it C" }} missing; TEMP=none for a column with no good tile)")
-        (given.map { it.tempC } - temps.toSet()).firstOrNull()?.let { throw UsageError("$it C is not one of the plate's columns (${temps.joinToString { c -> "$c C" }})") }
+        if (missing.isNotEmpty()) throw IllegalArgumentException("the plate's columns are ${temps.joinToString { "$it C" }}: give a reading for each (${missing.joinToString { "$it C" }} missing; TEMP=none for a column with no good tile)")
+        (given.map { it.tempC } - temps.toSet()).firstOrNull()?.let { throw IllegalArgumentException("$it C is not one of the plate's columns (${temps.joinToString { c -> "$c C" }})") }
         // each reading one the plate tried, and its tile (the fastest good speed at the lowest good height) printed in its column
         for (g in given) {
             val h = g.heightMm ?: continue; val s = g.speedMmS!!
-            val c = plate.heights.indexOfFirst { Math.abs(it - h) < 1e-9 }.takeIf { it >= 0 } ?: throw UsageError("${g.tempC} C: ${mm(h)} is not one of the plate's heights (${plate.heights.joinToString { mm(it) }})")
-            val r = plate.speeds.indexOfFirst { Math.abs(it - s) < 1e-9 }.takeIf { it >= 0 } ?: throw UsageError("${g.tempC} C: ${mms(s)} is not one of the plate's speeds (${plate.speeds.joinToString { mms(it) }})")
+            val c = plate.heights.indexOfFirst { Math.abs(it - h) < 1e-9 }.takeIf { it >= 0 } ?: throw IllegalArgumentException("${g.tempC} C: ${mm(h)} is not one of the plate's heights (${plate.heights.joinToString { mm(it) }})")
+            val r = plate.speeds.indexOfFirst { Math.abs(it - s) < 1e-9 }.takeIf { it >= 0 } ?: throw IllegalArgumentException("${g.tempC} C: ${mms(s)} is not one of the plate's speeds (${plate.speeds.joinToString { mms(it) }})")
             if ((r + 1 to c + 1) !in plate.columns.single { it.tempC == g.tempC }.printed)
-                throw UsageError("${g.tempC} C: the plate left out its ${mms(s)} tile at ${mm(h)} (over the melt limit), so it was not graded good")
+                throw IllegalArgumentException("${g.tempC} C: the plate left out its ${mms(s)} tile at ${mm(h)} (over the melt limit), so it was not graded good")
         }
         val good = given.filter { it.heightMm != null }
-        if (good.isEmpty()) throw UsageError("no column has a good tile: there is no window to write")
+        if (good.isEmpty()) throw IllegalArgumentException("no column has a good tile: there is no window to write")
         val t = target(plate.tool, plate.filament)
-        if (t.toolN != plate.tool) throw UsageError("the plate printed with tool ${plate.tool}; --tool says ${t.toolN}")
-        val boreE = t.config.entry(listOf("hardware", "tool", t.tool, "bore")) ?: throw UsageError("tool '${t.tool}' has no bore (hardware.tool.${t.tool}.bore): a window applies only to the bore it was measured with")
+        if (t.toolN != plate.tool) throw IllegalArgumentException("the plate printed with tool ${plate.tool}; --tool says ${t.toolN}")
+        val boreE = t.config.entry(listOf("hardware", "tool", t.tool, "bore")) ?: throw IllegalArgumentException("tool '${t.tool}' has no bore (hardware.tool.${t.tool}.bore): a window applies only to the bore it was measured with")
         val bore = t.config.quantity(boreE, Dimension.LENGTH, Site(machine = t.machine, tool = t.tool, filament = t.filament))
         val win = listOf("hardware", "filament", t.filament, "first_layer", "window", plate.buildPlate)
         val key = ConfigFiles.pathText(win)

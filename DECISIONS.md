@@ -2486,3 +2486,87 @@ usage error: the command line uses 1.
 unknown word: the window takes models by `-m`, and its desktop entry passes none. On Windows the window's program is
 a windowed program, so a command's output shows where its output is redirected (a script, a pipe), not in an
 interactive console; the installed `plymeld` is the command line there.
+
+## 71. Pressure advance is set with the machine model's own command; a machine may keep it as its own (2026-11-20)
+
+**Context.** The writer wrote Klipper's `SET_PRESSURE_ADVANCE ADVANCE=` itself, whatever the machine. Other firmware
+sets it with other commands and units (Marlin `M900 K`, RepRapFirmware `M572 D S`), and a calibration plate that
+measures pressure advance must set it mid-print, before each element. Some machines measure or keep their own value,
+and a value in the g-code would replace it.
+
+**Decision.** The printer model describes how pressure advance is set mid-print, as it describes the commands it
+accepts: `hardware.model.<key>.pressure_advance.command`, a template with `{pressure_advance}` standing for the value,
+and `.unit`, the unit the command takes it in (`s` or `ms`; unset = `s`), with their evidence beside them. The bundled
+models carry Klipper's command in seconds (Klipper's G-Codes and Config Reference). The writer renders that template
+when a tool starts with a value set, and wherever a program sets one (`SetPressureAdvance`, a calibration plate's
+step); a value set for a model with no command is refused, naming the setting. `hardware.machine.<key>.firmware.own_pressure_advance = true`
+says the machine sets its own: plymeld then writes none, whatever the machine, a tool, or a filament sets. The g-code
+check reads every such command back through the same template and holds it to the config's value for the tool in hand
+(none where the config sets none or the machine sets its own), except on a plate that sets its own values on purpose.
+
+**Rejected.** A command per firmware flavor in the writer: the command is the machine's fact, with evidence, and a
+user's own model may need another. The command on the machine rather than its model: every other g-code fact about
+what a printer accepts is the model's, and a machine's config may override a bundled model's values as it may any.
+Dropping a value silently where no command is known: the print would differ from what the config says. A machine's own
+value as a third source under the filament's, tool's, and machine's: plymeld cannot read it, so it can only be left
+alone.
+
+**Consequences.** A machine of a bundled model writes the same files as before. A model of the user's own needs
+`pressure_advance.command` before a pressure advance can be set for it. Whether a machine's own value survives a
+command in the file is not known per machine: `own_pressure_advance` is the user's statement, and the pressure-advance
+plate offers such a machine only a check of its value (decision 72).
+
+## 72. Pressure advance is read as the sign of a defect on straight walls whose speed steps, each value twice (2026-11-20)
+
+**Context.** The usual tests read pressure advance as the best-looking of near-identical neighbors, on corners that
+also carry ringing and corner-speed limits, with the value changing by height (cooling and first-layer squish change
+with it), one sample per value, and one speed, acceleration, and flow.
+
+**Decision.** The value is read as the sign of a defect that reverses through it: a straight single-line wall printed
+the same way on every layer, slow, fast, slow, at its own value set just before it. Set short of the true value, the
+line just after the speed-up is thin (a groove stacked up the wall) and just after the slow-down fat (a ridge); set
+long, the other way round; the answer is where the grooves turn into ridges, bracketed from both sides. Values stand
+side by side on one base, never by height, the first layer and the base unread. Every value is printed twice, the back
+row in the opposite order, and rows that disagree by more than a step (one wall's place on the plate, whatever its size)
+refuse the result; a corner beside each wall confirms it and is never read alone; a wall whose two marks read alike,
+readings out of order, and no flip are refused. A first plate's values are 0 and, each a fixed ratio below the next,
+from its top (below: at most the tool's ceiling, `hardware.tool.<key>.calibrate.pressure_advance.max`, defaulting to
+the top of the typical range in Klipper's guide) down to the tool's lowest (`.min`, a hundredth of the default ceiling unless set), the ratio set by
+the two and the plate's count of values: one plate brackets both a short filament path's value (a few hundredths of a
+second) and a long tube's. A fine plate runs evenly inside the bracket; a confirm plate prints the value and its
+neighbors at three flow steps and reports whether it holds, depends on the flow (the medium step's written, the range
+noted; a value that follows the flow is a later decision on this evidence), or gives none. The next plates `values`
+names are commands that run as printed: the fine plate inside the bracket, and the confirm plate with the bracket's
+ends (the highest groove and the lowest ridge) as the neighbors, never below 0.
+The speeds are the config's (a visible wall's, the machine's print speed, each held to the maximum flow), the
+acceleration the machine's. A pressure model in plymeld's test tooling (a first-order lag of the true value, the set
+value run ahead as Klipper runs it) proves the flip falls exactly at the true value. The slow-down mark reads opposite
+to the speed-up mark only where the pressure settles within the wall's lead-in and middle, so these grow together (from
+10 and 30 mm) until, by the same model at the plate's speeds, it settles at the plate's highest value. A first plate's
+top is the tool's ceiling or the highest value whose walls fit the bed at the plate's speeds, whichever is lower, found
+with the same model and layout; the plate and its page say which and the length the ceiling would need, and a plate
+that does not fit even from the tool's lowest value is refused with that reason. Given values whose walls do not fit
+are refused. Every value is held to its label's resolution (0.1 ms), so a wall's value and its label agree. The
+shortest stretches, the tail, the wall's height, the pitch, the values per row, the arrow's head, and the stretch a
+reading looks at are plymeld's choices.
+
+**Rejected.** A tower with the value rising by height: cooling, layer time, and wall stiffness change with it. A row of
+corners or chevrons read for the best one: a judgment between near-identical neighbors, and corners carry other
+defects. One sample per value: a blob or a draft reads as a result. Calipers: the reading needs none. Averaging rows
+that disagree: a trend across the bed would pass as the value.
+
+**Rejected (the values).** Values evenly from 0 to the ceiling on a first plate: at a 1 s ceiling a short filament
+path's whole range falls inside the first step, so a fine plate was always needed. A confirm step of the plate's own
+spacing: from a bracket at the bottom of the plate its lower neighbor fell below 0.
+
+**Rejected (the stretches).** Fixed stretches with the plate stating the true value they settle up to: a tool with a
+long filament path would read alike at both marks on every wall and be refused.
+
+**Rejected (the top).** Refusing a first plate whose ceiling's walls do not fit: with the default ceiling a user with no
+setting of their own could not start on most beds.
+
+**Consequences.** A higher value makes longer walls, and a faster middle more: at 100 and 170 mm/s and 10,000 mm/s2 (the
+repository's sample config) a lead-in and middle of 10 and 30 mm up to 0.1 s, 22 and 64 mm at 0.5 s, 43 and 127 mm at
+1 s; two rows of the last do not fit a 250 mm bed, so there the first plate reaches about 0.4 s. A filament path whose
+value lies above the top reads grooves on every wall, and the refusal names what reaching higher takes: a longer bed
+axis, or a lower fast speed. The pilot print decides whether the stacked defect reads by eye and nail at this size.

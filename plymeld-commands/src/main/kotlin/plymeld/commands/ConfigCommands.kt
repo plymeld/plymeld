@@ -31,13 +31,18 @@ abstract class ConfigCommand(name: String) : CliktCommand(name = name) {
      * The config files: `-cf` as given, else every `.toml` file in plymeld's config folder (said, with the folder). An empty
      * folder in a terminal starts the first-use setup ([InitFlow]) first; elsewhere it says to run `plymeld init`.
      */
-    protected fun files(): List<String> = configFiles.ifEmpty {
+    protected fun files(): List<String> = configFiles.ifEmpty { defaultFiles ?: folderFiles().also { defaultFiles = it } }
+
+    /** The config folder's files, once found and said: a command that reads its config more than once says it once. */
+    private var defaultFiles: List<String>? = null
+
+    private fun folderFiles(): List<String> {
         val dir = plymeld.config.UserDirs.current().config
         if (ConfigFiles.defaultFiles().isEmpty()) {
             val flow = InitFlow(terminal, ::echo)
             if (flow.canAsk) { echo("config: no -cf, and no .toml file in the config folder $dir: setting up first"); flow.run(dir) }
         }
-        ConfigFiles.defaultFiles().map { it.toString() }.also { fs ->
+        return ConfigFiles.defaultFiles().map { it.toString() }.also { fs ->
             echo(if (fs.isEmpty()) "config: no -cf, and no .toml file in the config folder $dir: plymeld's bundled values only (plymeld init sets up your printer and filaments)"
                  else "config: no -cf: the ${fs.size} .toml file(s) in the config folder $dir")
         }

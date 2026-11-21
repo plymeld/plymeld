@@ -33,6 +33,10 @@ gcode.start = "PRINT_START BED={first_layer_bed_temperature} HOTEND={first_layer
 gcode.end = "PRINT_END"
 evidence.gcode = """firmware_config: [gcode_macro PRINT_START] at q2_gcode_macro.cfg:213: heats the bed (BED), homes, cleans the nozzle, levels, heats the nozzle (HOTEND); CHAMBER unset = 0, the chamber fan on
 firmware_config: [gcode_macro PRINT_END] at q2_gcode_macro.cfg:396: heaters, fans and motors off"""
+pressure_advance.command = "SET_PRESSURE_ADVANCE ADVANCE={pressure_advance}"
+pressure_advance.unit = "s"
+evidence.pressure_advance = """used_by_firmware: the firmware's macro M900 calls SET_PRESSURE_ADVANCE at q2_gcode_macro.cfg:663
+documented: Klipper G-Codes, SET_PRESSURE_ADVANCE [EXTRUDER=<config_name>] [ADVANCE=<pressure_advance>]: the active hotend's extruder when EXTRUDER is not given; Klipper Config Reference, [extruder] pressure_advance, measured in millimeters per millimeter/second (seconds)"""
 
 [hardware.model.qidi-q2.fan.chamber_circulation_fan]
 role = "chamber_circulation"
@@ -385,7 +389,7 @@ SET_PIN = """used_by_firmware: called by macro M106 at q2_gcode_macro.cfg:636
 used_by_firmware: called by macro M106 at q2_gcode_macro.cfg:638
 used_by_firmware: called by macro BEEP at q2_gcode_macro.cfg:935
 used_by_firmware: called by macro BEEP at q2_gcode_macro.cfg:937"""
-SET_PRESSURE_ADVANCE = """purpose: pressure advance (firmware's job; plymeld does not emit it)
+SET_PRESSURE_ADVANCE = """purpose: pressure advance (the firmware's by default; plymeld sends it only where a value is set, and on the pressure-advance plate)
 used_by_firmware: called by macro M900 at q2_gcode_macro.cfg:663
 used_by_firmware: called by macro M900 at q2_gcode_macro.cfg:666
 observed: sent by the machine's own slicer: its g-code for this machine, sample 1 (1x)
@@ -500,6 +504,10 @@ evidence.gcode = """manufacturer_profile: gcode.start: Flashforge's slicer profi
 manufacturer_profile: gcode.end: the profile's machine_end_gcode (the move to X150 Y150 with a 1.2 mm retract); before it plymeld's lift clear of the print, 10 mm, within the build height (plymeld's choice), and after it the start's four fans and every tool's heater off
 manufacturer_profile: gcode.pause: the profile's machine_pause_gcode, M25
 manufacturer_profile: gcode.pictures: the profile's thumbnails, 140x110/PNG"""
+pressure_advance.command = "SET_PRESSURE_ADVANCE ADVANCE={pressure_advance}"
+pressure_advance.unit = "s"
+evidence.pressure_advance = """observed: the machine's own slicer sends SET_PRESSURE_ADVANCE ADVANCE=<value>, its values of the size Klipper's seconds take (0.035), in a g-code file it made for this machine
+documented: Klipper G-Codes, SET_PRESSURE_ADVANCE [EXTRUDER=<config_name>] [ADVANCE=<pressure_advance>], the active hotend's extruder when EXTRUDER is not given; Klipper Config Reference, [extruder] pressure_advance in seconds (millimeters per millimeter/second). Whether this firmware keeps a value of its own past a command in the file is not known"""
 
 [hardware.model.flashforge-c5.toolhead.0]
 head.radius = "92 mm"
@@ -598,7 +606,7 @@ M25 = """purpose: pause
 observed: sent by the machine's own slicer: a g-code file it made for this machine (1x)"""
 M83 = """purpose: relative extrusion
 observed: sent by the machine's own slicer: a g-code file it made for this machine (2x)"""
-SET_PRESSURE_ADVANCE = """purpose: pressure advance (firmware's job; plymeld does not emit it)
+SET_PRESSURE_ADVANCE = """purpose: pressure advance (the firmware's by default; plymeld sends it only where a value is set, and on the pressure-advance plate)
 observed: sent by the machine's own slicer: a g-code file it made for this machine (43x)"""
 SET_VELOCITY_LIMIT = """purpose: set speed / acceleration / corner limits
 observed: sent by the machine's own slicer: a g-code file it made for this machine (37384x)"""
@@ -618,6 +626,9 @@ notes = """A starting point for any printer running Klipper, not a real model: o
 reference documents (klipper3d.org/G-Codes.html, read 2026-10-26), each with the printer.cfg section it needs.
 No build area, motion limits, head shape, fans, heaters or start and end g-code: those differ from printer to printer
 and are set on the machine (hardware.machine.<key>), or in a model of your own that is `like` this one."""
+pressure_advance.command = "SET_PRESSURE_ADVANCE ADVANCE={pressure_advance}"
+pressure_advance.unit = "s"
+evidence.pressure_advance = """documented: Klipper G-Codes, SET_PRESSURE_ADVANCE [EXTRUDER=<config_name>] [ADVANCE=<pressure_advance>], the active hotend's extruder when EXTRUDER is not given; Klipper Config Reference, [extruder] pressure_advance in seconds (millimeters per millimeter/second), read 2026-11-20"""
 
 [hardware.model.generic-klipper.command]
 G0 = """purpose: move
@@ -668,7 +679,7 @@ M400 = """purpose: wait for moves to finish
 documented: Klipper G-Codes, a standard command"""
 SET_VELOCITY_LIMIT = """purpose: set speed / acceleration / corner limits
 documented: Klipper G-Codes, listed under [toolhead]"""
-SET_PRESSURE_ADVANCE = """purpose: pressure advance (the firmware's by default; plymeld sends it only where a value is set)
+SET_PRESSURE_ADVANCE = """purpose: pressure advance (the firmware's by default; plymeld sends it only where a value is set, and on the pressure-advance plate)
 documented: Klipper G-Codes, listed under [extruder]"""
 SET_PRINT_STATS_INFO = """purpose: layer count and current layer, for the printer's display
 documented: Klipper G-Codes, listed under [print_stats], which is loaded automatically"""
