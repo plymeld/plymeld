@@ -200,6 +200,7 @@ per plate, run in this order, because each plate prints within values the plates
 |---|---|---|---|
 | 1 | `calibrate melt` | the filament's maximum flow at each temperature | `calibrate melt values` |
 | 2 | `calibrate flow` | the filament's flow ratio at each temperature | `calibrate flow values` |
+| 2 | `calibrate pressure-advance` | the pressure advance: where a groove just after a speed-up turns into a ridge, on straight walls each at its own value; then whether it holds at three flow steps (`--confirm`) | `calibrate pressure-advance readings`, then `calibrate pressure-advance values` |
 | 3 | `calibrate first-layer` | the first layer's nozzle height and speed at each temperature | `calibrate first-layer values` |
 | 4 | `calibrate motion` | the speed and acceleration a visible wall holds without ringing | `calibrate motion readings`, then `calibrate motion values` |
 | 5 | `calibrate filament` | overhangs, bridges, stringing, line widths, and fit, by temperature band | not read back yet |
@@ -232,7 +233,21 @@ plymeld calibrate first-layer values 210=0.28,120 220=0.28,120 230=0.28,120 --pl
 
 Each prints the change and checks it before writing; `--dry-run` writes nothing, and `plymeld journal --undo` takes
 the change back. The other plates write a sheet to grade (`readings`), then turn the graded sheet into a config file
-(`values`) to add with `-cf`.
+(`values`) to add with `-cf`; the pressure-advance plate's `values` writes the filament's pressure advance (or the
+tool's, `--into tool`) into the file that defines it, as the melt and flow plates' do:
+
+```
+plymeld calibrate pressure-advance --tool 1 -o pa.gcode
+plymeld calibrate pressure-advance readings pa.gcode -o pa-readings.toml
+plymeld calibrate pressure-advance values pa-readings.toml
+```
+
+Its first plate tries values from 0 to the tool's ceiling (`hardware.tool.<key>.calibrate.pressure_advance.max`); the
+`values` it prints names the next plate: a finer one inside the bracket (`--bracket LOW-HIGH`), or the confirm plate
+(`--confirm VALUE --confirm-step S`). A machine that sets its own pressure advance
+(`hardware.machine.<key>.firmware.own_pressure_advance`) gets only the confirm plate at its own value
+(`--confirm machine`), with no command written. The machine's model must say how pressure advance is set
+(`hardware.model.<key>.pressure_advance.command`; the bundled models carry Klipper's).
 
 ## Look at a g-code
 

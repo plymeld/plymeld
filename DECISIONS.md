@@ -2513,4 +2513,39 @@ alone.
 
 **Consequences.** A machine of a bundled model writes the same files as before. A model of the user's own needs
 `pressure_advance.command` before a pressure advance can be set for it. Whether a machine's own value survives a
-command in the file is not known per machine: `own_pressure_advance` is the user's statement.
+command in the file is not known per machine: `own_pressure_advance` is the user's statement, and the pressure-advance
+plate offers such a machine only a check of its value (decision 72).
+
+## 72. Pressure advance is read as the sign of a defect on straight walls whose speed steps, each value twice (2026-11-20)
+
+**Context.** The usual tests read pressure advance as the best-looking of near-identical neighbors, on corners that
+also carry ringing and corner-speed limits, with the value changing by height (cooling and first-layer squish change
+with it), one sample per value, and one speed, acceleration, and flow.
+
+**Decision.** The value is read as the sign of a defect that reverses through it: a straight single-line wall printed
+the same way on every layer, slow, fast, slow, at its own value set just before it. Set short of the true value, the
+line just after the speed-up is thin (a groove stacked up the wall) and just after the slow-down fat (a ridge); set
+long, the other way round; the answer is where the grooves turn into ridges, bracketed from both sides. Values stand
+side by side on one base, never by height, the first layer and the base unread. Every value is printed twice, the back
+row in the opposite order, and rows that disagree by more than a step refuse the result; a corner beside each wall
+confirms it and is never read alone; a wall whose two marks read alike, readings out of order, and no flip are
+refused. A first plate runs from 0 to the tool's ceiling, a setting (`hardware.tool.<key>.calibrate.pressure_advance.max`)
+defaulting to the top of the typical range in Klipper's guide; a fine plate runs inside the bracket; a confirm plate
+prints the value and its neighbors at three flow steps and reports whether it holds, depends on the flow (the medium
+step's written, the range noted; a value that follows the flow is a later decision on this evidence), or gives none.
+The speeds are the config's (a visible wall's, the machine's print speed, each held to the maximum flow), the
+acceleration the machine's. A pressure model in plymeld's test tooling (a first-order lag of the true value, the set
+value run ahead as Klipper runs it) proves the flip falls exactly at the true value; the same model gives the largest
+true value whose pressure settles within the wall's fast middle at the plate's speeds, which the plate states: above
+it the slow-down mark may read as the speed-up mark does. The segment lengths, the wall's height, the pitch, the
+values per row, and the stretch a reading looks at are plymeld's choices.
+
+**Rejected.** A tower with the value rising by height: cooling, layer time, and wall stiffness change with it. A row of
+corners or chevrons read for the best one: a judgment between near-identical neighbors, and corners carry other
+defects. One sample per value: a blob or a draft reads as a result. Calipers: the reading needs none. Averaging rows
+that disagree: a trend across the bed would pass as the value.
+
+**Consequences.** The reading holds where the pressure settles within the fast middle; by the model, at 100 and 170
+mm/s and 10,000 mm/s2 (the repository's sample config) that is up to about 0.23 s, so a tool with a long filament path may read alike at both marks
+and be refused until the plate's speeds or lengths serve it. The pilot print decides whether the stacked defect reads
+by eye and nail at this size.

@@ -389,7 +389,7 @@ SET_PIN = """used_by_firmware: called by macro M106 at q2_gcode_macro.cfg:636
 used_by_firmware: called by macro M106 at q2_gcode_macro.cfg:638
 used_by_firmware: called by macro BEEP at q2_gcode_macro.cfg:935
 used_by_firmware: called by macro BEEP at q2_gcode_macro.cfg:937"""
-SET_PRESSURE_ADVANCE = """purpose: pressure advance (the firmware's by default; plymeld sends it only where a value is set)
+SET_PRESSURE_ADVANCE = """purpose: pressure advance (the firmware's by default; plymeld sends it only where a value is set, and on the pressure-advance plate)
 used_by_firmware: called by macro M900 at q2_gcode_macro.cfg:663
 used_by_firmware: called by macro M900 at q2_gcode_macro.cfg:666
 observed: sent by the machine's own slicer: its g-code for this machine, sample 1 (1x)
@@ -606,7 +606,7 @@ M25 = """purpose: pause
 observed: sent by the machine's own slicer: a g-code file it made for this machine (1x)"""
 M83 = """purpose: relative extrusion
 observed: sent by the machine's own slicer: a g-code file it made for this machine (2x)"""
-SET_PRESSURE_ADVANCE = """purpose: pressure advance (the firmware's by default; plymeld sends it only where a value is set)
+SET_PRESSURE_ADVANCE = """purpose: pressure advance (the firmware's by default; plymeld sends it only where a value is set, and on the pressure-advance plate)
 observed: sent by the machine's own slicer: a g-code file it made for this machine (43x)"""
 SET_VELOCITY_LIMIT = """purpose: set speed / acceleration / corner limits
 observed: sent by the machine's own slicer: a g-code file it made for this machine (37384x)"""
@@ -679,7 +679,7 @@ M400 = """purpose: wait for moves to finish
 documented: Klipper G-Codes, a standard command"""
 SET_VELOCITY_LIMIT = """purpose: set speed / acceleration / corner limits
 documented: Klipper G-Codes, listed under [toolhead]"""
-SET_PRESSURE_ADVANCE = """purpose: pressure advance (the firmware's by default; plymeld sends it only where a value is set)
+SET_PRESSURE_ADVANCE = """purpose: pressure advance (the firmware's by default; plymeld sends it only where a value is set, and on the pressure-advance plate)
 documented: Klipper G-Codes, listed under [extruder]"""
 SET_PRINT_STATS_INFO = """purpose: layer count and current layer, for the printer's display
 documented: Klipper G-Codes, listed under [print_stats], which is loaded automatically"""

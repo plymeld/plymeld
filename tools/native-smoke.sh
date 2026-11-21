@@ -155,9 +155,17 @@ run_all() {
   for plate in melt flow; do
     ok "plymeld calibrate $plate" "calibrate-$plate" calibrate "$plate" -cf "$config" -o "$W/$plate.gcode" && file "calibrate-$plate" "$work/$plate.gcode"
   done
-  for plate in filament first-layer motion ironing seams; do
+  for plate in filament first-layer motion ironing seams pressure-advance; do
     ok "plymeld calibrate $plate" "calibrate-$plate" calibrate "$plate" -cf "$config" -o "$W/$plate.gcode" && picture "calibrate-$plate" "$work/$plate.png"
   done
+  # the pressure-advance confirm plate, read flat at every flow step (a value that follows the flow: the medium step's written)
+  ok "plymeld calibrate pressure-advance" calibrate-pa-confirm calibrate pressure-advance --confirm 0.04 --confirm-step 0.01 -cf "$config" -o "$W/pa-confirm.gcode" \
+    && picture calibrate-pa-confirm "$work/pa-confirm.png"
+  ok "plymeld calibrate pressure-advance readings" pa-readings calibrate pressure-advance readings "$W/pa-confirm.gcode" -o "$W/pa-readings.toml" \
+    && file pa-readings "$work/pa-readings.toml" "\?"
+  [ -f "$work/pa-readings.toml" ] && sed "s/\"?\"/\"flat\"/g" "$work/pa-readings.toml" > "$work/pa-read.toml"
+  ok "plymeld calibrate pressure-advance values" pa-values calibrate pressure-advance values "$W/pa-read.toml" -cf "$config" \
+    && file pa-values "$work/config/01_FILAMENTS.toml" "pressure-advance plate"
   ok "plymeld calibrate melt values" melt-values calibrate melt values 210=12 -cf "$config" && file melt-values "$work/config/01_FILAMENTS.toml" "melt plate"
   ok "plymeld calibrate flow values" flow-values calibrate flow values 210=0.98 -cf "$config" && file flow-values "$work/config/01_FILAMENTS.toml" "flow plate"
   ok "plymeld calibrate first-layer values" first-layer-values calibrate first-layer values 205=0.2,40 215=0.2,40 225=none -cf "$config" \

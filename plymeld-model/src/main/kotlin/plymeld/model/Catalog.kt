@@ -85,6 +85,8 @@ object Catalog {
         s("hardware.tool.temperature.max", TOOL, TEMP, "hottest this tool's nozzle may be set (the machine maker's figure); above it plymeld warns")
         s("hardware.tool.extrude.section.max", TOOL, AREA, "the largest cross-section a move may extrude, filament pushed per mm of head motion times the filament's cross-section, as the firmware checks it (Klipper's max_extrude_cross_section): a restore spread over a path stays within it; unset = not known, and every restore stands still")
         s("hardware.tool.pressure_advance", TOOL, TIME, "pressure advance this tool prints with (seconds) unless its filament overrides it (hardware.filament.pressure_advance); unset = the machine's (hardware.machine.pressure_advance)")
+        s("hardware.tool.calibrate.pressure_advance.max", TOOL, TIME, "the highest pressure advance this tool's filament path plausibly needs: the pressure-advance find plate tries values from 0 up to it", 1.0,
+            "the top of the typical range in Klipper's pressure advance guide (klipper3d.org, Pressure_Advance: typical values 0.050 to 1.000, the high end usually only with a long tube to the nozzle)")
         // ---- material: the plastic
         s("hardware.filament.diameter", MATERIAL, LENGTH, "filament diameter")
         s("hardware.filament.density", MATERIAL, Kind.DENSITY, "filament density (mass per volume): the decisions compare material by mass with it; unset = by volume, and the decision says so")

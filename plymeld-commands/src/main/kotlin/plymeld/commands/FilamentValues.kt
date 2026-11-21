@@ -31,8 +31,11 @@ abstract class FilamentValuesCommand(private val plateName: String) : ConfigComm
     /** Where the values go: the config, its machine, the plate's tool (key and index), the filament, and the file that defines it. */
     class Target(val config: Config, val fileArgs: List<String>, val machine: String, val tool: String, val toolN: Int, val filament: String, val file: java.nio.file.Path)
 
-    /** [plateTool], [plateFilament]: what the plate's g-code says it printed with, the defaults for --tool and --filament. */
-    protected fun target(plateTool: Int? = null, plateFilament: String? = null): Target {
+    /**
+     * [plateTool], [plateFilament]: what the plate's g-code says it printed with, the defaults for --tool and --filament.
+     * [toolFile]: the file that defines the tool is the one written (a value of the tool's), not the filament's.
+     */
+    protected fun target(plateTool: Int? = null, plateFilament: String? = null, toolFile: Boolean = false): Target {
         val fileArgs = files()
         val config = load(fileArgs, configValues)
         val machine = config.machine ?: throw UsageError(config.machineProblem ?: "which machine? give --machine")
@@ -43,6 +46,14 @@ abstract class FilamentValuesCommand(private val plateName: String) : ConfigComm
         val tool = tools.firstOrNull { index(it) == toolN } ?: throw UsageError("machine '$machine' has no tool $toolN")
         val name = filament ?: plateFilament ?: (config.loadout("tool", tool, "filament")?.value as String?)?.takeIf { it.isNotEmpty() }
             ?: throw UsageError("which filament? the machine's loadout puts none on tool $toolN: give --filament")
+        if (toolFile) {
+            // the file that defines the tool: the first of the user's own files with a value under it
+            val f = ConfigFiles.readFiles(fileArgs).firstOrNull { it.path.size > 2 && it.path[0] == "hardware" && it.path[1] == "tool" && it.path[2] == tool }
+                ?.source?.substringBeforeLast(':')?.let { java.nio.file.Path.of(it) }
+                ?: throw UsageError("tool '$tool' is not defined in your config files: nothing to write its value into")
+            if (!f.fileName.toString().endsWith(".toml")) throw UsageError("$f defines tool '$tool' but is not TOML: plymeld writes TOML files only")
+            return Target(config, fileArgs, machine, tool, toolN, name, f)
+        }
         // the file that defines the filament: the first of the user's own files with a value under it
         val own = ConfigFiles.readFiles(fileArgs).filter { it.path.size > 2 && it.path[0] == "hardware" && it.path[1] == "filament" && it.path[2] == name }
         val file = own.firstOrNull()?.source?.substringBeforeLast(':')?.let { java.nio.file.Path.of(it) }
@@ -78,8 +89,8 @@ abstract class FilamentValuesCommand(private val plateName: String) : ConfigComm
      * [after] (checked by the caller) written over [before] in [t]'s file: [shown] printed under the filament first, then
      * (unless --dry-run) written and recorded in the journal as [line].
      */
-    protected fun commit(t: Target, before: String, after: String, shown: List<String>, line: String) {
-        echo("${t.file}: hardware.filament.${t.filament}:")
+    protected fun commit(t: Target, before: String, after: String, shown: List<String>, line: String, under: String = "hardware.filament.${t.filament}") {
+        echo("${t.file}: $under:")
         shown.forEach { echo("  $it") }
         if (dryRun) { echo("--dry-run: nothing written"); return }
         java.nio.file.Files.writeString(t.file, after)
@@ -87,6 +98,12 @@ abstract class FilamentValuesCommand(private val plateName: String) : ConfigComm
         journal.parent?.let { java.nio.file.Files.createDirectories(it) }
         Journal.read(journal).append(Journal.Entry(Journal.now(), line, t.file.toAbsolutePath().toString(), before, after))
         echo("written; recorded in $journal (undo: plymeld journal '$journal' --undo)")
+    }
+
+    /** What the whole config gives at [path] once [value] is set there: a [dim] quantity for [t]'s machine, tool, and filament. */
+    protected fun valueWith(t: Target, path: String, value: String, dim: Dimension): Double {
+        val at = load(t.fileArgs, configValues + listOf("$path=$value"))
+        return at.quantity(at.entry(TomlEdit.segments(path))!!, dim, Site(machine = t.machine, tool = t.tool, filament = t.filament))
     }
 
     private fun load(fileArgs: List<String>, values: List<String>): Config = try { Config(ConfigStack.load(fileArgs, values), emptyList(), machineOpt) }

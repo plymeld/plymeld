@@ -65,7 +65,7 @@ any cut through it (each line crossing the plane as its bead's cross-section), i
 two files compared, the model's outline and the check's findings marked over the lines, the lines chosen by object, tool, or feature, colored by feature, tool, speed, flow, width, height, fan, temperature,
 or order, each line as wide as the plastic it lays, framed round a point of the bed, one picture or a sheet of many.
 
-**Calibrates.** `plymeld calibrate` makes melt, flow, first-layer, motion, filament, ironing, and seam plates, in
+**Calibrates.** `plymeld calibrate` makes melt, flow, pressure-advance, first-layer, motion, filament, ironing, and seam plates, in
 the order their results depend on each other; the readings go back in as your filament's and machine's values.
 
 **Talks to printers:** `plymeld printer status | watch | camera | files | send | pause | resume | cancel`

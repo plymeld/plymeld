@@ -19,6 +19,22 @@ section the release's version and date.
   writes none, whatever the machine, a tool, or a filament sets.
 - The g-code check reads pressure advance back: every command setting it sets the config's value for the tool in hand,
   and none is set where the config sets none or the machine sets its own.
+- `plymeld calibrate pressure-advance`: a plate of straight single-line walls on one base, each printed toward the back
+  on every layer, slow for 10 mm, fast for 30 mm, slow for 10 mm, at its own pressure advance set just before it. Too
+  little leaves a groove up the wall just after the speed-up and a ridge just after the slow-down, too much the other
+  way round; the value is where the grooves turn into ridges. Two rows, the same values rising and falling, a square
+  corner beside each wall; the values from 0 to the tool's ceiling (`hardware.tool.<key>.calibrate.pressure_advance.max`,
+  1 s unless set: the top of the typical range in Klipper's guide), `--values`, or inside `--bracket` for a finer plate.
+  A hole in the base marks each speed change, each value is written in front of its wall in milliseconds. The page
+  draws the three readings and states the true value up to which the slow-down mark reads opposite to the speed-up mark,
+  by plymeld's pressure model.
+- `--confirm VALUE --confirm-step S`: the value and its two neighbors, each at three flow steps; a machine that sets its
+  own gets `--confirm machine`, its own value with no command written.
+- `plymeld calibrate pressure-advance readings` and `values`: the sheet to fill in (groove, flat, or ridge at each mark;
+  bulge, sharp, or round at a corner), and the value from it: the middle of the bracket between the highest groove and
+  the lowest ridge, written as the filament's `pressure_advance` (the tool's with `--into tool`) with the plate, its
+  conditions, and the bracket in the note above it. Refused, saying why, when nothing flips, the two rows disagree by
+  more than a step, the readings are out of order, a corner contradicts its wall, or a wall reads the same at both marks.
 
 ### Changed
 

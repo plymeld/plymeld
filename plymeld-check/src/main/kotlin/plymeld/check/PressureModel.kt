@@ -122,6 +122,34 @@ class PressureModel(
         const val STEP_S = 1e-4
 
         /**
+         * A step wall's two readings by a model of true value [trueK] with [setK] set: the plastic over [readMm] after the
+         * speed-up mark (the middle's start) and after the slow-down mark (where the head starts to slow before the tail),
+         * each against what was asked ([Laid.deviation]). The wall: [leadMm] at [slow] mm/s, [fastMm] at [fast], [tailMm] at
+         * [slow], at [accel] mm/s², laying [area] mm² per mm.
+         */
+        fun stepWall(trueK: Double, setK: Double, slow: Double, fast: Double, accel: Double, leadMm: Double, fastMm: Double, tailMm: Double, area: Double, readMm: Double): Pair<Double, Double> {
+            val y1 = leadMm; val y2 = leadMm + fastMm; val y3 = y2 + tailMm
+            val run = Run("wall", listOf(Move(0.0, 0.0, 0.0, y1, slow, area), Move(0.0, y1, 0.0, y2, fast, area), Move(0.0, y2, 0.0, y3, slow, area)), accel, setK)
+            val laid = PressureModel(trueK).lay(run)
+            val down = y2 - (fast * fast - slow * slow) / (2 * accel)
+            return laid.deviation(y1, y1 + readMm) to laid.deviation(down, down + readMm)
+        }
+
+        /**
+         * The largest true pressure advance (s, at most [maxK]) for which such a wall's slow-down mark reads the opposite of its
+         * speed-up mark, at a set value half and one and a half times it: where the pressure settles within the middle. Above
+         * it the two marks may read alike (the speed-up mark still flips at the true value).
+         */
+        fun settlesUpTo(slow: Double, fast: Double, accel: Double, leadMm: Double, fastMm: Double, tailMm: Double, area: Double, readMm: Double, maxK: Double): Double {
+            fun ok(k: Double) = listOf(0.5 * k, 1.5 * k).all { ks -> val (u, d) = stepWall(k, ks, slow, fast, accel, leadMm, fastMm, tailMm, area, readMm); u * d < 0 }
+            if (ok(maxK)) return maxK
+            if (!ok(1e-4)) return 0.0
+            var lo = 1e-4; var hi = maxK
+            repeat(30) { val m = Math.sqrt(lo * hi); if (ok(m)) lo = m else hi = m }
+            return lo
+        }
+
+        /**
          * The runs of printing moves in [gcode] inside cells [cells] picks (their `; CELL: <label>`), with the pressure advance
          * the machine's own command ([command], its value group in [unit], "s" or "ms") last set before each, and the
          * acceleration last set (M204 S, SET_VELOCITY_LIMIT ACCEL=); filament [filamentDiameterMm] thick. A run ends at any move that
