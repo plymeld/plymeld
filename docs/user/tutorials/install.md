@@ -17,10 +17,13 @@ From the [releases page](https://github.com/plymeld/plymeld/releases), the lates
 
 **Linux**
 
-- `plymeld.AppImage` is the window: make it executable (`chmod +x plymeld.AppImage`) and run it.
-- `plymeld-linux-x64.tar.gz` is the command line. Unpack it where you keep programs, and put the folder on your `PATH`
-  or link the program into one that is (keep the folder whole: the program draws pictures with the libraries and the
-  `lib/` folder beside it):
+- `plymeld.AppImage` holds the window and the command line. Make it executable (`chmod +x plymeld.AppImage`); run it
+  with no arguments for the window, or with a command for the command line: `./plymeld.AppImage --version`,
+  `./plymeld.AppImage slice ...`, `./plymeld.AppImage update`. An alias makes it `plymeld` in your terminal:
+  `alias plymeld="$HOME/Applications/plymeld.AppImage"` (wherever you keep it).
+- `plymeld-linux-x64.tar.gz` is the command line alone. Unpack it where you keep programs, and put the folder on your
+  `PATH` or link the program into one that is (keep the folder whole: the program draws pictures with the libraries and
+  the `lib/` folder beside it):
 
 ```
 mkdir -p ~/.local/opt ~/.local/bin
@@ -36,7 +39,8 @@ ln -s ~/.local/opt/plymeld/plymeld ~/.local/bin/plymeld
 plymeld --version
 ```
 
-prints the version, such as `0.20261109.1`: the date it was released, and a number for that day.
+(`./plymeld.AppImage --version` with the AppImage) prints the version, such as `0.20261109.1`: the date it was
+released, and a number for that day.
 
 ## Keep it up to date
 
@@ -47,10 +51,17 @@ after a command you run in a terminal):
 plymeld updates --set notify
 ```
 
-`plymeld update` installs the newest release over the one you have: the Windows installs and the AppImage through their
-own updater, the Linux command line by replacing its files where you unpacked it, once the download matches its
-published checksum. A post in the [Announcements](https://github.com/plymeld/plymeld/discussions/categories/announcements)
-says what each release brings.
+`plymeld update` installs the newest release over the one you have. Each install updates itself alone:
+
+- the Windows installer's and the portable zip's through their own updater: `plymeld update` (the window's bar does
+  too);
+- the AppImage through its own updater: `./plymeld.AppImage update` (the window's bar does too);
+- the Linux command line's download by replacing its files where you unpacked it, once the download matches its
+  published checksum: `plymeld update` with that command line.
+
+So with both the AppImage and the command line's download, update each: the download's `plymeld update` leaves the
+AppImage as it was, and the AppImage's leaves the download. A post in the
+[Announcements](https://github.com/plymeld/plymeld/discussions/categories/announcements) says what each release brings.
 
 ## Build it from source instead
 

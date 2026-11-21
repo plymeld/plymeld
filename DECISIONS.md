@@ -2445,3 +2445,44 @@ no cantilever, is still left to the weights. Tests: CantileverBridgeTest (a bloc
 whose underside rises from the bed to 5.06 mm, and an arm level at 5.06 mm reaching 30 mm out: with weights that would
 rather pay no support, all 366.6 mm² needing support is held; on main none was; with the faces' middles summed as
 floats, 126.6 mm²; control: the ramp alone, no level underside, is weighed and left unheld by those weights).
+
+## 70. The window's program runs the command line's commands through the command line beside it and refuses what it does not know; an AppImage's updater runs from a copy outside it (2026-11-20)
+
+**Context.** The AppImage starts one program, the window's (`plymeld-ui`); the command line (`plymeld`) is inside it,
+beside the window's program, and nothing outside the AppImage reaches it. The window's program read only the options it
+knew and opened the window for anything else, so a command given to the AppImage (`--version`, `slice`, `update`)
+opened the window instead, and an argument it did not know was ignored. `plymeld update` has a path for an AppImage
+install that only the command line inside the AppImage can take.
+
+**Decision.** The window's program decides what its arguments ask before anything of the window starts. Velopack's
+hooks come first. A first argument that is a command of the command tree (the names read off the tree, never a list
+kept beside it) or `--version` runs the command line installed beside the window's program (`plymeld` in its folder;
+`cli\plymeld.exe` under it on Windows) with the same arguments, standard input, output, and error, and the exit status
+is the command line's. Where no command line is beside it (a development run), that is said in one line, exit status
+1. `--help` or `-h` prints the command line's help, then the window's own options. The window's own options are a list
+the program declares, each read through it, and a test holds the reads to the list; anything else (an option or a
+word it does not know, an option missing its value) is refused in one line naming it, exit status 1, as the command
+line refuses a usage error. A command run this way runs as the install's own command line, so `update` finds the
+install as that command line does (the AppImage's layout and `$APPIMAGE`, which the child inherits); the window's
+program that started it, a process running from the install that waits for it, is not counted among the other
+processes holding the install, and the updater waits for the outermost such program to exit. An AppImage's updater
+(`UpdateNix`) runs from a copy outside the AppImage, `updater/usr/bin/` beside the install's downloaded packages with
+the install's `sq.version` (the updater finds its install from a `usr/bin/` folder holding it, and the AppImage from
+`$APPIMAGE`): the AppImage's files are readable only while the AppImage runs, the updater outlives it, and run from
+inside it the updater stopped as the AppImage exited, before replacing anything. Each install updates itself alone:
+the AppImage's `update` leaves the command line's download as it was, and the download's leaves the AppImage.
+`tools/native-smoke.sh check --window` holds the window's program to `--version`, a command, `--help`, `update`, and
+refusing an unknown argument, on both platforms in the release.
+
+**Rejected.** Running the command in the window's own process: the window's native image carries the window's
+reachability metadata, not the command line's (decision 67), and `update` from inside the window's process is the
+window's bar's, which stops the window. A second launcher in the AppImage, or packing the command line as Velopack's
+main program: Velopack starts one main program, and that one must open the window from a desktop entry. Copying the
+updater to a new temporary folder at each update: the copies would pile up; one place, replaced each time, does not.
+Ignoring unknown arguments, as before: a mistyped command opened the window and said nothing. Exit status 2 for a
+usage error: the command line uses 1.
+
+**Consequences.** `./plymeld.AppImage <command>` is `plymeld <command>`. A positional argument is refused like any
+unknown word: the window takes models by `-m`, and its desktop entry passes none. On Windows the window's program is
+a windowed program, so a command's output shows where its output is redirected (a script, a pipe), not in an
+interactive console; the installed `plymeld` is the command line there.

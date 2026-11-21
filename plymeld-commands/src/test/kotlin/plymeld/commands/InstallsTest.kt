@@ -160,4 +160,60 @@ class InstallsTest : StringSpec({
             outside.isAlive shouldBe true
         } finally { inside.destroyForcibly(); outside.destroyForcibly(); dir.toFile().deleteRecursively() }
     }
+
+    "an AppImage's updater runs from a copy outside the AppImage, its sq.version beside it; control: another install's runs in place".config(enabled = linux) {
+        val dir = Files.createTempDirectory("plymeld-updater")
+        try {
+            // the AppImage's usr/bin as its programs see it, and the updater a script that says where it ran from
+            val bin = Files.createDirectories(dir.resolve("mount/usr/bin"))
+            val said = dir.resolve("said.txt")
+            val script = "#!/bin/sh\necho \"\$0 \$*\" > \"$said\"\n"
+            val updater = Files.writeString(bin.resolve("UpdateNix"), script)
+            updater.toFile().setExecutable(true)
+            Files.writeString(bin.resolve("sq.version"), "<package><metadata><id>plymeld</id><version>0.0.1</version></metadata></package>")
+            Files.writeString(bin.resolve("plymeld"), "")
+            val found = Installs.velopack(bin.resolve("plymeld"), mapOf("APPIMAGE" to dir.resolve("plymeld.AppImage").toString()), "Linux")!!
+            found.appImage shouldBe true
+            val install = Installs.Velopack("plymeld", "0.0.1", "linux", updater, dir.resolve("var/packages"), true, bin, appImage = true)
+            val pkg = dir.resolve("var/packages/plymeld-0.0.2-linux-full.nupkg")
+            Installs.apply(install, pkg, restart = false, waitFor = ProcessHandle.current()).waitFor() shouldBe 0
+            val copy = dir.resolve("var/updater/usr/bin/UpdateNix")
+            Files.readString(said).trim() shouldBe "$copy apply --waitPid ${ProcessHandle.current().pid()} --package $pkg --norestart"
+            Files.readString(copy) shouldBe script
+            Files.readString(dir.resolve("var/updater/usr/bin/sq.version")) shouldBe Files.readString(bin.resolve("sq.version"))
+            // again, over the copy the last update left
+            Installs.apply(install, pkg, restart = false, waitFor = ProcessHandle.current()).waitFor() shouldBe 0
+            Files.readString(said).trim().substringBefore(' ') shouldBe copy.toString()
+            // control: a Windows install's updater (here the same script) runs where it is installed
+            Files.delete(said)
+            val inPlace = Installs.Velopack("plymeld", "0.0.1", "win", updater, dir.resolve("win/packages"), false, dir)
+            inPlace.appImage shouldBe false
+            Installs.apply(inPlace, pkg, restart = false, waitFor = ProcessHandle.current()).waitFor() shouldBe 0
+            Files.readString(said).trim().substringBefore(' ') shouldBe updater.toString()
+        } finally { dir.toFile().deleteRecursively() }
+    }
+
+    "a command run by the install's own executable: that executable is its launcher, neither another process nor what an update waits for in its place".config(enabled = linux) {
+        val dir = Files.createTempDirectory("plymeld-launcher")
+        val install = Files.createDirectories(dir.resolve("install"))
+        // the install's executable (a shell copied in) running a command from outside it, waiting for it (`; true`
+        // keeps the shell from replacing itself with the command)
+        val sh = Files.copy(Path.of("/bin/sh"), install.resolve("sh"))
+        val launcher = ProcessBuilder(sh.toString(), "-c", "/bin/sleep 300; true").start()
+        try {
+            val deadline = System.nanoTime() + 10_000_000_000L
+            var command: ProcessHandle? = null
+            while (command == null && System.nanoTime() < deadline) { command = launcher.toHandle().children().findFirst().orElse(null); if (command == null) Thread.sleep(50) }
+            command!!
+            Installs.launchers(install, command).map { it.pid() } shouldBe listOf(launcher.pid())
+            Installs.lastToExit(install, command).pid() shouldBe launcher.pid()
+            Installs.running(install, self = command) shouldBe emptyList()
+            // controls: seen from this test's process, the same executable is another process running from the install,
+            // and a process launched from elsewhere waits for itself
+            Installs.running(install).map { it.handle.pid() } shouldBe listOf(launcher.pid())
+            Installs.launchers(install) shouldBe emptyList()
+            Installs.lastToExit(install).pid() shouldBe ProcessHandle.current().pid()
+            Installs.launchers(dir.resolve("other"), command) shouldBe emptyList()
+        } finally { launcher.toHandle().descendants().forEach { it.destroyForcibly() }; launcher.destroyForcibly(); dir.toFile().deleteRecursively() }
+    }
 })
