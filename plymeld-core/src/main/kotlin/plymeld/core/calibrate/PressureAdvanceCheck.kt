@@ -46,7 +46,7 @@ object PressureAdvanceCheck {
         for (w in spec.walls) {
             val mine = moves.filter { it.cell == w.label }
             val x = spec.wallXUm(w) / 1000.0 + ox; val ys = spec.wallStartY(w) / 1000.0 + oy
-            val yUp = ys + g.lead / 1000.0; val yDown = ys + (g.lead + g.fast) / 1000.0; val ye = spec.wallEndY(w) / 1000.0 + oy
+            val yUp = ys + spec.leadUm / 1000.0; val yDown = ys + (spec.leadUm + spec.fastUm) / 1000.0; val ye = spec.wallEndY(w) / 1000.0 + oy
             val byLayer = mine.groupBy { it.layer }
             val wallLayers = (g.baseLayers until spec.layers).toList()
             for (l in wallLayers) if (byLayer[l]?.any { it.printing } != true) bad("${w.label} layer $l", "'${w.label}' not printed on layer ${l + 1}")

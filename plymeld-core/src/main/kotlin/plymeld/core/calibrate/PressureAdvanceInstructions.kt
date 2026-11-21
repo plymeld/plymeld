@@ -87,7 +87,7 @@ object PressureAdvanceInstructions {
         l(if (spec.firstTempC != spec.tempC) "| nozzle temperature | the walls at ${spec.tempC} C (the filament's print temperature), waited for with the head parked in front of the plate; the base's first layer at ${spec.firstTempC} C |"
             else "| nozzle temperature | ${spec.tempC} C throughout (the filament's print temperature) |")
         l("| layer height, line width | ${n(spec.layerUm / 1000.0, 2)} mm, ${n(spec.widthUm / 1000.0, 2)} mm; the walls ${spec.wallLayers} layers above a ${g.baseLayers}-layer base |")
-        l("| the walls' speeds | a ${n(g.lead / 1000.0, 0)} mm lead-in at ${n(spec.slowSpeed, 0)} mm/s, a ${n(g.fast / 1000.0, 0)} mm middle at ${spec.walls.map { it.fastSpeed }.distinct().joinToString(", ") { n(it, 0) }} mm/s, a ${n(g.tail / 1000.0, 0)} mm tail at ${n(spec.slowSpeed, 0)} mm/s (a visible wall's speed and the machine's print speed, each held to the filament's maximum flow) |")
+        l("| the walls' speeds | a ${n(spec.leadUm / 1000.0, 0)} mm lead-in at ${n(spec.slowSpeed, 0)} mm/s, a ${n(spec.fastUm / 1000.0, 0)} mm middle at ${spec.walls.map { it.fastSpeed }.distinct().joinToString(", ") { n(it, 0) }} mm/s, a ${n(g.tail / 1000.0, 0)} mm tail at ${n(spec.slowSpeed, 0)} mm/s (a visible wall's speed and the machine's print speed, each held to the filament's maximum flow) |")
         l("| flow step | ${spec.walls.map { spec.flowStep(it) }.distinct().joinToString(", ") { n(it, 1) }} mm3/s (the defect grows with it) |")
         l("| acceleration | ${n(spec.accel, 0)} mm/s2 (the machine's print acceleration) |")
         l("| flow ratio | ${n(spec.flowRatio, 3)} |")
@@ -125,7 +125,7 @@ object PressureAdvanceInstructions {
             for (c in CORNERS) l("- **$c**: ${CORNER_MEANING.getValue(c)}.")
         }
         l()
-        l("By plymeld's pressure model, at these speeds the pressure settles within a wall's middle for a true pressure advance up to ${v(info.settlesUpToS)}: there the slow-down mark reads opposite to the speed-up mark. For a longer filament path (a true value above it) both marks may read alike, and the readings are refused; the speed-up mark is the one that flips at the true value.")
+        l("The lead-in and the middle are ${n(spec.leadUm / 1000.0, 0)} and ${n(spec.fastUm / 1000.0, 0)} mm long so that the pressure settles within them, at these speeds, up to a true pressure advance of ${v(info.settlesUpToS)} (plymeld's pressure model), at least the plate's highest value: up to there the slow-down mark reads opposite to the speed-up mark. Should the true value lie above it, both marks may read alike and the readings are refused; the speed-up mark is the one that flips at the true value.")
         l()
         l("### What the results mean (decided before printing)")
         l()
@@ -190,9 +190,9 @@ object PressureAdvanceInstructions {
         for (w in spec.walls) {
             val x = px(spec.wallXUm(w)); val y0 = spec.wallStartY(w)
             gr.stroke = BasicStroke(lw.toFloat(), BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER)
-            gr.color = Color(30, 30, 35); gr.draw(Line2D.Double(x, py(y0), x, py(y0 + PressureAdvanceGeometry.lead)))
-            gr.color = Color(200, 40, 40); gr.draw(Line2D.Double(x, py(y0 + PressureAdvanceGeometry.lead), x, py(y0 + PressureAdvanceGeometry.lead + PressureAdvanceGeometry.fast)))
-            gr.color = Color(30, 30, 35); gr.draw(Line2D.Double(x, py(y0 + PressureAdvanceGeometry.lead + PressureAdvanceGeometry.fast), x, py(spec.wallEndY(w))))
+            gr.color = Color(30, 30, 35); gr.draw(Line2D.Double(x, py(y0), x, py(y0 + spec.leadUm)))
+            gr.color = Color(200, 40, 40); gr.draw(Line2D.Double(x, py(y0 + spec.leadUm), x, py(y0 + spec.leadUm + spec.fastUm)))
+            gr.color = Color(30, 30, 35); gr.draw(Line2D.Double(x, py(y0 + spec.leadUm + spec.fastUm), x, py(spec.wallEndY(w))))
             if (spec.corners) {
                 val c = plate.cornerPath(w)
                 gr.color = Color(30, 90, 170)

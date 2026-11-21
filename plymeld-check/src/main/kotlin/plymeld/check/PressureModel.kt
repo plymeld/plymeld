@@ -140,8 +140,30 @@ class PressureModel(
          * speed-up mark, at a set value half and one and a half times it: where the pressure settles within the middle. Above
          * it the two marks may read alike (the speed-up mark still flips at the true value).
          */
+        /**
+         * The stretches of a step wall (mm: its lead-in, middle, and tail) long enough for the pressure to settle within them up
+         * to a true value of [maxK] s ([settlesUpTo] reaches it): the shortest lead-in [leadMinMm] and middle [fastMinMm]
+         * grown together, in the same proportion, a whole millimeter at a time; the tail [tailMm] as it is. Null when even
+         * [limitMm] of lead-in and middle together does not reach it.
+         */
+        fun stretchesFor(slow: Double, fast: Double, accel: Double, area: Double, readMm: Double, maxK: Double,
+                         leadMinMm: Double, fastMinMm: Double, tailMm: Double, limitMm: Double): Triple<Double, Double, Double>? {
+            fun at(scale: Double) = Triple(Math.ceil(leadMinMm * scale), Math.ceil(fastMinMm * scale), tailMm)
+            fun settles(t: Triple<Double, Double, Double>) = opposite(maxK, slow, fast, accel, t.first, t.second, t.third, area, readMm)
+            if (settles(at(1.0))) return at(1.0)
+            val maxScale = limitMm / (leadMinMm + fastMinMm)
+            if (maxScale <= 1 || !settles(at(maxScale))) return null
+            var lo = 1.0; var hi = maxScale
+            repeat(30) { val m = (lo + hi) / 2; if (settles(at(m))) hi = m else lo = m }
+            return at(hi)
+        }
+
+        /** Whether a step wall's slow-down mark reads opposite to its speed-up mark at a true value of [k], set half and one and a half times it. */
+        fun opposite(k: Double, slow: Double, fast: Double, accel: Double, leadMm: Double, fastMm: Double, tailMm: Double, area: Double, readMm: Double): Boolean =
+            listOf(0.5 * k, 1.5 * k).all { ks -> val (u, d) = stepWall(k, ks, slow, fast, accel, leadMm, fastMm, tailMm, area, readMm); u * d < 0 }
+
         fun settlesUpTo(slow: Double, fast: Double, accel: Double, leadMm: Double, fastMm: Double, tailMm: Double, area: Double, readMm: Double, maxK: Double): Double {
-            fun ok(k: Double) = listOf(0.5 * k, 1.5 * k).all { ks -> val (u, d) = stepWall(k, ks, slow, fast, accel, leadMm, fastMm, tailMm, area, readMm); u * d < 0 }
+            fun ok(k: Double) = opposite(k, slow, fast, accel, leadMm, fastMm, tailMm, area, readMm)
             if (ok(maxK)) return maxK
             if (!ok(1e-4)) return 0.0
             var lo = 1e-4; var hi = maxK

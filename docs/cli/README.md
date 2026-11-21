@@ -247,7 +247,14 @@ Its first plate tries values from 0 to the tool's ceiling (`hardware.tool.<key>.
 (`--confirm VALUE --confirm-step S`). A machine that sets its own pressure advance
 (`hardware.machine.<key>.firmware.own_pressure_advance`) gets only the confirm plate at its own value
 (`--confirm machine`), with no command written. The machine's model must say how pressure advance is set
-(`hardware.model.<key>.pressure_advance.command`; the bundled models carry Klipper's).
+(`hardware.model.<key>.pressure_advance.command`; the bundled models carry Klipper's). Each wall's slow lead-in and
+fast middle are long enough for the pressure to settle within them at the plate's highest value, so a higher ceiling
+makes longer walls; a plate whose walls do not fit the bed is refused, naming the ceiling to lower (a tool with a short
+filament path needs much less than the default 1 s).
+
+![The pressure-advance plate from above: two rows of walls with their values, arrows, speed-change holes, and corners; below, the three readings](../renders/pressure_advance_plate.png)
+
+![The plate's g-code from above: the base's second layer with a hole at each speed change, and the first wall layer with each wall's value, arrow, and corner](../renders/pressure_advance_toolpath.png)
 
 ## Look at a g-code
 

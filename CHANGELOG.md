@@ -20,14 +20,17 @@ section the release's version and date.
 - The g-code check reads pressure advance back: every command setting it sets the config's value for the tool in hand,
   and none is set where the config sets none or the machine sets its own.
 - `plymeld calibrate pressure-advance`: a plate of straight single-line walls on one base, each printed toward the back
-  on every layer, slow for 10 mm, fast for 30 mm, slow for 10 mm, at its own pressure advance set just before it. Too
-  little leaves a groove up the wall just after the speed-up and a ridge just after the slow-down, too much the other
-  way round; the value is where the grooves turn into ridges. Two rows, the same values rising and falling, a square
-  corner beside each wall; the values from 0 to the tool's ceiling (`hardware.tool.<key>.calibrate.pressure_advance.max`,
-  1 s unless set: the top of the typical range in Klipper's guide), `--values`, or inside `--bracket` for a finer plate.
-  A hole in the base marks each speed change, each value is written in front of its wall in milliseconds. The page
-  draws the three readings and states the true value up to which the slow-down mark reads opposite to the speed-up mark,
-  by plymeld's pressure model.
+  on every layer, a slow lead-in, a fast middle, and a 10 mm slow tail, at its own pressure advance set just before it.
+  Too little leaves a groove up the wall just after the speed-up and a ridge just after the slow-down, too much the
+  other way round; the value is where the grooves turn into ridges. Two rows, the same values rising and falling, a
+  square corner beside each wall; the values from 0 to the tool's ceiling
+  (`hardware.tool.<key>.calibrate.pressure_advance.max`, 1 s unless set: the top of the typical range in Klipper's
+  guide), `--values`, or inside `--bracket` for a finer plate. The lead-in and the middle (at least 10 and 30 mm) grow
+  together until, by plymeld's pressure model, the pressure settles within them at the plate's highest value, so the
+  slow-down mark reads opposite to the speed-up mark on every wall; walls too long for the bed are refused, naming the
+  ceiling (at 100 and 170 mm/s and 10,000 mm/s2: 10 and 30 mm up to 0.1 s, 22 and 64 mm at 0.5 s, 43 and 127 mm at 1 s).
+  A hole in the base marks each speed change, each value is written in front of its wall in milliseconds; the page draws
+  the three readings.
 - `--confirm VALUE --confirm-step S`: the value and its two neighbors, each at three flow steps; a machine that sets its
   own gets `--confirm machine`, its own value with no command written.
 - `plymeld calibrate pressure-advance readings` and `values`: the sheet to fill in (groove, flat, or ridge at each mark;

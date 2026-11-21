@@ -155,9 +155,12 @@ run_all() {
   for plate in melt flow; do
     ok "plymeld calibrate $plate" "calibrate-$plate" calibrate "$plate" -cf "$config" -o "$W/$plate.gcode" && file "calibrate-$plate" "$work/$plate.gcode"
   done
-  for plate in filament first-layer motion ironing seams pressure-advance; do
+  for plate in filament first-layer motion ironing seams; do
     ok "plymeld calibrate $plate" "calibrate-$plate" calibrate "$plate" -cf "$config" -o "$W/$plate.gcode" && picture "calibrate-$plate" "$work/$plate.png"
   done
+  # the pressure-advance find plate up to 0.1 s (the default ceiling's walls do not fit the sample's bed)
+  ok "plymeld calibrate pressure-advance" calibrate-pressure-advance calibrate pressure-advance --values 0,0.02,0.04,0.06,0.08,0.1 -cf "$config" -o "$W/pressure-advance.gcode" \
+    && picture calibrate-pressure-advance "$work/pressure-advance.png"
   # the pressure-advance confirm plate, read flat at every flow step (a value that follows the flow: the medium step's written)
   ok "plymeld calibrate pressure-advance" calibrate-pa-confirm calibrate pressure-advance --confirm 0.04 --confirm-step 0.01 -cf "$config" -o "$W/pa-confirm.gcode" \
     && picture calibrate-pa-confirm "$work/pa-confirm.png"

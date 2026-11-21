@@ -19,8 +19,10 @@ import plymeld.program.Step
  * straight walls whose speed steps up and down along their length.
  *
  * **A step wall**: one line, straight along +Y, printed the same way on every layer (the head travels back to its front
- * between layers), with no retraction inside it: a slow lead-in ([PressureAdvanceGeometry.lead] at the slow speed), a fast
- * middle ([PressureAdvanceGeometry.fast]), a slow tail ([PressureAdvanceGeometry.tail]). Where the set pressure advance is
+ * between layers), with no retraction inside it: a slow lead-in ([PressureAdvanceSpec.leadUm] at the slow speed), a fast
+ * middle ([PressureAdvanceSpec.fastUm]), a slow tail ([PressureAdvanceGeometry.tail]), the lead-in and the middle long enough
+ * for the pressure to settle within them at the plate's highest value (worked out by the caller with the pressure model; at
+ * least [PressureAdvanceGeometry.leadMin] and [PressureAdvanceGeometry.fastMin]). Where the set pressure advance is
  * short of the true one, the line just after the speed-up is thin (a groove, stacked up the wall) and just after the
  * slow-down fat (a ridge); set long, the other way round. Each wall prints at its own value, set by the machine's command just
  * before it and changed by nothing else until the next wall's.
@@ -46,9 +48,12 @@ import plymeld.program.Step
 object PressureAdvanceGeometry {
     /** The base's layers (the first whole, the marks cut through the ones above): one piece, at least two. */
     const val baseLayers = 3
-    /** A wall's slow lead-in, fast middle, and slow tail, along it. plymeld's choices: each long enough at 0.05 s and 100 to 200 mm/s for the pressure to settle (the pressure model). */
-    const val lead = 10_000L
-    const val fast = 30_000L
+    /**
+     * A wall's shortest slow lead-in and fast middle, and its slow tail, along it. plymeld's choices; the lead-in and the
+     * middle grow together, in this proportion, until the pressure settles within them at the plate's highest value.
+     */
+    const val leadMin = 10_000L
+    const val fastMin = 30_000L
     const val tail = 10_000L
     /** The walls' height above the base. plymeld's choice. */
     const val wallHeight = 10_000L
@@ -66,9 +71,8 @@ object PressureAdvanceGeometry {
     const val back = 4_000L
     /** A speed-change mark: a hole [PlateMarks.TALLY_W] along the wall and [PlateMarks.TALLY_IN] across, this far from the wall's edge. */
     const val holeGap = 1_000L
-    /** The corner beside a wall: its first line this far right of the wall, from this far along the wall, this long along it; its second this long to the right. */
+    /** The corner beside a wall: its first line this far right of the wall, along the middle of the wall's fast middle, this long; its second this long to the right. */
     const val cornerX = 3_500L
-    const val cornerAt = 18_000L
     const val cornerUp = 10_000L
     const val cornerOut = 5_000L
     /** The labels' and arrows' layers (on the first wall layers). */
@@ -112,6 +116,8 @@ class PressureAdvanceSpec(
     val originXUm: Long = 0, val originYUm: Long = 0,
     /** The machine's bed levelling, run after its start template; null = none. */
     val levelGcode: String? = null,
+    /** The walls' slow lead-in and fast middle (µm): long enough for the pressure to settle within them at the plate's highest value. */
+    val leadUm: Long = PressureAdvanceGeometry.leadMin, val fastUm: Long = PressureAdvanceGeometry.fastMin,
 ) {
     /** Find (two rows, replicates, corners) or confirm (one row, three flow steps a value). */
     enum class Kind(val key: String) { FIND("find"), CONFIRM("confirm") }
@@ -122,8 +128,9 @@ class PressureAdvanceSpec(
         require(walls.all { it.value == null || it.value >= 0 }) { "pressure advance is 0 s or more" }
         require(slowSpeed > 0 && accel > 0) { "the slow speed and the acceleration are above 0" }
         // the head reaches each wall's fast speed before it starts to slow down again
-        require(walls.all { 2 * decelUm(it) <= PressureAdvanceGeometry.fast }) {
-            "the fast middle (${PressureAdvanceGeometry.fast / 1000.0} mm) is too short to reach ${walls.maxOf { it.fastSpeed }} mm/s from $slowSpeed mm/s and slow down again at $accel mm/s2"
+        require(leadUm >= PressureAdvanceGeometry.leadMin && fastUm >= PressureAdvanceGeometry.fastMin) { "the lead-in and the middle are at least ${PressureAdvanceGeometry.leadMin / 1000} and ${PressureAdvanceGeometry.fastMin / 1000} mm" }
+        require(walls.all { 2 * decelUm(it) <= fastUm }) {
+            "the fast middle (${fastUm / 1000.0} mm) is too short to reach ${walls.maxOf { it.fastSpeed }} mm/s from $slowSpeed mm/s and slow down again at $accel mm/s2"
         }
     }
 
@@ -146,7 +153,7 @@ class PressureAdvanceSpec(
     /** The longest label, along Y (µm): every row's walls start behind it. */
     val labelLength: Long get() = walls.mapNotNull { labelText(it) }.maxOfOrNull { PlateMarks.labelWidth(it) } ?: 0L
     val arrowLength: Long get() = PlateMarks.labelHeight("^")
-    val wallLength: Long get() = g.lead + g.fast + g.tail
+    val wallLength: Long get() = leadUm + fastUm + g.tail
     val rowDepth: Long get() = g.front + labelLength + g.gap + arrowLength + g.gap + wallLength + g.back
     /** The base's size (µm). */
     val baseW: Long get() = 2 * g.margin + perRow * g.pitch
@@ -159,9 +166,9 @@ class PressureAdvanceSpec(
     /** How far the head travels slowing from [w]'s fast speed to the slow one (µm). */
     fun decelUm(w: PressureAdvanceWall): Long = Math.round((w.fastSpeed * w.fastSpeed - slowSpeed * slowSpeed) / (2 * accel) * 1000)
     /** Where the head starts to speed up along wall [w] (µm from its start): the fast middle's start. */
-    fun markUp(@Suppress("UNUSED_PARAMETER") w: PressureAdvanceWall): Long = g.lead
+    fun markUp(@Suppress("UNUSED_PARAMETER") w: PressureAdvanceWall): Long = leadUm
     /** Where the head starts to slow down (µm from its start): the fast middle's end, less the slowing. */
-    fun markDown(w: PressureAdvanceWall): Long = g.lead + g.fast - decelUm(w)
+    fun markDown(w: PressureAdvanceWall): Long = leadUm + fastUm - decelUm(w)
 
     /** The flow step of [w]: (fast - slow) x the bead x the flow ratio (mm³/s). */
     fun flowStep(w: PressureAdvanceWall): Double = (w.fastSpeed - slowSpeed) * beadMm2(widthUm, layerUm) * flowRatio
@@ -237,7 +244,7 @@ class PressureAdvancePlate(private val spec: PressureAdvanceSpec, private val wi
     /** Wall [w]'s line on wall layer [i] (µm, placed): along +Y from its start ("direction": wall 1.2 the other way on odd layers). */
     fun wallPath(w: PressureAdvanceWall, i: Int): LongArray {
         val x = spec.wallXUm(w) + spec.originXUm; val y0 = spec.wallStartY(w) + spec.originYUm
-        val ys = longArrayOf(y0, y0 + g.lead, y0 + g.lead + g.fast, y0 + spec.wallLength)
+        val ys = longArrayOf(y0, y0 + spec.leadUm, y0 + spec.leadUm + spec.fastUm, y0 + spec.wallLength)
         val back = "direction" in without && w.row == 0 && w.position == 1 && i % 2 == 1
         val order = if (back) ys.reversedArray() else ys
         return LongArray(8) { k -> if (k % 2 == 0) x else order[k / 2] }
@@ -245,7 +252,7 @@ class PressureAdvancePlate(private val spec: PressureAdvanceSpec, private val wi
 
     /** Wall [w]'s corner (µm, placed): along +Y beside the wall, then square to the right. */
     fun cornerPath(w: PressureAdvanceWall): LongArray {
-        val x = spec.wallXUm(w) + g.cornerX + spec.originXUm; val y0 = spec.wallStartY(w) + g.cornerAt + spec.originYUm
+        val x = spec.wallXUm(w) + g.cornerX + spec.originXUm; val y0 = spec.wallStartY(w) + spec.leadUm + (spec.fastUm - g.cornerUp) / 2 + spec.originYUm
         return longArrayOf(x, y0, x, y0 + g.cornerUp, x + g.cornerOut, y0 + g.cornerUp)
     }
 

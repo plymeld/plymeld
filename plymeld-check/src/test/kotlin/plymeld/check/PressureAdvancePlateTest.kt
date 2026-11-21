@@ -76,6 +76,49 @@ class PressureAdvancePlateTest : StringSpec({
         runs.all { r -> val w = findWalls.first { it.label == r.cell }; ideal.lay(r).deviation(find.markUp(w) / 1000.0, find.markUp(w) / 1000.0 + read) == 0.0 } shouldBe true
     }
 
+    "the walls grow with the plate's highest value until the pressure settles within them: on the plate's own g-code, every wall's slow-down mark reads opposite to its speed-up mark for true values up to that highest value" {
+        val area = plymeld.core.calibrate.MeltSpec.bead(450, 200)
+        val read = PressureAdvanceGeometry.readLength / 1000.0
+        var lastLength = 0.0
+        for (top in listOf(0.1, 0.5, 1.0)) {
+            val st = PressureModel.stretchesFor(slow, fast, accel, area, read, top, PressureAdvanceGeometry.leadMin / 1000.0, PressureAdvanceGeometry.fastMin / 1000.0, PressureAdvanceGeometry.tail / 1000.0, 1000.0)!!
+            (st.first + st.second >= lastLength) shouldBe true
+            lastLength = st.first + st.second
+            // the plate: one row of values from 0 to the highest, its walls as long as the model says
+            val vs = (0..10).map { Math.round(it * top / 10 * 1e5) / 1e5 }
+            val sp = PressureAdvanceSpec(0, "spool 1", PressureAdvanceSpec.Kind.FIND, vs.indices.map { PressureAdvanceWall(0, it, vs[it], fast) }, 200, 200, 450, 500, 1.75, 1.0,
+                215, 220, 100.0, PathValues(40.0, 3000.0, 1.0, 0.8), PathValues(150.0, 3000.0, 1.0, 0.8), slow, accel, 0.0, 400, 60_000, 30_000,
+                leadUm = Math.round(st.first * 1000), fastUm = Math.round(st.second * 1000))
+            for (trueK in listOf(top / 4 + 0.001, top / 2 + 0.003, top * 0.95)) for (v in vs) {
+                // the wall alone, by its stretches
+                val (u, d) = PressureModel.stepWall(trueK, v, slow, fast, accel, st.first, st.second, st.third, area, read)
+                withClue("highest $top s, true $trueK s, a wall at $v s (${st.first} / ${st.second} / ${st.third} mm)") { (u < 0) shouldBe (v < trueK); (u * d < 0) shouldBe true }
+            }
+            // control: the shortest walls do not settle at a highest value of 0.5 s or more, and the same reading fails there
+            if (top >= 0.5) {
+                val short = PressureModel.stepWall(top * 0.95, top * 0.95 / 2, slow, fast, accel, PressureAdvanceGeometry.leadMin / 1000.0, PressureAdvanceGeometry.fastMin / 1000.0, PressureAdvanceGeometry.tail / 1000.0, area, read)
+                (short.first * short.second < 0) shouldBe false
+            }
+            // on the plate's own g-code, where the plate fits the test machine's bed (270 mm deep, from y 30)
+            if (sp.baseD > 230_000) continue
+            val g = gcodeOf(PressureAdvancePlate(sp))
+            problems(sp, g).shouldBeEmpty()
+            val runs = PressureModel.runs(g, command, "s", s.filamentDiameterMm) { it.startsWith("wall ") }.take(vs.size)
+            for (trueK in listOf(top / 4 + 0.001, top / 2 + 0.003, top * 0.95)) {
+                val m = PressureModel(trueK)
+                for (r in runs) {
+                    val w = sp.walls.first { it.label == r.cell }
+                    val laid = m.lay(r)
+                    val u = laid.deviation(sp.markUp(w) / 1000.0, sp.markUp(w) / 1000.0 + read); val d = laid.deviation(sp.markDown(w) / 1000.0, sp.markDown(w) / 1000.0 + read)
+                    withClue("highest $top s, true $trueK s, ${r.cell} at ${w.value} s") {
+                        (u < 0) shouldBe (w.value!! < trueK)
+                        (u * d < 0) shouldBe true
+                    }
+                }
+            }
+        }
+    }
+
     "the confirm plate: three values at three flow steps pass; on a machine that sets its own, one value with no command written passes, and a command there is caught" {
         val fasts = listOf(133.3, 166.7, 200.0)
         val confirm = spec(listOf(0.036, 0.04, 0.044).flatMapIndexed { vi, v -> fasts.indices.map { k -> PressureAdvanceWall(0, vi * 3 + k, v, fasts[k], k) } }, PressureAdvanceSpec.Kind.CONFIRM, 0.04)
@@ -98,5 +141,18 @@ class PressureAdvancePlateTest : StringSpec({
             "pei", false, false, emptyList(), 0.1, null, false, 0.8), "pa.png")
         for (w in listOf("groove", "flat", "ridge", "bulge", "sharp", "round", "pressure-advance readings pa.gcode", "pressure-advance values", "speed-up", "slow-down")) md shouldContain w
         PressureAdvanceInstructions.picture(reviewRender("pressure_advance_plate.png"), find, PressureAdvancePlate(find))
+    }
+
+    "a sample toolpath for the docs: the plate's g-code from above, the base's second layer with its marks and the first wall layer with its labels" {
+        val tp = TechniqueRender.read(text)
+        val base = PressureAdvanceGeometry.baseLayers
+        // the front row's first four walls (mm, on the bed)
+        val x0 = (find.originXUm) / 1000.0; val y0 = find.originYUm / 1000.0
+        val win = TechniqueRender.Window(x0..x0 + 4 * PressureAdvanceGeometry.pitch / 1000.0 + 3, y0..y0 + find.rowDepth / 1000.0)
+        val size = TechniqueRender.render("The pressure-advance plate as written: the front row's first walls", TechniqueRender.View.TOP, listOf(
+            TechniqueRender.Panel(listOf("the base's second layer", "a hole at each wall's speed changes, a tally in the front edge"), tp, { it.layer == 1 }),
+            TechniqueRender.Panel(listOf("the first wall layer", "each wall's value (ms) and arrow, the wall, its corner"), tp, { it.layer == base })),
+            reviewRender("pressure_advance_toolpath.png"), window = win)
+        (size.first > 0) shouldBe true
     }
 })
