@@ -61,6 +61,17 @@ comes and goes from run to run; the code at fault gets a test of its own that do
 
 which writes the run as the new baseline, then read the file's diff and commit it with the change that moved it.
 
+## The pressure model
+
+[PressureModel.kt](../../plymeld-check/src/main/kotlin/plymeld/check/PressureModel.kt) reads a g-code file as a printer
+under pressure lays it: each run of printing moves planned with the acceleration in force, the plastic leaving the
+nozzle lagging the extruder by a first-order lag whose time constant is a true pressure advance, the extruder run ahead
+by the value the file sets with the machine's own command. A run's laid volume is kept along its length, so a test reads
+a line as a person reads a pressure-advance plate: thin, as asked, or fat just after a speed change. With the lag off
+every line is laid as asked: the control a reading must fail on.
+[PressureModelTest](../../plymeld-check/src/test/kotlin/plymeld/check/PressureModelTest.kt) holds it to the flip at the
+true value, for several true values and flow steps.
+
 ## The native executables
 
 The tests run on the JVM; the release ships the command line and the window as GraalVM native images, which reach what

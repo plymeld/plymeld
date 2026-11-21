@@ -163,7 +163,7 @@ try things with.
 | `plymeld-printer` | talking to printers: one `Printer` interface, adapters for Flashforge's LAN HTTP API and Moonraker, and the loadout comparison |
 | `plymeld-commands` | every command, declared once: the CLI parses against it and the window builds from it |
 | `plymeld-cli` | the command line |
-| `plymeld-check` | g-code reader, renders, calibration-plate pictures, and the test suites |
+| `plymeld-check` | g-code reader, renders, calibration-plate pictures, a pressure model of the extruder, and the test suites |
 | `plymeld-ui` | the desktop window (Compose Multiplatform, an OpenGL 3D view through LWJGL) |
 | `tools/` | build, packaging, regression, and measurement scripts |
 | `test-models/` | models the tests slice, with independently computed reference values ([test-models/MANIFEST.md](test-models/MANIFEST.md)), and the config they slice with |
