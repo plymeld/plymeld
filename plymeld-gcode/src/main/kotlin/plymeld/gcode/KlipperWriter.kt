@@ -39,8 +39,9 @@ import java.util.Locale
  * NOT YET: bridge fan boost.
  *
  * An exact program ([PrintProgram.exact], a calibration plate) skips all of that: each path prints at
- * its own speeds, acceleration, flow ratio, and retraction, between `; CELL: <label>` and `; CELL END`, and the fan and
- * temperatures change only where the program says (SetFan, SetTemp). No wipe, no arcs.
+ * its own speeds, acceleration, flow ratio, and retraction, between `; CELL: <label>` and `; CELL END`, and the fan,
+ * temperatures, and pressure advance change only where the program says (SetFan, SetTemp, SetPressureAdvance). No wipe,
+ * no arcs.
  *
  * [foreignVars]: the variable table of the slicer the start/end/layer-change templates were
  * imported from (they are written in its placeholder language); used only to render them.
@@ -62,8 +63,9 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                     private val preheatS: Double? = null,
                     /**
                      * Pressure advance by tool (0-based, seconds; Setup.pressureAdvanceByTool): set when a tool starts
-                     * printing (after the start template, after each tool change). A tool not listed gets none
-                     * written: the firmware's own value applies (CONTRIBUTING.md: the firmware's by default).
+                     * printing (after the start template, after each tool change), with the machine model's own command
+                     * (MachineDescription.pressureAdvance; a value with no command to write it is refused). A tool not listed
+                     * gets none written: the firmware's own value applies (CONTRIBUTING.md: the firmware's by default).
                      */
                     private val pressureAdvance: Map<Int, Double> = emptyMap(),
                     /** Each layer written is reported here, and a cancel seen between layers stops the file (plymeld.program.Progress). */
@@ -344,7 +346,7 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
         run { var bridgeNow = false; for (st in program.steps) when (st) { is LayerStart -> bridgeNow = st.archedBridge; is ObjectStart -> if (bridgeNow) bridgeObjects += st.name; else -> {} } }
         var objectNow: String? = program.objects.singleOrNull()?.name
         // pressure advance for the tool the start template selected (Klipper: the active extruder)
-        fun pressureAdvanceFor(tool: Int) { pressureAdvance[tool]?.let { out.write("SET_PRESSURE_ADVANCE ADVANCE=${e(it)}\n") } }
+        fun pressureAdvanceFor(tool: Int) { pressureAdvance[tool]?.let { out.write(pressureAdvanceLine(it) + "\n") } }
         pressureAdvanceFor(initialTool)
         var x = Double.NaN; var y = Double.NaN; var z = 0.0
         // what every travel must clear: the plastic printed so far, under the tip, its cone, and the head (Clearance)
@@ -722,6 +724,7 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
                 out.write("${if (step.wait) "M109" else "M104"} S${step.tempC} T${step.tool}\n")
             }
             is plymeld.program.SetFan -> fanTo(step.pct)
+            is plymeld.program.SetPressureAdvance -> out.write(pressureAdvanceLine(step.seconds) + "\n")
             is plymeld.program.Custom -> { flushLift(); out.write("; ${step.label}\n" + Template.render(step.gcode, vars) + "\n") }
             // lift clear, retracted, travel there, and wait
             is plymeld.program.Park -> park(step.xUm / 1000.0, step.yUm / 1000.0, step.dwellS)
@@ -1349,6 +1352,20 @@ class KlipperWriter(private val plate: SliceSettings, private val foreignVars: M
     private fun tnum(v: Double): Template.Value = if (v == Math.floor(v) && Math.abs(v) < 1e15) Template.num(v.toLong()) else Template.num(v)
     private fun n(v: Double): String = Num.trimmed(v, 3)
     private fun e(v: Double): String = Num.trimmed(v, 5, minusZero = true)
+
+    /**
+     * [seconds] of pressure advance as the machine model's own command (hardware.model.<key>.pressure_advance.command), its
+     * value in the command's unit to five decimals. Refused, nothing written, when the model has no such command: a value set
+     * for a machine plymeld cannot set it on is never dropped silently.
+     */
+    private fun pressureAdvanceLine(seconds: Double): String {
+        val pa = machine.pressureAdvance ?: error("pressure advance is set (${e(seconds)} s), but plymeld knows no command to set it on the " +
+            "machine's model '${machine.id}' (hardware.model.${machine.id}.pressure_advance.command, with .unit): describe the command there, or set no pressure_advance; nothing written")
+        // written as the writer writes a number to five decimals (a value that is not one comes out as such, and the line is
+        // refused where it is passed on: CommandCheck)
+        val v = Template.Str(e(pa.inUnit(seconds)))
+        return Template.render(pa.template) { name -> if (name == "pressure_advance") v else null }
+    }
     /**
      * A feed rate (mm/min, whole) for a speed of [mmPerS] mm/s. A speed that is not a number, infinite, or 0 or below is never
      * written: a printer stops the print at F0 (a move with no speed), so the slice fails here, saying where. A speed above 0

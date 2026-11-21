@@ -220,7 +220,7 @@ A summary of plymeld's column in [FEATURES.md](../FEATURES.md), which has the de
 | Pauses; planned inserts | **[Built]** |
 | Per-object and per-part values; several printers in one config | **[Built]** |
 | Multi-color on a tool changer with a purge tower; purge into infill or the object; several spools on one tool swapped by hand at a pause | **[Built]** |
-| Pressure advance per machine, tool or filament (none set: the firmware's own, nothing written) | **[Built]** |
+| Pressure advance per machine, tool or filament, with the machine model's own command (none set, or a machine that sets its own: nothing written) | **[Built]** |
 | Calibration plates | **[Built]** (some results not read back yet) |
 | Talking to printers | **[Partial]** (Flashforge's LAN API and Moonraker so far) |
 | An automatic filament changer; changing spool or tool between objects | **[Planned]** |

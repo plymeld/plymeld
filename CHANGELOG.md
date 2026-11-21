@@ -9,6 +9,17 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Added
+
+- Pressure advance is written with the machine model's own command: `hardware.model.<key>.pressure_advance.command`,
+  `{pressure_advance}` standing for the value, and `.unit` (`s` or `ms`), with its evidence. The bundled models carry
+  Klipper's, `SET_PRESSURE_ADVANCE ADVANCE={pressure_advance}` in seconds, so their files are as before. A pressure
+  advance set for a machine whose model has no such command is refused, with what to set, rather than dropped.
+- `hardware.machine.<key>.firmware.own_pressure_advance = true`: the machine sets its own pressure advance, and plymeld
+  writes none, whatever the machine, a tool, or a filament sets.
+- The g-code check reads pressure advance back: every command setting it sets the config's value for the tool in hand,
+  and none is set where the config sets none or the machine sets its own.
+
 ### Changed
 
 - An outer wall is never widened or moved to share a slit behind it. Where a slit too narrow for a line lies between

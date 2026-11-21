@@ -4,6 +4,7 @@ import plymeld.model.Context
 import plymeld.model.Resolver
 import plymeld.model.Setup
 import plymeld.model.SliceSettings
+import plymeld.model.pressureAdvanceByTool
 
 /** What the config says a print on this machine must be (GcodeCheck.Expect), from the setup's settings. */
 object Expectations {
@@ -15,8 +16,11 @@ object Expectations {
     fun forSetup(setup: Setup, onSurface: ((Double, Double, Double, Double) -> Boolean)? = null,
                  partTools: Set<Int>? = null, allowedTools: Set<Int>? = null, liftedBridge: Boolean = false, zaa: ZaaRule? = null,
                  /** A scarf ramp's starting share the print has whatever the job locks: the seam plate prints scarf seams by its own specification. Null = the config's. */
-                 scarfStartOverride: Double? = null): GcodeCheck.Expect {
+                 scarfStartOverride: Double? = null,
+                 /** The print sets pressure advance itself before each element it measures (the pressure-advance plate): any value accepted. */
+                 pressureAdvanceSetByPlate: Boolean = false): GcodeCheck.Expect {
         val s = SliceSettings.of(setup)
+        val pa = s.machineDescription.pressureAdvance?.let { GcodeCheck.PressureAdvanceRule.of(it.template, it.unit, setup.pressureAdvanceByTool(), pressureAdvanceSetByPlate) }
         fun bed(k: String) = (Resolver.resolve(setup, "hardware.machine.build.$k").value as Number).toDouble()
         // every retraction length a spool in the print may use: each object's, and each part's
         val lengths = setup.objects.indices.flatMap { o ->
@@ -42,7 +46,7 @@ object Expectations {
             retractLengths = lengths, startTemplate = s.startGcode, endTemplate = s.endGcode, onSurface = onSurface,
             partTools = partTools, allowedTools = allowedTools, scarfStart = scarfStartOverride ?: scarfStart, tacksAllowed = liftedBridge, zaa = zaa,
             returnSpreadMm = spreads.maxOrNull(), extrudeSectionMaxMm2 = sections.minOrNull(),
-            filamentAreaMm2 = Math.PI * s.filamentDiameterMm * s.filamentDiameterMm / 4)
+            filamentAreaMm2 = Math.PI * s.filamentDiameterMm * s.filamentDiameterMm / 4, pressureAdvance = pa)
     }
 
     /**

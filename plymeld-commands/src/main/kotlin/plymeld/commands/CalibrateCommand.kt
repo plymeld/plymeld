@@ -24,6 +24,7 @@ import plymeld.core.calibrate.PathValues
 import plymeld.core.calibrate.PlateGeometry
 import plymeld.model.Resolver
 import plymeld.model.SliceSettings
+import plymeld.model.ownPressureAdvance
 import plymeld.model.pressureAdvanceByTool
 import java.util.Locale
 
@@ -705,7 +706,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             ?: Resolver.resolveOrNull(setup, "hardware.tool.pressure_advance", plymeld.model.Context(0))?.let { "the tool's, ${it.from}" }
             ?: Resolver.resolveOrNull(setup, "hardware.machine.pressure_advance", plymeld.model.Context(0))?.let { "the machine's, ${it.from}" }
         echo(pa[spool.tool]?.let { v -> "pressure advance: $v s ($paFrom)" }
-            ?: "pressure advance: not set, so the printer's own value applies, unknown to plymeld (the results will not say what it was; set the machine's, the tool's, or the filament's pressure_advance to state it)")
+            ?: ownPaEcho(setup) ?: "pressure advance: not set, so the printer's own value applies, unknown to plymeld (the results will not say what it was; set the machine's, the tool's, or the filament's pressure_advance to state it)")
         echo("check: every cell, temperature, fan, and the plate's geometry (the bases and their notches, the packing) as specified, and the g-code as the config says (machine, retraction, travels, start and end), the frame at the machine's print speed (held to the maximum flow) and acceleration, the first layer within its speed and the maximum flow" +
             (if (melt != null) ", every melt strip at its height on a solid floor and every move clear of the strips laid" else "") +
             "; ${spec.bands.size} bands, ${spec.topUm / h} layers. Controls caught: ${(controls + frameControls + firstControls).joinToString { it.first }}")
@@ -714,7 +715,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             (if (c.part == null) "" else " (its base ${c.baseTimeS?.let { n(it / 60) + " min, " } ?: ""}${n(c.baseFilamentMm / 1000)} m)"))
         // the page that goes with the plate: before printing, the conditions, a picture, how to read it
         val page = output.resolveSibling(output.fileName.toString().substringBeforeLast('.') + ".md")
-        val paText = pa[spool.tool]?.let { v -> "$v s (${paFrom?.substringBefore(',')})" } ?: "not set: the printer's own, unknown to plymeld (write down what it was if you know)"
+        val paText = pa[spool.tool]?.let { v -> "$v s (${paFrom?.substringBefore(',')})" } ?: ownPaPage(setup) ?: "not set: the printer's own, unknown to plymeld (write down what it was if you know)"
         plymeld.core.calibrate.PlateInstructions.write(page, spec, plate, plymeld.core.calibrate.PlateInstructions.Info(
             spool.material, Resolver.resolve(setup, "hardware.machine.model").value.toString(), spool.tool, PlymeldVersion.value, output.fileName.toString(),
             prediction.timeS?.let { it / 60 }, paText, s.bedTempFirstC, firstSpeed, frameSpeed, s.retractMm,
@@ -1044,12 +1045,12 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             ?: Resolver.resolveOrNull(setup, "hardware.tool.pressure_advance", plymeld.model.Context(0))?.let { "the tool's, ${it.from}" }
             ?: Resolver.resolveOrNull(setup, "hardware.machine.pressure_advance", plymeld.model.Context(0))?.let { "the machine's, ${it.from}" }
         echo(pa[spool.tool]?.let { v -> "pressure advance: $v s ($paFrom)" }
-            ?: "pressure advance: not set, so the printer's own value applies, unknown to plymeld (set the machine's, the tool's, or the filament's pressure_advance to state it)")
+            ?: ownPaEcho(setup) ?: "pressure advance: not set, so the printer's own value applies, unknown to plymeld (set the machine's, the tool's, or the filament's pressure_advance to state it)")
         echo("check: every tile's size, place, height, speed, width, filament per mm, and flow (within its column's melt limit), its start at the middle of its back edge, every column's temperature and the wait before it, " +
             "the prime lines along the base, the base (its corner cut off, its upper layers set back), each label where it goes (its lines inside its digits, every digit printed), every tile touching its neighbors and the plate one piece, each column's tiles lowest first, " +
             "the frame (${g.frameLayers} layers over the walls only, each a layer above the one under it, after all the tiles, lowest first), the border (as many layers round the base, on its upper layer, its corner cut), no travel across a finished line at its height, nothing else on the plate, and the g-code as the config says. Controls caught: ${controls.joinToString { it.first }}")
         val page = output.resolveSibling(output.fileName.toString().substringBeforeLast('.') + ".md")
-        val paText = pa[spool.tool]?.let { v -> "$v s (${paFrom?.substringBefore(',')})" } ?: "not set: the printer's own, unknown to plymeld (write down what it was if you know)"
+        val paText = pa[spool.tool]?.let { v -> "$v s (${paFrom?.substringBefore(',')})" } ?: ownPaPage(setup) ?: "not set: the printer's own, unknown to plymeld (write down what it was if you know)"
         plymeld.core.calibrate.FirstLayerInstructions.write(page, spec, plate, plymeld.core.calibrate.PlateInstructions.Info(
             spool.material, Resolver.resolve(setup, "hardware.machine.model").value.toString(), spool.tool, PlymeldVersion.value, output.fileName.toString(),
             prediction.timeS?.let { it / 60 }, paText, s.bedTempFirstC, s.firstLayerSpeed, s.firstLayerSpeed, s.retractMm,
@@ -1253,10 +1254,10 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             ?: Resolver.resolveOrNull(setup, "hardware.tool.pressure_advance", plymeld.model.Context(0))?.let { "the tool's, ${it.from}" }
             ?: Resolver.resolveOrNull(setup, "hardware.machine.pressure_advance", plymeld.model.Context(0))?.let { "the machine's, ${it.from}" }
         echo(pa[spool.tool]?.let { v -> "pressure advance: $v s ($paFrom)" }
-            ?: "pressure advance: not set, so the printer's own value applies, unknown to plymeld (set the machine's, the tool's, or the filament's pressure_advance to state it)")
+            ?: ownPaEcho(setup) ?: "pressure advance: not set, so the printer's own value applies, unknown to plymeld (set the machine's, the tool's, or the filament's pressure_advance to state it)")
         echo("check: every slab layer's height, speed, width, and filament per mm; the top fill along the slab, one bead spacing apart; each zone's speed, acceleration, plastic by the ironing rule, angle, spacing, and inset from the slab's edge, inside its cell, in order after the top; nothing over a control; the frames between zones left as laid; the base's size and chamfer, the brim, each slab in its place, the zones' labels, the slabs' speed bars, and the legend; the temperatures (the first layer's and the top's), each waited for, and the fan; no travel across the finished top or a finished zone at its height; and the g-code as the config says. Controls caught: ${controls.joinToString { it.first }}")
         val page = output.resolveSibling(output.fileName.toString().substringBeforeLast('.') + ".md")
-        val paText = pa[spool.tool]?.let { v -> "$v s (${paFrom?.substringBefore(',')})" } ?: "not set: the printer's own, unknown to plymeld (write down what it was if you know)"
+        val paText = pa[spool.tool]?.let { v -> "$v s (${paFrom?.substringBefore(',')})" } ?: ownPaPage(setup) ?: "not set: the printer's own, unknown to plymeld (write down what it was if you know)"
         plymeld.core.calibrate.IroningInstructions.write(page, spec, plate, plymeld.core.calibrate.PlateInstructions.Info(
             spool.material, Resolver.resolve(setup, "hardware.machine.model").value.toString(), spool.tool, PlymeldVersion.value, output.fileName.toString(),
             prediction.timeS?.let { it / 60 }, paText, s.bedTempFirstC, firstSpeed, spec.frame.speed, s.retractMm,
@@ -1368,10 +1369,10 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             ?: Resolver.resolveOrNull(setup, "hardware.tool.pressure_advance", plymeld.model.Context(0))?.let { "the tool's, ${it.from}" }
             ?: Resolver.resolveOrNull(setup, "hardware.machine.pressure_advance", plymeld.model.Context(0))?.let { "the machine's, ${it.from}" }
         echo(pa[spool.tool]?.let { v -> "pressure advance: $v s ($paFrom)" }
-            ?: "pressure advance: not set, so the printer's own value applies, unknown to plymeld (set the machine's, the tool's, or the filament's pressure_advance to state it)")
+            ?: ownPaEcho(setup) ?: "pressure advance: not set, so the printer's own value applies, unknown to plymeld (set the machine's, the tool's, or the filament's pressure_advance to state it)")
         echo("check: the layers and cells; every slab layer's and wall's height, speed, width, and filament per mm; each piece's seam where specified on every layer, a point seam's loop flat and closed, a scarf's ramp from the starting thickness to the top over the scarf length and laid again; the leaning faces' step-out; the pieces in order, inner wall first; the slab's size, chamfer, and ticks; the temperatures (the slab's first layer's and the pieces'), each waited for, and the fan; no travel across a piece at its layer's height; and the g-code as the config says. Controls caught: ${controls.joinToString { it.first }}")
         val page = output.resolveSibling(output.fileName.toString().substringBeforeLast('.') + ".md")
-        val paText = pa[spool.tool]?.let { v -> "$v s (${paFrom?.substringBefore(',')})" } ?: "not set: the printer's own, unknown to plymeld (write down what it was if you know)"
+        val paText = pa[spool.tool]?.let { v -> "$v s (${paFrom?.substringBefore(',')})" } ?: ownPaPage(setup) ?: "not set: the printer's own, unknown to plymeld (write down what it was if you know)"
         plymeld.core.calibrate.SeamInstructions.write(page, spec, plate, plymeld.core.calibrate.PlateInstructions.Info(
             spool.material, Resolver.resolve(setup, "hardware.machine.model").value.toString(), spool.tool, PlymeldVersion.value, output.fileName.toString(),
             prediction.timeS?.let { it / 60 }, paText, s.bedTempFirstC, firstSpeed, spec.frame.speed, s.retractMm,
@@ -1515,10 +1516,10 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             ?: Resolver.resolveOrNull(setup, "hardware.tool.pressure_advance", plymeld.model.Context(0))?.let { "the tool's, ${it.from}" }
             ?: Resolver.resolveOrNull(setup, "hardware.machine.pressure_advance", plymeld.model.Context(0))?.let { "the machine's, ${it.from}" }
         echo(pa[spool.tool]?.let { v -> "pressure advance: $v s ($paFrom)" }
-            ?: "pressure advance: not set, so the printer's own value applies, unknown to plymeld (set the machine's, the tool's, or the filament's pressure_advance to state it)")
+            ?: ownPaEcho(setup) ?: "pressure advance: not set, so the printer's own value applies, unknown to plymeld (set the machine's, the tool's, or the filament's pressure_advance to state it)")
         echo("check: the layers and cells; every slab and wall line's height, speed, acceleration, width, and filament per mm; on every tower layer each wall's lines on the cross's twelve faces at their speeds, counter-clockwise, every face its full length, the grooves set in; the seams on face 12; the inner wall first; the slab's size and chamfer; the arm marks (n notches in the slab's edge at arm n, clear of the faces); each face's speed label in front of it; the slab's first layer at its temperature, the tower's waited for before it, and the fan; no travel across a wall at its layer's height; and the g-code as the config says. Controls caught: ${controls.joinToString { it.first }}")
         val page = output.resolveSibling(output.fileName.toString().substringBeforeLast('.') + ".md")
-        val paText = pa[spool.tool]?.let { v -> "$v s (${paFrom?.substringBefore(',')})" } ?: "not set: the printer's own, unknown to plymeld (write down what it was if you know)"
+        val paText = pa[spool.tool]?.let { v -> "$v s (${paFrom?.substringBefore(',')})" } ?: ownPaPage(setup) ?: "not set: the printer's own, unknown to plymeld (write down what it was if you know)"
         plymeld.core.calibrate.MotionInstructions.write(page, spec, plate, plymeld.core.calibrate.PlateInstructions.Info(
             spool.material, machineDesc, spool.tool, PlymeldVersion.value, output.fileName.toString(),
             prediction.timeS?.let { it / 60 }, paText, s.bedTempFirstC, firstSpeed, spec.frame.speed, s.retractMm,
@@ -1845,6 +1846,13 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
     }
 
     private fun n(v: Double) = String.format(Locale.ROOT, "%.2f", v).trimEnd('0').trimEnd('.')
+
+    /** Where the machine sets its own pressure advance (firmware.own_pressure_advance): what a plate says of it as it is made; null otherwise. */
+    protected fun ownPaEcho(setup: plymeld.model.Setup): String? = if (setup.ownPressureAdvance())
+        "pressure advance: the machine sets its own (hardware.machine.<key>.firmware.own_pressure_advance), unknown to plymeld, which writes none" else null
+    /** The same for the plate's page; null where the machine does not set its own. */
+    protected fun ownPaPage(setup: plymeld.model.Setup): String? = if (setup.ownPressureAdvance())
+        "the machine's own (it sets its own: firmware.own_pressure_advance), unknown to plymeld (write down what it was if you know)" else null
 
     /** The kinds, one line each, in the order to run them. */
     fun kindsText() = "The kinds, in the order to run them (each plate's results lean on the ones before it):\n" +

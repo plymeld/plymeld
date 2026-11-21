@@ -2486,3 +2486,31 @@ usage error: the command line uses 1.
 unknown word: the window takes models by `-m`, and its desktop entry passes none. On Windows the window's program is
 a windowed program, so a command's output shows where its output is redirected (a script, a pipe), not in an
 interactive console; the installed `plymeld` is the command line there.
+
+## 71. Pressure advance is set with the machine model's own command; a machine may keep it as its own (2026-11-20)
+
+**Context.** The writer wrote Klipper's `SET_PRESSURE_ADVANCE ADVANCE=` itself, whatever the machine. Other firmware
+sets it with other commands and units (Marlin `M900 K`, RepRapFirmware `M572 D S`), and a calibration plate that
+measures pressure advance must set it mid-print, before each element. Some machines measure or keep their own value,
+and a value in the g-code would replace it.
+
+**Decision.** The printer model describes how pressure advance is set mid-print, as it describes the commands it
+accepts: `hardware.model.<key>.pressure_advance.command`, a template with `{pressure_advance}` standing for the value,
+and `.unit`, the unit the command takes it in (`s` or `ms`; unset = `s`), with their evidence beside them. The bundled
+models carry Klipper's command in seconds (Klipper's G-Codes and Config Reference). The writer renders that template
+when a tool starts with a value set, and wherever a program sets one (`SetPressureAdvance`, a calibration plate's
+step); a value set for a model with no command is refused, naming the setting. `hardware.machine.<key>.firmware.own_pressure_advance = true`
+says the machine sets its own: plymeld then writes none, whatever the machine, a tool, or a filament sets. The g-code
+check reads every such command back through the same template and holds it to the config's value for the tool in hand
+(none where the config sets none or the machine sets its own), except on a plate that sets its own values on purpose.
+
+**Rejected.** A command per firmware flavor in the writer: the command is the machine's fact, with evidence, and a
+user's own model may need another. The command on the machine rather than its model: every other g-code fact about
+what a printer accepts is the model's, and a machine's config may override a bundled model's values as it may any.
+Dropping a value silently where no command is known: the print would differ from what the config says. A machine's own
+value as a third source under the filament's, tool's, and machine's: plymeld cannot read it, so it can only be left
+alone.
+
+**Consequences.** A machine of a bundled model writes the same files as before. A model of the user's own needs
+`pressure_advance.command` before a pressure advance can be set for it. Whether a machine's own value survives a
+command in the file is not known per machine: `own_pressure_advance` is the user's statement.

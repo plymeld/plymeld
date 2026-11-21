@@ -265,6 +265,24 @@
                         "pattern": "^\\s*="
                       }
                     ]
+                  },
+                  "own_pressure_advance": {
+                    "description": "pressure advance belongs to the machine: it sets its own (measured by the machine itself, or kept in its own profiles), so plymeld writes none, even where the machine, a tool, or a filament sets a pressure_advance. Whether a machine's own value survives a command in the g-code differs by machine; unset = false — true or false; or a formula (= ...)",
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "enum": [
+                          "true",
+                          "false"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^\\s*="
+                      }
+                    ]
                   }
                 }
               },
@@ -290,7 +308,7 @@
                 }
               },
               "pressure_advance": {
-                "description": "pressure advance every tool prints with (Klipper's, in seconds, e.g. \"0.035 s\") unless the tool or the filament sets its own; none set = the firmware's own, and plymeld writes none — a time (s); or a formula (= ...)",
+                "description": "pressure advance every tool prints with, in seconds (how far the plastic leaving the nozzle lags the extruder, which runs that far ahead; Klipper's millimeters per millimeter/second), e.g. \"0.035 s\", written with its model's command (hardware.model.<key>.pressure_advance.command) when a tool starts, unless the tool or the filament sets its own; none set = the firmware's own, and plymeld writes none; not written at all where the machine sets its own (firmware.own_pressure_advance) — a time (s); or a formula (= ...)",
                 "type": [
                   "string",
                   "number"
@@ -706,6 +724,10 @@
                     "description": "the evidence of build.x / .y / .z, \"kind: detail\"",
                     "type": "string"
                   },
+                  "pressure_advance": {
+                    "description": "the evidence of pressure_advance.command and .unit, \"kind: detail\"",
+                    "type": "string"
+                  },
                   "gcode": {
                     "description": "the evidence of gcode.start / .end / .pause / .pictures, \"kind: detail\" (one line each)",
                     "type": "string"
@@ -735,6 +757,23 @@
                     "type": [
                       "string",
                       "number"
+                    ]
+                  }
+                }
+              },
+              "pressure_advance": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "command": {
+                    "description": "the g-code that sets pressure advance mid-print on this model, for the tool in hand, {pressure_advance} standing for the value in pressure_advance.unit (Klipper: SET_PRESSURE_ADVANCE ADVANCE={pressure_advance}); written when a tool starts with a pressure_advance set. Unset = plymeld cannot set pressure advance on this model: a pressure_advance set for it is refused",
+                    "type": "string"
+                  },
+                  "unit": {
+                    "description": "the unit pressure_advance.command takes its value in: s (seconds, Klipper's) or ms (milliseconds); unset = s",
+                    "enum": [
+                      "s",
+                      "ms"
                     ]
                   }
                 }
@@ -1244,7 +1283,7 @@
                 }
               },
               "pressure_advance": {
-                "description": "pressure advance it prints with (Klipper's, in seconds, e.g. \"0.035 s\") unless the filament sets its own; unset = the machine's (hardware.machine.<key>.pressure_advance) — a time (s); or a formula (= ...)",
+                "description": "pressure advance it prints with, in seconds (as hardware.machine.<key>.pressure_advance), unless the filament sets its own; unset = the machine's (hardware.machine.<key>.pressure_advance) — a time (s); or a formula (= ...)",
                 "type": [
                   "string",
                   "number"
@@ -1713,7 +1752,7 @@
                 ]
               },
               "pressure_advance": {
-                "description": "pressure advance (Klipper's, in seconds, e.g. \"0.035 s\") for this filament, overriding the tool's (hardware.tool.<key>.pressure_advance) — a time (s); or a formula (= ...)",
+                "description": "pressure advance for this filament, in seconds (as hardware.machine.<key>.pressure_advance), overriding the tool's (hardware.tool.<key>.pressure_advance) — a time (s); or a formula (= ...)",
                 "type": [
                   "string",
                   "number"

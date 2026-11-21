@@ -151,7 +151,8 @@ printer. Keep your own config and plates outside the repository.
   the commit.
 - **Pressure advance belongs to the firmware by default.** plymeld emits none and never overrides the
   firmware's, except where it is wanted and set (a calibration plate that must carry a known value, a
-  print at a stated value): then it is a setting with its source like any other.
+  print at a stated value): then it is a setting with its source like any other, written with the machine model's
+  own command. A machine that sets its own (`firmware.own_pressure_advance`) gets none at all.
 - **Nothing of anyone's own in the repository**: no one's own models, slices of them, calibration plates,
   readings, renders, or printer configs. Test models in the repository are ones plymeld may carry (for
   example the CC0 3DBenchy) or are generated.
