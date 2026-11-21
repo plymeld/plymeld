@@ -2530,8 +2530,8 @@ side by side on one base, never by height, the first layer and the base unread. 
 row in the opposite order, and rows that disagree by more than a step (one wall's place on the plate, whatever its size)
 refuse the result; a corner beside each wall confirms it and is never read alone; a wall whose two marks read alike,
 readings out of order, and no flip are refused. A first plate's values are 0 and, each a fixed ratio below the next,
-from the tool's ceiling (`hardware.tool.<key>.calibrate.pressure_advance.max`, defaulting to the top of the typical
-range in Klipper's guide) down to its lowest (`.min`, a hundredth of the default ceiling unless set), the ratio set by
+from its top (below: at most the tool's ceiling, `hardware.tool.<key>.calibrate.pressure_advance.max`, defaulting to
+the top of the typical range in Klipper's guide) down to the tool's lowest (`.min`, a hundredth of the default ceiling unless set), the ratio set by
 the two and the plate's count of values: one plate brackets both a short filament path's value (a few hundredths of a
 second) and a long tube's. A fine plate runs evenly inside the bracket; a confirm plate prints the value and its
 neighbors at three flow steps and reports whether it holds, depends on the flow (the medium step's written, the range
@@ -2542,9 +2542,13 @@ The speeds are the config's (a visible wall's, the machine's print speed, each h
 acceleration the machine's. A pressure model in plymeld's test tooling (a first-order lag of the true value, the set
 value run ahead as Klipper runs it) proves the flip falls exactly at the true value. The slow-down mark reads opposite
 to the speed-up mark only where the pressure settles within the wall's lead-in and middle, so these grow together (from
-10 and 30 mm) until, by the same model at the plate's speeds, it settles at the plate's highest value (the tool's
-ceiling on a first plate); walls too long for the bed are refused, naming the ceiling. The shortest stretches, the
-tail, the wall's height, the pitch, the values per row, and the stretch a reading looks at are plymeld's choices.
+10 and 30 mm) until, by the same model at the plate's speeds, it settles at the plate's highest value. A first plate's
+top is the tool's ceiling or the highest value whose walls fit the bed at the plate's speeds, whichever is lower, found
+with the same model and layout; the plate and its page say which and the length the ceiling would need, and a plate
+that does not fit even from the tool's lowest value is refused with that reason. Given values whose walls do not fit
+are refused. Every value is held to its label's resolution (0.1 ms), so a wall's value and its label agree. The
+shortest stretches, the tail, the wall's height, the pitch, the values per row, the arrow's head, and the stretch a
+reading looks at are plymeld's choices.
 
 **Rejected.** A tower with the value rising by height: cooling, layer time, and wall stiffness change with it. A row of
 corners or chevrons read for the best one: a judgment between near-identical neighbors, and corners carry other
@@ -2558,8 +2562,11 @@ spacing: from a bracket at the bottom of the plate its lower neighbor fell below
 **Rejected (the stretches).** Fixed stretches with the plate stating the true value they settle up to: a tool with a
 long filament path would read alike at both marks on every wall and be refused.
 
-**Consequences.** A higher ceiling makes longer walls: at 100 and 170 mm/s and 10,000 mm/s2 (the repository's sample
-config) a lead-in and middle of 10 and 30 mm up to 0.1 s, 22 and 64 mm at 0.5 s, 43 and 127 mm at 1 s; two rows of the
-last do not fit a 250 mm bed, so with the default ceiling of 1 s such a machine is refused until the tool's ceiling,
-`--values`, or `--bracket` asks for less. The pilot print decides whether the stacked defect reads by eye and nail at
-this size.
+**Rejected (the top).** Refusing a first plate whose ceiling's walls do not fit: with the default ceiling a user with no
+setting of their own could not start on most beds.
+
+**Consequences.** A higher value makes longer walls, and a faster middle more: at 100 and 170 mm/s and 10,000 mm/s2 (the
+repository's sample config) a lead-in and middle of 10 and 30 mm up to 0.1 s, 22 and 64 mm at 0.5 s, 43 and 127 mm at
+1 s; two rows of the last do not fit a 250 mm bed, so there the first plate reaches about 0.4 s. A filament path whose
+value lies above the top reads grooves on every wall, and the refusal names what reaching higher takes: a longer bed
+axis, or a lower fast speed. The pilot print decides whether the stacked defect reads by eye and nail at this size.

@@ -1,6 +1,7 @@
 package plymeld.commands
 
 import com.github.ajalt.clikt.core.parse
+import io.kotest.assertions.withClue
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.doubles.plusOrMinus
@@ -129,26 +130,79 @@ class PressureAdvanceReadingsTest : StringSpec({
         shouldThrow<IllegalArgumentException> { plate(dir, "--confirm", "machine") }.message!! shouldContain "does not"
     }
 
-    /** The commands a result suggests (each `plymeld calibrate pressure-advance ...` in its report), as their arguments after `pressure-advance`. */
-    fun suggested(r: PressureAdvanceRecord.Result): List<List<String>> =
-        Regex("`plymeld calibrate pressure-advance ([^`]+)`").findAll(r.report.joinToString("\n")).map { it.groupValues[1].trim().split(Regex("\\s+")) }.toList()
+    /** The command lines a result suggests (each `plymeld ...` in backquotes in its report), as printed. */
+    fun suggested(r: PressureAdvanceRecord.Result): List<String> = Regex("`(plymeld [^`]+)`").findAll(r.report.joinToString("\n")).map { it.groupValues[1] }.toList()
+    /** A command line split into words as a POSIX shell splits it (single quotes, backslashes outside them). */
+    fun words(line: String): List<String> {
+        val out = ArrayList<String>(); val cur = StringBuilder(); var inWord = false; var i = 0
+        while (i < line.length) {
+            val c = line[i]
+            when {
+                c == '\'' -> { val end = line.indexOf('\'', i + 1); cur.append(line, i + 1, end); i = end; inWord = true }
+                c == '\\' && i + 1 < line.length -> { cur.append(line[i + 1]); i++; inWord = true }
+                c.isWhitespace() -> { if (inWord) { out += cur.toString(); cur.clear(); inWord = false } }
+                else -> { cur.append(c); inWord = true }
+            }
+            i++
+        }
+        if (inWord) out += cur.toString()
+        return out
+    }
+    /** Runs a printed command line, unmodified, through the command line's own parser; its g-code (its -o) back. */
+    fun runPrinted(line: String): Path {
+        val w = words(line)
+        w.first() shouldBe "plymeld"
+        val said = ArrayList<String>()
+        val status = Commands.invoke(w.drop(1), { said += it }, { said += it })
+        withClue("$line\n${said.joinToString("\n")}") { status shouldBe 0 }
+        return Path.of(w[w.indexOf("-o") + 1])
+    }
 
-    "every plate a result suggests is made as printed: from a first plate, a fine plate, and a confirm plate" {
+    "every plate a result suggests is made as printed, run through the command parser unmodified: from a first plate, a fine plate, and a confirm plate" {
         // a first plate (0, then the tool's lowest to a ceiling of 0.1 s, each a fixed ratio below the next), read with the
         // true value at its lowest flip: 0 and the lowest value bracket it, the case a fixed step pushed below 0
-        val ceiling = arrayOf("-cv", "hardware.tool.t1.calibrate.pressure_advance.max=0.1 s")
-        val first = values(fill(sheet(plate(dir, *ceiling)), truth(0.0005)))
+        val first = values(fill(sheet(plate(dir, "-cv", "hardware.tool.t1.calibrate.pressure_advance.max=0.1 s")), truth(0.0005)))
         val fromFirst = suggested(first)
         fromFirst.size shouldBe 2
-        for (args in fromFirst) plate(dir, *ceiling, *args.toTypedArray())
-        // the fine plate it suggests, read, and its own suggestions
-        val fine = values(fill(sheet(plate(dir, *ceiling, *fromFirst.first { "--bracket" in it }.toTypedArray())), truth(0.0006)))
+        first.report.none { it.endsWith(" ") } shouldBe true
+        val made = fromFirst.map { runPrinted(it) }
+        made.map { it.fileName.toString() }.all { it.endsWith("-fine.gcode") || it.endsWith("-confirm.gcode") } shouldBe true
+        // the fine plate it made, read, and its own suggestions
+        val fine = values(fill(sheet(made.first { it.fileName.toString().endsWith("-fine.gcode") }), truth(0.0006)))
         val fromFine = suggested(fine)
         fromFine.size shouldBe 2
-        for (args in fromFine) plate(dir, *ceiling, *args.toTypedArray())
+        val madeFine = fromFine.map { runPrinted(it) }
         // the confirm plate suggests none
-        val c = values(fill(sheet(plate(dir, *fromFine.first { "--confirm" in it }.toTypedArray())), truth(fine.value!!)))
+        val c = values(fill(sheet(madeFine.first { it.fileName.toString().endsWith("-confirm.gcode") }), truth(fine.value!!)))
         suggested(c) shouldBe emptyList()
+    }
+
+    "the default first plate on a bed too short for the ceiling's walls: its top the highest value whose walls fit, said; a longer bed takes the ceiling (control); a lowest value that does not fit is refused" {
+        fun conditions(g: Path) = Files.readString(g).lines().filter { it.startsWith("; ") }
+        fun valuesOf(g: Path) = Regex("""; values = (.*) s""").find(Files.readString(g))!!.groupValues[1].split(", ").map { it.toDouble() }
+        // the sample's bed: 250 x 250 mm
+        val g = plate(dir)
+        val top = conditions(g).single { it.startsWith("; top = ") }
+        top shouldContain "fit"
+        top shouldContain "would need walls"
+        (valuesOf(g).max() < 1.0) shouldBe true
+        // the plate fits: its walls end inside the bed's 250 mm
+        val ys = Files.readString(g).lines().mapNotNull { Regex("""^G1 X[-0-9.]+ Y([-0-9.]+) E""").find(it)?.groupValues?.get(1)?.toDouble() }
+        (ys.max() <= 250.0) shouldBe true
+        // control: a bed long enough for the ceiling's walls takes the ceiling
+        val long = plate(dir, "-cv", "hardware.machine.example-corexy.build.y=700 mm")
+        valuesOf(long).max() shouldBe (1.0 plusOrMinus 1e-9)
+        conditions(long).single { it.startsWith("; top = ") } shouldContain "the tool's ceiling"
+        // the tool's lowest value above what fits: refused, saying why
+        shouldThrow<IllegalArgumentException> { plate(dir, "-cv", "hardware.tool.t1.calibrate.pressure_advance.min=0.9 s") }.message!! shouldContain "even from the tool's lowest value"
+    }
+
+    "every wall's value is at its label's resolution (0.1 ms): a fine plate's even values and the first plate's ratio values" {
+        for (g in listOf(plate(dir, "--bracket", "0.0123-0.0456"), plate(dir, "-cv", "hardware.tool.t1.calibrate.pressure_advance.max=0.1 s"))) {
+            val vs = Regex("""; wall \d+\.\d+ = ([0-9.]+) s""").findAll(Files.readString(g)).map { it.groupValues[1].toDouble() }.toList()
+            (vs.size > 10) shouldBe true
+            for (v in vs) withClue("$v s") { Math.abs(v * 10_000 - Math.round(v * 10_000)) shouldBe (0.0 plusOrMinus 1e-6) }
+        }
     }
 
     "the first plate's values: 0, then the tool's lowest to its ceiling, each a fixed ratio below the next; rows one place apart are accepted, two refused" {
@@ -159,10 +213,10 @@ class PressureAdvanceReadingsTest : StringSpec({
         vs[1] shouldBe (0.004 plusOrMinus 1e-9)
         vs.last() shouldBe (0.2 plusOrMinus 1e-9)
         val ratios = vs.drop(1).zipWithNext { a, b -> b / a }
-        for (r in ratios) r shouldBe (Math.pow(0.2 / 0.004, 1.0 / (vs.size - 2)) plusOrMinus 0.01)
+        for (r in ratios) r shouldBe (Math.pow(0.2 / 0.004, 1.0 / (vs.size - 2)) plusOrMinus 0.05)
         // the rows a place apart (the front flips between places 5 and 6, the back between 6 and 7): accepted, though the steps differ in size
         val b = sheet(g)
-        values(fill(b) { r, v, s -> truth(if (r == "front") (vs[5] + vs[6]) / 2 else (vs[6] + vs[7]) / 2)(r, v, s) }).value shouldBe ((vs[5] + vs[7]) / 2 plusOrMinus 1e-5)
+        values(fill(b) { r, v, s -> truth(if (r == "front") (vs[5] + vs[6]) / 2 else (vs[6] + vs[7]) / 2)(r, v, s) }).value shouldBe (plymeld.core.calibrate.PressureAdvanceSpec.atLabel((vs[5] + vs[7]) / 2) plusOrMinus 1e-9)
         shouldThrow<IllegalArgumentException> { values(fill(b) { r, v, s -> truth(if (r == "front") (vs[5] + vs[6]) / 2 else (vs[7] + vs[8]) / 2)(r, v, s) }) }.message!! shouldContain "more than one step"
     }
 

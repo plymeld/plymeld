@@ -24,14 +24,17 @@ section the release's version and date.
   Too little leaves a groove up the wall just after the speed-up and a ridge just after the slow-down, too much the
   other way round; the value is where the grooves turn into ridges. Two rows, the same values rising and falling, a
   square corner beside each wall; the values 0, then from the tool's lowest value
-  (`hardware.tool.<key>.calibrate.pressure_advance.min`, 0.01 s unless set) to its ceiling (`.max`, 1 s unless set: the
-  top of the typical range in Klipper's guide), each a fixed ratio below the next, so one plate brackets a short
-  filament path and a long tube; or `--values`, or evenly inside `--bracket` for a finer plate. The lead-in and the middle (at least 10 and 30 mm) grow
-  together until, by plymeld's pressure model, the pressure settles within them at the plate's highest value, so the
-  slow-down mark reads opposite to the speed-up mark on every wall; walls too long for the bed are refused, naming the
-  ceiling (at 100 and 170 mm/s and 10,000 mm/s2: 10 and 30 mm up to 0.1 s, 22 and 64 mm at 0.5 s, 43 and 127 mm at 1 s).
-  A hole in the base marks each speed change, each value is written in front of its wall in milliseconds; the page draws
-  the three readings.
+  (`hardware.tool.<key>.calibrate.pressure_advance.min`, 0.01 s unless set) to the plate's top, each a fixed ratio below
+  the next, so one plate brackets a short filament path and a long tube; or `--values`, or evenly inside `--bracket` for
+  a finer plate. Every value is held to its label's resolution, 0.1 ms. The lead-in and the middle (at least 10 and 30
+  mm) grow together until, by plymeld's pressure model, the pressure settles within them at the plate's highest value,
+  so the slow-down mark reads opposite to the speed-up mark on every wall; their lengths depend on the plate's speeds
+  and acceleration (at 100 and 170 mm/s and 10,000 mm/s2: 10 and 30 mm up to 0.1 s, 22 and 64 mm at 0.5 s, 43 and 127
+  mm at 1 s; a faster middle needs more). The first plate's top is the tool's ceiling (`.max`, 1 s unless set: the top
+  of the typical range in Klipper's guide), or the highest value whose walls fit the bed, whichever is lower; the plate
+  and its page say which, and the length the ceiling would need. Given values whose walls do not fit are refused.
+  A hole in the base marks each speed change, an arrow the way each wall prints, each value is written in front of its
+  wall in milliseconds; the page draws the three readings.
 - `--confirm VALUE --confirm-step S`: the value and its two neighbors, each at three flow steps; a machine that sets its
   own gets `--confirm machine`, its own value with no command written.
 - `plymeld calibrate pressure-advance readings` and `values`: the sheet to fill in (groove, flat, or ridge at each mark;
@@ -48,7 +51,8 @@ section the release's version and date.
   value) prints as one line, as plymeld's other refusals do, without the command line's usage; a mistake in the command
   line's own form still shows it.
 - A command reading the config folder's files (no `-cf`) says so once, where a calibration plate said it twice.
-- The stroke font's "1", in every plate's raised labels, has a base, so it is not taken for an arrow.
+- The stroke font's "1", in every plate's raised labels, has a base, so it is not taken for an arrow; its decimal point
+  is a short upright bar two lines long, where a dot was a single short line.
 - An outer wall is never widened or moved to share a slit behind it. Where a slit too narrow for a line lies between
   the outer wall (round the outline or round a hole) and the line inside it, the outer wall keeps its width and place
   along the face, and the inner wall beside the slit takes all of it (it took half, the outer wall the other half); two

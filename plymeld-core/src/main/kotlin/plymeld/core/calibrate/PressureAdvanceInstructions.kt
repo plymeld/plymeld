@@ -38,6 +38,8 @@ object PressureAdvanceInstructions {
         /** The config's pressure advance for the tool (s), or null; whether the machine sets its own. */
         val configuredPa: Double?, val machineOwn: Boolean,
         val retractMm: Double, val date: java.time.LocalDate = java.time.LocalDate.now(),
+        /** A first plate's top and why it is there (the tool's ceiling, or the highest value whose walls fit the bed); null = none of plymeld's choosing. */
+        val top: String? = null,
     )
 
     /** Writes [mdFile] and its picture beside it (same name, .png). */
@@ -97,6 +99,9 @@ object PressureAdvanceInstructions {
             else -> "each wall its own: ${values.joinToString(", ") { spec.valueText(it) }} s; the base and the labels at ${spec.framePa?.let { v(it) } ?: "none"} |"
         })
         l("| the firmware's pressure-advance smoothing | its own (plymeld sets none) |")
+        l("| the values' resolution | ${n(PressureAdvanceSpec.LABEL_STEP_S * 1000, 1)} ms: every value printed to a tenth of a millisecond, as its label shows it |")
+        info.top?.let { l("| the plate's top | $it |") }
+        l("| the walls' stretches | a ${n(spec.leadUm / 1000.0, 0)} mm lead-in and a ${n(spec.fastUm / 1000.0, 0)} mm middle: long enough, at these speeds and this acceleration, for the pressure to settle within them up to ${spec.valueText(info.settlesUpToS)} s (plymeld's pressure model); faster speeds or a higher value need longer walls |")
         l("| bed, part fan, retraction | ${info.bedTempC} C; off on the first layer, ${n(spec.fanPct, 0)} % above; ${n(info.retractMm, 2)} mm, between walls only |")
         l()
         l("## The plate")

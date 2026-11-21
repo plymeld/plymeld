@@ -1443,29 +1443,32 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         if (fastMax <= slow) throw IllegalArgumentException("no speed step to read: the fast speed (${n(fastMax)} mm/s, the machine's print speed held to the filament's maximum flow) is not above the slow one (${n(slow)} mm/s, a visible wall's); give both with --speeds SLOW,FAST")
         if (paSpeeds != null && fastMax > meltCap(w, hm) + 1e-9) throw IllegalArgumentException("--speeds: ${n(fastMax)} mm/s lays more than the filament's maximum flow allows at this line (${n(meltCap(w, hm))} mm/s, hardware.filament.<key>.melt.flow.max less the buffer)")
         val accel = s.defaultAccel
-        // the values
+        // the values, each to the labels' resolution (a wall's value and its label agree)
         val g = plymeld.core.calibrate.PressureAdvanceGeometry
+        val atLabel = plymeld.core.calibrate.PressureAdvanceSpec::atLabel
         val ceilingR = Resolver.resolve(setup, "hardware.tool.calibrate.pressure_advance.max", plymeld.model.Context(0))
         val ceiling = (ceilingR.value as Number).toDouble()
-        fun evenly(lo: Double, hi: Double) = (0 until g.values).map { k -> Math.round((lo + (hi - lo) * k / (g.values - 1)) * 1e5) / 1e5 }
-        // the first plate: 0, then from the tool's lowest value to its ceiling, each a fixed ratio below the next (the ratio
-        // set by the two and the plate's count), to three figures: one plate brackets a short filament path and a long tube
+        fun evenly(lo: Double, hi: Double) = (0 until g.values).map { k -> atLabel(lo + (hi - lo) * k / (g.values - 1)) }
+        // the first plate: 0, then from the tool's lowest value to its top, each a fixed ratio below the next (the ratio set
+        // by the two and the plate's count): one plate brackets a short filament path and a long tube
         val floorR = Resolver.resolve(setup, "hardware.tool.calibrate.pressure_advance.min", plymeld.model.Context(0))
         val floor = (floorR.value as Number).toDouble()
+        if (!(floor >= plymeld.core.calibrate.PressureAdvanceSpec.LABEL_STEP_S && floor < ceiling)) throw IllegalArgumentException("the find plate's values run from hardware.tool.<key>.calibrate.pressure_advance.min (${n(floor)} s, ${floorR.from}) " +
+            "up to .max (${n(ceiling)} s, ${ceilingR.from}): the lowest must be at least the labels' ${plymeld.core.calibrate.PressureAdvanceSpec.LABEL_STEP_S * 1000} ms and below the highest")
         fun geometric(lo: Double, hi: Double): List<Double> {
-            if (!(lo > 0 && lo < hi)) throw IllegalArgumentException("the find plate's values run from hardware.tool.<key>.calibrate.pressure_advance.min (${n(lo)} s, ${floorR.from}) up to .max (${n(hi)} s, ${ceilingR.from}): the lowest must be above 0 and below the highest")
             val count = g.values - 1
-            return listOf(0.0) + (0 until count).map { k -> java.math.BigDecimal(lo * Math.pow(hi / lo, k.toDouble() / (count - 1))).round(java.math.MathContext(3)).toDouble() }
+            return listOf(0.0) + (0 until count).map { k -> atLabel(lo * Math.pow(hi / lo, k.toDouble() / (count - 1))) }
         }
+        fun distinct(vs: List<Double>, what: String): List<Double> = vs.also {
+            if (it.zipWithNext().any { (a, b) -> b <= a }) throw IllegalArgumentException("$what: ${vs.joinToString(", ") { v -> n4(v) }} s at the labels' ${plymeld.core.calibrate.PressureAdvanceSpec.LABEL_STEP_S * 1000} ms: two walls would carry one value; a wider range") }
+        fun findWalls(vs: List<Double>) = vs.indices.map { plymeld.core.calibrate.PressureAdvanceWall(0, it, vs[it], fastMax) } + vs.indices.map { plymeld.core.calibrate.PressureAdvanceWall(1, it, vs[vs.size - 1 - it], fastMax) }
         val confirmStep = paConfirmStep?.let { seconds(it, "--confirm-step").takeIf { v -> v > 0 } ?: throw UsageError("--confirm-step is above 0") }
-        val walls: List<plymeld.core.calibrate.PressureAdvanceWall> = when (kind) {
-            plymeld.core.calibrate.PressureAdvanceSpec.Kind.FIND -> {
-                val vs = paValues?.let { t -> t.split(',').map { seconds(it, "--values") }.also { v ->
-                        if (v.size < 2 || v.zipWithNext().any { (a, b) -> b <= a }) throw UsageError("--values is at least two values, rising (got '$t')") } }
-                    ?: paBracket?.let { t -> range(t.replace(" s", "").replace("s", ""), "--bracket").let { (a, b) -> if (b <= a || a < 0) throw UsageError("--bracket runs low to high, from 0 or more (got '$t')"); evenly(a, b) } }
-                    ?: geometric(floor, ceiling)
-                vs.indices.map { plymeld.core.calibrate.PressureAdvanceWall(0, it, vs[it], fastMax) } + vs.indices.map { plymeld.core.calibrate.PressureAdvanceWall(1, it, vs[vs.size - 1 - it], fastMax) }
-            }
+        val autoTop = kind == plymeld.core.calibrate.PressureAdvanceSpec.Kind.FIND && paValues == null && paBracket == null
+        val given: List<plymeld.core.calibrate.PressureAdvanceWall>? = when (kind) {
+            plymeld.core.calibrate.PressureAdvanceSpec.Kind.FIND -> (paValues?.let { t -> t.split(',').map { atLabel(seconds(it, "--values")) }.also { v ->
+                        if (v.size < 2 || v.zipWithNext().any { (a, b) -> b < a }) throw UsageError("--values is at least two values, rising (got '$t')") }.let { distinct(it, "--values") } }
+                    ?: paBracket?.let { t -> range(t.replace(" s", "").replace("s", ""), "--bracket").let { (a, b) -> if (b <= a || a < 0) throw UsageError("--bracket runs low to high, from 0 or more (got '$t')"); distinct(evenly(a, b), "--bracket $t") } })
+                ?.let { findWalls(it) }
             plymeld.core.calibrate.PressureAdvanceSpec.Kind.CONFIRM -> {
                 // three flow steps: a third, two thirds, and all of the speed step (plymeld's choice)
                 val fasts = (1..3).map { slow + (fastMax - slow) * it / 3 }
@@ -1473,8 +1476,8 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
                 else {
                     val c = seconds(confirmText!!, "--confirm")
                     val step = confirmStep ?: throw UsageError("--confirm-step: the step to the neighbors (the step of the plate that gave the value, as `pressure-advance values` prints it), e.g. --confirm-step 0.004")
-                    val vs = listOf(c - step, c, c + step).map { Math.round(it * 1e5) / 1e5 }
-                    if (vs[0] < 0) throw IllegalArgumentException("--confirm ${n(c)} less --confirm-step ${n(step)} is below 0: a smaller step")
+                    val vs = distinct(listOf(c - step, c, c + step).map { atLabel(it) }, "--confirm ${n4(c)} --confirm-step ${n4(step)}")
+                    if (vs[0] < 0) throw IllegalArgumentException("--confirm ${n4(c)} less --confirm-step ${n4(step)} is below 0: a smaller step")
                     vs.flatMapIndexed { vi, v -> fasts.indices.map { k -> plymeld.core.calibrate.PressureAdvanceWall(0, vi * 3 + k, v, fasts[k], k) } }
                 }
             }
@@ -1482,47 +1485,72 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         val firstSpeed = Math.min(s.firstLayerSpeed, meltCap(s.firstLayerWidthUm, s.firstLayerHeightUm / 1000.0))
         val level = s.levelGcode?.takeIf { !noLevel }
         val configuredPa = setup.pressureAdvanceByTool()[spool.tool]
-        val framePa = if (own) null else configuredPa ?: walls.mapNotNull { it.value }.min()
         fun bed(k: String) = (Resolver.resolve(setup, "hardware.machine.build.$k").value as Number).toDouble()
         val bedW = bed("right") - bed("left"); val bedD = bed("back") - bed("front")
+        val park = g.parkFront / 1000.0
+        val bead = plymeld.core.calibrate.MeltSpec.bead(w, h)
         // the lead-in and the middle: long enough for the pressure to settle within them at the plate's highest value (the
         // ceiling where the plate sets none: the machine's own), by the pressure model at the fastest wall's speed, so the
         // slow-down mark reads opposite to the speed-up mark on every wall
-        val highest = walls.mapNotNull { it.value }.maxOrNull() ?: ceiling
-        val highestWhy = if (walls.all { it.value == null } || (paValues == null && paBracket == null && kind == plymeld.core.calibrate.PressureAdvanceSpec.Kind.FIND))
-            "the tool's ceiling, hardware.tool.<key>.calibrate.pressure_advance.max = ${n(ceiling)} s (${ceilingR.from})" else "the plate's highest value"
-        val bead = plymeld.core.calibrate.MeltSpec.bead(w, h)
-        val stretches = if (highest <= 0) Triple(g.leadMin / 1000.0, g.fastMin / 1000.0, g.tail / 1000.0)
-            else plymeld.check.PressureModel.stretchesFor(slow, walls.maxOf { it.fastSpeed }, accel, bead, g.readLength / 1000.0, highest,
-                g.leadMin / 1000.0, g.fastMin / 1000.0, g.tail / 1000.0, limitMm = Math.max(bedD, bedW))
-            ?: throw IllegalArgumentException("the pressure-advance plate's walls cannot be long enough on this bed for the pressure to settle within them at ${n(highest)} s ($highestWhy): " +
-                "a true value that high takes longer to settle than a wall ${n(Math.max(bedD, bedW))} mm long allows at ${n(walls.maxOf { it.fastSpeed })} mm/s; a tool with a short filament path needs a lower ceiling (set hardware.tool.<key>.calibrate.pressure_advance.max), or give --values with a lower top, or a --bracket")
-        fun spec(ox: Long, oy: Long) = try {
-            plymeld.core.calibrate.PressureAdvanceSpec(spool.tool, spool.id, kind, walls, h, s.firstLayerHeightUm, w, s.firstLayerWidthUm, s.filamentDiameterMm, s.flowRatio,
+        fun highestOf(ws: List<plymeld.core.calibrate.PressureAdvanceWall>) = ws.mapNotNull { it.value }.maxOrNull() ?: ceiling
+        fun stretchesOf(ws: List<plymeld.core.calibrate.PressureAdvanceWall>) = highestOf(ws).let { top -> if (top <= 0) Triple(g.leadMin / 1000.0, g.fastMin / 1000.0, g.tail / 1000.0)
+            else plymeld.check.PressureModel.stretchesFor(slow, ws.maxOf { it.fastSpeed }, accel, bead, g.readLength / 1000.0, top, g.leadMin / 1000.0, g.fastMin / 1000.0, g.tail / 1000.0, limitMm = Math.max(bedD, bedW)) }
+        fun specOf(ws: List<plymeld.core.calibrate.PressureAdvanceWall>, st: Triple<Double, Double, Double>, ox: Long = 0, oy: Long = 0) = try {
+            plymeld.core.calibrate.PressureAdvanceSpec(spool.tool, spool.id, kind, ws, h, s.firstLayerHeightUm, w, s.firstLayerWidthUm, s.filamentDiameterMm, s.flowRatio,
                 printC, s.nozzleTempFirstC, s.fanMinPct, adhesion = PathValues(firstSpeed, s.defaultAccel, s.flowRatio, s.retractMm),
                 frame = PathValues(Math.min(s.hiddenSpeed, meltCap(w, hm)), s.defaultAccel, s.flowRatio, s.retractMm),
-                slowSpeed = slow, accel = accel, framePa = framePa, liftUm = s.zHopUm, originXUm = ox, originYUm = oy, levelGcode = level,
-                leadUm = Math.round(stretches.first * 1000), fastUm = Math.round(stretches.second * 1000))
+                slowSpeed = slow, accel = accel, framePa = if (own) null else configuredPa ?: ws.mapNotNull { it.value }.min(), liftUm = s.zHopUm, originXUm = ox, originYUm = oy, levelGcode = level,
+                leadUm = Math.round(st.first * 1000), fastUm = Math.round(st.second * 1000))
         } catch (e: IllegalArgumentException) { throw IllegalArgumentException(e.message ?: "the pressure-advance plate's values") }
-        val draft = spec(0, 0)
+        fun fits(sp: plymeld.core.calibrate.PressureAdvanceSpec) = sp.baseW / 1000.0 <= bedW && sp.baseD / 1000.0 + 2 * park <= bedD
+        fun sizeWords(sp: plymeld.core.calibrate.PressureAdvanceSpec) = "walls ${n(sp.wallLength / 1000.0)} mm long (a ${n(sp.leadUm / 1000.0)} mm lead-in, a ${n(sp.fastUm / 1000.0)} mm middle at ${n(fastMax)} mm/s), a plate ${n(sp.baseW / 1000.0)} x ${n(sp.baseD / 1000.0)} mm"
+        // the first plate's top: the tool's ceiling, or the highest value whose walls fit the bed, whichever is lower
+        var topWhy = ""
+        val walls: List<plymeld.core.calibrate.PressureAdvanceWall> = given ?: run {
+            fun tried(top: Double): plymeld.core.calibrate.PressureAdvanceSpec? {
+                val vs = geometric(floor, top).takeIf { v -> v.zipWithNext().all { (a, b) -> b > a } } ?: return null
+                val ws = findWalls(vs)
+                return stretchesOf(ws)?.let { specOf(ws, it) }?.takeIf { fits(it) }
+            }
+            val atCeiling = findWalls(geometric(floor, ceiling)).let { ws -> stretchesOf(ws)?.let { specOf(ws, it) } }
+            if (atCeiling != null && fits(atCeiling)) { topWhy = "the tool's ceiling (hardware.tool.<key>.calibrate.pressure_advance.max, ${ceilingR.from})"; return@run atCeiling.walls }
+            val need = atCeiling?.let { sizeWords(it) } ?: "walls longer than the bed at ${n(fastMax)} mm/s"
+            // the lowest top that still spaces the values apart at the labels' resolution, then up as far as the walls fit
+            var lo = floor * Math.pow(1 + 1.5 * plymeld.core.calibrate.PressureAdvanceSpec.LABEL_STEP_S / floor, (g.values - 2).toDouble())
+            if (lo >= ceiling || tried(lo) == null) throw IllegalArgumentException("the pressure-advance find plate does not fit this machine even from the tool's lowest value: the bed is ${n(bedW)} x ${n(bedD)} mm (hardware.machine.<key>.build), " +
+                "and values from ${n4(floor)} s (hardware.tool.<key>.calibrate.pressure_advance.min, ${floorR.from}) already need longer walls than it allows; the ceiling, ${n4(ceiling)} s, would need $need. A lower fast speed (--speeds SLOW,FAST, or the machine's print speed hardware.machine.<key>.motion.print.speed) makes the walls shorter")
+            var hi = ceiling
+            repeat(24) { val m = Math.sqrt(lo * hi); if (tried(m) != null) lo = m else hi = m }
+            topWhy = "the highest value whose walls fit the ${n(bedD)} mm bed at these speeds; the tool's ceiling, ${n4(ceiling)} s (hardware.tool.<key>.calibrate.pressure_advance.max), would need $need"
+            tried(lo)!!.walls
+        }
+        val highest = highestOf(walls)
+        val highestWhy = when {
+            walls.all { it.value == null } -> "the tool's ceiling, hardware.tool.<key>.calibrate.pressure_advance.max = ${n(ceiling)} s (${ceilingR.from})"
+            autoTop -> "the plate's top: $topWhy"
+            else -> "the plate's highest value"
+        }
+        val stretches = stretchesOf(walls)
+            ?: throw IllegalArgumentException("the pressure-advance plate's walls cannot be long enough on this bed for the pressure to settle within them at ${n(highest)} s ($highestWhy): " +
+                "a true value that high takes longer to settle than a wall ${n(Math.max(bedD, bedW))} mm long allows at ${n(walls.maxOf { it.fastSpeed })} mm/s; give --values with a lower top, or a --bracket, or a lower fast speed (--speeds SLOW,FAST)")
+        val draft = specOf(walls, stretches)
         val plateW = draft.baseW / 1000.0; val plateD = draft.baseD / 1000.0
-        val park = g.parkFront / 1000.0
-        if (plateW > bedW || plateD + 2 * park > bedD) throw IllegalArgumentException("the pressure-advance plate does not fit this machine: ${draft.perRow} walls a row and ${draft.rows} row(s) make it ${n(plateW)} x ${n(plateD)} mm " +
+        if (!fits(draft)) throw IllegalArgumentException("the pressure-advance plate does not fit this machine: ${draft.perRow} walls a row and ${draft.rows} row(s) make it ${n(plateW)} x ${n(plateD)} mm " +
             "(and ${n(park)} mm in front for the head to park); the bed is ${n(bedW)} x ${n(bedD)} mm (hardware.machine.<key>.build). " +
             (if (draft.leadUm > g.leadMin) "The walls are ${n(draft.wallLength / 1000.0)} mm long (a ${n(draft.leadUm / 1000.0)} mm lead-in, a ${n(draft.fastUm / 1000.0)} mm middle) so the pressure settles within them at ${n(highest)} s ($highestWhy): " +
-                "a tool with a short filament path needs a lower ceiling (set hardware.tool.<key>.calibrate.pressure_advance.max), or give --values with a lower top, or a --bracket"
+                "give --values with a lower top, or a --bracket, or a lower fast speed (--speeds SLOW,FAST)"
             else "Fewer values (--values)"))
         val fitWarnings = listOfNotNull(if (bedW - plateW < 2 * PlateGeometry.bedSpare / 1000.0) "the plate is ${n(plateW)} mm wide on a ${n(bedW)} mm bed: less than ${n(PlateGeometry.bedSpare / 1000.0)} mm to spare at a side; check the bed's clips or wiper are clear of it" else null)
         val cx = Math.round((bed("left") + bed("right")) * 500); val cy = Math.round((bed("front") + bed("back")) * 500)
-        val spec = spec(cx - draft.baseW / 2, cy - draft.baseD / 2)
+        val spec = specOf(walls, stretches, cx - draft.baseW / 2, cy - draft.baseD / 2)
         val plate = plymeld.core.calibrate.PressureAdvancePlate(spec)
         val warnings = result.warnings + fitWarnings + plymeld.core.check.TemperatureLimits.warnings(setup, spool.id, listOf(printC), "the plate's temperature")
         // where the pressure settles within the stretches at these speeds, by the pressure model: the slow-down mark's reading
-        // holds up to it, at least the plate's highest value (two figures, rounded down)
+        // holds up to it, at least the plate's highest value (to the labels' resolution, rounded down)
         val settles = java.math.BigDecimal(plymeld.check.PressureModel.settlesUpTo(slow, walls.maxOf { it.fastSpeed }, accel, spec.leadUm / 1000.0, spec.fastUm / 1000.0, g.tail / 1000.0, bead, g.readLength / 1000.0,
-            Math.max(ceiling, highest))).round(java.math.MathContext(2, java.math.RoundingMode.DOWN)).toDouble()
+            Math.max(ceiling, highest))).setScale(4, java.math.RoundingMode.DOWN).toDouble()
         fun gcodeOf(p: plymeld.core.calibrate.PressureAdvancePlate) = p.gcode(s, setup.foreignTemplateVars, PlymeldVersion.value)
-        val text = withPressureAdvanceConditions(gcodeOf(plate), spec, spool.material, slotN, s, settles, configuredPa)
+        val text = withPressureAdvanceConditions(gcodeOf(plate), spec, spool.material, slotN, s, settles, configuredPa, madeWith(slotN, spool.material), output.toString(), if (autoTop) "${n4(highest)} s, $topWhy" else null)
         // the g-code check reads pressure advance back: the plate sets its own before each wall, on purpose (none on a machine that sets its own)
         val expect = plymeld.core.check.Expectations.forSetup(setup, pressureAdvanceSetByPlate = !own)
         val pattern = (command ?: plymeld.machine.PressureAdvanceCommand("SET_PRESSURE_ADVANCE ADVANCE={pressure_advance}", "s", emptyList())).let { c ->
@@ -1568,11 +1596,11 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         echo(when {
             machineCheck -> "values: the machine's own, no command written; three flow steps (one, two, three notches in the front edge)"
             find -> "values: ${values.joinToString(", ") { spec.valueText(it) }} s, the front row rising from the left, the back row falling; a corner beside each wall" +
-                (if (paValues == null && paBracket == null) " (0, then the tool's lowest value up to its ceiling, each ${n(Math.pow(ceiling / floor, 1.0 / (g.values - 2)))} times the one before: hardware.tool.<key>.calibrate.pressure_advance.min, ${spec.valueText(floor)} s, ${floorR.from}; .max, ${spec.valueText(ceiling)} s, ${ceilingR.from})" else "")
+                (if (autoTop) " (0, then the tool's lowest value, ${spec.valueText(floor)} s (hardware.tool.<key>.calibrate.pressure_advance.min, ${floorR.from}), up to the plate's top, each ${n(Math.pow(highest / floor, 1.0 / (g.values - 2)))} times the one before, to the labels' 0.1 ms; the top ${n4(highest)} s: $topWhy)" else "")
             else -> "values: ${values.joinToString(", ") { spec.valueText(it) }} s (the value and its neighbors), each at three flow steps (one, two, three notches in the front edge)"
         })
         echo("the lead-in and the middle are ${n(spec.leadUm / 1000.0)} and ${n(spec.fastUm / 1000.0)} mm long so the pressure settles within them up to a true value of ${spec.valueText(settles)} s at these speeds (plymeld's pressure model), " +
-            "at least ${n(highest)} s ($highestWhy): up to it the slow-down mark reads opposite to the speed-up mark")
+            "at least ${n4(highest)} s ($highestWhy): up to it the slow-down mark reads opposite to the speed-up mark")
         echo(when { level != null -> "bed levelling before the plate (hardware.machine.<key>.gcode.level); --no-level to skip it"; noLevel -> "bed levelling: skipped (--no-level)"; else -> "bed levelling: this machine has none plymeld can run (hardware.machine.<key>.gcode.level is empty): level it when you start the print" })
         warnings.forEach { echo("warning: $it") }
         echo("check: the layers and cells; every wall at its own pressure advance, set before it and by nothing inside a cell, one unbroken straight line toward +Y on every layer, slow, fast, slow with the speed changes where the middle starts and ends, at its acceleration and filament per mm; " +
@@ -1580,7 +1608,8 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         val page = output.resolveSibling(output.fileName.toString().substringBeforeLast('.') + ".md")
         plymeld.core.calibrate.PressureAdvanceInstructions.write(page, spec, plate, plymeld.core.calibrate.PressureAdvanceInstructions.Info(
             spool.material, model, spool.tool, PlymeldVersion.value, output.fileName.toString(), prediction.timeS?.let { it / 60 }, s.bedTempFirstC,
-            plateName, level != null, noLevel && s.levelGcode != null, warnings, settles, configuredPa, own, s.retractMm))
+            plateName, level != null, noLevel && s.levelGcode != null, warnings, settles, configuredPa, own, s.retractMm,
+            top = if (autoTop) "${n4(highest)} s: $topWhy" else null))
         echo("-> $output")
         echo("-> $page (and ${page.fileName.toString().removeSuffix(".md")}.png): the question, before printing, the conditions, the picture, how to read each wall, what to enter")
         echo("predicted: $prediction")
@@ -1588,7 +1617,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
     }
 
     /** The pressure-advance plate's conditions in its own g-code, as `; name = value` comments after its first lines. */
-    private fun withPressureAdvanceConditions(text: String, spec: plymeld.core.calibrate.PressureAdvanceSpec, filament: String, tool: Int, s: SliceSettings, settles: Double, configuredPa: Double?): String {
+    private fun withPressureAdvanceConditions(text: String, spec: plymeld.core.calibrate.PressureAdvanceSpec, filament: String, tool: Int, s: SliceSettings, settles: Double, configuredPa: Double?, made: String, out: String, top: String?): String {
         val g = plymeld.core.calibrate.PressureAdvanceGeometry
         val values = spec.walls.mapNotNull { it.value }.distinct().sorted()
         val block = buildList {
@@ -1600,6 +1629,10 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             add("; walls = ${spec.perRow} a row, ${spec.rows} row(s), ${n(spec.widthUm / 1000.0)} mm lines ${n(spec.layerUm / 1000.0)} mm high, ${spec.wallLayers} layers above a ${g.baseLayers}-layer base; lead-in ${n(spec.leadUm / 1000.0)} mm at ${n(spec.slowSpeed)} mm/s, middle ${n(spec.fastUm / 1000.0)} mm, tail ${n(g.tail / 1000.0)} mm at ${n(spec.slowSpeed)} mm/s; acceleration ${n(spec.accel)} mm/s2; flow_ratio ${n(spec.flowRatio)}")
             add("; speeds = slow ${n(spec.slowSpeed)} mm/s, fast ${spec.walls.map { it.fastSpeed }.distinct().joinToString(", ") { n(it) }} mm/s; flow step ${spec.walls.map { spec.flowStep(it) }.distinct().joinToString(", ") { n(it) }} mm3/s")
             add("; values = " + (if (values.isEmpty()) "the machine's own (it sets its own: none written)" else values.joinToString(", ") { spec.valueText(it) } + " s"))
+            add("; resolution = ${plymeld.core.calibrate.PressureAdvanceSpec.LABEL_STEP_S * 1000} ms (every value to its label's tenth of a millisecond)")
+            top?.let { add("; top = $it") }
+            add("; made_with = $made")
+            add("; output = $out")
             add("; settles_up_to = ${spec.valueText(settles)} s (by plymeld's pressure model: the largest true value whose pressure settles within the middle, where the slow-down mark reads opposite to the speed-up mark)")
             add("; frame_pressure_advance = ${spec.framePa?.let { "${spec.valueText(it)} s" + if (configuredPa != null) " (the config's)" else " (the plate's lowest)" } ?: "none written"} (the base and the labels)")
             add("; smoothing = the firmware's own (plymeld sets none); bed = ${s.bedTempFirstC} C; retraction = ${n(spec.frame.retractMm)} mm; lift = ${n(spec.liftUm / 1000.0)} mm")
@@ -2086,6 +2119,27 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
     }
 
     private fun n(v: Double) = String.format(Locale.ROOT, "%.2f", v).trimEnd('0').trimEnd('.')
+    /** A pressure advance (s) to the labels' resolution, trailing zeros dropped: 0.0425. */
+    private fun n4(v: Double) = java.math.BigDecimal(v).setScale(4, java.math.RoundingMode.HALF_UP).stripTrailingZeros().toPlainString()
+
+    /**
+     * The options a pressure-advance plate was made with that the next plate of the same filament, tool, and machine needs,
+     * as a shell would take them: the config (-cf, -cv as given), the machine, tool, filament, and build plate as resolved,
+     * the speeds and levelling as given. The next plate adds its own values and output.
+     */
+    private fun madeWith(slotN: Int, filament: String): String {
+        fun q(a: String) = if (a.matches(Regex("[A-Za-z0-9._/=:,@+%-]+"))) a else "'" + a.replace("'", "'\\''") + "'"
+        val args = buildList {
+            for (f in configFiles) { add("-cf"); add(f) }
+            for (v in configValues) { add("-cv"); add(v) }
+            add("--machine"); add(machineName); add("--tool"); add(slotN.toString()); add("--filament"); add(filament)
+            like?.let { add("--like"); add(it) }
+            add("--plate"); add(plateName)
+            paSpeeds?.let { add("--speeds"); add(it) }
+            if (noLevel) add("--no-level")
+        }
+        return args.joinToString(" ") { q(it) }
+    }
 
     /** Where the machine sets its own pressure advance (firmware.own_pressure_advance): what a plate says of it as it is made; null otherwise. */
     protected fun ownPaEcho(setup: plymeld.model.Setup): String? = if (setup.ownPressureAdvance())
@@ -2151,12 +2205,12 @@ class FlowPlateCommand : PlateCommand("flow", "flow") {
 /** `plymeld calibrate pressure-advance`, with `readings` and `values` (PressureAdvanceReadings.kt). */
 class PressureAdvancePlateCommand : PlateCommand("pressure-advance", "pressure-advance") {
     override fun help(context: com.github.ajalt.clikt.core.Context) = "The pressure-advance plate, after the melt plate (its fast speed is held to the melt rate) and beside the flow plate: straight single-line walls on one base, each printed the same way on every layer, slow, then fast, then slow, at its own pressure advance, set just before it. " +
-        "Too little leaves the line thin just after the speed-up (a groove up the wall) and fat just after the slow-down (a ridge); too much the other way round. The find plate prints two rows, the front one's values rising, the back one's falling (each value twice), a corner beside each wall to confirm it, the values 0 and, each a fixed ratio below the next, from the tool's ceiling " +
-        "(hardware.tool.<key>.calibrate.pressure_advance.max) down to its lowest (.min), or --values, or evenly inside --bracket for a fine plate; the confirm plate (--confirm VALUE --confirm-step S) prints the value and its neighbors at three flow steps; on a machine that sets its own (firmware.own_pressure_advance), --confirm machine checks its value with no command written. " +
+        "Too little leaves the line thin just after the speed-up (a groove up the wall) and fat just after the slow-down (a ridge); too much the other way round. The find plate prints two rows, the front one's values rising, the back one's falling (each value twice), a corner beside each wall to confirm it, the values 0 and, each a fixed ratio below the next, from the plate's top (the tool's ceiling, or the highest value whose walls fit the bed) " +
+        "(hardware.tool.<key>.calibrate.pressure_advance.max) down to the tool's lowest (.min), or --values, or evenly inside --bracket for a fine plate; the confirm plate (--confirm VALUE --confirm-step S) prints the value and its neighbors at three flow steps; on a machine that sets its own (firmware.own_pressure_advance), --confirm machine checks its value with no command written. " +
         "Each wall's value is printed in front of it in milliseconds, a hole marks each speed change. `pressure-advance readings` writes the sheet to fill in; `pressure-advance values` turns it into the filament's pressure advance (hardware.filament.<key>.pressure_advance), or the tool's with --into tool."
     init { subcommands(PressureAdvanceReadingsCommand(), PressureAdvanceValuesCommand()) }
     override val invokeWithoutSubcommand = true
-    override val paValues: String? by option("--values", metavar = "S,S,...", help = "the find plate's values (s, or 40ms), rising, each printed twice; default: 0 and ${plymeld.core.calibrate.PressureAdvanceGeometry.values - 1} values from the tool's lowest (hardware.tool.<key>.calibrate.pressure_advance.min) to its ceiling (.max), each a fixed ratio below the next")
+    override val paValues: String? by option("--values", metavar = "S,S,...", help = "the find plate's values (s, or 40ms), rising, each printed twice; default: 0 and ${plymeld.core.calibrate.PressureAdvanceGeometry.values - 1} values from the tool's lowest (hardware.tool.<key>.calibrate.pressure_advance.min) to the plate's top, each a fixed ratio below the next: the tool's ceiling (.max), or the highest value whose walls fit the bed")
     override val paBracket: String? by option("--bracket", metavar = "LOW-HIGH", help = "a fine find plate: ${plymeld.core.calibrate.PressureAdvanceGeometry.values} values evenly from LOW to HIGH (s), the bracket a first plate gave (`pressure-advance values` prints it)")
     override val paConfirm: String? by option("--confirm", metavar = "S|machine", help = "the confirm plate: the value (s) and its neighbors, each at three flow steps; 'machine' on a machine that sets its own (hardware.machine.<key>.firmware.own_pressure_advance): its own value, no command written")
     override val paConfirmStep: String? by option("--confirm-step", metavar = "S", help = "with --confirm VALUE: the step (s) from the value to each neighbor, the step of the plate that gave it (`pressure-advance values` prints it)")

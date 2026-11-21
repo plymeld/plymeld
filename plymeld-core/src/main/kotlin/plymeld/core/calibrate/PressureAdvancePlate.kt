@@ -77,6 +77,8 @@ object PressureAdvanceGeometry {
     const val cornerOut = 5_000L
     /** The labels' and arrows' layers (on the first wall layers). */
     const val labelLayers = 2
+    /** The arrow's head, a share (%) of its length. plymeld's choice. */
+    const val arrowHead = 45L
     /** The head parks this far in front of the plate for the walls' temperature. */
     const val parkFront = 10_000L
     /** The find plate's values per row: plymeld's choice (0 and ten from the tool's lowest value to its ceiling). */
@@ -122,8 +124,16 @@ class PressureAdvanceSpec(
     /** Find (two rows, replicates, corners) or confirm (one row, three flow steps a value). */
     enum class Kind(val key: String) { FIND("find"), CONFIRM("confirm") }
 
+    companion object {
+        /** The labels' resolution (s): a value is written in milliseconds to a tenth ([labelText]), so every wall's value is held to it. */
+        const val LABEL_STEP_S = 0.0001
+        /** [v] at the labels' resolution: the value a wall prints at and its label agree. */
+        fun atLabel(v: Double): Double = java.math.BigDecimal(v).setScale(4, java.math.RoundingMode.HALF_UP).toDouble()
+    }
+
     init {
         require(walls.isNotEmpty()) { "a pressure-advance plate needs at least one wall" }
+        require(walls.all { it.value == null || it.value == atLabel(it.value) }) { "every wall's value is at the labels' resolution, ${LABEL_STEP_S * 1000} ms: ${walls.filter { it.value != null && it.value != atLabel(it.value) }.joinToString { "${it.label} ${it.value}" }}" }
         require(walls.all { it.fastSpeed > slowSpeed }) { "every wall's fast speed is above its slow speed ($slowSpeed mm/s): ${walls.filter { it.fastSpeed <= slowSpeed }.joinToString { "${it.label} ${it.fastSpeed}" }}" }
         require(walls.all { it.value == null || it.value >= 0 }) { "pressure advance is 0 s or more" }
         require(slowSpeed > 0 && accel > 0) { "the slow speed and the acceleration are above 0" }
@@ -152,7 +162,8 @@ class PressureAdvanceSpec(
     fun valueText(v: Double): String = java.math.BigDecimal(v).setScale(5, java.math.RoundingMode.HALF_UP).stripTrailingZeros().toPlainString()
     /** The longest label, along Y (µm): every row's walls start behind it. */
     val labelLength: Long get() = walls.mapNotNull { labelText(it) }.maxOfOrNull { PlateMarks.labelWidth(it) } ?: 0L
-    val arrowLength: Long get() = PlateMarks.labelHeight("^")
+    /** The arrow in front of each wall: as long as a label is tall ([PlateMarks.LABEL_H]); see [PressureAdvancePlate.arrow]. */
+    val arrowLength: Long get() = PlateMarks.LABEL_H
     val wallLength: Long get() = leadUm + fastUm + g.tail
     val rowDepth: Long get() = g.front + labelLength + g.gap + arrowLength + g.gap + wallLength + g.back
     /** The base's size (µm). */
@@ -236,9 +247,19 @@ class PressureAdvancePlate(private val spec: PressureAdvanceSpec, private val wi
             val h = PlateMarks.labelHeight(t)
             for (p in flat) out += Polygon(LongArray(p.xy.size) { i -> if (i % 2 == 0) x + h / 2 - p.xy[i + 1] else y0 + p.xy[i - 1] })
         }
-        val ay = y0 + spec.labelLength + g.gap
-        out += PlateMarks.label("^", x - PlateMarks.labelWidth("^") / 2, ay)
+        out += arrow(x, y0 + spec.labelLength + g.gap)
         return out
+    }
+
+    /**
+     * An arrow pointing +Y whose tail is at ([x], [y0]) (µm): one outline (a shaft a label's stroke wide, a head as wide as a
+     * digit), laid as one shape, so no strokes' ends meet at its tip; [PressureAdvanceSpec.arrowLength] long, the head
+     * [PressureAdvanceGeometry.arrowHead] of it.
+     */
+    fun arrow(x: Long, y0: Long): Polygon {
+        val len = spec.arrowLength; val head = len * g.arrowHead / 100
+        val s = PlateMarks.LABEL_STROKE / 2; val b = PlateMarks.labelWidth("0") / 2
+        return Polygon(longArrayOf(x - s, y0, x + s, y0, x + s, y0 + len - head, x + b, y0 + len - head, x, y0 + len, x - b, y0 + len - head, x - s, y0 + len - head))
     }
 
     /** Wall [w]'s line on wall layer [i] (µm, placed): along +Y from its start ("direction": wall 1.2 the other way on odd layers). */

@@ -31,7 +31,7 @@ class PressureAdvancePlateTest : StringSpec({
     val slow = 100.0; val fast = 200.0; val accel = 5000.0
     fun spec(walls: List<PressureAdvanceWall>, kind: PressureAdvanceSpec.Kind, framePa: Double?) = PressureAdvanceSpec(0, "spool 1", kind, walls, 200, 200, 450, 500, 1.75, 1.0,
         215, 220, 100.0, PathValues(40.0, 3000.0, 1.0, 0.8), PathValues(150.0, 3000.0, 1.0, 0.8), slow, accel, framePa, 400, 60_000, 30_000)
-    val values = (0 until PressureAdvanceGeometry.values).map { it * 0.01 }
+    val values = (0 until PressureAdvanceGeometry.values).map { PressureAdvanceSpec.atLabel(it * 0.01) }
     val findWalls = values.indices.map { PressureAdvanceWall(0, it, values[it], fast) } + values.indices.map { PressureAdvanceWall(1, it, values[values.size - 1 - it], fast) }
     val find = spec(findWalls, PressureAdvanceSpec.Kind.FIND, 0.0)
     fun gcodeOf(p: PressureAdvancePlate) = p.gcode(s, setup.foreignTemplateVars, "test")
@@ -85,7 +85,7 @@ class PressureAdvancePlateTest : StringSpec({
             (st.first + st.second >= lastLength) shouldBe true
             lastLength = st.first + st.second
             // the plate: one row of values from 0 to the highest, its walls as long as the model says
-            val vs = (0..10).map { Math.round(it * top / 10 * 1e5) / 1e5 }
+            val vs = (0..10).map { PressureAdvanceSpec.atLabel(it * top / 10) }
             val sp = PressureAdvanceSpec(0, "spool 1", PressureAdvanceSpec.Kind.FIND, vs.indices.map { PressureAdvanceWall(0, it, vs[it], fast) }, 200, 200, 450, 500, 1.75, 1.0,
                 215, 220, 100.0, PathValues(40.0, 3000.0, 1.0, 0.8), PathValues(150.0, 3000.0, 1.0, 0.8), slow, accel, 0.0, 400, 60_000, 30_000,
                 leadUm = Math.round(st.first * 1000), fastUm = Math.round(st.second * 1000))
@@ -147,6 +147,16 @@ class PressureAdvancePlateTest : StringSpec({
         fun width(t: String) = plymeld.core.calibrate.StrokeFont.polygons(t, 0, 0, 6_000, 800).let { ps -> ps.maxOf { p -> p.bounds()[2] } - ps.minOf { p -> p.bounds()[0] } }
         // the hooked stem alone spans 1.8 mm at this size; with its base, as wide as the base (0.5 to 3.5 units, and the strokes)
         (width("1") >= 3_500) shouldBe true
+    }
+
+    "the decimal point is a short bar two beads tall, not one bead; the arrow is one outline, laid without fragments at its tip" {
+        val dot = plymeld.core.calibrate.StrokeFont.polygons(".", 0, 0, 6_000, 800)
+        val b = dot.single().bounds()
+        // a dot of one stroke was 0.8 x 0.8 mm here; the bar is a stroke wide and a sixth of the height more tall
+        (b[3] - b[1] >= 1_800) shouldBe true
+        val arrow = PressureAdvancePlate(find).arrow(10_000, 10_000)
+        val (rings, _) = plymeld.core.calibrate.PlateFill.fill(listOf(arrow), 450, 200, 0.0)
+        (rings.size <= plymeld.core.calibrate.PlateGeometry.frameWalls) shouldBe true
     }
 
     "a sample toolpath for the docs: the plate's g-code from above, the base's second layer with its marks and the first wall layer with its labels" {

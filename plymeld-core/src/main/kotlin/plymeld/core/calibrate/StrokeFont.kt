@@ -7,7 +7,7 @@ import plymeld.geom.Polygon
  * A plain stroke font for text printed on a calibration plate as raised geometry: each glyph is a few straight strokes on a
  * grid 6 units tall, drawn as bars [stroke] wide with square ends and joined into polygons. Only what a plate's legend needs:
  * the digits, `.`, `%`, `°`, `=`, `/`, `m`, `s`, a space, and the plate's mark symbols (`|` a bar notch, `#` a square notch,
- * `v` a V notch, `u` a round-bottomed notch, `\` a slanted notch, `^` an arrow pointing up the glyph). Text printed this small is only legible with strokes of two lines (0.8 mm or more from a 0.4 mm nozzle) and
+ * `v` a V notch, `u` a round-bottomed notch, `\` a slanted notch). Text printed this small is only legible with strokes of two lines (0.8 mm or more from a 0.4 mm nozzle) and
  * gaps the nozzle can leave open, so neighboring glyphs stand [GAP] units apart: at 5 mm glyphs and 0.8 mm strokes the
  * narrowest gap, between glyphs or inside one, is about 0.87 mm. A character not here is refused, so a legend never prints a
  * gap where a character was meant.
@@ -35,7 +35,8 @@ object StrokeFont {
         '7' to g(4.0, p(0.0, 6.0, 4.0, 6.0, 4.0, 0.0)),
         '8' to g(4.0, p(0.0, 0.0, 4.0, 0.0, 4.0, 6.0, 0.0, 6.0, 0.0, 0.0), p(0.0, 3.0, 4.0, 3.0)),
         '9' to g(4.0, p(4.0, 3.0, 0.0, 3.0, 0.0, 6.0, 4.0, 6.0, 4.0, 0.0, 0.0, 0.0)),
-        '.' to g(0.0, p(0.0, 0.0, 0.0, 0.0)),
+        // a short upright bar at the baseline, a stroke wide and a sixth of the height tall: a dot of one stroke is a single short bead, the weakest mark
+        '.' to g(0.0, p(0.0, 0.0, 0.0, 1.0)),
         // the dots in from the corners: at the corners they touched the glyphs either side
         '%' to g(4.0, p(0.0, 0.0, 4.0, 6.0), p(1.0, 5.0, 1.0, 5.0), p(3.0, 1.0, 3.0, 1.0)),
         '=' to g(4.0, p(0.0, 2.0, 4.0, 2.0), p(0.0, 4.0, 4.0, 4.0)),
@@ -49,8 +50,6 @@ object StrokeFont {
         // a round-bottomed notch and a slanted one, as the V: the notch's shape, half the glyph's height
         'u' to g(3.0, p(0.0, 3.0, 0.0, 1.5, 0.44, 0.44, 1.5, 0.0, 2.56, 0.44, 3.0, 1.5, 3.0, 3.0)),
         '\\' to g(3.0, p(0.0, 3.0, 3.0, 0.0)),
-        // an arrow pointing up the glyph (+y): a shaft and its head
-        '^' to g(4.0, p(2.0, 0.0, 2.0, 6.0), p(0.0, 3.5, 2.0, 6.0, 4.0, 3.5)),
         '°' to g(2.0, p(0.0, 6.0, 2.0, 6.0, 2.0, 4.0, 0.0, 4.0, 0.0, 6.0)),
     )
 

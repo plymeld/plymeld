@@ -10,6 +10,7 @@ import com.github.ajalt.clikt.parameters.types.path
 import plymeld.config.ConfigFiles
 import plymeld.config.Dimension
 import plymeld.core.calibrate.PressureAdvanceInstructions
+import plymeld.core.calibrate.PressureAdvanceSpec
 
 /**
  * `plymeld calibrate pressure-advance readings PLATE.gcode [-o FILE]`: the sheet to fill in for a printed pressure-advance
@@ -110,6 +111,9 @@ object PressureAdvanceRecord {
         sb.append("kind = \"$kind\"\nfilament = \"${fil.groupValues[1]}\"\ntool = \"${fil.groupValues[2]}\"\n")
         sb.append("conditions = \"${q(conditions)}\"\n")
         value("settles_up_to")?.let { sb.append("settles_up_to = \"${q(it.substringBefore(" ("))}\"\n") }
+        value("top")?.let { sb.append("top = \"${q(it)}\"\n") }
+        value("made_with")?.let { sb.append("made_with = \"${q(it)}\"\n") }
+        value("output")?.let { sb.append("output = \"${q(it)}\"\n") }
         sb.append("printed = \"\"\nread = \"\"\n")
         for (w in walls) {
             sb.append("\n[wall.${w.rowName}.${w.position}]\n")
@@ -134,7 +138,9 @@ object PressureAdvanceRecord {
         val cornerSign: Int get() = when (corner) { "bulge" -> -1; "round" -> 1; else -> 0 }
         private fun upSign(m: String?) = when (m) { "groove" -> -1; "ridge" -> 1; else -> 0 }
     }
-    class Sheet(val plate: String, val kind: String, val filament: String?, val tool: String?, val conditions: String, val settles: String?, val walls: List<Wall>)
+    class Sheet(val plate: String, val kind: String, val filament: String?, val tool: String?, val conditions: String, val settles: String?, val walls: List<Wall>,
+                /** The top of a first plate and why it is there; the options it was made with (as a shell takes them); its g-code's path as given. */
+                val top: String? = null, val madeWith: String? = null, val output: String? = null)
 
     /** Reads a sheet. Refused (IllegalArgumentException) when it is not one, or a reading is missing (unless [unreadAllowed]) or not a reading. */
     fun parse(text: String, name: String, unreadAllowed: Boolean = false): Sheet {
@@ -163,7 +169,7 @@ object PressureAdvanceRecord {
         }
         if (walls.isEmpty()) problems += "no [wall.<row>.<n>] tables"
         if (problems.isNotEmpty()) throw IllegalArgumentException("$name: " + (if (problems.size == 1) problems[0] else "${problems.size} problems:\n" + problems.joinToString("\n") { "  $it" }))
-        return Sheet(plate, kind, top("filament"), top("tool"), top("conditions") ?: "", top("settles_up_to"), walls)
+        return Sheet(plate, kind, top("filament"), top("tool"), top("conditions") ?: "", top("settles_up_to"), walls, top("top"), top("made_with"), top("output"))
     }
 
     /** A sheet's result: what to report, the value to write (null: none), the plate and its conditions, and the value's provenance. */
@@ -198,7 +204,9 @@ object PressureAdvanceRecord {
             val hi = byValue.filter { it.sign > 0 }.minOfOrNull { it.value!! }
             if (lo == null || hi == null) throw IllegalArgumentException("$name: " + when {
                 lo == null && hi == null -> "the $row row reads flat everywhere: nothing flips; the flow step is too small to show at this spacing, or the firmware sets its own value regardless; no value"
-                hi == null -> "the $row row never reads a ridge: no flip, the value is above the highest, ${n(byValue.last().value!!)} s: raise the tool's ceiling (hardware.tool.<key>.calibrate.pressure_advance.max) or give higher --values; no value"
+                hi == null -> "the $row row never reads a ridge: no flip, the value is above the highest, ${n(byValue.last().value!!)} s: " +
+                    (s.top?.takeIf { "fit" in it }?.let { "the plate's top is $it. Reaching higher takes a longer bed axis, or a lower fast speed (--speeds SLOW,FAST, or the machine's print speed, hardware.machine.<key>.motion.print.speed), which shortens the walls; no value" }
+                        ?: "raise the tool's ceiling (hardware.tool.<key>.calibrate.pressure_advance.max) or give higher --values; no value")
                 else -> "the $row row never reads a groove: no flip, the value is at or below the lowest, ${n(byValue.first().value!!)} s" +
                     (if (byValue.first().value!! == 0.0) " (0: this filament and tool may need none, or the firmware adds its own)" else ": give lower --values") + "; no value"
             })
@@ -208,12 +216,15 @@ object PressureAdvanceRecord {
             throw IllegalArgumentException("$name: the front row's flip (between ${n(brackets[0].lo)} and ${n(brackets[0].hi)} s) and the back row's (between ${n(brackets[1].lo)} and ${n(brackets[1].hi)} s) are more than one step (one wall's place on the plate) apart: position or print order matters; no value")
         val maxLo = brackets.maxOf { it.lo }; val minHi = brackets.minOf { it.hi }
         val (lo, hi) = if (maxLo < minHi) maxLo to minHi else brackets.minOf { it.lo } to brackets.maxOf { it.hi }
-        val v = Math.round((lo + hi) / 2 * 1e5) / 1e5
+        // the value at the labels' resolution, so a confirm plate can print it
+        val v = PressureAdvanceSpec.atLabel((lo + hi) / 2)
         val agree = if (brackets.size < 2) "one row" else if (maxLo < minHi) "both rows agreeing" else "the rows a step apart, their brackets joined"
+        val fineStep = (hi - lo) / (PlateValues - 1)
         val report = listOf("pressure advance from ${s.plate}:") + brackets.map { "  the ${it.row} row: grooves up to ${n(it.lo)} s, ridges from ${n(it.hi)} s" } +
             "  value: ${n(v)} s, the middle of ${n(lo)} to ${n(hi)} s ($agree), +/- ${n((hi - lo) / 2)} s" +
-            "  next: a finer value, `plymeld calibrate pressure-advance --bracket ${n(lo)}-${n(hi)}` (${PlateValues} values, ${n(Math.round((hi - lo) / (PlateValues - 1) * 1e5) / 1e5)} s apart); " +
-                "or confirm this one, `plymeld calibrate pressure-advance --confirm ${n(v)} --confirm-step ${n(confirmStep(lo, hi))}` (its neighbors the bracket's ends, the highest groove and the lowest ridge, both at or above 0)"
+            (if (fineStep >= PressureAdvanceSpec.LABEL_STEP_S - 1e-12) "  next, a finer value: ${next(s, "--bracket ${n(lo)}-${n(hi)}", "fine")} (${PlateValues} values, ${n(PressureAdvanceSpec.atLabel(fineStep))} s apart)"
+                else "  next: the bracket is already as narrow as the labels' ${PressureAdvanceSpec.LABEL_STEP_S * 1000} ms allow a finer plate to space") +
+            "  next, to confirm it: ${next(s, "--confirm ${n(v)} --confirm-step ${n(confirmStep(lo, hi))}", "confirm")} (its neighbors the bracket's ends, the highest groove and the lowest ridge, both at or above 0)"
         return Result(report, v, s.plate, s.conditions,
             "Readings: the walls' speed-up marks, grooves up to ${n(lo)} s and ridges from ${n(hi)} s ($agree; the plate's values ${values.joinToString(", ") { n(it) }} s); the value the middle, +/- ${n((hi - lo) / 2)} s.", s.filament, s.tool)
     }
@@ -257,7 +268,21 @@ object PressureAdvanceRecord {
      * The confirm plate's step for a value read between [lo] and [hi]: half the bracket, so its neighbors are the bracket's
      * ends (the highest groove and the lowest ridge, which the find plate printed): never below 0.
      */
-    private fun confirmStep(lo: Double, hi: Double) = Math.round((hi - lo) / 2 * 1e5) / 1e5
+    private fun confirmStep(lo: Double, hi: Double) = PressureAdvanceSpec.atLabel((hi - lo) / 2)
+
+    /**
+     * The next plate for the sheet [s]'s filament, tool, and machine, as a command to run as printed: the options its plate was
+     * made with, then [options], then its g-code beside the plate's, named for it ([suffix]: pa.gcode's fine plate pa-fine.gcode).
+     */
+    private fun next(s: Sheet, options: String, suffix: String): String {
+        val out = s.output?.let { java.nio.file.Path.of(it) }
+        val stem = (out?.fileName?.toString() ?: "pressure-advance.gcode").substringBeforeLast('.')
+        val file = (out?.parent?.resolve("$stem-$suffix.gcode") ?: java.nio.file.Path.of("$stem-$suffix.gcode")).toString()
+        return "`plymeld calibrate pressure-advance ${s.madeWith?.let { "$it " } ?: ""}$options -o ${shell(file)}`"
+    }
+
+    /** [a] as a shell takes it as one word: as it is, or single-quoted. */
+    fun shell(a: String) = if (a.matches(Regex("[A-Za-z0-9._/=:,@+%-]+"))) a else "'" + a.replace("'", "'\\''") + "'"
 
     /** The find plate's values per row, for the fine plate's step. */
     private val PlateValues = plymeld.core.calibrate.PressureAdvanceGeometry.values

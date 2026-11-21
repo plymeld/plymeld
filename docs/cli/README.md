@@ -242,16 +242,17 @@ plymeld calibrate pressure-advance readings pa.gcode -o pa-readings.toml
 plymeld calibrate pressure-advance values pa-readings.toml
 ```
 
-Its first plate tries 0 and values from the tool's lowest (`hardware.tool.<key>.calibrate.pressure_advance.min`) to its
-ceiling (`.max`), each a fixed ratio below the next, so one plate brackets a short filament path and a long tube; the
-`values` it prints names the next plate, as a command to run as printed: a finer one evenly inside the bracket
-(`--bracket LOW-HIGH`), or the confirm plate (`--confirm VALUE --confirm-step S`, its neighbors the bracket's ends). A machine that sets its own pressure advance
+Its first plate tries 0 and values from the tool's lowest (`hardware.tool.<key>.calibrate.pressure_advance.min`) up to
+its top, each a fixed ratio below the next, so one plate brackets a short filament path and a long tube. Each wall's
+slow lead-in and fast middle are long enough for the pressure to settle within them at the plate's highest value, so a
+higher value, or a faster middle, makes longer walls; the first plate's top is the tool's ceiling (`.max`) or the
+highest value whose walls fit the bed, whichever is lower, and the plate says which. Every value is held to its
+label's tenth of a millisecond. The `values` it prints names the next plate as a command to run as printed, with its
+own `-o`: a finer one evenly inside the bracket (`--bracket LOW-HIGH`), or the confirm plate (`--confirm VALUE
+--confirm-step S`, its neighbors the bracket's ends). A machine that sets its own pressure advance
 (`hardware.machine.<key>.firmware.own_pressure_advance`) gets only the confirm plate at its own value
 (`--confirm machine`), with no command written. The machine's model must say how pressure advance is set
-(`hardware.model.<key>.pressure_advance.command`; the bundled models carry Klipper's). Each wall's slow lead-in and
-fast middle are long enough for the pressure to settle within them at the plate's highest value, so a higher ceiling
-makes longer walls; a plate whose walls do not fit the bed is refused, naming the ceiling to lower (a tool with a short
-filament path needs much less than the default 1 s).
+(`hardware.model.<key>.pressure_advance.command`; the bundled models carry Klipper's).
 
 ![The pressure-advance plate from above: two rows of walls with their values, arrows, speed-change holes, and corners; below, the three readings](../renders/pressure_advance_plate.png)
 
