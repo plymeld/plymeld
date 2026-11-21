@@ -2527,12 +2527,17 @@ the same way on every layer, slow, fast, slow, at its own value set just before 
 line just after the speed-up is thin (a groove stacked up the wall) and just after the slow-down fat (a ridge); set
 long, the other way round; the answer is where the grooves turn into ridges, bracketed from both sides. Values stand
 side by side on one base, never by height, the first layer and the base unread. Every value is printed twice, the back
-row in the opposite order, and rows that disagree by more than a step refuse the result; a corner beside each wall
-confirms it and is never read alone; a wall whose two marks read alike, readings out of order, and no flip are
-refused. A first plate runs from 0 to the tool's ceiling, a setting (`hardware.tool.<key>.calibrate.pressure_advance.max`)
-defaulting to the top of the typical range in Klipper's guide; a fine plate runs inside the bracket; a confirm plate
-prints the value and its neighbors at three flow steps and reports whether it holds, depends on the flow (the medium
-step's written, the range noted; a value that follows the flow is a later decision on this evidence), or gives none.
+row in the opposite order, and rows that disagree by more than a step (one wall's place on the plate, whatever its size)
+refuse the result; a corner beside each wall confirms it and is never read alone; a wall whose two marks read alike,
+readings out of order, and no flip are refused. A first plate's values are 0 and, each a fixed ratio below the next,
+from the tool's ceiling (`hardware.tool.<key>.calibrate.pressure_advance.max`, defaulting to the top of the typical
+range in Klipper's guide) down to its lowest (`.min`, a hundredth of the default ceiling unless set), the ratio set by
+the two and the plate's count of values: one plate brackets both a short filament path's value (a few hundredths of a
+second) and a long tube's. A fine plate runs evenly inside the bracket; a confirm plate prints the value and its
+neighbors at three flow steps and reports whether it holds, depends on the flow (the medium step's written, the range
+noted; a value that follows the flow is a later decision on this evidence), or gives none. The next plates `values`
+names are commands that run as printed: the fine plate inside the bracket, and the confirm plate with the bracket's
+ends (the highest groove and the lowest ridge) as the neighbors, never below 0.
 The speeds are the config's (a visible wall's, the machine's print speed, each held to the maximum flow), the
 acceleration the machine's. A pressure model in plymeld's test tooling (a first-order lag of the true value, the set
 value run ahead as Klipper runs it) proves the flip falls exactly at the true value. The slow-down mark reads opposite
@@ -2545,6 +2550,10 @@ tail, the wall's height, the pitch, the values per row, and the stretch a readin
 corners or chevrons read for the best one: a judgment between near-identical neighbors, and corners carry other
 defects. One sample per value: a blob or a draft reads as a result. Calipers: the reading needs none. Averaging rows
 that disagree: a trend across the bed would pass as the value.
+
+**Rejected (the values).** Values evenly from 0 to the ceiling on a first plate: at a 1 s ceiling a short filament
+path's whole range falls inside the first step, so a fine plate was always needed. A confirm step of the plate's own
+spacing: from a bracket at the bottom of the plate its lower neighbor fell below 0.
 
 **Rejected (the stretches).** Fixed stretches with the plate stating the true value they settle up to: a tool with a
 long filament path would read alike at both marks on every wall and be refused.

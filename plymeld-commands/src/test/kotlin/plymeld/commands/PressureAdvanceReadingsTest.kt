@@ -1,12 +1,12 @@
 package plymeld.commands
 
-import com.github.ajalt.clikt.core.UsageError
 import com.github.ajalt.clikt.core.parse
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.doubles.plusOrMinus
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldStartWith
 import plymeld.config.Config
 import plymeld.config.ConfigStack
 import plymeld.config.Dimension
@@ -119,13 +119,75 @@ class PressureAdvanceReadingsTest : StringSpec({
 
     "a machine that sets its own: the find plate refused, the confirm plate at its own value with no command, nothing written" {
         val own = arrayOf("-cv", "hardware.machine.example-corexy.firmware.own_pressure_advance=true")
-        shouldThrow<UsageError> { plate(dir, *own) }.message!! shouldContain "--confirm machine"
+        shouldThrow<IllegalArgumentException> { plate(dir, *own) }.message!! shouldContain "--confirm machine"
         val m = plate(dir, *own, "--confirm", "machine")
         Files.readString(m).lines().none { it.startsWith("SET_PRESSURE_ADVANCE") } shouldBe true
         val r = values(fill(sheet(m)) { _, _, _ -> Triple("flat", "flat", null) })
         r.value shouldBe null
         r.report.joinToString("\n") shouldContain "it holds at every flow step"
         // --confirm machine on a machine that does not set its own is refused
-        shouldThrow<UsageError> { plate(dir, "--confirm", "machine") }.message!! shouldContain "does not"
+        shouldThrow<IllegalArgumentException> { plate(dir, "--confirm", "machine") }.message!! shouldContain "does not"
+    }
+
+    /** The commands a result suggests (each `plymeld calibrate pressure-advance ...` in its report), as their arguments after `pressure-advance`. */
+    fun suggested(r: PressureAdvanceRecord.Result): List<List<String>> =
+        Regex("`plymeld calibrate pressure-advance ([^`]+)`").findAll(r.report.joinToString("\n")).map { it.groupValues[1].trim().split(Regex("\\s+")) }.toList()
+
+    "every plate a result suggests is made as printed: from a first plate, a fine plate, and a confirm plate" {
+        // a first plate (0, then the tool's lowest to a ceiling of 0.1 s, each a fixed ratio below the next), read with the
+        // true value at its lowest flip: 0 and the lowest value bracket it, the case a fixed step pushed below 0
+        val ceiling = arrayOf("-cv", "hardware.tool.t1.calibrate.pressure_advance.max=0.1 s")
+        val first = values(fill(sheet(plate(dir, *ceiling)), truth(0.0005)))
+        val fromFirst = suggested(first)
+        fromFirst.size shouldBe 2
+        for (args in fromFirst) plate(dir, *ceiling, *args.toTypedArray())
+        // the fine plate it suggests, read, and its own suggestions
+        val fine = values(fill(sheet(plate(dir, *ceiling, *fromFirst.first { "--bracket" in it }.toTypedArray())), truth(0.0006)))
+        val fromFine = suggested(fine)
+        fromFine.size shouldBe 2
+        for (args in fromFine) plate(dir, *ceiling, *args.toTypedArray())
+        // the confirm plate suggests none
+        val c = values(fill(sheet(plate(dir, *fromFine.first { "--confirm" in it }.toTypedArray())), truth(fine.value!!)))
+        suggested(c) shouldBe emptyList()
+    }
+
+    "the first plate's values: 0, then the tool's lowest to its ceiling, each a fixed ratio below the next; rows one place apart are accepted, two refused" {
+        val g = plate(dir, "-cv", "hardware.tool.t1.calibrate.pressure_advance.max=0.2 s", "-cv", "hardware.tool.t1.calibrate.pressure_advance.min=0.004 s")
+        val vs = Regex("""; values = (.*) s""").find(Files.readString(g))!!.groupValues[1].split(", ").map { it.toDouble() }
+        vs.size shouldBe plymeld.core.calibrate.PressureAdvanceGeometry.values
+        vs.first() shouldBe 0.0
+        vs[1] shouldBe (0.004 plusOrMinus 1e-9)
+        vs.last() shouldBe (0.2 plusOrMinus 1e-9)
+        val ratios = vs.drop(1).zipWithNext { a, b -> b / a }
+        for (r in ratios) r shouldBe (Math.pow(0.2 / 0.004, 1.0 / (vs.size - 2)) plusOrMinus 0.01)
+        // the rows a place apart (the front flips between places 5 and 6, the back between 6 and 7): accepted, though the steps differ in size
+        val b = sheet(g)
+        values(fill(b) { r, v, s -> truth(if (r == "front") (vs[5] + vs[6]) / 2 else (vs[6] + vs[7]) / 2)(r, v, s) }).value shouldBe ((vs[5] + vs[7]) / 2 plusOrMinus 1e-5)
+        shouldThrow<IllegalArgumentException> { values(fill(b) { r, v, s -> truth(if (r == "front") (vs[5] + vs[6]) / 2 else (vs[7] + vs[8]) / 2)(r, v, s) }) }.message!! shouldContain "more than one step"
+    }
+
+    "a refusal is one line, no usage text: this plate's and another plate's" {
+        fun run(vararg args: String): Pair<Int, List<String>> {
+            val lines = ArrayList<String>()
+            val status = Commands.invoke(listOf("calibrate") + args.toList() + listOf("-cf", dir.resolve("0*.toml").toString(), "-o", dir.resolve("refused.gcode").toString()), { lines += it }, { lines += it })
+            return status to lines.flatMap { it.lines() }.filter { it.isNotBlank() }
+        }
+        for (args in listOf(arrayOf("pressure-advance", "--confirm", "machine"), arrayOf("flow", "--temps", "100-400", "--step", "1"))) {
+            val (status, lines) = run(*args)
+            status shouldBe 1
+            lines.size shouldBe 1
+            lines.single() shouldStartWith "plymeld: "
+        }
+        // control: a mistake in the command line's own form still shows its usage
+        val (_, usage) = run("pressure-advance", "--tool", "x")
+        usage.any { it.startsWith("Usage:") } shouldBe true
+    }
+
+    "the config folder is said once, however often a plate reads its config" {
+        val said = ArrayList<String>()
+        val c = object : ConfigCommand("t") { override fun run() { files(); files() } }
+        c.configureContext { echoMessage = { _, m, _, _ -> said += m?.toString() ?: "" } }
+        c.parse(emptyList())
+        said.count { it.startsWith("config: no -cf") } shouldBe 1
     }
 })

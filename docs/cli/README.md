@@ -242,9 +242,10 @@ plymeld calibrate pressure-advance readings pa.gcode -o pa-readings.toml
 plymeld calibrate pressure-advance values pa-readings.toml
 ```
 
-Its first plate tries values from 0 to the tool's ceiling (`hardware.tool.<key>.calibrate.pressure_advance.max`); the
-`values` it prints names the next plate: a finer one inside the bracket (`--bracket LOW-HIGH`), or the confirm plate
-(`--confirm VALUE --confirm-step S`). A machine that sets its own pressure advance
+Its first plate tries 0 and values from the tool's lowest (`hardware.tool.<key>.calibrate.pressure_advance.min`) to its
+ceiling (`.max`), each a fixed ratio below the next, so one plate brackets a short filament path and a long tube; the
+`values` it prints names the next plate, as a command to run as printed: a finer one evenly inside the bracket
+(`--bracket LOW-HIGH`), or the confirm plate (`--confirm VALUE --confirm-step S`, its neighbors the bracket's ends). A machine that sets its own pressure advance
 (`hardware.machine.<key>.firmware.own_pressure_advance`) gets only the confirm plate at its own value
 (`--confirm machine`), with no command written. The machine's model must say how pressure advance is set
 (`hardware.model.<key>.pressure_advance.command`; the bundled models carry Klipper's). Each wall's slow lead-in and

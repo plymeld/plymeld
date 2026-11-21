@@ -26,7 +26,7 @@ class PressureAdvanceReadingsCommand : CliktCommand(name = "readings") {
 
     override fun run() {
         val text = try { PressureAdvanceRecord.blank(java.nio.file.Files.readString(plate), plate.fileName.toString(), MadeBy.dateOf(plate)) }
-            catch (e: IllegalArgumentException) { throw UsageError(e.message ?: "not a pressure-advance plate") }
+            catch (e: IllegalArgumentException) { throw IllegalArgumentException(e.message ?: "not a pressure-advance plate") }
         output?.let { out ->
             out.parent?.let { java.nio.file.Files.createDirectories(it) }
             java.nio.file.Files.writeString(out, text)
@@ -47,12 +47,12 @@ class PressureAdvanceValuesCommand : FilamentValuesCommand("pressure-advance pla
     private val into by option("--into", metavar = "filament|tool", help = "write the value as the filament's (hardware.filament.<key>.pressure_advance, the default) or the tool's (hardware.tool.<key>.pressure_advance)").choice("filament", "tool").default("filament")
 
     override fun help(context: com.github.ajalt.clikt.core.Context) =
-        "Turn a filled-in pressure-advance readings sheet into a pressure advance: on the find plate the middle of the bracket between the highest groove and the lowest ridge at the speed-up marks (flat walls inside it), refused when nothing flips, the two rows disagree by more than one step, the readings are out of order, a corner contradicts its wall, or a wall's two marks read alike; " +
+        "Turn a filled-in pressure-advance readings sheet into a pressure advance: on the find plate the middle of the bracket between the highest groove and the lowest ridge at the speed-up marks (flat walls inside it), refused when nothing flips, the two rows disagree by more than one step (one wall's place on the plate), the readings are out of order, a corner contradicts its wall, or a wall's two marks read alike; " +
             "on the confirm plate whether the value holds at the three flow steps, depends on the flow, or gives none. Writes it into the config file that defines the filament (among the files -cf names; else plymeld's config folder's), or the tool's with --into tool, the plate, its conditions, and the bracket in the comment above it; prints the change, checks it, writes it, and records it for `plymeld journal --undo`."
 
     override fun run() {
         val r = try { PressureAdvanceRecord.values(java.nio.file.Files.readString(sheet), sheet.fileName.toString()) }
-            catch (e: IllegalArgumentException) { throw UsageError(e.message ?: "not a filled-in pressure-advance sheet") }
+            catch (e: IllegalArgumentException) { throw IllegalArgumentException(e.message ?: "not a filled-in pressure-advance sheet") }
         r.report.forEach { echo(it) }
         val v = r.value ?: return
         val t = target(r.tool?.toIntOrNull(), r.filament, toolFile = into == "tool")
@@ -175,18 +175,20 @@ object PressureAdvanceRecord {
         // a wall whose two marks read alike is not pressure's
         s.walls.filter { it.void }.takeIf { it.isNotEmpty() }?.let { vs -> throw IllegalArgumentException("$name: " + vs.joinToString("; ") { "${it.name} reads ${it.speedUp} at both marks" } +
             ": the slow-down mark must read the opposite of the speed-up mark, so something other than pressure advance shows there (the firmware's acceleration limits, a slipping extruder, or a pressure that does not settle within the wall's middle" +
-            (s.settles?.let { ": the plate settles up to a true value of $it" } ?: "") + "); no value") }
+            (s.settles?.let { ": the plate's walls are long enough for it to settle up to a true value of $it, by plymeld's pressure model" } ?: "") + "); no value") }
         return if (s.kind == "find") find(s, name) else confirm(s, name)
     }
 
     private fun find(s: Sheet, name: String): Result {
         val rows = s.walls.groupBy { it.row }
         val values = s.walls.mapNotNull { it.value }.distinct().sorted()
-        val step = values.zipWithNext { a, b -> b - a }.minOrNull() ?: throw IllegalArgumentException("$name: a find plate's walls have at least two values")
+        if (values.size < 2) throw IllegalArgumentException("$name: a find plate's walls have at least two values")
+        // a step is one place on the plate (its values need not be evenly spaced): a bracket's place the middle of its two ends'
+        fun place(v: Double) = values.indexOfFirst { Math.abs(it - v) < 1e-9 }.toDouble()
         // the corners confirm their walls: one reading too low where the other reads too high is refused
         s.walls.filter { it.cornerSign * it.sign < 0 }.takeIf { it.isNotEmpty() }?.let { ws -> throw IllegalArgumentException("$name: " + ws.joinToString("; ") {
             "${it.name}'s corner reads ${it.corner} (${if (it.cornerSign < 0) "too low" else "too high"}) where its wall reads ${if (it.sign < 0) "too low" else "too high"}" } + ": the corner contradicts the wall; no value") }
-        class Bracket(val row: String, val lo: Double, val hi: Double) { val mid get() = (lo + hi) / 2 }
+        class Bracket(val row: String, val lo: Double, val hi: Double) { val mid get() = (lo + hi) / 2; val at get() = (place(lo) + place(hi)) / 2 }
         val brackets = rows.map { (row, ws) ->
             val byValue = ws.sortedBy { it.value!! }
             // in order: below, at, above, never back
@@ -202,17 +204,18 @@ object PressureAdvanceRecord {
             })
             Bracket(row, lo, hi)
         }
-        if (brackets.size == 2 && Math.abs(brackets[0].mid - brackets[1].mid) > step + 1e-9)
-            throw IllegalArgumentException("$name: the front row's flip (between ${n(brackets[0].lo)} and ${n(brackets[0].hi)} s) and the back row's (between ${n(brackets[1].lo)} and ${n(brackets[1].hi)} s) are more than one step (${n(step)} s) apart: position or print order matters; no value")
+        if (brackets.size == 2 && Math.abs(brackets[0].at - brackets[1].at) > 1 + 1e-9)
+            throw IllegalArgumentException("$name: the front row's flip (between ${n(brackets[0].lo)} and ${n(brackets[0].hi)} s) and the back row's (between ${n(brackets[1].lo)} and ${n(brackets[1].hi)} s) are more than one step (one wall's place on the plate) apart: position or print order matters; no value")
         val maxLo = brackets.maxOf { it.lo }; val minHi = brackets.minOf { it.hi }
         val (lo, hi) = if (maxLo < minHi) maxLo to minHi else brackets.minOf { it.lo } to brackets.maxOf { it.hi }
         val v = Math.round((lo + hi) / 2 * 1e5) / 1e5
         val agree = if (brackets.size < 2) "one row" else if (maxLo < minHi) "both rows agreeing" else "the rows a step apart, their brackets joined"
         val report = listOf("pressure advance from ${s.plate}:") + brackets.map { "  the ${it.row} row: grooves up to ${n(it.lo)} s, ridges from ${n(it.hi)} s" } +
             "  value: ${n(v)} s, the middle of ${n(lo)} to ${n(hi)} s ($agree), +/- ${n((hi - lo) / 2)} s" +
-            "  next: a finer value, `plymeld calibrate pressure-advance --bracket ${n(lo)}-${n(hi)}` (${PlateValues} values, ${n(Math.round((hi - lo) / (PlateValues - 1) * 1e5) / 1e5)} s apart); or confirm this one, `plymeld calibrate pressure-advance --confirm ${n(v)} --confirm-step ${n(step)}`"
+            "  next: a finer value, `plymeld calibrate pressure-advance --bracket ${n(lo)}-${n(hi)}` (${PlateValues} values, ${n(Math.round((hi - lo) / (PlateValues - 1) * 1e5) / 1e5)} s apart); " +
+                "or confirm this one, `plymeld calibrate pressure-advance --confirm ${n(v)} --confirm-step ${n(confirmStep(lo, hi))}` (its neighbors the bracket's ends, the highest groove and the lowest ridge, both at or above 0)"
         return Result(report, v, s.plate, s.conditions,
-            "Readings: the walls' speed-up marks, grooves up to ${n(lo)} s and ridges from ${n(hi)} s ($agree; the plate's values ${n(values.first())} to ${n(values.last())} s in steps of ${n(step)} s); the value the middle, +/- ${n((hi - lo) / 2)} s.", s.filament, s.tool)
+            "Readings: the walls' speed-up marks, grooves up to ${n(lo)} s and ridges from ${n(hi)} s ($agree; the plate's values ${values.joinToString(", ") { n(it) }} s); the value the middle, +/- ${n((hi - lo) / 2)} s.", s.filament, s.tool)
     }
 
     private fun confirm(s: Sheet, name: String): Result {
@@ -249,6 +252,12 @@ object PressureAdvanceRecord {
             }
         }
     }
+
+    /**
+     * The confirm plate's step for a value read between [lo] and [hi]: half the bracket, so its neighbors are the bracket's
+     * ends (the highest groove and the lowest ridge, which the find plate printed): never below 0.
+     */
+    private fun confirmStep(lo: Double, hi: Double) = Math.round((hi - lo) / 2 * 1e5) / 1e5
 
     /** The find plate's values per row, for the fine plate's step. */
     private val PlateValues = plymeld.core.calibrate.PressureAdvanceGeometry.values

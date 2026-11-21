@@ -27,7 +27,7 @@ class MotionReadingsCommand : CliktCommand(name = "readings") {
 
     override fun run() {
         val text = try { MotionRecord.blank(java.nio.file.Files.readString(plate), plate.fileName.toString(), MadeBy.dateOf(plate)) }
-            catch (e: IllegalArgumentException) { throw UsageError(e.message ?: "not a motion plate") }
+            catch (e: IllegalArgumentException) { throw IllegalArgumentException(e.message ?: "not a motion plate") }
         output?.let { out ->
             out.parent?.let { java.nio.file.Files.createDirectories(it) }
             java.nio.file.Files.writeString(out, text)
@@ -51,7 +51,7 @@ class MotionValuesCommand : CliktCommand(name = "values") {
 
     override fun run() {
         val (text, report) = try { MotionRecord.values(java.nio.file.Files.readString(sheet), sheet.fileName.toString(), clean.trim().lowercase()) }
-            catch (e: IllegalArgumentException) { throw UsageError(e.message ?: "not a graded motion sheet") }
+            catch (e: IllegalArgumentException) { throw IllegalArgumentException(e.message ?: "not a graded motion sheet") }
         report.forEach { echo(it) }
         output?.let { out ->
             out.parent?.let { java.nio.file.Files.createDirectories(it) }

@@ -23,9 +23,10 @@ section the release's version and date.
   on every layer, a slow lead-in, a fast middle, and a 10 mm slow tail, at its own pressure advance set just before it.
   Too little leaves a groove up the wall just after the speed-up and a ridge just after the slow-down, too much the
   other way round; the value is where the grooves turn into ridges. Two rows, the same values rising and falling, a
-  square corner beside each wall; the values from 0 to the tool's ceiling
-  (`hardware.tool.<key>.calibrate.pressure_advance.max`, 1 s unless set: the top of the typical range in Klipper's
-  guide), `--values`, or inside `--bracket` for a finer plate. The lead-in and the middle (at least 10 and 30 mm) grow
+  square corner beside each wall; the values 0, then from the tool's lowest value
+  (`hardware.tool.<key>.calibrate.pressure_advance.min`, 0.01 s unless set) to its ceiling (`.max`, 1 s unless set: the
+  top of the typical range in Klipper's guide), each a fixed ratio below the next, so one plate brackets a short
+  filament path and a long tube; or `--values`, or evenly inside `--bracket` for a finer plate. The lead-in and the middle (at least 10 and 30 mm) grow
   together until, by plymeld's pressure model, the pressure settles within them at the plate's highest value, so the
   slow-down mark reads opposite to the speed-up mark on every wall; walls too long for the bed are refused, naming the
   ceiling (at 100 and 170 mm/s and 10,000 mm/s2: 10 and 30 mm up to 0.1 s, 22 and 64 mm at 0.5 s, 43 and 127 mm at 1 s).
@@ -37,10 +38,17 @@ section the release's version and date.
   bulge, sharp, or round at a corner), and the value from it: the middle of the bracket between the highest groove and
   the lowest ridge, written as the filament's `pressure_advance` (the tool's with `--into tool`) with the plate, its
   conditions, and the bracket in the note above it. Refused, saying why, when nothing flips, the two rows disagree by
-  more than a step, the readings are out of order, a corner contradicts its wall, or a wall reads the same at both marks.
+  more than one wall's place on the plate, the readings are out of order, a corner contradicts its wall, or a wall reads
+  the same at both marks. It names the next plates as commands that run as printed: a fine plate inside the bracket, or
+  the confirm plate with the bracket's ends as the neighbors.
 
 ### Changed
 
+- A calibration plate's refusal (a plate that does not fit, a value the config does not give, readings that give no
+  value) prints as one line, as plymeld's other refusals do, without the command line's usage; a mistake in the command
+  line's own form still shows it.
+- A command reading the config folder's files (no `-cf`) says so once, where a calibration plate said it twice.
+- The stroke font's "1", in every plate's raised labels, has a base, so it is not taken for an arrow.
 - An outer wall is never widened or moved to share a slit behind it. Where a slit too narrow for a line lies between
   the outer wall (round the outline or round a hole) and the line inside it, the outer wall keeps its width and place
   along the face, and the inner wall beside the slit takes all of it (it took half, the outer wall the other half); two

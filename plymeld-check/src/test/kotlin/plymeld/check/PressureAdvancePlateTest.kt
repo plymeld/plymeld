@@ -143,6 +143,12 @@ class PressureAdvancePlateTest : StringSpec({
         PressureAdvanceInstructions.picture(reviewRender("pressure_advance_plate.png"), find, PressureAdvancePlate(find))
     }
 
+    "the stroke font's 1 has a base, so it is not taken for the arrow beside it" {
+        fun width(t: String) = plymeld.core.calibrate.StrokeFont.polygons(t, 0, 0, 6_000, 800).let { ps -> ps.maxOf { p -> p.bounds()[2] } - ps.minOf { p -> p.bounds()[0] } }
+        // the hooked stem alone spans 1.8 mm at this size; with its base, as wide as the base (0.5 to 3.5 units, and the strokes)
+        (width("1") >= 3_500) shouldBe true
+    }
+
     "a sample toolpath for the docs: the plate's g-code from above, the base's second layer with its marks and the first wall layer with its labels" {
         val tp = TechniqueRender.read(text)
         val base = PressureAdvanceGeometry.baseLayers

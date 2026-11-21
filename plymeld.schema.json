@@ -267,7 +267,7 @@
                     ]
                   },
                   "own_pressure_advance": {
-                    "description": "pressure advance belongs to the machine: it sets its own (measured by the machine itself, or kept in its own profiles), so plymeld writes none, even where the machine, a tool, or a filament sets a pressure_advance; the pressure-advance plate is then offered only as a check of the machine's value (`plymeld calibrate pressure-advance --confirm machine`), printed with no command. Whether a machine's own value survives a command in the g-code differs by machine; unset = false — true or false; or a formula (= ...)",
+                    "description": "true: the machine sets its own pressure advance (measured by the machine itself, or kept in its own profiles), and plymeld writes none, even where the machine, a tool, or a filament sets a pressure_advance; the pressure-advance plate is then offered only as a check of the machine's value (`plymeld calibrate pressure-advance --confirm machine`), printed with no command. Whether a machine's own value survives a command in the g-code differs by machine; unset = false — true or false; or a formula (= ...)",
                     "anyOf": [
                       {
                         "type": "boolean"
@@ -1298,7 +1298,14 @@
                     "additionalProperties": false,
                     "properties": {
                       "max": {
-                        "description": "the highest pressure advance this tool's filament path plausibly needs (a short path from the extruder to the nozzle needs little, a long tube more): the pressure-advance plate's find plate tries values from 0 up to it (`plymeld calibrate pressure-advance`); unset = 1 s (plymeld's default), the top of the typical range in Klipper's pressure advance guide (the high end there usually with a long tube). The plate's walls grow with it, long enough for the pressure to settle within them at the plate's highest value, so a high ceiling may make them too long for the bed: a tool with a short path sets less, for shorter walls and finer steps — a time (s); or a formula (= ...)",
+                        "description": "the highest pressure advance this tool's filament path plausibly needs (a short path from the extruder to the nozzle needs little, a long tube more): the pressure-advance plate's find plate tries 0 and values from calibrate.pressure_advance.min up to it, each a fixed ratio below the next (`plymeld calibrate pressure-advance`); unset = 1 s (plymeld's default), the top of the typical range in Klipper's pressure advance guide (the high end there usually with a long tube). The plate's walls grow with it, long enough for the pressure to settle within them at the plate's highest value, so a high ceiling may make them too long for the bed: a tool with a short path sets less, for shorter walls — a time (s); or a formula (= ...)",
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      },
+                      "min": {
+                        "description": "the lowest value above 0 the pressure-advance find plate tries for this tool: its values run from calibrate.pressure_advance.max down to this, each a fixed ratio below the next (the ratio set by the two and the plate's count of values), and 0; unset = 0.01 s (plymeld's default), a hundredth of the default ceiling, so one plate spans both a short filament path's values and a long tube's — a time (s); or a formula (= ...)",
                         "type": [
                           "string",
                           "number"

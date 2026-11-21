@@ -138,7 +138,7 @@ object PressureAdvanceInstructions {
             l("| no defect anywhere, even at 0 | the firmware applies its own value regardless, or the step is too small: check that no value of the printer's own replaces the file's |")
             l("| grooves everywhere | the ceiling is too low: raise the tool's `calibrate.pressure_advance.max`, or give higher `--values` |")
             l("| ridges everywhere | even the lowest value is too high: 0 on a first plate means the firmware adds its own |")
-            l("| the two rows disagree by more than one step | position or print order matters (cooling, the bed's warm side); refused |")
+            l("| the two rows disagree by more than one step (one wall's place on the plate) | position or print order matters (cooling, the bed's warm side); refused |")
             l("| walls wobble or fall | a single line is too frail at this height |")
         } else {
             l("| if you see | it means |")

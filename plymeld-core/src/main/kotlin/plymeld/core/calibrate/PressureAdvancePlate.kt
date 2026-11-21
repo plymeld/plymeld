@@ -79,7 +79,7 @@ object PressureAdvanceGeometry {
     const val labelLayers = 2
     /** The head parks this far in front of the plate for the walls' temperature. */
     const val parkFront = 10_000L
-    /** The find plate's values per row: plymeld's choice (ten steps from 0 to the ceiling). */
+    /** The find plate's values per row: plymeld's choice (0 and ten from the tool's lowest value to its ceiling). */
     const val values = 11
     /** The stretch after a mark a reading looks at (the first few millimeters, where the defect is). plymeld's choice. */
     const val readLength = 5_000L

@@ -48,7 +48,7 @@ object Catalog {
         s("hardware.machine.firmware.dialect", MACHINE, TEXT, "the g-code dialect (comments and acceleration command, by maker: flashforge, qidi) its files are written with; empty = its model's default", "", "optional: the model names its own")
         s("hardware.machine.tool_change.time", MACHINE, TIME, "time the machine spends on one tool change beyond the moves in the g-code (its own change routine); unset = not counted in time predictions")
         s("hardware.machine.pressure_advance", MACHINE, TIME, "pressure advance (seconds) every tool prints with unless the tool (hardware.tool.pressure_advance) or its filament (hardware.filament.pressure_advance) sets its own, written with the machine model's command; none set = the firmware's own, and plymeld writes none")
-        s("hardware.machine.firmware.own_pressure_advance", MACHINE, BOOL, "the machine sets its own pressure advance: plymeld writes none, whatever the machine, a tool, or a filament sets; unset = false")
+        s("hardware.machine.firmware.own_pressure_advance", MACHINE, BOOL, "true: the machine sets its own pressure advance, and plymeld writes none, whatever the machine, a tool, or a filament sets; unset = false")
         s("hardware.machine.build.z", MACHINE, LENGTH, "tallest printable Z")
         s("hardware.machine.build.left", MACHINE, LENGTH, "printable bed area: lowest X")
         s("hardware.machine.build.front", MACHINE, LENGTH, "printable bed area: lowest Y")
@@ -85,8 +85,10 @@ object Catalog {
         s("hardware.tool.temperature.max", TOOL, TEMP, "hottest this tool's nozzle may be set (the machine maker's figure); above it plymeld warns")
         s("hardware.tool.extrude.section.max", TOOL, AREA, "the largest cross-section a move may extrude, filament pushed per mm of head motion times the filament's cross-section, as the firmware checks it (Klipper's max_extrude_cross_section): a restore spread over a path stays within it; unset = not known, and every restore stands still")
         s("hardware.tool.pressure_advance", TOOL, TIME, "pressure advance this tool prints with (seconds) unless its filament overrides it (hardware.filament.pressure_advance); unset = the machine's (hardware.machine.pressure_advance)")
-        s("hardware.tool.calibrate.pressure_advance.max", TOOL, TIME, "the highest pressure advance this tool's filament path plausibly needs: the pressure-advance find plate tries values from 0 up to it", 1.0,
+        s("hardware.tool.calibrate.pressure_advance.max", TOOL, TIME, "the highest pressure advance this tool's filament path plausibly needs: the pressure-advance find plate tries values up to it", 1.0,
             "the top of the typical range in Klipper's pressure advance guide (klipper3d.org, Pressure_Advance: typical values 0.050 to 1.000, the high end usually only with a long tube to the nozzle)")
+        s("hardware.tool.calibrate.pressure_advance.min", TOOL, TIME, "the lowest value above 0 the pressure-advance find plate tries: its values run from the ceiling down to this, each a fixed ratio below the next, and 0", 0.01,
+            "a hundredth of the default ceiling, so one find plate spans two orders of magnitude: a short filament path's values and a long tube's")
         // ---- material: the plastic
         s("hardware.filament.diameter", MATERIAL, LENGTH, "filament diameter")
         s("hardware.filament.density", MATERIAL, Kind.DENSITY, "filament density (mass per volume): the decisions compare material by mass with it; unset = by volume, and the decision says so")

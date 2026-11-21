@@ -24,7 +24,7 @@ class IroningReadingsCommand : CliktCommand(name = "readings") {
 
     override fun run() {
         val text = try { IroningRecord.blank(java.nio.file.Files.readString(plate), plate.fileName.toString(), MadeBy.dateOf(plate)) }
-            catch (e: IllegalArgumentException) { throw UsageError(e.message ?: "not an ironing plate") }
+            catch (e: IllegalArgumentException) { throw IllegalArgumentException(e.message ?: "not an ironing plate") }
         output?.let { out ->
             out.parent?.let { java.nio.file.Files.createDirectories(it) }
             java.nio.file.Files.writeString(out, text)
@@ -47,7 +47,7 @@ class IroningValuesCommand : CliktCommand(name = "values") {
 
     override fun run() {
         val (text, report) = try { IroningRecord.values(java.nio.file.Files.readString(sheet), sheet.fileName.toString()) }
-            catch (e: IllegalArgumentException) { throw UsageError(e.message ?: "not a graded ironing sheet") }
+            catch (e: IllegalArgumentException) { throw IllegalArgumentException(e.message ?: "not a graded ironing sheet") }
         report.forEach { echo(it) }
         output?.let { out ->
             out.parent?.let { java.nio.file.Files.createDirectories(it) }
