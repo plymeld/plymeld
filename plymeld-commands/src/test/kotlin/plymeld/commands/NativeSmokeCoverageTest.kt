@@ -11,7 +11,8 @@ import java.nio.file.Path
  * The built executables' smoke run (tools/native-smoke.sh, which CI and the release run on the native command line) has
  * a case for every command of the command model, or a line in its not-yet ledger (`not_yet "<command>" "<reason>"`) with
  * a reason; and names no command the model does not have. So a command added to the CLI fails this test until the smoke
- * run exercises it on the built executable, as UiParityTest holds the window to the same tree.
+ * run exercises it on the built executable, as UiParityTest holds the window to the same tree. And it holds the cases of
+ * an install with no lib/ beside the executable.
  */
 class NativeSmokeCoverageTest : StringSpec({
     val repo: Path = generateSequence(Path.of("").toAbsolutePath()) { it.parent }.first { Files.exists(it.resolve("settings.gradle.kts")) }
@@ -69,6 +70,16 @@ class NativeSmokeCoverageTest : StringSpec({
         windowHeld(script) shouldBe setOf("version", "command", "help", "unknown")
         // control: a case taken out is missed
         windowHeld(script.lines().filterNot { it.contains("window-unknown") }.joinToString("\n")) shouldBe setOf("version", "command", "help")
+    }
+
+    // the command line draws from an install with no lib/ beside it (plymeld-cli's JavaHome): held to a case where the
+    // executable's folder can be written and one where it cannot
+    "the smoke run draws from an install with no lib/, writable and read-only" {
+        fun held(text: String) = Regex("""(?m)^\s*pictures\s+"plymeld render"\s+(render-no-lib(?:-read-only)?)\s""")
+            .findAll(text).map { it.groupValues[1] }.toSet()
+        held(script) shouldBe setOf("render-no-lib", "render-no-lib-read-only")
+        // control: a case taken out is missed
+        held(script.lines().filterNot { it.contains("pictures \"plymeld render\" render-no-lib-read-only") }.joinToString("\n")) shouldBe setOf("render-no-lib")
     }
 
     "control: the reading finds the cases, loops included, and would miss a command with none" {

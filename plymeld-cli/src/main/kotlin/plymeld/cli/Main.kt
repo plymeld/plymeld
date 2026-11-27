@@ -10,13 +10,12 @@ import plymeld.commands.UpdateFeed
  * checks on (`plymeld updates --set notify`), every run asks the release feed in the background, at most once a day,
  * and a newer release is said on stderr after the command ([UpdateFeed.forRun]); `updates` itself says it its own way.
  * A native executable has no java.home, which the JDK's fonts read as they start (every picture with text in it), so it
- * is the executable's own directory, as the window does: the native build puts the JDK libraries it draws with there,
- * and a lib/ folder, where the fonts look for a configuration (on Linux they ask the system's fontconfig only when the
- * folder is there).
+ * is set first: a folder holding a lib/ folder, where the fonts look for a configuration (on Linux they ask the system's
+ * fontconfig only when the folder is there); the executable's own, as the window does, and where its lib/ is missing and
+ * cannot be made, one in plymeld's cache ([JavaHome]).
  */
 fun main(args: Array<String>) {
-    if (System.getProperty("java.home") == null) ProcessHandle.current().info().command().orElse(null)
-        ?.let { java.nio.file.Path.of(it).toAbsolutePath().parent?.toString() }?.let { System.setProperty("java.home", it) }
+    JavaHome.set()
     WindowsConsole.useUtf8()
     val updates = if (args.firstOrNull() == "updates") null else UpdateFeed.forRun()
     val status = Commands.run(args.toList())

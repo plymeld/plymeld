@@ -2521,3 +2521,44 @@ stops a release already tagged.
 run, about 25 minutes on a hosted runner (the command line's build about 6, the window's about 8, the smoke run about
 8), beside the Linux jobs. A change that reaches something new natively traces on both platforms. On Windows, a glob
 where plymeld reads one file (`render`'s g-code, `-o`) is taken as a name, as a quoted glob is on Linux.
+
+## 72. The command line's java.home holds a `lib/` folder however it was installed: its own folder's, made where missing, else one in plymeld's cache (2026-11-27)
+
+This replaces decision 67's java.home rule for the command line: there, java.home was the executable's folder, and the
+install was trusted to hold its `lib/`.
+
+**Context.** The JDK's fonts look for a font configuration in java.home's `lib/` (or `conf/fonts/`), and on Linux ask
+the system's fontconfig only when one of those folders is there; with neither they have no configuration, and the first
+text drawn stops with "Fontconfig head is null". On Linux the command line's `lib/` holds nothing: the tar ships it
+empty, only to be there. An install whose unpacker or updater leaves out empty folders (an updater that unpacks a tar's
+files only; a package format that drops them) has none, and every command that draws stops, though nothing in the
+install the user can see is wrong. Nothing else the command line reads goes through java.home: the JDK libraries beside
+the executable load from its own folder whatever java.home says (a native command line with java.home set to another
+folder holding an empty `lib/` draws).
+
+**Decision.** At start, where it has no java.home (a native executable), the command line takes the first of these
+that holds a `lib/` folder or where it can make one: its executable's folder; `java-home/` in plymeld's cache folder
+(on Linux `$XDG_CACHE_HOME/plymeld`, else `~/.cache/plymeld`; `cache/` under `PLYMELD_HOME` when that is set). Where
+neither can be made, java.home is the executable's folder, as before. So an install missing its `lib/` gets it back at
+its first run, and one that cannot be written (installed by another user, a system package) draws with the cache's
+folder. The rule is `JavaHome` in
+plymeld-cli, run on every platform; on Windows the package's `lib\` holds the JDK's `fontconfig.bfc`, so it is there in
+every install and the rule finds it. The window keeps its own folder as java.home: its `lib/` holds `libjawt.so`, which
+Skiko loads from there, so an install without it cannot open the window whatever java.home says, and the commands it
+runs go through the command line beside it (decision 70). `tools/native-smoke.sh check` runs `render` with the Linux
+command line from a copy of its folder without `lib/`, writable (the folder made) and read-only (the cache's folder
+made); `NativeSmokeCoverageTest` holds both cases.
+
+**Rejected.** Making `lib/` beside the executable only: an install that cannot be written stays unable to draw. The
+cache's folder only, never writing to the install: every run of such an install would depend on a folder outside it,
+where one folder made puts the install back as it ships. A folder in the system's temporary directory: one made at
+each run is left behind when the run is killed, and one with a fixed name there can be another user's, whose font
+configuration and fallback fonts (`lib/fonts/fallback/`) the JDK would read. A font configuration file shipped in
+`lib/`, or named by `sun.awt.fontconfig`: it names fonts by their files, which differ between systems, and with it the
+JDK never asks the system's fontconfig. Asking users to update again or unpack the tar afresh: the error does not say
+that, and an install whose packaging drops empty folders would never have it. A file in `lib/` so that no unpacker
+drops it: it guards one way of losing the folder, not a read-only install that lost it.
+
+**Consequences.** A command line's folder gains a `lib/` at its first run where it had none. A read-only install
+without one keeps an empty `java-home/lib/` in plymeld's cache folder, made again if the cache is cleared. The smoke
+run's Linux check runs two more `render` cases.

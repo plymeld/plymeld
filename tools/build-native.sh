@@ -19,9 +19,10 @@ mkdir -p "$out"
 "$graal/bin/native-image" --no-fallback -O2 -H:+ReportExceptionStackTraces -H:IncludeResources="config/.*\\.toml|plymeld-version\\.txt|plymeld-update-feed\\.txt" \
   --initialize-at-build-time=org.slf4j,org.apache.sshd.common.file.root.RootedFileSystemProvider \
   -cp "$cp" plymeld.cli.MainKt -o "$out/plymeld" "$@"
-# the executable's own folder is its java.home (Main.kt): the JDK's fonts look in its lib/ for a font configuration
+# the executable's own folder is its java.home (JavaHome.kt): the JDK's fonts look in its lib/ for a font configuration
 # (fontconfig.bfc, which a JDK ships where it has one, as on Windows), and ask the system's fontconfig only when lib/ is
-# there; so lib/ goes beside the executable, with the JDK's file where there is one
+# there; so lib/ goes beside the executable, with the JDK's file where there is one (on Linux it is empty, and the
+# command line makes it, or uses one in plymeld's cache, where an install lacks it)
 mkdir -p "$out/lib"
 [ -f "$graal/lib/fontconfig.bfc" ] && cp "$graal/lib/fontconfig.bfc" "$out/lib/"
 if [ "$(uname -s)" = Linux ]; then
