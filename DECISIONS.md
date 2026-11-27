@@ -2518,5 +2518,6 @@ a run reaches, where a stack trace names one at a time. Keeping the Windows run 
 stops a release already tagged.
 
 **Consequences.** A pull request also waits for the Windows build of the command line and the window and their smoke
-run, about 15 minutes on a hosted runner, beside the Linux jobs. A change that reaches something new natively traces on both platforms. On Windows, a glob
+run, about 25 minutes on a hosted runner (the command line's build about 6, the window's about 8, the smoke run about
+8), beside the Linux jobs. A change that reaches something new natively traces on both platforms. On Windows, a glob
 where plymeld reads one file (`render`'s g-code, `-o`) is taken as a name, as a quoted glob is on Linux.
