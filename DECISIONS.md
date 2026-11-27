@@ -2695,7 +2695,10 @@ value is printed in both rows and `values` compares the rows: a strip snapped ou
 Neither the page nor the command tells the reader to level the bed: the reading does not depend on a levelled bed beyond
 what the reader already prints with; where the printer can level as a print starts, the page names that as an option.
 The command's output states one thing a line, each within 200 characters with a path counted as its file name (a
-command line to copy and run excepted), whatever the length of the user's own keys; it cites each limit's setting once,
+line that is nothing but a command to copy and run excepted), whatever the length of the user's own keys; every
+calibration plate's output and every `readings` and `values` report is held to the same width, a longer line broken
+where its facts part (between sentences, then clauses, then items) with its later lines indented; a next plate's command
+is a line of its own below what it makes. It cites each limit's setting once,
 its page once, and a value given on the command line as set there, without the whole option again. The note every
 calibration's `values` writes above a value in the config is wrapped between words at 120 columns, each line starting
 `# `, as the config files' own comments are; a prediction prints as a line for the time and filament, a line for each

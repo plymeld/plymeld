@@ -415,13 +415,9 @@ class PressureAdvanceReadingsTest : StringSpec({
         (Regex("""--speeds [0-9]""").containsMatchIn(short)) shouldBe false
     }
 
-    /**
-     * The lines of [lines] over 200 characters, a path counted as its file name alone (its folder is the user's), but a
-     * command line to run (in backquotes), which is copied whole rather than read.
-     */
-    fun overLong(lines: List<String>) = lines.filter { it.replace(Regex("""/[^\s'`]*/"""), "").length > 200 && "`plymeld " !in it }
+    fun overLong(lines: List<String>) = OutputLines.overLong(lines)
 
-    "every line the command prints, its refusals, and values' report: one thing a line, none over 200 characters (a path counted as its file name) but a command line to run; each limit's setting cited once in the output and once on the page" {
+    "every line the command prints, its refusals, and values' report: one thing a line, none over 200 characters (a path counted as its file name) but a line that is nothing but a command to run; each limit's setting cited once in the output and once on the page" {
         val one = arrayOf("-cv", "hardware.tool.t1.calibrate.pressure_advance.max=1 s")
         // the push-limited plate made last, so its page is the one beside said.gcode
         val runs = listOf(said(*one), said("--confirm", "0.04", "--confirm-step", "0.004"), said(*one, "--values", "0,0.1,0.2,0.3", "-cv", "hardware.tool.t1.extrude.speed.max=20 mm/s"),
@@ -449,19 +445,18 @@ class PressureAdvanceReadingsTest : StringSpec({
         overLong(listOf(named)) shouldBe listOf(named)
         val deep = "/" + "folder/".repeat(40) + "readings.toml: the front row's wall 2 (0.01 s) reads groove at both marks: pressure advance reads the opposite at the slow-down mark; no value"
         overLong(listOf(deep)).shouldBeEmpty()
+        // control: a command with a note beside it is held to the limit; the command alone is not
+        val command = "`plymeld calibrate pressure-advance " + "-cv x=y ".repeat(30) + "-o pa-fine.gcode`"
+        overLong(listOf("  next, a finer value: $command (11 values)", "    $command")) shouldBe listOf("  next, a finer value: $command (11 values)")
     }
 
-    /** The comment lines of [lines] over the config files' own width (TomlEdit.COMMENT_WIDTH) or not starting `# `. */
-    fun badComments(lines: List<String>) = lines.filter { it.trimStart().startsWith("#") && !it.startsWith("#:schema") && (it.length > TomlEdit.COMMENT_WIDTH || !it.trimStart().startsWith("# ")) }
+    fun badComments(lines: List<String>) = OutputLines.badComments(lines)
 
     "with a machine, filament, and tool key of 40 characters or more: every line the plate, values, the plates its suggestions make, and their refusals print within the limit, and every comment values writes into the config within the config files' width" {
-        val machine = "a-workshop-corexy-printer-with-a-much-longer-name"; val filament = "a-matte-silk-pla-in-a-deep-ocean-blue-color"; val tool = "a-left-hand-nozzle-with-a-hardened-steel-tip"
+        val machine = OutputLines.MACHINE; val filament = OutputLines.FILAMENT; val tool = OutputLines.TOOL
         for (k in listOf(machine, filament, tool)) withClue(k) { (k.length >= 40) shouldBe true }
         // the sample config with those keys in place of its own
-        val d = copy()
-        Files.list(d).use { fs -> fs.toList() }.forEach { p -> Files.writeString(p, Files.readString(p).replace("example-corexy", machine).replace("pla-white", filament)
-            .replace("tool.t1]", "tool.$tool]").replace("tool.t1.", "tool.$tool.")) }
-        Files.readString(d.resolve("01_TOOLS.toml")) shouldContain "[hardware.tool.$tool]"
+        val d = OutputLines.longNamed(samples)
         val config = arrayOf("-cf", d.resolve("0*.toml").toString())
         // a push limit through the model's toolhead, so the toolhead's setting is said
         val base = config + arrayOf("-cv", "hardware.machine.$machine.model=qidi-q2", "-cv", "hardware.model.qidi-q2.toolhead.0.extrude.speed.max=50 mm/s")

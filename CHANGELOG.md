@@ -70,7 +70,11 @@ section the release's version and date.
 - A command reading the config folder's files (no `-cf`) says so once, where a calibration plate said it twice.
 - A print's or a plate's prediction prints over several lines, one fact each: the time and filament, then the motion
   limits from each place they come from (the config, or the machine model with its evidence), then the tool changes,
-  where it ran as one long line.
+  where it ran as one long line; the melt and flow plates print it so too, where they gave the time alone.
+- Every calibration plate's output, and every `readings` and `values` report, keeps each line within 200 characters,
+  a path counted as its file name, whatever the length of the config's own names: a longer line breaks where its facts
+  part (between sentences, then clauses, then items), its later lines indented. The flow plate's patches and the melt
+  plate's rows take a line per fact; a next plate `values` names is its command alone, on a line below what it makes.
 - The note a calibration's `values` writes above a value in the config is wrapped between words at 120 columns, each
   line starting `# `, as the config files' own comments are, where each of its parts was one long line.
 - The stroke font's "1", in every plate's raised labels, has a base and a flat flag at its top, where a slanted flag

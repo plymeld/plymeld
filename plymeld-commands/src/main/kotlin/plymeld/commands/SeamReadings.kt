@@ -51,7 +51,7 @@ class SeamValuesCommand : CliktCommand(name = "values") {
     override fun run() {
         val (text, report) = try { SeamRecord.values(java.nio.file.Files.readString(sheet), sheet.fileName.toString()) }
             catch (e: IllegalArgumentException) { throw IllegalArgumentException(e.message ?: "not a graded seam sheet") }
-        report.forEach { echo(it) }
+        report.flatMap(PrintedLines::of).forEach { echo(it) }
         output?.let { out ->
             out.parent?.let { java.nio.file.Files.createDirectories(it) }
             java.nio.file.Files.writeString(out, text)

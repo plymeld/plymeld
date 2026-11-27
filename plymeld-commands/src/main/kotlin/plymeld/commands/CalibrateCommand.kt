@@ -40,6 +40,9 @@ import java.util.Locale
  * against its specification, with deliberately altered copies as controls that must fail; a plate that fails is not written.
  */
 abstract class PlateCommand(name: String, protected val kind: String) : ConfigCommand(name) {
+    /** [line] printed as [PrintedLines] holds it: within the width, broken where its facts part. */
+    protected fun say(line: String) = PrintedLines.of(line).forEach { echo(it) }
+
     private val outputOpt by option("-o", "--output", metavar = "FILE", help = "g-code file to write (required for a plate)").path()
     private val output: java.nio.file.Path get() = outputOpt ?: throw IllegalArgumentException("-o is required: the g-code file to write")
     private val filament by option("--filament", metavar = "NAME",
@@ -239,16 +242,17 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         java.nio.file.Files.writeString(output, withMachineHeader(text, config, setup, s, prediction))
         val b = plate.bounds()
         val apart = n(flows[1] - flows[0])
-        echo("melt plate: '${spool.material}' on tool ${toolN} of '${Resolver.resolve(setup, "hardware.machine.model").value}' (bed ${s.bedTempFirstC} C)")
-        echo("  base and floor at the filament's own temperatures: ${s.nozzleTempFirstC} C on the first layer (temperature.first_layer), then ${s.nozzleTempC} C (temperature.print); " +
+        say("melt plate: '${spool.material}' on tool ${toolN} of '${Resolver.resolve(setup, "hardware.machine.model").value}' (bed ${s.bedTempFirstC} C)")
+        say("  base and floor at the filament's own temperatures: ${s.nozzleTempFirstC} C on the first layer (temperature.first_layer), then ${s.nozzleTempC} C (temperature.print); " +
             "the first layer ${n(baseW / 1000.0)} mm lines at ${n(firstSpeed)} mm/s")
-        echo("  columns: ${chosen.joinToString(", ")} C, coolest on the left, each waited for before its rows")
-        narrowed?.let { echo("  $it") }
-        echo("  rows: ${n(flows.first())} to ${n(flows.last())} mm3/s, $apart apart (the filament's expected maximum flow: ${n(expected)}), lowest at the front; " +
-            "every row ${n(w / 1000.0)} mm lines ${n(readUm / 1000.0)} mm thick, ${n(line / 1000.0)} mm long, at ${n(sp.speed(0))} to ${n(sp.speed(sp.rows - 1))} mm/s, each holding its flow at least ${n(PlateGeometry.meltHoldS)} s")
-        cut?.let { echo("  $it") }
-        echo("  ${n((b[2] - b[0]) / 1000.0)} x ${n((b[3] - b[1]) / 1000.0)} mm, ${g.baseLayers + 2} layers; predicted ${prediction.timeS?.let { n(it / 60) + " min" } ?: "time not predicted"}")
-        echo("-> $output")
+        say("  columns: ${chosen.joinToString(", ")} C, coolest on the left, each waited for before its rows")
+        narrowed?.let { say("  $it") }
+        say("  rows: ${n(flows.first())} to ${n(flows.last())} mm3/s, $apart apart (the filament's expected maximum flow: ${n(expected)}), lowest at the front")
+        say("  each row: ${n(w / 1000.0)} mm lines ${n(readUm / 1000.0)} mm thick, ${n(line / 1000.0)} mm long, at ${n(sp.speed(0))} to ${n(sp.speed(sp.rows - 1))} mm/s, each holding its flow at least ${n(PlateGeometry.meltHoldS)} s")
+        cut?.let { say("  $it") }
+        say("  ${n((b[2] - b[0]) / 1000.0)} x ${n((b[3] - b[1]) / 1000.0)} mm, ${g.baseLayers + 2} layers")
+        prediction.lines().forEach { say("  $it") }
+        say("-> $output")
     }
 
     /**
@@ -306,16 +310,17 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         output.parent?.let { java.nio.file.Files.createDirectories(it) }
         java.nio.file.Files.writeString(output, withMachineHeader(text, config, setup, s, prediction))
         val b = plate.bounds()
-        echo("flow plate: '${spool.material}' on tool $toolN of '${Resolver.resolve(setup, "hardware.machine.model").value}' (bed ${s.bedTempFirstC} C)")
-        echo("  base at the filament's own temperatures: ${s.nozzleTempFirstC} C on the first layer (temperature.first_layer), then ${s.nozzleTempC} C (temperature.print); " +
+        say("flow plate: '${spool.material}' on tool $toolN of '${Resolver.resolve(setup, "hardware.machine.model").value}' (bed ${s.bedTempFirstC} C)")
+        say("  base at the filament's own temperatures: ${s.nozzleTempFirstC} C on the first layer (temperature.first_layer), then ${s.nozzleTempC} C (temperature.print); " +
             "the first layer ${n(baseW / 1000.0)} mm lines at ${n(firstSpeed)} mm/s")
-        echo("  columns: ${chosen.joinToString(", ")} C, coolest on the left; each column's top layer waited for at its temperature, the ${solid} layers under it at ${s.nozzleTempC} C")
-        narrowed?.let { echo("  $it") }
-        echo("  patches: flow ratios ${ratios.joinToString(", ") { n(it) }}, leanest at the front (the filament's own: ${n(s.flowRatio)}); " +
-            "each ${n(plate.patchSize / 1000.0)} mm square, ${n(w / 1000.0)} mm lines ${n(plate.spacing / 1000.0)} mm apart (the bead spacing), ${solid + 1} layers of ${n(h / 1000.0)} mm, " +
-            "at ${n(speed)} mm/s${if (speed < s.visibleSpeed - 1e-9) " (a visible surface's ${n(s.visibleSpeed)}, held to the filament's maximum flow at ${n(ratios.max())})" else " (a visible surface's)"}")
-        echo("  ${n((b[2] - b[0]) / 1000.0)} x ${n((b[3] - b[1]) / 1000.0)} mm, ${plate.topLayer + 1} layers; predicted ${prediction.timeS?.let { n(it / 60) + " min" } ?: "time not predicted"} (the temperature waits on top)")
-        echo("-> $output")
+        say("  columns: ${chosen.joinToString(", ")} C, coolest on the left; each column's top layer waited for at its temperature, the ${solid} layers under it at ${s.nozzleTempC} C")
+        narrowed?.let { say("  $it") }
+        say("  patches: flow ratios ${ratios.joinToString(", ") { n(it) }}, leanest at the front (the filament's own: ${n(s.flowRatio)})")
+        say("  each patch: ${n(plate.patchSize / 1000.0)} mm square, ${n(w / 1000.0)} mm lines ${n(plate.spacing / 1000.0)} mm apart (the bead spacing), ${solid + 1} layers of ${n(h / 1000.0)} mm")
+        say("  patch speed: ${n(speed)} mm/s${if (speed < s.visibleSpeed - 1e-9) " (a visible surface's ${n(s.visibleSpeed)}, held to the filament's maximum flow at ${n(ratios.max())})" else " (a visible surface's)"}")
+        say("  ${n((b[2] - b[0]) / 1000.0)} x ${n((b[3] - b[1]) / 1000.0)} mm, ${plate.topLayer + 1} layers")
+        prediction.lines(" (the temperature waits on top)").forEach { say("  $it") }
+        say("-> $output")
     }
 
     /**
@@ -635,24 +640,24 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         val costs = partCosts(text, spec, machineDesc, changeS, plymeld.core.Predict.limits(s), prediction)
         output.parent?.let { java.nio.file.Files.createDirectories(it) }
         java.nio.file.Files.writeString(output, withMachineHeader(text, config, setup, s, prediction))
-        echo("$kind plate for filament '${spool.material}' on tool $slotN of '${Resolver.resolve(setup, "hardware.machine.model").value}', build plate '$plateName' (bed ${s.bedTempFirstC} C): ${n(h / 1000.0)} mm layers, ${n(w / 1000.0)} mm lines " +
+        say("$kind plate for filament '${spool.material}' on tool $slotN of '${Resolver.resolve(setup, "hardware.machine.model").value}', build plate '$plateName' (bed ${s.bedTempFirstC} C): ${n(h / 1000.0)} mm layers, ${n(w / 1000.0)} mm lines " +
             "(on the first layer ${n(spec.firstWidthUm / 1000.0)} mm, plan.mechanism.adhesion.first_layer.line.width), flow ratio ${n(s.flowRatio)}")
-        echo("families: ${spec.parts.filter { it != Part.POST }.joinToString { it.key }}" + (if (kind != "filament") "" else Part.FILAMENT_TESTS.filter { it !in selected }.takeIf { it.isNotEmpty() }?.let { "; left out (--tests): ${it.joinToString { p -> p.key }}" } ?: ""))
-        echo("bases: ${baseLayers} layers under every family (${n(baseLayers * h / 1000.0)} mm, ${n(PlateGeometry.baseMargin / 1000.0)} mm past each test), each layer ${PlateGeometry.frameWalls} outline rings and then solid lines one bead spacing apart in one monotonic sweep, at 45 and 135 degrees on alternate layers; one notch in each base's front edge (above its first layer) in front of the test's first item; the bands start above them")
-        echo("layout: ${n(plateW)} x ${n(plateD)} mm, packed ${n(PlateGeometry.familyGap / 1000.0)} mm apart, centered on the ${n(bedW)} x ${n(bedD)} mm bed: " +
+        say("families: ${spec.parts.filter { it != Part.POST }.joinToString { it.key }}" + (if (kind != "filament") "" else Part.FILAMENT_TESTS.filter { it !in selected }.takeIf { it.isNotEmpty() }?.let { "; left out (--tests): ${it.joinToString { p -> p.key }}" } ?: ""))
+        say("bases: ${baseLayers} layers under every family (${n(baseLayers * h / 1000.0)} mm, ${n(PlateGeometry.baseMargin / 1000.0)} mm past each test), each layer ${PlateGeometry.frameWalls} outline rings and then solid lines one bead spacing apart in one monotonic sweep, at 45 and 135 degrees on alternate layers; one notch in each base's front edge (above its first layer) in front of the test's first item; the bands start above them")
+        say("layout: ${n(plateW)} x ${n(plateD)} mm, packed ${n(PlateGeometry.familyGap / 1000.0)} mm apart, centered on the ${n(bedW)} x ${n(bedD)} mm bed: " +
             plate.parts.joinToString { "${it.title} ${plymeld.core.calibrate.PlateInstructions.where(plate, it)}" })
-        echo(when (kind) {
+        say(when (kind) {
             "melt" -> "bands (bottom to top, hot to cold): band 1 a ${n(PlateGeometry.meltBodyLayers(h) * h / 1000.0)} mm body (${PlateGeometry.meltBodyLayers(h)} layers, its top layer the step's solid floor) and its step's read layer; each later band 2 layers, " +
                 "its wait (M109) for its temperature before the first (the head parked), then its step's solid floor (the other steps' bodies rising beside it) and its read layer; the bases at ${bands[0].tempC} C, fan off:"
             else -> "bands (bottom to top, hot to cold), ${n(readUm / 1000.0)} mm read + ${n(settleUm / 1000.0)} mm settling each (2 layers changing, a wait, 2 at the new temperature); the bases at ${bands[0].tempC} C, fan off:"
         })
-        for (bd in bands) echo("  band ${bd.index + 1}: z ${n(bd.fromUm / 1000.0)}-${n(bd.readToUm / 1000.0)} mm  ${bd.tempC} C  fan ${n(bd.fanPct)} %" +
+        for (bd in bands) say("  band ${bd.index + 1}: z ${n(bd.fromUm / 1000.0)}-${n(bd.readToUm / 1000.0)} mm  ${bd.tempC} C  fan ${n(bd.fanPct)} %" +
             (melt?.let { mt -> "  wait (M109) before the layer at z ${n((bd.fromUm + h) / 1000.0)} mm; floor's top z ${n(spec.meltReadLayer(bd.index) * h / 1000.0)} mm, " +
                 "strips at z ${n((spec.meltReadLayer(bd.index) * h + mt.heightsUm.first()) / 1000.0)}-${n((spec.meltReadLayer(bd.index) * h + mt.heightsUm.last()) / 1000.0)} mm (on the layer to z ${n((spec.meltReadLayer(bd.index) + 1) * h / 1000.0)})" } ?: ""))
         melt?.let { mt ->
             val len = PlateGeometry.meltLineLen / 1000.0
             val fFrom = Resolver.resolveOrNull(setup, "hardware.filament.melt.flow.max", plymeld.model.Context(0))?.from ?: "the config"
-            echo("melt test: a step per band (band 1 at the front, each colder band's behind and higher), its top one read layer on a solid floor; on it FAST | MID | SLOW at ${mt.speeds.joinToString(" | ") { n(it) }} mm/s " +
+            say("melt test: a step per band (band 1 at the front, each colder band's behind and higher), its top one read layer on a solid floor; on it FAST | MID | SLOW at ${mt.speeds.joinToString(" | ") { n(it) }} mm/s " +
                 (if (mt.machineHeld) "(the machine's print speed, hardware.machine.<key>.motion.print.speed, half, and a quarter: the machine holds FAST below the speed that centers it on the filament's ${n(mt.centerFlow)} mm3/s, so the top of the range is the machine's)"
                 else "(FAST centered on the filament's expected maximum flow, ${n(mt.centerFlow)} mm3/s at ${bands[0].tempC} C from $fFrom${if (fFrom.startsWith(plymeld.config.ConfigFiles.BUNDLED_SOURCE)) ", plymeld's bundled placeholder" else ""}: its middle-thickness line runs at it; MID half, SLOW a quarter)") +
                 ", at ${n(mt.accel)} mm/s2; ${mt.count} strips each, ${n(mt.widthUm / 1000.0)} mm wide (the plate's line width), ${mt.heightsUm.joinToString { n(it / 1000.0) }} mm thick (the tool's layer.height.max down a tenth of the bore at a time), thinnest at the front and printed first; " +
@@ -660,27 +665,27 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
                 "a step ${n(plate.meltStepD / 1000.0)} mm deep, a surface ${n(plate.meltSurfaceW / 1000.0)} mm wide; under each surface its floor (two walls, front-to-back lines a bead spacing apart) on a body (two walls, a grid ${n(PlateGeometry.pedestalPitch / 1000.0)} mm both ways) at the frame's values; " +
                 "the head lifted ${n(mt.liftUm / 1000.0)} mm (the travel lift) above the tallest strip before each surface and after the last; " +
                 plymeld.core.calibrate.PlateInstructions.meltFanText(spec))
-            echo("  flows (mm3/s, at flow ratio ${n(s.flowRatio)}), strip: thickness  FAST / MID / SLOW")
-            for (k in 0 until mt.count) echo("    ${k + 1}: ${n(mt.heightsUm[k] / 1000.0)} mm  ${(0 until 3).joinToString(" / ") { n(spec.stripFlow(k, it)) }}")
+            say("  flows (mm3/s, at flow ratio ${n(s.flowRatio)}), strip: thickness  FAST / MID / SLOW")
+            for (k in 0 until mt.count) say("    ${k + 1}: ${n(mt.heightsUm[k] / 1000.0)} mm  ${(0 until 3).joinToString(" / ") { n(spec.stripFlow(k, it)) }}")
         }
-        echo(if (spec.ruler) "ruler post (front-left, its front-left corner chamfered = the origin): a notch per band, every fourth long"
+        say(if (spec.ruler) "ruler post (front-left, its front-left corner chamfered = the origin): a notch per band, every fourth long"
             else "no ruler post: the steps mark the bands (band 1 at the front and lowest, each next behind and 2 layers higher), and the bands are too short for its notches")
-        ledges?.let { lg -> echo("overhang ledges: shares ${lg.shares.joinToString { n(it) }} of a ${n(w / 1000.0)} mm line (steps ${lg.shares.joinToString { n(it * w / 1000.0) }} mm a layer), " +
+        ledges?.let { lg -> say("overhang ledges: shares ${lg.shares.joinToString { n(it) }} of a ${n(w / 1000.0)} mm line (steps ${lg.shares.joinToString { n(it * w / 1000.0) }} mm a layer), " +
             "each band's read layers, at ${n(lg.speed)} mm/s (${if (s.overhangSpeed != null) "the filament's hardware.filament.overhang.speed" else "a visible surface's: the filament has no hardware.filament.overhang.speed"})") }
-        bridges?.let { br -> echo("bridges: spans ${br.spansUm.joinToString { n(it / 1000.0) }} mm between ${br.spansUm.size + 1} piers, the row ${n(plate.bridgeDepth / 1000.0)} mm deep; on every band's top read layer two decks across them, " +
+        bridges?.let { br -> say("bridges: spans ${br.spansUm.joinToString { n(it / 1000.0) }} mm between ${br.spansUm.size + 1} piers, the row ${n(plate.bridgeDepth / 1000.0)} mm deep; on every band's top read layer two decks across them, " +
             "terraced (band k's in deck strip k from the front and from the back, ${n(plate.deckDepth / 1000.0)} mm each: every deck visible from above), " +
             "front at flow ${n(br.flows[0])}, back at ${n(br.flows[1])}, ${n(br.speed)} mm/s (the bridge speed, plan.mechanism.motion.bridge.speed${if (br.speed < s.bridgeSpeed - 1e-9) ", held to the filament's maximum flow" else ""})") }
-        fit?.let { f -> echo("fit: holes ${f.holesUm.joinToString { n(it / 1000.0) }} mm in a ${n(f.blockLayers * h / 1000.0)} mm block on a pedestal (z ${n(f.fromLayer * h / 1000.0)}-${n((f.fromLayer + f.blockLayers) * h / 1000.0)} mm, band ${ownBand!!.index + 1}, ${ownBand.tempC} C, nearest the filament's $ownC C; blind holes), a ${n(f.pegUm / 1000.0)} mm peg column to ${n(f.pegLayers * h / 1000.0)} mm beside it (its top ${n(f.blockLayers * h / 1000.0)} mm in that band: the end to use), as drawn (no compensation)") }
-        tubes?.let { tb -> echo("line-width tubes: ${tb.widthsUm.joinToString { n(it / 1000.0) }} mm lines, ${n(PlateGeometry.tube / 1000.0)} mm square, to ${n(tb.layers * h / 1000.0)} mm (every band), at ${n(tb.speed)} mm/s") }
-        strings?.let { st -> echo("stringing ring: ${st.posts} round posts ${n(PlateGeometry.ringPost / 1000.0)} mm across, ${n(PlateGeometry.ringPostGap / 1000.0)} mm apart, hops counter-clockwise from post 1 with retractions ${st.lengthsMm.joinToString { n(it) }} mm; the open gap (post ${st.posts} to post 1, at its front) never crossed: the control; " +
+        fit?.let { f -> say("fit: holes ${f.holesUm.joinToString { n(it / 1000.0) }} mm in a ${n(f.blockLayers * h / 1000.0)} mm block on a pedestal (z ${n(f.fromLayer * h / 1000.0)}-${n((f.fromLayer + f.blockLayers) * h / 1000.0)} mm, band ${ownBand!!.index + 1}, ${ownBand.tempC} C, nearest the filament's $ownC C; blind holes), a ${n(f.pegUm / 1000.0)} mm peg column to ${n(f.pegLayers * h / 1000.0)} mm beside it (its top ${n(f.blockLayers * h / 1000.0)} mm in that band: the end to use), as drawn (no compensation)") }
+        tubes?.let { tb -> say("line-width tubes: ${tb.widthsUm.joinToString { n(it / 1000.0) }} mm lines, ${n(PlateGeometry.tube / 1000.0)} mm square, to ${n(tb.layers * h / 1000.0)} mm (every band), at ${n(tb.speed)} mm/s") }
+        strings?.let { st -> say("stringing ring: ${st.posts} round posts ${n(PlateGeometry.ringPost / 1000.0)} mm across, ${n(PlateGeometry.ringPostGap / 1000.0)} mm apart, hops counter-clockwise from post 1 with retractions ${st.lengthsMm.joinToString { n(it) }} mm; the open gap (post ${st.posts} to post 1, at its front) never crossed: the control; " +
             "retraction speed ${n(s.retractSpeed)} mm/s, travel ${n(s.travelSpeed)} mm/s, lift ${n(s.zHopUm / 1000.0)} mm (the filament's and tool's own)") }
-        echo(when {
+        say(when {
             spec.minLayerTimeS <= 0 -> "no cooling pause (hardware.filament.<key>.cooling.layer.time.min is 0)"
             pauseMatters -> "cooling pause: every layer at least ${n(spec.minLayerTimeS)} s (the filament's minimum layer time, hardware.filament.<key>.cooling.layer.time.min), the head parked in front of the plate for the rest; temperature waits parked too"
             else -> "cooling pause: none needed: every layer takes at least ${n(ownTimes.filter { it > 0 }.minOrNull() ?: 0.0)} s on its own, past the filament's minimum layer time (hardware.filament.<key>.cooling.layer.time.min) of ${n(spec.minLayerTimeS)} s (the head still parks between layers; temperature waits parked there)"
         })
-        echo(when { level != null -> "bed levelling before the plate (hardware.machine.<key>.gcode.level); --no-level to skip it"; noLevel -> "bed levelling: skipped (--no-level)"; else -> "bed levelling: this machine has none plymeld can run (hardware.machine.<key>.gcode.level is empty): level it when you start the print" })
-        warnings.forEach { echo("warning: $it") }
+        say(when { level != null -> "bed levelling before the plate (hardware.machine.<key>.gcode.level); --no-level to skip it"; noLevel -> "bed levelling: skipped (--no-level)"; else -> "bed levelling: this machine has none plymeld can run (hardware.machine.<key>.gcode.level is empty): level it when you start the print" })
+        warnings.forEach { say("warning: $it") }
         // the filament's maximum flow as the config has it, and whether it is still plymeld's bundled placeholder (its source, not
         // its number): the filament plate recommends the melt plate first (the motion plate too, in runMotion) (the dependency
         // order; a warning, not a refusal)
@@ -701,23 +706,23 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             (if (!frameHeld) "; the filament's maximum flow less the melt buffer (${n(s.maxVolumetric)} mm3/s) allows ${n(meltCap)} mm/s on its lines, so the machine's speed binds"
             else "; the speed held to the filament's maximum flow ($maxFlowKey, ${maxFlowNow ?: n(s.maxVolumetricMeasured) + " mm3/s"}) less the melt buffer (${n(s.meltBuffer * 100)} %, plan.mechanism.motion.melt.buffer) for its ${n(w / 1000.0)} mm lines: that is the binding limit" +
                 (if (maxFlowPlaceholder) ", and it is the bundled placeholder until ${if (melt != null) "this plate" else "the melt plate"} measures it" else ""))
-        echo("frame (${frameParts.joinToString()}) at ${n(frameSpeed)} mm/s, ${n(frameAccel)} mm/s2: $frameWhy; first layer ${n(fhm)} mm thick ($firstFrom; the layers above ${n(hm)} mm, every layer of the plate shifted up by the difference) at ${n(firstSpeed)} mm/s (" +
+        say("frame (${frameParts.joinToString()}) at ${n(frameSpeed)} mm/s, ${n(frameAccel)} mm/s2: $frameWhy; first layer ${n(fhm)} mm thick ($firstFrom; the layers above ${n(hm)} mm, every layer of the plate shifted up by the difference) at ${n(firstSpeed)} mm/s (" +
             (if (firstSpeed < s.firstLayerSpeed - 1e-9) "the configured first-layer speed ${n(s.firstLayerSpeed)} held to the filament's maximum flow for its ${n(firstWidest / 1000.0)} mm lines" else "the configured first-layer speed") +
             "), ${n(s.defaultAccel)} mm/s2; retraction ${n(s.retractMm)} mm")
-        if (melt == null && maxFlowPlaceholder) echo("recommendation: this filament's maximum flow ($maxFlowKey, $maxFlowNow) has not been measured. " +
+        if (melt == null && maxFlowPlaceholder) say("recommendation: this filament's maximum flow ($maxFlowKey, $maxFlowNow) has not been measured. " +
             plymeld.core.calibrate.PlateInstructions.MELT_FIRST.replace("`", ""))
         val printTempC = (plainMt?.get("hardware.filament.temperature.print")?.value as Number?)?.toDouble()?.let { Math.round(it).toInt() }
         // a condition every reading depends on: stated, or said to be unknown
         val paFrom = Resolver.resolveOrNull(setup, "hardware.filament.pressure_advance", plymeld.model.Context(0))?.let { "the filament's, ${it.from}" }
             ?: Resolver.resolveOrNull(setup, "hardware.tool.pressure_advance", plymeld.model.Context(0))?.let { "the tool's, ${it.from}" }
             ?: Resolver.resolveOrNull(setup, "hardware.machine.pressure_advance", plymeld.model.Context(0))?.let { "the machine's, ${it.from}" }
-        echo(pa[spool.tool]?.let { v -> "pressure advance: $v s ($paFrom)" }
+        say(pa[spool.tool]?.let { v -> "pressure advance: $v s ($paFrom)" }
             ?: ownPaEcho(setup) ?: "pressure advance: not set, so the printer's own value applies, unknown to plymeld (the results will not say what it was; set the machine's, the tool's, or the filament's pressure_advance to state it)")
-        echo("check: every cell, temperature, fan, and the plate's geometry (the bases and their notches, the packing) as specified, and the g-code as the config says (machine, retraction, travels, start and end), the frame at the machine's print speed (held to the maximum flow) and acceleration, the first layer within its speed and the maximum flow" +
+        say("check: every cell, temperature, fan, and the plate's geometry (the bases and their notches, the packing) as specified, and the g-code as the config says (machine, retraction, travels, start and end), the frame at the machine's print speed (held to the maximum flow) and acceleration, the first layer within its speed and the maximum flow" +
             (if (melt != null) ", every melt strip at its height on a solid floor and every move clear of the strips laid" else "") +
             "; ${spec.bands.size} bands, ${spec.topUm / h} layers. Controls caught: ${(controls + frameControls + firstControls).joinToString { it.first }}")
-        echo("predicted cost by family (by the g-code's cells: each family's lines, its base, and the travels into them; shared: layer changes, the parked cooling pause, temperature waits counted as 0, start and end):")
-        for (c in costs) echo("  ${(c.part?.title ?: "shared").padEnd(20)} ${c.timeS?.let { n(it / 60) + " min" } ?: "time not predicted"}, ${n(c.filamentMm / 1000)} m" +
+        say("predicted cost by family (by the g-code's cells: each family's lines, its base, and the travels into them; shared: layer changes, the parked cooling pause, temperature waits counted as 0, start and end):")
+        for (c in costs) say("  ${(c.part?.title ?: "shared").padEnd(20)} ${c.timeS?.let { n(it / 60) + " min" } ?: "time not predicted"}, ${n(c.filamentMm / 1000)} m" +
             (if (c.part == null) "" else " (its base ${c.baseTimeS?.let { n(it / 60) + " min, " } ?: ""}${n(c.baseFilamentMm / 1000)} m)"))
         // the page that goes with the plate: before printing, the conditions, a picture, how to read it
         val page = output.resolveSibling(output.fileName.toString().substringBeforeLast('.') + ".md")
@@ -728,9 +733,9 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             plate = plateName, levels = level != null, levelSkipped = noLevel && s.levelGcode != null, warnings = warnings, costs = costs,
             maxFlowKey = maxFlowKey, maxFlowNow = maxFlowNow, maxFlowPlaceholder = maxFlowPlaceholder, maxFlowEnterKey = maxFlowEnterKey, printTempC = printTempC,
             frameAccel = frameAccel, frameParts = frameParts, frameWhy = frameWhy))
-        echo("-> $output")
-        echo("-> $page (and ${page.fileName.toString().removeSuffix(".md")}.png): before printing, the conditions, the picture, how to read it")
-        prediction.lines().forEach { echo(it) }
+        say("-> $output")
+        say("-> $page (and ${page.fileName.toString().removeSuffix(".md")}.png): before printing, the conditions, the picture, how to read it")
+        prediction.lines().forEach { say(it) }
     }
 
     /**
@@ -1023,36 +1028,36 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         output.parent?.let { java.nio.file.Files.createDirectories(it) }
         java.nio.file.Files.writeString(output, withMachineHeader(text, config, setup, s, prediction))
         val g = plymeld.core.calibrate.FirstLayerGeometry
-        echo("first-layer plate for filament '${spool.material}' on tool $slotN of '${Resolver.resolve(setup, "hardware.machine.model").value}', build plate '$plateName' (bed ${s.bedTempFirstC} C, constant): one layer of tiles, one piece, a frame over their walls and a border round the base, part fan off, flow ratio ${n(s.flowRatio)}")
-        echo("columns (print order, coolest first, left to right): ${spec.tempsC.joinToString(", ") { "$it C" }}, each temperature raised on the base in front of its column")
-        echo("rows (front to back, the same in every column): a group per speed, ${tiles.speeds.joinToString { n(it) }} mm/s (the first layer's ${n(s.firstLayerSpeed)} mm/s, plan.mechanism.motion.first_layer.speed, halved and half again), " +
+        say("first-layer plate for filament '${spool.material}' on tool $slotN of '${Resolver.resolve(setup, "hardware.machine.model").value}', build plate '$plateName' (bed ${s.bedTempFirstC} C, constant): one layer of tiles, one piece, a frame over their walls and a border round the base, part fan off, flow ratio ${n(s.flowRatio)}")
+        say("columns (print order, coolest first, left to right): ${spec.tempsC.joinToString(", ") { "$it C" }}, each temperature raised on the base in front of its column")
+        say("rows (front to back, the same in every column): a group per speed, ${tiles.speeds.joinToString { n(it) }} mm/s (the first layer's ${n(s.firstLayerSpeed)} mm/s, plan.mechanism.motion.first_layer.speed, halved and half again), " +
             "a row per height in each, ${tiles.heightsUm.joinToString { n(it / 1000.0) }} mm (from the first layer's ${n(h / 1000.0)} mm, plan.mechanism.adhesion.first_layer.height, up in steps of a tenth of the bore); " +
             "each row's height and each speed raised on the base at the left")
-        echo("each tile: ${n(g.tileLength / 1000.0)} mm long (its lines along X), ${tiles.heightsUm.indices.joinToString("/") { n(plate.tileDepth(it) / 1000.0) }} mm deep by height, ${n(tiles.widthUm / 1000.0)} mm lines (plan.mechanism.adhesion.first_layer.line.width), ${n(tiles.accel)} mm/s2, lift ${n(tiles.liftUm / 1000.0)} mm off each tile and frame ring; " +
+        say("each tile: ${n(g.tileLength / 1000.0)} mm long (its lines along X), ${tiles.heightsUm.indices.joinToString("/") { n(plate.tileDepth(it) / 1000.0) }} mm deep by height, ${n(tiles.widthUm / 1000.0)} mm lines (plan.mechanism.adhesion.first_layer.line.width), ${n(tiles.accel)} mm/s2, lift ${n(tiles.liftUm / 1000.0)} mm off each tile and frame ring; " +
             "starting at the middle of its back edge, its lines' ends reaching ${n(tiles.wallOverlap)} of a line into its wall (plan.layer.infill.wall_overlap); every tile touching its neighbors, so the plate is one piece; each column's tiles lowest first")
-        echo("frame (not read): after all the tiles, ${g.frameLayers} layers of rings over every tile's wall only, each a layer (${n(s.layerHeightUm / 1000.0)} mm, plan.technique.flat.layer.height) above the one before from a layer above its tile, reaching ${n(g.fuse / 1000.0)} mm onto its neighbor so the rings join; " +
+        say("frame (not read): after all the tiles, ${g.frameLayers} layers of rings over every tile's wall only, each a layer (${n(s.layerHeightUm / 1000.0)} mm, plan.technique.flat.layer.height) above the one before from a layer above its tile, reaching ${n(g.fuse / 1000.0)} mm onto its neighbor so the rings join; " +
             "${n(s.outerWallWidthUm / 1000.0)} mm lines (plan.layer.walls.outer.line.width), ${n(spec.frameSpeed)} mm/s (the machine's print speed, hardware.machine.<key>.motion.print.speed ${n(s.hiddenSpeed)}, held to the hottest column's melt limit), ${n(s.defaultAccel)} mm/s2; part fan off; the raised edge to peel the plate by")
-        echo("melt limits (the filament's maximum flow at each column's temperature; a tile over it is left out, not slowed):")
+        say("melt limits (the filament's maximum flow at each column's temperature; a tile over it is left out, not slowed):")
         for (k in 0 until spec.blocks) {
             val left = omitted(spec, k)
-            echo("  ${spec.tempsC[k]} C: ${n(spec.capsMm3s[k])} mm3/s (${spec.capFrom[k]}); " + if (left.isEmpty()) "no tile left out" else "left out: " + left.joinToString())
+            say("  ${spec.tempsC[k]} C: ${n(spec.capsMm3s[k])} mm3/s (${spec.capFrom[k]}); " + if (left.isEmpty()) "no tile left out" else "left out: " + left.joinToString())
         }
-        echo("plate: ${n(plateW)} x ${n(plateD)} mm, centered on the ${n(bedW)} x ${n(bedD)} mm bed")
+        say("plate: ${n(plateW)} x ${n(plateD)} mm, centered on the ${n(bedW)} x ${n(bedD)} mm bed")
         val startPrime = startPrimeEnd(text)
         val firstTile = plate.tileBox(0, 0, 0).let { (it[0] + spec.originXUm) / 1000.0 to (it[1] + spec.originYUm) / 1000.0 }
-        echo("between columns: retract, rise clear of the tiles, park ${n(park)} mm in front of the plate, wait for the next temperature (M109), then a prime line " +
+        say("between columns: retract, rise clear of the tiles, park ${n(park)} mm in front of the plate, wait for the next temperature (M109), then a prime line " +
             "along the base's front under the column (${n(plymeld.core.calibrate.FirstLayerGeometry.primeLen / 1000.0)} mm, overlapping the base's edge; not read). The first column primes too: " +
             (startPrime?.let { (x, y) -> "the start template's own prime ends at X${n(x)} Y${n(y)}, ${n(Math.hypot(firstTile.first - x, firstTile.second - y))} mm from the first tile" } ?: "the start template lays no prime line"))
-        echo("the base and its labels: along the plate's front and left, its front-left corner cut off (the origin), ${g.baseLayers} layers (the first at ${n(spec.primeUm / 1000.0)} mm, the first layer's or the lowest tile's if lower, touching the tiles; the next set back ${n(g.baseSetback / 1000.0)} mm), " +
+        say("the base and its labels: along the plate's front and left, its front-left corner cut off (the origin), ${g.baseLayers} layers (the first at ${n(spec.primeUm / 1000.0)} mm, the first layer's or the lowest tile's if lower, touching the tiles; the next set back ${n(g.baseSetback / 1000.0)} mm), " +
             "the labels raised ${g.labelLayers} layers on it, ${n(g.labelGap / 1000.0)} mm apart; ${n(s.firstLayerSpeed)} mm/s; the base's upper layers and the labels after all the tiles, at the last column's temperature; the border (not read): with the frame, as many layers of a ring round the base's whole outline, flush with its upper layer's edge, from a layer above its top, at the frame's speed and width")
-        echo(when { level != null -> "bed levelling before the plate (hardware.machine.<key>.gcode.level); --no-level to skip it"; noLevel -> "bed levelling: skipped (--no-level)"; else -> "bed levelling: this machine has none plymeld can run (hardware.machine.<key>.gcode.level is empty): level it when you start the print" })
-        warnings.forEach { echo("warning: $it") }
+        say(when { level != null -> "bed levelling before the plate (hardware.machine.<key>.gcode.level); --no-level to skip it"; noLevel -> "bed levelling: skipped (--no-level)"; else -> "bed levelling: this machine has none plymeld can run (hardware.machine.<key>.gcode.level is empty): level it when you start the print" })
+        warnings.forEach { say("warning: $it") }
         val paFrom = Resolver.resolveOrNull(setup, "hardware.filament.pressure_advance", plymeld.model.Context(0))?.let { "the filament's, ${it.from}" }
             ?: Resolver.resolveOrNull(setup, "hardware.tool.pressure_advance", plymeld.model.Context(0))?.let { "the tool's, ${it.from}" }
             ?: Resolver.resolveOrNull(setup, "hardware.machine.pressure_advance", plymeld.model.Context(0))?.let { "the machine's, ${it.from}" }
-        echo(pa[spool.tool]?.let { v -> "pressure advance: $v s ($paFrom)" }
+        say(pa[spool.tool]?.let { v -> "pressure advance: $v s ($paFrom)" }
             ?: ownPaEcho(setup) ?: "pressure advance: not set, so the printer's own value applies, unknown to plymeld (set the machine's, the tool's, or the filament's pressure_advance to state it)")
-        echo("check: every tile's size, place, height, speed, width, filament per mm, and flow (within its column's melt limit), its start at the middle of its back edge, every column's temperature and the wait before it, " +
+        say("check: every tile's size, place, height, speed, width, filament per mm, and flow (within its column's melt limit), its start at the middle of its back edge, every column's temperature and the wait before it, " +
             "the prime lines along the base, the base (its corner cut off, its upper layers set back), each label where it goes (its lines inside its digits, every digit printed), every tile touching its neighbors and the plate one piece, each column's tiles lowest first, " +
             "the frame (${g.frameLayers} layers over the walls only, each a layer above the one under it, after all the tiles, lowest first), the border (as many layers round the base, on its upper layer, its corner cut), no travel across a finished line at its height, nothing else on the plate, and the g-code as the config says. Controls caught: ${controls.joinToString { it.first }}")
         val page = output.resolveSibling(output.fileName.toString().substringBeforeLast('.') + ".md")
@@ -1061,9 +1066,9 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             spool.material, Resolver.resolve(setup, "hardware.machine.model").value.toString(), spool.tool, PlymeldVersion.value, output.fileName.toString(),
             prediction.timeS?.let { it / 60 }, paText, s.bedTempFirstC, s.firstLayerSpeed, s.firstLayerSpeed, s.retractMm,
             plate = plateName, levels = level != null, levelSkipped = noLevel && s.levelGcode != null, warnings = warnings))
-        echo("-> $output")
-        echo("-> $page (and ${page.fileName.toString().removeSuffix(".md")}.png): before printing, the conditions, the picture, how to read it")
-        prediction.lines(" (the waits for each column's temperature are not in it)").forEach { echo(it) }
+        say("-> $output")
+        say("-> $page (and ${page.fileName.toString().removeSuffix(".md")}.png): before printing, the conditions, the picture, how to read it")
+        prediction.lines(" (the waits for each column's temperature are not in it)").forEach { say(it) }
     }
 
     /** Every first-layer plate cell's own height (mm), for the g-code check: its tiles, its frame rings, its prime lines and labels. */
@@ -1242,36 +1247,36 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         val ironS = cellTime?.filterKeys { it.startsWith("zone ") }?.values?.sum()
         output.parent?.let { java.nio.file.Files.createDirectories(it) }
         java.nio.file.Files.writeString(output, withMachineHeader(text, config, setup, s, prediction))
-        echo("ironing plate for filament '${spool.material}' on tool $slotN of '${Resolver.resolve(setup, "hardware.machine.model").value}', build plate '$plateName' (bed ${s.bedTempFirstC} C, constant): " +
+        say("ironing plate for filament '${spool.material}' on tool $slotN of '${Resolver.resolve(setup, "hardware.machine.model").value}', build plate '$plateName' (bed ${s.bedTempFirstC} C, constant): " +
             "one piece ${n(spec.pieceW / 1000.0)} x ${n(spec.pieceD / 1000.0)} mm with a ${n(brimMm)} mm brim: ${spec.slabs} slabs ${n(spec.slabW / 1000.0)} x ${n(spec.slabD / 1000.0)} x ${n(spec.topZ / 1000.0)} mm (${plymeld.core.calibrate.IroningGeometry.rows} per speed, a row of zones each) on a base of the first ${plymeld.core.calibrate.IroningGeometry.baseLayers} layers, the legend behind them " +
             "(${spec.layers} layers: the first ${n(spec.firstLayerUm / 1000.0)} mm, then ${n(h / 1000.0)} mm), ${n(w / 1000.0)} mm lines (the first layer ${n(spec.firstWidthUm / 1000.0)} mm), flow ratio ${n(s.flowRatio)}, the top and its ironing at $printC C (the filament's temperature.print)" +
             (if (spec.firstTempC != printC) ", the first layer at ${spec.firstTempC} C (its temperature.first_layer), the top's temperature waited for with the head parked before the top" else "") + ", part fan ${n(spec.fanPct)} % from the second layer")
-        echo("zones: ${spec.zones.size} of ${n(plymeld.core.calibrate.IroningGeometry.zone / 1000.0)} mm, ${spec.columns} to a slab with a ${n(plymeld.core.calibrate.IroningGeometry.frame / 1000.0)} mm strip as laid between neighbors; zone 1 at the chamfered front-left corner, zone 2 behind it on the next slab, then the next column (the print order); " +
+        say("zones: ${spec.zones.size} of ${n(plymeld.core.calibrate.IroningGeometry.zone / 1000.0)} mm, ${spec.columns} to a slab with a ${n(plymeld.core.calibrate.IroningGeometry.frame / 1000.0)} mm strip as laid between neighbors; zone 1 at the chamfered front-left corner, zone 2 behind it on the next slab, then the next column (the print order); " +
             "each zone's front edge notched with its flow (squares) and spacing (Vs), its back edge with its inset (round-bottomed) and angle (slanted), each slab's left end with its speed (bars); the legend: ${spec.legend.joinToString(" / ")}")
-        echo("the plan: a block of ${spec.perBlock} zones per speed (${speeds.joinToString { n(it) }} mm/s), each its control (not ironed) then flow (${flows.joinToString { n(it * 100) + " %" }}) x spacing (${spacings.joinToString { n(it) }} mm), " +
+        say("the plan: a block of ${spec.perBlock} zones per speed (${speeds.joinToString { n(it) }} mm/s), each its control (not ironed) then flow (${flows.joinToString { n(it * 100) + " %" }}) x spacing (${spacings.joinToString { n(it) }} mm), " +
             "the angles (${angles.joinToString { n(it) }} deg) and insets (${insets.joinToString { n(it) }} mm) over the grid as Latin squares; every value read in ${spec.coverage().values.flatMap { it.values }.minOf { it.size }} zones or more")
-        for (z in spec.zones) echo("  zone ${z.index + 1} (slab ${spec.slab(z.index) + 1}, column ${spec.col(z.index) + 1}, ${if (spec.row(z.index) == 0) "front" else "back"}): ${spec.describe(z.index)}")
-        echo("values: the first layer ${n(firstSpeed)} mm/s; the middle layers ${n(spec.frame.speed)} mm/s, ${n(spec.frame.accel)} mm/s2 (the machine's, held to the maximum flow); the top fill ${n(spec.top.speed)} mm/s, ${n(spec.top.accel)} mm/s2 (a visible surface's), its lines along the slab; " +
+        for (z in spec.zones) say("  zone ${z.index + 1} (slab ${spec.slab(z.index) + 1}, column ${spec.col(z.index) + 1}, ${if (spec.row(z.index) == 0) "front" else "back"}): ${spec.describe(z.index)}")
+        say("values: the first layer ${n(firstSpeed)} mm/s; the middle layers ${n(spec.frame.speed)} mm/s, ${n(spec.frame.accel)} mm/s2 (the machine's, held to the maximum flow); the top fill ${n(spec.top.speed)} mm/s, ${n(spec.top.accel)} mm/s2 (a visible surface's), its lines along the slab; " +
             "each zone at its speed and ${n(spec.ironAccel)} mm/s2, its plastic by the ironing rule (flow x spacing x layer height), lifted ${n(spec.liftUm / 1000.0)} mm off the top and off each zone before traveling on")
-        echo("plate: ${n(plateW)} x ${n(plateD)} mm, centered on the ${n(bedW)} x ${n(bedD)} mm bed")
-        echo(when { level != null -> "bed levelling before the plate (hardware.machine.<key>.gcode.level); --no-level to skip it"; noLevel -> "bed levelling: skipped (--no-level)"; else -> "bed levelling: this machine has none plymeld can run (hardware.machine.<key>.gcode.level is empty): level it when you start the print" })
-        warnings.forEach { echo("warning: $it") }
+        say("plate: ${n(plateW)} x ${n(plateD)} mm, centered on the ${n(bedW)} x ${n(bedD)} mm bed")
+        say(when { level != null -> "bed levelling before the plate (hardware.machine.<key>.gcode.level); --no-level to skip it"; noLevel -> "bed levelling: skipped (--no-level)"; else -> "bed levelling: this machine has none plymeld can run (hardware.machine.<key>.gcode.level is empty): level it when you start the print" })
+        warnings.forEach { say("warning: $it") }
         val paFrom = Resolver.resolveOrNull(setup, "hardware.filament.pressure_advance", plymeld.model.Context(0))?.let { "the filament's, ${it.from}" }
             ?: Resolver.resolveOrNull(setup, "hardware.tool.pressure_advance", plymeld.model.Context(0))?.let { "the tool's, ${it.from}" }
             ?: Resolver.resolveOrNull(setup, "hardware.machine.pressure_advance", plymeld.model.Context(0))?.let { "the machine's, ${it.from}" }
-        echo(pa[spool.tool]?.let { v -> "pressure advance: $v s ($paFrom)" }
+        say(pa[spool.tool]?.let { v -> "pressure advance: $v s ($paFrom)" }
             ?: ownPaEcho(setup) ?: "pressure advance: not set, so the printer's own value applies, unknown to plymeld (set the machine's, the tool's, or the filament's pressure_advance to state it)")
-        echo("check: every slab layer's height, speed, width, and filament per mm; the top fill along the slab, one bead spacing apart; each zone's speed, acceleration, plastic by the ironing rule, angle, spacing, and inset from the slab's edge, inside its cell, in order after the top; nothing over a control; the frames between zones left as laid; the base's size and chamfer, the brim, each slab in its place, the zones' labels, the slabs' speed bars, and the legend; the temperatures (the first layer's and the top's), each waited for, and the fan; no travel across the finished top or a finished zone at its height; and the g-code as the config says. Controls caught: ${controls.joinToString { it.first }}")
+        say("check: every slab layer's height, speed, width, and filament per mm; the top fill along the slab, one bead spacing apart; each zone's speed, acceleration, plastic by the ironing rule, angle, spacing, and inset from the slab's edge, inside its cell, in order after the top; nothing over a control; the frames between zones left as laid; the base's size and chamfer, the brim, each slab in its place, the zones' labels, the slabs' speed bars, and the legend; the temperatures (the first layer's and the top's), each waited for, and the fan; no travel across the finished top or a finished zone at its height; and the g-code as the config says. Controls caught: ${controls.joinToString { it.first }}")
         val page = output.resolveSibling(output.fileName.toString().substringBeforeLast('.') + ".md")
         val paText = pa[spool.tool]?.let { v -> "$v s (${paFrom?.substringBefore(',')})" } ?: ownPaPage(setup) ?: "not set: the printer's own, unknown to plymeld (write down what it was if you know)"
         plymeld.core.calibrate.IroningInstructions.write(page, spec, plate, plymeld.core.calibrate.PlateInstructions.Info(
             spool.material, Resolver.resolve(setup, "hardware.machine.model").value.toString(), spool.tool, PlymeldVersion.value, output.fileName.toString(),
             prediction.timeS?.let { it / 60 }, paText, s.bedTempFirstC, firstSpeed, spec.frame.speed, s.retractMm,
             plate = plateName, levels = level != null, levelSkipped = noLevel && s.levelGcode != null, warnings = warnings))
-        echo("-> $output")
-        echo("-> $page (and ${page.fileName.toString().removeSuffix(".md")}.png): the question, before printing, the conditions, the picture, the zone plan, how to grade, what to enter")
-        prediction.lines(ironS?.let { "; the ironing passes ${n(it / 60)} min of it" } ?: "").forEach { echo(it) }
-        echo("after printing: `plymeld calibrate ironing readings ${output.fileName} -o readings.toml`, grade each zone, then `plymeld calibrate ironing values readings.toml -o ironing.toml`")
+        say("-> $output")
+        say("-> $page (and ${page.fileName.toString().removeSuffix(".md")}.png): the question, before printing, the conditions, the picture, the zone plan, how to grade, what to enter")
+        prediction.lines(ironS?.let { "; the ironing passes ${n(it / 60)} min of it" } ?: "").forEach { say(it) }
+        say("after printing: `plymeld calibrate ironing readings ${output.fileName} -o readings.toml`, grade each zone, then `plymeld calibrate ironing values readings.toml -o ironing.toml`")
     }
 
     /**
@@ -1361,32 +1366,32 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         val prediction = plymeld.core.Predict.gcode(text, machineDesc, changeS, plymeld.core.Predict.limits(s))
         output.parent?.let { java.nio.file.Files.createDirectories(it) }
         java.nio.file.Files.writeString(output, withMachineHeader(text, config, setup, s, prediction))
-        echo("seam plate for filament '${spool.material}' on tool $slotN of '${Resolver.resolve(setup, "hardware.machine.model").value}', build plate '$plateName' (bed ${s.bedTempFirstC} C, constant): " +
+        say("seam plate for filament '${spool.material}' on tool $slotN of '${Resolver.resolve(setup, "hardware.machine.model").value}', build plate '$plateName' (bed ${s.bedTempFirstC} C, constant): " +
             "one slab ${n(plateW)} x ${n(plateD)} mm (${plymeld.core.calibrate.SeamGeometry.slabLayers} layers: the first ${n(spec.firstLayerUm / 1000.0)} mm, then ${n(h / 1000.0)} mm) with ${spec.pieces.size} pieces ${n(plymeld.core.calibrate.SeamGeometry.piece / 1000.0)} mm across and ${n(spec.pieceLayers * h / 1000.0)} mm tall (${spec.pieceLayers} layers), " +
             "outer walls ${n(w / 1000.0)} mm, inner ${n(wi / 1000.0)} mm, flow ratio ${n(s.flowRatio)}, the pieces at $printC C (the filament's temperature.print)" +
             (if (spec.firstTempC != printC) ", the slab's first layer at ${spec.firstTempC} C (its temperature.first_layer), waited for with the head parked before the pieces" else "") + ", part fan ${n(spec.fanPct)} % from the second layer")
-        for (p in spec.pieces) echo("  piece ${p.index + 1}: ${spec.describe(p.index)}")
-        echo("values: the slab's first layer ${n(firstSpeed)} mm/s, its layers above ${n(spec.frame.speed)} mm/s and ${n(spec.frame.accel)} mm/s2; the outer walls ${n(spec.outer.speed)} mm/s and ${n(spec.outer.accel)} mm/s2 (a visible wall's, held to the maximum flow; no overhang slow-down on the leaning faces); the inner walls ${n(spec.inner.speed)} mm/s; " +
+        for (p in spec.pieces) say("  piece ${p.index + 1}: ${spec.describe(p.index)}")
+        say("values: the slab's first layer ${n(firstSpeed)} mm/s, its layers above ${n(spec.frame.speed)} mm/s and ${n(spec.frame.accel)} mm/s2; the outer walls ${n(spec.outer.speed)} mm/s and ${n(spec.outer.accel)} mm/s2 (a visible wall's, held to the maximum flow; no overhang slow-down on the leaning faces); the inner walls ${n(spec.inner.speed)} mm/s; " +
             "the scarf ${n(scarfUm / 1000.0)} mm long starting ${n(scarfStart * 100)} % of the layer thick (plan.technique.scarf_seam); a corner ${n(cornerDeg)} deg (plan.technique.corner_seam.corner_angle)")
-        echo("plate: ${n(plateW)} x ${n(plateD)} mm, centered on the ${n(bedW)} x ${n(bedD)} mm bed; piece 1 at the chamfered front-left corner, a tick between each pair of pieces, every ${plymeld.core.calibrate.SeamGeometry.tickLongEvery}th long")
-        echo(when { level != null -> "bed levelling before the plate (hardware.machine.<key>.gcode.level); --no-level to skip it"; noLevel -> "bed levelling: skipped (--no-level)"; else -> "bed levelling: this machine has none plymeld can run (hardware.machine.<key>.gcode.level is empty): level it when you start the print" })
-        warnings.forEach { echo("warning: $it") }
+        say("plate: ${n(plateW)} x ${n(plateD)} mm, centered on the ${n(bedW)} x ${n(bedD)} mm bed; piece 1 at the chamfered front-left corner, a tick between each pair of pieces, every ${plymeld.core.calibrate.SeamGeometry.tickLongEvery}th long")
+        say(when { level != null -> "bed levelling before the plate (hardware.machine.<key>.gcode.level); --no-level to skip it"; noLevel -> "bed levelling: skipped (--no-level)"; else -> "bed levelling: this machine has none plymeld can run (hardware.machine.<key>.gcode.level is empty): level it when you start the print" })
+        warnings.forEach { say("warning: $it") }
         val paFrom = Resolver.resolveOrNull(setup, "hardware.filament.pressure_advance", plymeld.model.Context(0))?.let { "the filament's, ${it.from}" }
             ?: Resolver.resolveOrNull(setup, "hardware.tool.pressure_advance", plymeld.model.Context(0))?.let { "the tool's, ${it.from}" }
             ?: Resolver.resolveOrNull(setup, "hardware.machine.pressure_advance", plymeld.model.Context(0))?.let { "the machine's, ${it.from}" }
-        echo(pa[spool.tool]?.let { v -> "pressure advance: $v s ($paFrom)" }
+        say(pa[spool.tool]?.let { v -> "pressure advance: $v s ($paFrom)" }
             ?: ownPaEcho(setup) ?: "pressure advance: not set, so the printer's own value applies, unknown to plymeld (set the machine's, the tool's, or the filament's pressure_advance to state it)")
-        echo("check: the layers and cells; every slab layer's and wall's height, speed, width, and filament per mm; each piece's seam where specified on every layer, a point seam's loop flat and closed, a scarf's ramp from the starting thickness to the top over the scarf length and laid again; the leaning faces' step-out; the pieces in order, inner wall first; the slab's size, chamfer, and ticks; the temperatures (the slab's first layer's and the pieces'), each waited for, and the fan; no travel across a piece at its layer's height; and the g-code as the config says. Controls caught: ${controls.joinToString { it.first }}")
+        say("check: the layers and cells; every slab layer's and wall's height, speed, width, and filament per mm; each piece's seam where specified on every layer, a point seam's loop flat and closed, a scarf's ramp from the starting thickness to the top over the scarf length and laid again; the leaning faces' step-out; the pieces in order, inner wall first; the slab's size, chamfer, and ticks; the temperatures (the slab's first layer's and the pieces'), each waited for, and the fan; no travel across a piece at its layer's height; and the g-code as the config says. Controls caught: ${controls.joinToString { it.first }}")
         val page = output.resolveSibling(output.fileName.toString().substringBeforeLast('.') + ".md")
         val paText = pa[spool.tool]?.let { v -> "$v s (${paFrom?.substringBefore(',')})" } ?: ownPaPage(setup) ?: "not set: the printer's own, unknown to plymeld (write down what it was if you know)"
         plymeld.core.calibrate.SeamInstructions.write(page, spec, plate, plymeld.core.calibrate.PlateInstructions.Info(
             spool.material, Resolver.resolve(setup, "hardware.machine.model").value.toString(), spool.tool, PlymeldVersion.value, output.fileName.toString(),
             prediction.timeS?.let { it / 60 }, paText, s.bedTempFirstC, firstSpeed, spec.frame.speed, s.retractMm,
             plate = plateName, levels = level != null, levelSkipped = noLevel && s.levelGcode != null, warnings = warnings))
-        echo("-> $output")
-        echo("-> $page (and ${page.fileName.toString().removeSuffix(".md")}.png): the question, before printing, the conditions, the picture, the pieces, how to grade, what to enter")
-        prediction.lines().forEach { echo(it) }
-        echo("after printing: `plymeld calibrate seams readings ${output.fileName} -o readings.toml`, grade each piece, then `plymeld calibrate seams values readings.toml -o seams.toml`")
+        say("-> $output")
+        say("-> $page (and ${page.fileName.toString().removeSuffix(".md")}.png): the question, before printing, the conditions, the picture, the pieces, how to grade, what to enter")
+        prediction.lines().forEach { say(it) }
+        say("after printing: `plymeld calibrate seams readings ${output.fileName} -o readings.toml`, grade each piece, then `plymeld calibrate seams values readings.toml -o seams.toml`")
     }
 
     /** A pressure advance as an option gives it: seconds, "0.04" or "0.04 s", or milliseconds, "40 ms"; 0 or more. */
@@ -1674,50 +1679,50 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         // where the file does not level, whether the printer levels as a print starts when asked (as `printer send --level` would)
         val levelsOnStart = level == null && !noLevel && try { plymeld.printer.Printers.open(config, machineName).can(plymeld.printer.Capability.LEVEL_ON_START) } catch (e: Exception) { false }
         // one thing a line; each limit's setting cited once
-        echo("pressure-advance plate (${kind.key}) for filament '${spool.material}' on tool $slotN of '$model', build plate '$plateName' (bed ${s.bedTempFirstC} C)")
-        echo("plate: ${n(plateW)} x ${n(plateD)} mm, ${spec.layers} layers (the base ${g.baseLayers}, the walls ${spec.wallLayers} of ${n(hm)} mm); the walls at $printC C (temperature.print)" +
+        say("pressure-advance plate (${kind.key}) for filament '${spool.material}' on tool $slotN of '$model', build plate '$plateName' (bed ${s.bedTempFirstC} C)")
+        say("plate: ${n(plateW)} x ${n(plateD)} mm, ${spec.layers} layers (the base ${g.baseLayers}, the walls ${spec.wallLayers} of ${n(hm)} mm); the walls at $printC C (temperature.print)" +
             (if (spec.firstTempC != printC) ", the base's first layer at ${spec.firstTempC} C" else ""))
-        echo("walls: ${n(w / 1000.0)} mm lines; a ${n(spec.leadUm / 1000.0)} mm lead-in at ${n(slow)} mm/s, a ${n(spec.fastUm / 1000.0)} mm middle at ${spec.walls.map { it.fastSpeed }.distinct().joinToString(", ") { n(it) }} mm/s, " +
+        say("walls: ${n(w / 1000.0)} mm lines; a ${n(spec.leadUm / 1000.0)} mm lead-in at ${n(slow)} mm/s, a ${n(spec.fastUm / 1000.0)} mm middle at ${spec.walls.map { it.fastSpeed }.distinct().joinToString(", ") { n(it) }} mm/s, " +
             "a ${n(g.tail / 1000.0)} mm tail at ${n(slow)} mm/s; ${n(accel)} mm/s2 (the machine's print acceleration)")
-        echo("flow step: ${spec.walls.map { spec.flowStep(it) }.distinct().joinToString(", ") { n(it) }} mm3/s")
-        echo("flow: every line at most $flowWords")
-        echo("speeds: the first layer ${n(firstSpeed)} mm/s, the base above it ${n(frameSpeed)}, the labels ${n(labelSpeed)} (a visible wall's), the walls ${n(slow)} and ${n(fastMax)}")
-        echo(if (pushLimit == null) pushWords else "push: $pushWords")
-        if (pushLimit != null) echo("the extruder's highest filament speed: ${n(extrudeMax)} mm/s, $extrudeFrom")
-        if (pushLimit != null) echo("push smoothing: $smoothWords; the highest push on the plate ${n(spec.walls.maxOf { w -> spec.peakOf(w) })} mm/s")
-        echo(when {
+        say("flow step: ${spec.walls.map { spec.flowStep(it) }.distinct().joinToString(", ") { n(it) }} mm3/s")
+        say("flow: every line at most $flowWords")
+        say("speeds: the first layer ${n(firstSpeed)} mm/s, the base above it ${n(frameSpeed)}, the labels ${n(labelSpeed)} (a visible wall's), the walls ${n(slow)} and ${n(fastMax)}")
+        say(if (pushLimit == null) pushWords else "push: $pushWords")
+        if (pushLimit != null) say("the extruder's highest filament speed: ${n(extrudeMax)} mm/s, $extrudeFrom")
+        if (pushLimit != null) say("push smoothing: $smoothWords; the highest push on the plate ${n(spec.walls.maxOf { w -> spec.peakOf(w) })} mm/s")
+        say(when {
             machineCheck -> "values: the machine's own, no command written; three flow steps (one, two, three notches in the front edge)"
             find -> "values: ${values.joinToString(", ") { spec.valueText(it) }} s, the front row rising from the left, the back row falling; a corner beside each wall"
             else -> "values: ${values.joinToString(", ") { spec.valueText(it) }} s (the value and its neighbors), each at three flow steps (one, two, three notches in the front edge)"
         })
         if (autoTop) {
-            echo("spacing: 0, then from the tool's lowest, ${spec.valueText(floor)} s (hardware.tool.<key>.calibrate.pressure_advance.min), each ${n(Math.pow(highest / floor, 1.0 / (g.values - 2)))} times the one before")
-            echo("top: ${n4(highest)} s, $topWhy")
+            say("spacing: 0, then from the tool's lowest, ${spec.valueText(floor)} s (hardware.tool.<key>.calibrate.pressure_advance.min), each ${n(Math.pow(highest / floor, 1.0 / (g.values - 2)))} times the one before")
+            say("top: ${n4(highest)} s, $topWhy")
         }
-        echo("stretches: the pressure settles within the lead-in and the middle up to a true value of ${spec.valueText(settles)} s (plymeld's pressure model), at least the plate's highest value")
+        say("stretches: the pressure settles within the lead-in and the middle up to a true value of ${spec.valueText(settles)} s (plymeld's pressure model), at least the plate's highest value")
         when {
-            level != null -> echo("levelling: the file runs the machine's bed levelling before the plate (hardware.machine.<key>.gcode.level); --no-level leaves it out")
-            noLevel -> echo("levelling: left out of the file (--no-level)")
-            levelsOnStart -> echo("levelling: optional, as the print starts: `plymeld printer send --print --level`")
+            level != null -> say("levelling: the file runs the machine's bed levelling before the plate (hardware.machine.<key>.gcode.level); --no-level leaves it out")
+            noLevel -> say("levelling: left out of the file (--no-level)")
+            levelsOnStart -> say("levelling: optional, as the print starts: `plymeld printer send --print --level`")
         }
-        warnings.forEach { echo("warning: $it") }
-        echo("check: every wall at its value, one straight unbroken line, slow, fast, slow; the base's strips, gaps, tabs, and marks" + (if (pushLimit != null) "; the push" else "") + "; temperatures and fan; the g-code as configured")
+        warnings.forEach { say("warning: $it") }
+        say("check: every wall at its value, one straight unbroken line, slow, fast, slow; the base's strips, gaps, tabs, and marks" + (if (pushLimit != null) "; the push" else "") + "; temperatures and fan; the g-code as configured")
         // the controls, as many to a line as fit
         val caught = controls.map { it.first } + listOfNotNull(pushControl?.first)
         val controlLines = ArrayList<String>(); var cur = "controls caught (${caught.size}): "
         for ((k, c) in caught.withIndex()) { val add = c + if (k < caught.size - 1) ", " else ""; if (cur.length + add.length > 200) { controlLines += cur.trimEnd(); cur = "  " }; cur += add }
         controlLines += cur
-        controlLines.forEach { echo(it) }
+        controlLines.forEach { say(it) }
         val page = output.resolveSibling(output.fileName.toString().substringBeforeLast('.') + ".md")
         plymeld.core.calibrate.PressureAdvanceInstructions.write(page, spec, plate, plymeld.core.calibrate.PressureAdvanceInstructions.Info(
             spool.material, model, spool.tool, PlymeldVersion.value, output.fileName.toString(), prediction.timeS?.let { it / 60 }, s.bedTempFirstC,
             plateName, level != null, noLevel && s.levelGcode != null, warnings, settles, configuredPa, own, s.retractMm,
             top = if (autoTop) "${n4(highest)} s: $topWhy" else null, limits = limitsWords,
             levelsOnStart = levelsOnStart))
-        echo("-> $output")
-        echo("-> $page (and its pictures): the question, the conditions and limits, how to read each wall, what to enter")
-        prediction.lines().forEach { echo(it) }
-        echo("after printing: `plymeld calibrate pressure-advance readings ${output.fileName} -o readings.toml`, read each wall, then `plymeld calibrate pressure-advance values readings.toml`")
+        say("-> $output")
+        say("-> $page (and its pictures): the question, the conditions and limits, how to read each wall, what to enter")
+        prediction.lines().forEach { say(it) }
+        say("after printing: `plymeld calibrate pressure-advance readings ${output.fileName} -o readings.toml`, read each wall, then `plymeld calibrate pressure-advance values readings.toml`")
     }
 
     /** The pressure-advance plate's conditions in its own g-code, as `; name = value` comments after its first lines. */
@@ -1880,23 +1885,23 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         output.parent?.let { java.nio.file.Files.createDirectories(it) }
         java.nio.file.Files.writeString(output, withMachineHeader(text, config, setup, s, prediction))
         val g = plymeld.core.calibrate.MotionGeometry
-        echo("motion plate for machine '$machineName' ($machineDesc), filament '${spool.material}' on tool $slotN, build plate '$plateName' (bed ${s.bedTempFirstC} C, constant): " +
+        say("motion plate for machine '$machineName' ($machineDesc), filament '${spool.material}' on tool $slotN, build plate '$plateName' (bed ${s.bedTempFirstC} C, constant): " +
             "one cross-shaped tower ${n(3 * g.arm / 1000.0)} x ${n(3 * g.arm / 1000.0)} mm on a ${n(plateSize)} mm slab, ${spec.bands} bands of ${n(spec.bandLayers * h / 1000.0)} mm (${spec.layers} layers), " +
             "outer wall ${n(w / 1000.0)} mm, inner ${n(wi / 1000.0)} mm, ${if (spec.firstTempC != printC) "the tower at $printC C (the slab's first layer at ${spec.firstTempC} C)" else "at $printC C"}, part fan ${n(spec.fanPct)} % from the second layer")
-        echo("speeds (mm/s, each on one face along X and one along Y): ${speeds.joinToString(", ") { n(it) }}; the fastest $topSpeedWhy")
-        echo("accelerations (mm/s2, band 1 at the bottom): ${accels.joinToString(", ") { n(it) }}; the top $topAccelWhy")
+        say("speeds (mm/s, each on one face along X and one along Y): ${speeds.joinToString(", ") { n(it) }}; the fastest $topSpeedWhy")
+        say("accelerations (mm/s2, band 1 at the bottom): ${accels.joinToString(", ") { n(it) }}; the top $topAccelWhy")
         val (cfx, cfy) = spec.facesAt(g.speeds - 1)
-        echo("the control: faces $cfx (along X) and $cfy (along Y) in band ${spec.bands}: ${n(speeds.last())} mm/s at ${n(accels.last())} mm/s2")
-        for (b in 0 until spec.bands) if (spec.reach(b) < speeds.last()) echo("  band ${b + 1} (${n(accels[b])} mm/s2): a ${n(spec.shortestFaceUm / 1000.0)} mm face reaches at most ${n(spec.reach(b))} mm/s; its faster faces are credited that")
-        echo(when { level != null -> "bed levelling before the plate (hardware.machine.<key>.gcode.level); --no-level to skip it"; noLevel -> "bed levelling: skipped (--no-level)"; else -> "bed levelling: this machine has none plymeld can run (hardware.machine.<key>.gcode.level is empty): level it when you start the print" })
-        warnings.forEach { echo("warning: $it") }
-        if (maxFlowPlaceholder) echo("recommendation: this filament's maximum flow ($maxFlowKey) has not been measured, and the fastest faces are held to it. " + plymeld.core.calibrate.PlateInstructions.MELT_FIRST.replace("`", ""))
+        say("the control: faces $cfx (along X) and $cfy (along Y) in band ${spec.bands}: ${n(speeds.last())} mm/s at ${n(accels.last())} mm/s2")
+        for (b in 0 until spec.bands) if (spec.reach(b) < speeds.last()) say("  band ${b + 1} (${n(accels[b])} mm/s2): a ${n(spec.shortestFaceUm / 1000.0)} mm face reaches at most ${n(spec.reach(b))} mm/s; its faster faces are credited that")
+        say(when { level != null -> "bed levelling before the plate (hardware.machine.<key>.gcode.level); --no-level to skip it"; noLevel -> "bed levelling: skipped (--no-level)"; else -> "bed levelling: this machine has none plymeld can run (hardware.machine.<key>.gcode.level is empty): level it when you start the print" })
+        warnings.forEach { say("warning: $it") }
+        if (maxFlowPlaceholder) say("recommendation: this filament's maximum flow ($maxFlowKey) has not been measured, and the fastest faces are held to it. " + plymeld.core.calibrate.PlateInstructions.MELT_FIRST.replace("`", ""))
         val paFrom = Resolver.resolveOrNull(setup, "hardware.filament.pressure_advance", plymeld.model.Context(0))?.let { "the filament's, ${it.from}" }
             ?: Resolver.resolveOrNull(setup, "hardware.tool.pressure_advance", plymeld.model.Context(0))?.let { "the tool's, ${it.from}" }
             ?: Resolver.resolveOrNull(setup, "hardware.machine.pressure_advance", plymeld.model.Context(0))?.let { "the machine's, ${it.from}" }
-        echo(pa[spool.tool]?.let { v -> "pressure advance: $v s ($paFrom)" }
+        say(pa[spool.tool]?.let { v -> "pressure advance: $v s ($paFrom)" }
             ?: ownPaEcho(setup) ?: "pressure advance: not set, so the printer's own value applies, unknown to plymeld (set the machine's, the tool's, or the filament's pressure_advance to state it)")
-        echo("check: the layers and cells; every slab and wall line's height, speed, acceleration, width, and filament per mm; on every tower layer each wall's lines on the cross's twelve faces at their speeds, counter-clockwise, every face its full length, the grooves set in; the seams on face 12; the inner wall first; the slab's size and chamfer; the arm marks (n notches in the slab's edge at arm n, clear of the faces); each face's speed label in front of it; the slab's first layer at its temperature, the tower's waited for before it, and the fan; no travel across a wall at its layer's height; and the g-code as the config says. Controls caught: ${controls.joinToString { it.first }}")
+        say("check: the layers and cells; every slab and wall line's height, speed, acceleration, width, and filament per mm; on every tower layer each wall's lines on the cross's twelve faces at their speeds, counter-clockwise, every face its full length, the grooves set in; the seams on face 12; the inner wall first; the slab's size and chamfer; the arm marks (n notches in the slab's edge at arm n, clear of the faces); each face's speed label in front of it; the slab's first layer at its temperature, the tower's waited for before it, and the fan; no travel across a wall at its layer's height; and the g-code as the config says. Controls caught: ${controls.joinToString { it.first }}")
         val page = output.resolveSibling(output.fileName.toString().substringBeforeLast('.') + ".md")
         val paText = pa[spool.tool]?.let { v -> "$v s (${paFrom?.substringBefore(',')})" } ?: ownPaPage(setup) ?: "not set: the printer's own, unknown to plymeld (write down what it was if you know)"
         plymeld.core.calibrate.MotionInstructions.write(page, spec, plate, plymeld.core.calibrate.PlateInstructions.Info(
@@ -1905,10 +1910,10 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             plate = plateName, levels = level != null, levelSkipped = noLevel && s.levelGcode != null, warnings = warnings),
             plymeld.core.calibrate.MotionInstructions.Notes(machineName, topSpeedWhy, topAccelWhy,
                 if (maxFlowPlaceholder) "This filament's maximum flow (`$maxFlowKey`) is still plymeld's bundled placeholder, not a measurement, and the fastest faces are held to it. " + plymeld.core.calibrate.PlateInstructions.MELT_FIRST else null))
-        echo("-> $output")
-        echo("-> $page (and ${page.fileName.toString().removeSuffix(".md")}.png): the question, before printing, the conditions, the picture, the faces and bands, how to grade, what each result means, what to enter")
-        prediction.lines().forEach { echo(it) }
-        echo("after printing: `plymeld calibrate motion readings ${output.fileName} -o readings.toml`, grade each cell, then `plymeld calibrate motion values readings.toml -o motion.toml`")
+        say("-> $output")
+        say("-> $page (and ${page.fileName.toString().removeSuffix(".md")}.png): the question, before printing, the conditions, the picture, the faces and bands, how to grade, what each result means, what to enter")
+        prediction.lines().forEach { say(it) }
+        say("after printing: `plymeld calibrate motion readings ${output.fileName} -o readings.toml`, grade each cell, then `plymeld calibrate motion values readings.toml -o motion.toml`")
     }
 
     /** The motion plate's conditions in its own g-code, as `; name = value` comments after its first lines. */

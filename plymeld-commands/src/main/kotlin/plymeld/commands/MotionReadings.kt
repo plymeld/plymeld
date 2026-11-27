@@ -52,7 +52,7 @@ class MotionValuesCommand : CliktCommand(name = "values") {
     override fun run() {
         val (text, report) = try { MotionRecord.values(java.nio.file.Files.readString(sheet), sheet.fileName.toString(), clean.trim().lowercase()) }
             catch (e: IllegalArgumentException) { throw IllegalArgumentException(e.message ?: "not a graded motion sheet") }
-        report.forEach { echo(it) }
+        report.flatMap(PrintedLines::of).forEach { echo(it) }
         output?.let { out ->
             out.parent?.let { java.nio.file.Files.createDirectories(it) }
             java.nio.file.Files.writeString(out, text)

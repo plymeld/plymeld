@@ -54,7 +54,7 @@ class PressureAdvanceValuesCommand : FilamentValuesCommand("pressure-advance pla
     override fun run() {
         val r = try { PressureAdvanceRecord.values(java.nio.file.Files.readString(sheet), sheet.fileName.toString()) }
             catch (e: IllegalArgumentException) { throw IllegalArgumentException(e.message ?: "not a filled-in pressure-advance sheet") }
-        r.report.forEach { echo(it) }
+        r.report.flatMap(PrintedLines::of).forEach { echo(it) }
         val v = r.value ?: return
         val t = target(r.tool?.toIntOrNull(), r.filament, toolFile = into == "tool")
         val path = if (into == "tool") ConfigFiles.pathText(listOf("hardware", "tool", t.tool, "pressure_advance")) else ConfigFiles.pathText(listOf("hardware", "filament", t.filament, "pressure_advance"))
@@ -235,9 +235,10 @@ object PressureAdvanceRecord {
         val report = listOf("pressure advance from ${s.plate}:") + brackets.map { "  the ${it.row} row: grooves up to ${n(it.lo)} s, ridges from ${n(it.hi)} s" } +
             "  value: ${n(v)} s, the middle of ${n(lo)} to ${n(hi)} s ($agree), +/- ${n((hi - lo) / 2)} s" +
             corners(s, lo, hi) +
-            (if (fineStep >= PressureAdvanceSpec.LABEL_STEP_S - 1e-12) "  next, a finer value: ${next(s, "--bracket ${n(lo)}-${n(hi)}", "fine")} (${PlateValues} values, $apart)"
-                else "  next: the bracket is already as narrow as the labels' ${PressureAdvanceSpec.LABEL_STEP_S * 1000} ms allow a finer plate to space") +
-            "  next, to confirm it: ${next(s, "--confirm ${n(v)} --confirm-step $steps", "confirm")} ($neighbors)"
+            // each next plate: what it is on one line, its command alone on the next
+            (if (fineStep >= PressureAdvanceSpec.LABEL_STEP_S - 1e-12) listOf("  next, a finer value: ${PlateValues} values, $apart", "    ${next(s, "--bracket ${n(lo)}-${n(hi)}", "fine")}")
+                else listOf("  next: the bracket is already as narrow as the labels' ${PressureAdvanceSpec.LABEL_STEP_S * 1000} ms allow a finer plate to space")) +
+            "  next, to confirm it: $neighbors" + "    ${next(s, "--confirm ${n(v)} --confirm-step $steps", "confirm")}"
         return Result(report, v, s.plate, s.conditions,
             "Readings: the walls' speed-up marks, grooves up to ${n(lo)} s and ridges from ${n(hi)} s ($agree; the plate's values ${values.joinToString(", ") { n(it) }} s); the value the middle, +/- ${n((hi - lo) / 2)} s.", s.filament, s.tool)
     }
