@@ -13,9 +13,13 @@ package plymeld.core.calibrate
  *    travel, no stop between its first and last), at the slow speed over its lead-in, its fast speed over its middle (the
  *    speed changes where the middle starts and ends), the slow speed over its tail; at the machine's acceleration; its
  *    filament per mm the bead's at the flow ratio;
- *  - the base one piece: its first layer over the whole base (the marks under it filled), and above it nothing laid in a
- *    speed-change hole, a tally notch, the confirm plate's flow-step notches (one, two, or three under each wall, centered
- *    on it), or the chamfer; and the front edge whole where a wall's next flow-step notch would go;
+ *  - the base: its first layer over the base's extent (the marks under it filled), and above it nothing laid in a
+ *    speed-change hole, the confirm plate's flow-step notches (one, two, or three under each wall, centered on it), or the
+ *    chamfer; the front edge whole where a wall's next flow-step notch would go; the gaps between the walls' strips open on
+ *    every layer away from the tabs, each break-off tab laid across its gap on the base's layers but the last, and not on that;
+ *  - where the plate has a push limit, every move at a wall's value (its wall and its corner) keeps the extruder within it,
+ *    from the speed before it (rest at a run's start or a turn), its filament per mm and acceleration as written
+ *    ([PressureAdvancePush], smoothed over the spec's [PressureAdvanceSpec.smoothS]);
  *  - the base's first layer at the first-layer temperature, the walls at theirs, waited for; the fan off on the first layer.
  *
  * Returns the problems (empty = the plate prints as specified).
@@ -103,22 +107,31 @@ object PressureAdvanceCheck {
                 marks += "${w.label}'s $name mark" to doubleArrayOf(x0, y - holeW / 2, x1, y + holeW / 2)
             }
         }
-        val frontY = oy; val backY = oy + spec.baseD / 1000.0
-        fun notch(x: Double, k: Int, front: Boolean): DoubleArray { val d = PlateMarks.depth(k) / 1000.0
-            return if (front) doubleArrayOf(x - holeW / 2, frontY, x + holeW / 2, frontY + d) else doubleArrayOf(x - holeW / 2, backY - d, x + holeW / 2, backY) }
-        // the tally between the walls: the find plate's in its front edge, and its back edge where it has a back row; the confirm
-        // plate's in its back edge
-        val tallyEdges = if (spec.kind == PressureAdvanceSpec.Kind.FIND) listOf(true) + (if (spec.rows > 1) listOf(false) else emptyList()) else listOf(false)
-        for ((k, at) in spec.cellBounds().dropLast(1).withIndex()) for (front in tallyEdges)
-            marks += "the tally notch ${k + 1} in the ${if (front) "front" else "back"} edge" to notch(at / 1000.0 + ox, k, front)
+        val frontY = oy
+        fun notch(x: Double, k: Int): DoubleArray { val d = PlateMarks.depth(k) / 1000.0; return doubleArrayOf(x - holeW / 2, frontY, x + holeW / 2, frontY + d) }
         // the confirm plate's flow steps: under each wall, in the front edge, one notch per step, centered on the wall; where a
         // next notch would go, the edge whole (so a wall's count reads no higher)
         val whole = ArrayList<Pair<String, DoubleArray>>()
         if (spec.kind == PressureAdvanceSpec.Kind.CONFIRM) for (w in spec.walls) {
             val n = w.step + 1
             val first = (spec.wallXUm(w) - PlateMarks.countLength(n) / 2 + PlateMarks.TALLY_W / 2) / 1000.0 + ox
-            for (k in 0 until n) marks += "${w.label}'s flow-step notch ${k + 1} of $n in the front edge" to notch(first + k * PlateMarks.TALLY_PITCH / 1000.0, k, true)
-            whole += "${w.label}'s flow step: the front edge where a notch ${n + 1} would go" to notch(first + n * PlateMarks.TALLY_PITCH / 1000.0, n, true)
+            for (k in 0 until n) marks += "${w.label}'s flow-step notch ${k + 1} of $n in the front edge" to notch(first + k * PlateMarks.TALLY_PITCH / 1000.0, k)
+            whole += "${w.label}'s flow step: the front edge where a notch ${n + 1} would go" to notch(first + n * PlateMarks.TALLY_PITCH / 1000.0, n)
+        }
+        // the strips: each gap between two walls' strips open on every base layer away from the tabs (a spot a tab's width
+        // clear of each, in the gap's middle); each tab laid across its gap on the base's layers but the last, nothing there on the last
+        val gapSpots = ArrayList<Pair<String, DoubleArray>>()
+        val tabs = spec.tabs().map { t -> doubleArrayOf(t[0] / 1000.0 + ox, t[1] / 1000.0 + oy, t[2] / 1000.0 + ox, t[3] / 1000.0 + oy) }
+        val sg = g.stripGap / 1000.0; val tw = g.tabW / 1000.0
+        for (r in 0 until spec.rows) for (k in 1 until spec.perRow) {
+            val x = (g.margin + k * g.pitch) / 1000.0 + ox; val y0 = (r * spec.rowDepth) / 1000.0 + oy
+            // an eighth, a half, and seven eighths along the row: clear of the tabs at a quarter and three quarters
+            for (q in listOf(1, 4, 7)) { val y = y0 + spec.rowDepth / 1000.0 * q / 8
+                gapSpots += "the gap between row ${r + 1}'s strips $k and ${k + 1}" to doubleArrayOf(x - sg / 2, y - tw / 2, x + sg / 2, y + tw / 2) }
+        }
+        for (r in 1 until spec.rows) for (k in 0 until spec.perRow) {
+            val s = spec.strip(r, k); val y = (r * spec.rowDepth) / 1000.0 + oy; val x = s[0] / 1000.0 + ox + 2 * tw
+            gapSpots += "the gap between rows ${r} and ${r + 1} at strip ${k + 1}" to doubleArrayOf(x - tw / 2, y - sg / 2, x + tw / 2, y + sg / 2)
         }
         fun crosses(m: Move, box: DoubleArray, shrink: Double): Boolean {
             val n = maxOf(2, Math.ceil(m.len / 0.05).toInt())
@@ -132,9 +145,40 @@ object PressureAdvanceCheck {
         }
         for ((name, box) in whole) for (l in 1 until g.baseLayers)
             if (base.filter { it.layer == l }.none { crosses(it, box, 0.0) }) bad("cut $name", "$name: open on layer ${l + 1} (a notch there, read as one more step)")
+        for ((name, box) in gapSpots) base.firstOrNull { crosses(it, box, -lw / 2 + 0.1) }?.let { bad("bridged $name", "$name: laid across on layer ${it.layer + 1} (the strips break apart along their gaps)") }
+        for ((k, t) in tabs.withIndex()) {
+            // the tab where it crosses its gap (its lines run across the gap there)
+            val cx = (t[0] + t[2]) / 2; val cy = (t[1] + t[3]) / 2
+            val across = if (t[2] - t[0] > t[3] - t[1]) doubleArrayOf(cx - sg / 2, cy - tw / 2, cx + sg / 2, cy + tw / 2) else doubleArrayOf(cx - tw / 2, cy - sg / 2, cx + tw / 2, cy + sg / 2)
+            for (l in 0 until g.baseLayers) {
+                val laid = base.any { it.layer == l && crosses(it, across, 0.0) }
+                if (l < g.tabLayers && !laid) bad("tab $k $l", "break-off tab ${k + 1} at (${fmt(cx, 2)}, ${fmt(cy, 2)}) not laid on layer ${l + 1}: the plate does not hold together")
+                if (l >= g.tabLayers && laid) bad("tab $k $l", "break-off tab ${k + 1} at (${fmt(cx, 2)}, ${fmt(cy, 2)}) laid on layer ${l + 1}, the base's last (its strips are joined only below it)")
+            }
+        }
         val ch = PlateMarks.CHAMFER / 1000.0
         val corner = doubleArrayOf(ox, oy, ox + ch / 3, oy + ch / 3)
         base.firstOrNull { crosses(it, corner, -lw / 2) }?.let { bad("chamfer", "the base's front-left corner laid on layer ${it.layer + 1}: no chamfer") }
+        // the extruder's push: every move at a wall's value (its wall, its corner), from the speed before it in its run (rest
+        // at a run's start), held within the plate's push limit, its own filament per mm and the acceleration it runs at
+        spec.pushLimit?.let { limit ->
+            val cells = spec.walls.flatMap { listOf(it.label, it.cornerLabel) }.toSet()
+            for ((c, ms) in moves.filter { it.cell in cells }.groupBy { it.cell }) {
+                var prev = 0.0; var last: Move? = null
+                for (m in ms) {
+                    if (!m.printing) { prev = 0.0; last = null; continue }
+                    // a turn is taken at rest (the plate's corners are square)
+                    val l = last
+                    if (l != null && Math.abs((l.x1 - l.x0) * (m.y1 - m.y0) - (l.y1 - l.y0) * (m.x1 - m.x0)) > 1e-6 * l.len * m.len) prev = 0.0
+                    last = m
+                    val v = m.f / 60; val k = m.pa ?: 0.0
+                    val peak = PressureAdvancePush.peak(k, prev, v, m.accel, spec.smoothS, m.e / m.len)
+                    // a hundredth of a percent over, for the file's rounding of the filament per move
+                    if (peak > limit * (1 + 1e-4)) bad("push $c", "'$c' (layer ${m.layer + 1}): the extruder pushed to ${fmt(peak, 1)} mm/s of filament at ${fmt(v, 1)} mm/s with ${spec.valueText(k)} s set (smoothed over ${fmt(spec.smoothS, 3)} s), over the plate's ${fmt(limit, 1)} mm/s")
+                    prev = v
+                }
+            }
+        }
         return out
     }
 

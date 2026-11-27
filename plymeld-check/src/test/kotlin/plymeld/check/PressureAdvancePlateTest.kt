@@ -11,6 +11,7 @@ import plymeld.core.calibrate.PressureAdvanceCheck
 import plymeld.core.calibrate.PressureAdvanceGeometry
 import plymeld.core.calibrate.PressureAdvanceInstructions
 import plymeld.core.calibrate.PressureAdvancePlate
+import plymeld.core.calibrate.PressureAdvancePush
 import plymeld.core.calibrate.PressureAdvanceSpec
 import plymeld.core.calibrate.PressureAdvanceWall
 import plymeld.core.check.Expectations
@@ -44,10 +45,62 @@ class PressureAdvancePlateTest : StringSpec({
     }
 
     "controls: every one the check must catch is caught" {
-        for (c in listOf("value", "command", "order", "direction", "speed", "holes", "chamfer", "tally", "corner"))
+        for (c in listOf("value", "command", "order", "direction", "speed", "holes", "chamfer", "gaps", "tabs", "corner"))
             withClue(c) { problems(find, gcodeOf(PressureAdvancePlate(find, setOf(c)))).shouldNotBeEmpty() }
+        // the strips' controls caught by their own rules
+        problems(find, gcodeOf(PressureAdvancePlate(find, setOf("gaps")))).any { "laid across" in it } shouldBe true
+        problems(find, gcodeOf(PressureAdvancePlate(find, setOf("tabs")))).any { "break-off tab" in it } shouldBe true
         // the g-code check, told nothing of a plate that sets its own values, refuses them (the exemption is what passes it)
         GcodeCheck.check(text, Expectations.forSetup(setup)).filter { "pressure advance" in it }.shouldNotBeEmpty()
+    }
+
+    "the push limit: a plate read against a limit at its own highest push passes; 1 % under it is refused, naming the move" {
+        val top = find.walls.maxOf { find.peakOf(it) }
+        (top > 0) shouldBe true
+        PressureAdvanceCheck.check(find.withPushLimit(top + 1e-6), text, command, "s").shouldBeEmpty()
+        PressureAdvanceCheck.check(find.withPushLimit(top * 0.99), text, command, "s").any { "the extruder pushed" in it } shouldBe true
+    }
+
+    "the model against the printed plate: with a Creator 5's values (294.65 mm/s fast, 100 slow, 15000 mm/s2, 0.44 x 0.2 mm lines, 1.75 mm filament, Klipper's 0.04 s smoothing), the 111.6 ms wall's corner from rest and the 166.8 ms wall's step bound the extruder's limit, which was quiet at the first and squirted at the second" {
+        val r = (0.2 * (0.44 - 0.2 * (1 - Math.PI / 4))) / (Math.PI * 1.75 * 1.75 / 4)
+        val quiet = PressureAdvancePush.peak(0.1116, 0.0, 294.65, 15000.0, 0.04, r)
+        val squirt = PressureAdvancePush.peak(0.1668, 100.0, 294.65, 15000.0, 0.04, r)
+        withClue("corner at 111.6 ms $quiet, step at 166.8 ms $squirt") { (quiet > 50.0 && quiet < 51.0 && squirt > 54.0 && squirt < 55.0) shouldBe true }
+        // with a limit between them, every move at 111.6 ms and below is inside, at 166.8 ms and above outside
+        val limit = (quiet + squirt) / 2
+        for (k in listOf(0.0, 0.01, 0.0223, 0.0499, 0.0746, 0.1116)) for (v0 in listOf(0.0, 100.0)) (PressureAdvancePush.peak(k, v0, 294.65, 15000.0, 0.04, r) <= limit) shouldBe true
+        for (k in listOf(0.1668, 0.2494, 0.3727)) (PressureAdvancePush.peak(k, 100.0, 294.65, 15000.0, 0.04, r) > limit) shouldBe true
+        // controls: the push spread evenly over the window (half the documented weighting's peak) orders the corner at 111.6 ms
+        // over the step at 166.8 ms, against the print; unsmoothed, the 111.6 ms corner is far over the bound
+        val evenCorner = r * (294.65 + 0.1116 * 294.65 / 0.04); val evenStep = r * (294.65 + 0.1668 * 194.65 / 0.04)
+        (evenCorner > evenStep) shouldBe true
+        (PressureAdvancePush.peak(0.1116, 0.0, 294.65, 15000.0, 0.0, r) > squirt) shouldBe true
+    }
+
+    "the base is solid: on every base layer, in every wall's strip, neighboring fill lines no further apart than a line's spacing; a line left out is caught" {
+        val all = TechniqueRender.read(text).moves.filter { (it.feature == "Bottom surface" || it.feature == "Internal solid infill") && it.length > 1.0 }
+        fun gaps(moves: List<TechniqueRender.Move>): List<String> {
+            val out = ArrayList<String>()
+            val ox = find.originXUm / 1000.0; val oy = find.originYUm / 1000.0
+            for (layer in 0 until PressureAdvanceGeometry.baseLayers) {
+                val fill = moves.filter { it.layer == layer }
+                val spacing = (if (layer == 0) find.firstWidthUm - find.firstLayerUm * (1 - Math.PI / 4) else find.widthUm - find.layerUm * (1 - Math.PI / 4)) / 1000.0
+                for (r in 0 until find.rows) for (k in 0 until find.perRow) {
+                    val b = find.strip(r, k)
+                    val mine = fill.filter { val mx = (it.x0 + it.x1) / 2 - ox; val my = (it.y0 + it.y1) / 2 - oy; mx > b[0] / 1000.0 && mx < b[2] / 1000.0 && my > b[1] / 1000.0 && my < b[3] / 1000.0 }
+                    for ((ang, ms) in mine.groupBy { Math.round(Math.toDegrees(Math.atan2(it.y1 - it.y0, it.x1 - it.x0)) + 360) % 180 }) {
+                        val a = Math.toRadians(ang.toDouble()); val nx = -Math.sin(a); val ny = Math.cos(a)
+                        val offs = ms.map { Math.round((it.x0 * nx + it.y0 * ny) * 1000) / 1000.0 }.distinct().sorted()
+                        offs.zipWithNext().firstOrNull { (p, q) -> q - p > spacing + 0.01 }?.let { (p, q) -> out += "layer ${layer + 1}, strip ${r + 1}.${k + 1}: lines ${q - p} mm apart, the spacing $spacing mm" }
+                    }
+                }
+            }
+            return out
+        }
+        gaps(all).shouldBeEmpty()
+        // control: the second layer's longest fill line left out
+        val longest = all.filter { it.layer == 1 }.maxBy { it.length }
+        gaps(all.filter { it !== longest }).shouldNotBeEmpty()
     }
 
     "deterministic: the same specification, the same bytes" {
@@ -124,7 +177,7 @@ class PressureAdvancePlateTest : StringSpec({
         val confirm = spec(listOf(0.036, 0.04, 0.044).flatMapIndexed { vi, v -> fasts.indices.map { k -> PressureAdvanceWall(0, vi * 3 + k, v, fasts[k], k) } }, PressureAdvanceSpec.Kind.CONFIRM, 0.04)
         val ct = gcodeOf(PressureAdvancePlate(confirm))
         problems(confirm, ct).shouldBeEmpty()
-        for (c in listOf("value", "direction", "speed", "holes", "tally", "steps", "notch")) withClue(c) { problems(confirm, gcodeOf(PressureAdvancePlate(confirm, setOf(c)))).shouldNotBeEmpty() }
+        for (c in listOf("value", "direction", "speed", "holes", "gaps", "tabs", "steps", "notch")) withClue(c) { problems(confirm, gcodeOf(PressureAdvancePlate(confirm, setOf(c)))).shouldNotBeEmpty() }
         // the flow-step notches read back: one missing and the rest moved, or one too many, each named
         problems(confirm, gcodeOf(PressureAdvancePlate(confirm, setOf("steps")))).any { "wall 1.2's flow-step notch" in it } shouldBe true
         problems(confirm, gcodeOf(PressureAdvancePlate(confirm, setOf("notch")))).any { "wall 1.1's flow step" in it && "notch 2 would go" in it } shouldBe true
@@ -142,7 +195,14 @@ class PressureAdvancePlateTest : StringSpec({
     "the page: the question, the conditions, the readings' words, what to enter; its picture drawn" {
         val md = PressureAdvanceInstructions.markdown(find, PressureAdvanceInstructions.Info("pla-generic", "qidi-q2", 0, "test", "pa.gcode", 40.0, 60,
             "pei", false, false, emptyList(), 0.1, null, false, 0.8), "pa.png")
-        for (w in listOf("groove", "flat", "ridge", "bulge", "sharp", "round", "pressure-advance readings pa.gcode", "pressure-advance values", "speed-up", "slow-down")) md shouldContain w
+        for (w in listOf("groove", "flat", "ridge", "bulge", "sharp", "round", "pressure-advance readings pa.gcode", "pressure-advance values", "speed-up", "slow-down",
+            "snap each wall out", "Against a light", "In a raking light", "reading.png", "a reading of its own")) md shouldContain w
+        // control: a word the page does not say is not found
+        md.contains("tally") shouldBe false
+        // the reading picture drawn
+        val reading = java.nio.file.Files.createTempFile("pa-reading", ".png")
+        PressureAdvanceInstructions.readingPicture(reading)
+        (javax.imageio.ImageIO.read(reading.toFile()).width > 0) shouldBe true
         // the docs' copy is the command's own (plymeld-commands, PressureAdvanceSampleTest); this one is only drawn
         val png = java.nio.file.Files.createTempFile("pa-page", ".png")
         PressureAdvanceInstructions.picture(png, find, PressureAdvancePlate(find))

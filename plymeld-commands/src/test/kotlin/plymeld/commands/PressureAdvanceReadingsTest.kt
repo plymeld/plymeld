@@ -75,7 +75,7 @@ class PressureAdvanceReadingsTest : StringSpec({
         values(fill(sheet(find), truth(0.043))).value shouldBe (0.045 plusOrMinus 1e-9)
     }
 
-    "refused, each against the accepted sheet: no flip, rows more than a step apart, out of order, a corner against its wall, both marks alike" {
+    "refused, each against the accepted sheet: no flip, rows more than a step apart, out of order, both marks alike; the corners reported beside the walls" {
         val good = truth(0.05)
         values(fill(sheet(find), good)).value shouldBe (0.05 plusOrMinus 1e-9)                    // the control: accepted
         shouldThrow<IllegalArgumentException> { values(fill(sheet(find), truth(0.5))) }.message!! shouldContain "never reads a ridge"
@@ -84,7 +84,15 @@ class PressureAdvanceReadingsTest : StringSpec({
         // one step apart is accepted, the brackets joined
         values(fill(sheet(find)) { r, v, s -> if (r == "back") truth(0.06)(r, v, s) else good(r, v, s) }).value shouldBe (0.055 plusOrMinus 1e-9)
         shouldThrow<IllegalArgumentException> { values(fill(sheet(find)) { r, v, s -> if (r == "front" && Math.abs(v!! - 0.08) < 1e-9) Triple("groove", "ridge", "bulge") else good(r, v, s) }) }.message!! shouldContain "out of order"
-        shouldThrow<IllegalArgumentException> { values(fill(sheet(find)) { r, v, s -> good(r, v, s).let { if (Math.abs(v!! - 0.02) < 1e-9) it.copy(third = "round") else it } }) }.message!! shouldContain "contradicts"
+        // the corners read on their own: agreeing with the walls (the control), or out of order and flipping elsewhere, each
+        // reported, the value still the walls'
+        values(fill(sheet(find), good)).report.joinToString("\n") shouldContain "corners: bulges up to 0.04 s, round from 0.06 s: they agree"
+        val odd = values(fill(sheet(find)) { r, v, s -> good(r, v, s).let { if (Math.abs(v!! - 0.02) < 1e-9) it.copy(third = "round") else it } })
+        odd.value shouldBe (0.05 plusOrMinus 1e-9)
+        odd.report.joinToString("\n") shouldContain "corners: out of order"
+        val late = values(fill(sheet(find)) { r, v, s -> good(r, v, s).copy(third = if (v!! < 0.08) "bulge" else "round") })
+        late.value shouldBe (0.05 plusOrMinus 1e-9)
+        late.report.joinToString("\n") shouldContain "they disagree with the walls' 0.04 to 0.06 s"
         shouldThrow<IllegalArgumentException> { values(fill(sheet(find)) { r, v, s -> good(r, v, s).let { if (Math.abs(v!! - 0.02) < 1e-9) it.copy(second = "groove") else it } }) }.message!! shouldContain "at both marks"
     }
 
@@ -184,8 +192,8 @@ class PressureAdvanceReadingsTest : StringSpec({
     "the default first plate on a bed too short for the ceiling's walls: its top the highest value whose walls fit, said; a longer bed takes the ceiling (control); a lowest value that does not fit is refused" {
         fun conditions(g: Path) = Files.readString(g).lines().filter { it.startsWith("; ") }
         fun valuesOf(g: Path) = Regex("""; values = (.*) s""").find(Files.readString(g))!!.groupValues[1].split(", ").map { it.toDouble() }
-        // the sample's bed: 250 x 250 mm
-        val g = plate(dir)
+        // the sample's bed: 250 x 250 mm, the generic ceiling
+        val g = plate(dir, "-cv", "hardware.tool.t1.calibrate.pressure_advance.max=1 s")
         val top = conditions(g).single { it.startsWith("; top = ") }
         top shouldContain "fit"
         top shouldContain "would need walls"
@@ -194,11 +202,80 @@ class PressureAdvanceReadingsTest : StringSpec({
         val ys = Files.readString(g).lines().mapNotNull { Regex("""^G1 X[-0-9.]+ Y([-0-9.]+) E""").find(it)?.groupValues?.get(1)?.toDouble() }
         (ys.max() <= 250.0) shouldBe true
         // control: a bed long enough for the ceiling's walls takes the ceiling
-        val long = plate(dir, "-cv", "hardware.machine.example-corexy.build.y=700 mm")
+        val long = plate(dir, "-cv", "hardware.tool.t1.calibrate.pressure_advance.max=1 s", "-cv", "hardware.machine.example-corexy.build.y=700 mm")
         valuesOf(long).max() shouldBe (1.0 plusOrMinus 1e-9)
         conditions(long).single { it.startsWith("; top = ") } shouldContain "the tool's ceiling"
         // the tool's lowest value above what fits: refused, saying why
-        shouldThrow<IllegalArgumentException> { plate(dir, "-cv", "hardware.tool.t1.calibrate.pressure_advance.min=0.9 s") }.message!! shouldContain "even from the tool's lowest value"
+        shouldThrow<IllegalArgumentException> { plate(dir, "-cv", "hardware.tool.t1.calibrate.pressure_advance.max=1 s", "-cv", "hardware.tool.t1.calibrate.pressure_advance.min=0.9 s") }.message!! shouldContain "even from the tool's lowest value"
+    }
+
+    "the extruder's push: with a highest filament speed set, the first plate's top is the highest value whose corner from rest keeps within the share of it, said; unset, no push limit, said" {
+        fun conditions(g: Path) = Files.readString(g).lines().filter { it.startsWith("; ") }
+        val limited = plate(dir, "-cv", "hardware.tool.t1.calibrate.pressure_advance.max=1 s", "-cv", "hardware.tool.t1.extrude.speed.max=20 mm/s")
+        val c = conditions(limited)
+        val top = c.single { it.startsWith("; top = ") }
+        top shouldContain "the extruder's push"
+        // the expected top worked out here from the plate's own conditions and Klipper's documented smoothing: a triangular
+        // weighting over 0.04 s, so a change of dv made in ta = dv / a (shorter than the window) pushes at most dv (2 / T - ta / T^2)
+        val walls = c.single { it.startsWith("; walls = ") }; val speeds = c.single { it.startsWith("; speeds = ") }
+        val wMm = Regex("""([0-9.]+) mm lines ([0-9.]+) mm high""").find(walls)!!.groupValues.drop(1).map { it.toDouble() }
+        val a = Regex("""acceleration ([0-9.]+) mm/s2""").find(walls)!!.groupValues[1].toDouble()
+        val flowRatio = Regex("""flow_ratio ([0-9.]+)""").find(walls)!!.groupValues[1].toDouble()
+        val fast = Regex("""fast ([0-9.]+) mm/s""").find(speeds)!!.groupValues[1].toDouble()
+        val d = Regex("""filament ([0-9.]+) mm""").find(walls)!!.groupValues[1].toDouble()
+        val r = wMm[1] * (wMm[0] - wMm[1] * (1 - Math.PI / 4)) * flowRatio / (Math.PI * d * d / 4)
+        val t = 0.04; val ta = fast / a
+        val k = (0.75 * 20 / r - fast) / (fast * (2 / t - ta / (t * t)))
+        val expected = Math.floor(k * 10_000 + 1e-6) / 10_000
+        Regex("""^; top = ([0-9.]+) s""").find(top)!!.groupValues[1].toDouble() shouldBe (expected plusOrMinus 1e-9)
+        c.single { it.startsWith("; limits = ") } shouldContain "15 mm/s of filament"
+        // control: unset, the plate applies no push limit and says so; its top is the bed's
+        val free = conditions(plate(dir, "-cv", "hardware.tool.t1.calibrate.pressure_advance.max=1 s"))
+        free.single { it.startsWith("; limits = ") } shouldContain "no push limit"
+        free.single { it.startsWith("; top = ") } shouldContain "fit"
+    }
+
+    "the first layer at the first-layer line width the config sets, stated in the plate's conditions; another width set, that one (control)" {
+        fun firstWidths(g: Path): Set<String> {
+            // the width in force at each of the base's first-layer printing moves (a ;WIDTH: line stands until the next)
+            val out = HashSet<String>(); var layer = -1; var cell = ""; var width = ""
+            for (l in Files.readString(g).lines()) {
+                if (l.startsWith(";LAYER_CHANGE") || l.startsWith("; CHANGE_LAYER")) layer++
+                if (l.startsWith("; CELL: ")) cell = l.removePrefix("; CELL: ")
+                if (l.startsWith(";WIDTH:") || l.startsWith("; LINE_WIDTH:")) width = l.substringAfter(":").trim()
+                if (layer == 0 && cell == "base" && l.startsWith("G1 ") && " E" in l && (" X" in l || " Y" in l)) out += width
+            }
+            return out
+        }
+        fun stated(g: Path) = Regex("""; first_layer = ([0-9.]+) mm lines""").find(Files.readString(g))!!.groupValues[1]
+        val c = Config(ConfigStack.load(listOf(dir.resolve("0*.toml").toString()), emptyList()), emptyList())
+        val set = PressureAdvanceRecord.n(c.quantity(c.entry(listOf("plan", "mechanism", "adhesion", "first_layer", "line", "width"))!!, Dimension.LENGTH, Site(machine = "example-corexy", tool = "t1", filament = "pla-white")))
+        val g = plate(dir)
+        firstWidths(g) shouldBe setOf(set)
+        stated(g) shouldBe set
+        val other = plate(dir, "-cv", "plan.mechanism.adhesion.first_layer.line.width=0.55 mm")
+        firstWidths(other) shouldBe setOf("0.55")
+        stated(other) shouldBe "0.55"
+    }
+
+    "a bundled direct-drive model's toolhead gives the ceiling (0.2 s) and, on the Creator 5, the extruder's push limit; a tool's own ceiling wins" {
+        fun conditions(g: Path) = Files.readString(g).lines().filter { it.startsWith("; ") }
+        val q2 = plate(dir, "-cv", "hardware.machine.example-corexy.build.y=700 mm")
+        // the sample machine is a Q2 (model qidi-q2): its toolhead's ceiling, no push limit known
+        conditions(q2).single { it.startsWith("; top = ") } shouldContain "toolhead.0.calibrate.pressure_advance.max"
+        Regex("""; values = (.*) s""").find(Files.readString(q2))!!.groupValues[1].split(", ").map { it.toDouble() }.max() shouldBe (0.2 plusOrMinus 1e-9)
+        conditions(q2).single { it.startsWith("; limits = ") } shouldContain "no push limit"
+        // control: the tool's own ceiling wins over its toolhead's
+        val own = plate(dir, "-cv", "hardware.machine.example-corexy.build.y=700 mm", "-cv", "hardware.tool.t1.calibrate.pressure_advance.max=0.3 s")
+        Regex("""; values = (.*) s""").find(Files.readString(own))!!.groupValues[1].split(", ").map { it.toDouble() }.max() shouldBe (0.3 plusOrMinus 1e-9)
+        // the Creator 5's four toolheads: the ceiling and the push limit, with their evidence; the Q2's no push limit
+        val c5 = plymeld.config.Models.bundled.forModel("flashforge-c5").toolheads
+        c5.size shouldBe 4
+        for (th in c5) { th.paCeilingS shouldBe (0.2 plusOrMinus 1e-9); th.extrudeSpeedMax shouldBe (50.0 plusOrMinus 1e-9); th.extrudeSpeedEvidence!! shouldContain "measured"; th.paCeilingEvidence!! shouldContain "direct-drive" }
+        plymeld.config.Models.bundled.forModel("qidi-q2").toolheads.single().extrudeSpeedMax shouldBe null
+        // a push limit through a model's toolhead (here the sample machine's model's) reaches the plate
+        val limited = plate(dir, "-cv", "hardware.model.qidi-q2.toolhead.0.extrude.speed.max=50 mm/s", "-cv", "hardware.machine.example-corexy.build.y=700 mm")
+        conditions(limited).single { it.startsWith("; limits = ") } shouldContain "37.5 mm/s of filament, 75 % of the extruder's 50 mm/s"
     }
 
     "every wall's value is at its label's resolution (0.1 ms): a fine plate's even values and the first plate's ratio values" {
@@ -258,8 +335,8 @@ class PressureAdvanceReadingsTest : StringSpec({
     }
 
     "the first plate's top and why are said once" {
-        // the sample's 250 mm bed: the top the bed's, with the length the ceiling would need
-        val (status, lines) = said()
+        // the sample's 250 mm bed and the generic ceiling: the top the bed's, with the length the ceiling would need
+        val (status, lines) = said("-cv", "hardware.tool.t1.calibrate.pressure_advance.max=1 s")
         status shouldBe 0
         lines.count { "would need" in it } shouldBe 1
         // control: the same top's reason is in the plate's conditions and its page, once each
@@ -297,17 +374,18 @@ class PressureAdvanceReadingsTest : StringSpec({
 
     "the first plate not fitting even from the lowest value: the refusal names the highest whole fast speed below the plate's at which it fits, which makes it and the next does not, or says none does" {
         // values from a lowest value to 1.4 ms above it, so the lowest values' plate is the whole range's: its depth on a long
-        // bed with a middle at 160 mm/s and at lower fast speeds, for a few lowest and slow speeds; a bed between the depth at
+        // bed with a middle at 160 mm/s (within the plate's share of a filament's maximum flow raised to 40 mm3/s) and at lower fast speeds, for a few lowest and slow speeds; a bed between the depth at
         // 160 mm/s and a shallower one at a lower fast speed fits the lowest values only at a lower fast speed
-        fun rangeOf(min: String) = arrayOf("-cv", "hardware.tool.t1.calibrate.pressure_advance.max=${PressureAdvanceRecord.n(min.toDouble() + 0.0014)} s", "-cv", "hardware.tool.t1.calibrate.pressure_advance.min=$min s")
+        fun rangeOf(min: String) = arrayOf("-cv", "hardware.tool.t1.calibrate.pressure_advance.max=${PressureAdvanceRecord.n(min.toDouble() + 0.0014)} s", "-cv", "hardware.tool.t1.calibrate.pressure_advance.min=$min s",
+            "-cv", "hardware.filament.pla-white.melt.flow.max=40 mm3/s")
         fun depth(min: String, slowAt: Int, fast: Int): Double { val (status, lines) = said(*rangeOf(min), "-cv", "hardware.machine.example-corexy.build.y=900 mm", "--speeds", "$slowAt,$fast")
             withClue(lines.joinToString("\n")) { status shouldBe 0 }
             return Regex("""^pressure-advance plate \(find\).*: [0-9.]+ x ([0-9.]+) mm""").find(lines.first { it.startsWith("pressure-advance plate (find)") })!!.groupValues[1].toDouble() }
         val tried = ArrayList<String>()
         val (case, shallow) = listOf("0.9", "0.7").flatMap { t -> listOf(50, 30).map { t to it } }.asSequence().mapNotNull { (t, sl) ->
-            val d160 = depth(t, sl, 160)
-            listOf(130, 100).filter { it > sl }.asSequence().map { it to depth(t, sl, it) }.onEach { tried += "$t s, $sl,${it.first}: ${it.second} mm (at 160: $d160)" }
-                .firstOrNull { Math.ceil(it.second + 20) < d160 + 20 }?.let { (t to sl) to it }
+            val dTop = depth(t, sl, 160)
+            listOf(130, 100).filter { it > sl }.asSequence().map { it to depth(t, sl, it) }.onEach { tried += "$t s, $sl,${it.first}: ${it.second} mm (at 160: $dTop)" }
+                .firstOrNull { Math.ceil(it.second + 20) < dTop + 20 }?.let { (t to sl) to it }
         }.firstOrNull() ?: error("no lower fast speed makes the plate shallower than at 160 mm/s by a whole millimeter:\n${tried.joinToString("\n")}")
         val (min, slowAt) = case
         val range = rangeOf(min)
@@ -322,7 +400,7 @@ class PressureAdvanceReadingsTest : StringSpec({
         plate(dir, *high, "--speeds", "$slow,${PressureAdvanceRecord.n(fast)}")
         shouldThrow<IllegalArgumentException> { plate(dir, *high, "--speeds", "$slow,${PressureAdvanceRecord.n(fast + 1)}") }.message!! shouldContain "even from the tool's lowest value"
         // a lowest value too high for any fast speed on this bed: none named
-        val none = shouldThrow<IllegalArgumentException> { plate(dir, "-cv", "hardware.tool.t1.calibrate.pressure_advance.min=0.9 s") }.message!!
+        val none = shouldThrow<IllegalArgumentException> { plate(dir, "-cv", "hardware.tool.t1.calibrate.pressure_advance.max=1 s", "-cv", "hardware.tool.t1.calibrate.pressure_advance.min=0.9 s") }.message!!
         none shouldContain "No fast speed from"
         (Regex("""--speeds [0-9]""").containsMatchIn(none)) shouldBe false
         // a bed too short for the walls at their shortest: none named, and that said

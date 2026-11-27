@@ -15,6 +15,11 @@ section the release's version and date.
   `{pressure_advance}` standing for the value, and `.unit` (`s` or `ms`), with its evidence. The bundled models carry
   Klipper's, `SET_PRESSURE_ADVANCE ADVANCE={pressure_advance}` in seconds, so their files are as before. A pressure
   advance set for a machine whose model has no such command is refused, with what to set, rather than dropped.
+- The bundled Creator 5's and Q2's toolheads give the pressure-advance plate a ceiling of 0.2 s
+  (`hardware.model.<key>.toolhead.<key>.calibrate.pressure_advance.max`): their extruders drive the filament at the
+  nozzle, and values above about 0.2 s belong to a long filament path. The Creator 5's toolheads give the extruder's
+  highest filament speed for a push, 50 mm/s (`toolhead.<key>.extrude.speed.max`), measured on one machine with PLA; a
+  tool's own values win over its toolhead's.
 - `hardware.machine.<key>.firmware.own_pressure_advance = true`: the machine sets its own pressure advance, and plymeld
   writes none, whatever the machine, a tool, or a filament sets.
 - The g-code check reads pressure advance back: every command setting it sets the config's value for the tool in hand,
@@ -30,19 +35,30 @@ section the release's version and date.
   mm) grow together until, by plymeld's pressure model, the pressure settles within them at the plate's highest value,
   so the slow-down mark reads opposite to the speed-up mark on every wall; their lengths depend on the plate's speeds
   and acceleration (at 100 and 170 mm/s and 10,000 mm/s2: 10 and 30 mm up to 0.1 s, 22 and 64 mm at 0.5 s, 43 and 127
-  mm at 1 s; a faster middle needs more). The first plate's top is the tool's ceiling (`.max`, 1 s unless set: the top
-  of the typical range in Klipper's guide), or the highest value whose walls fit the bed, whichever is lower; the plate
-  and its page say which, and the length the ceiling would need. Given values whose walls do not fit are refused.
-  A hole in the base marks each speed change, an arrow the way each wall prints, each value is written in front of its
-  wall in milliseconds; the page draws the three readings.
+  mm at 1 s). The first plate's top is the lowest of the tool's ceiling (`.max`: its machine model's toolhead's where
+  that gives one, else 1 s, the top of the typical range in Klipper's guide), the highest value the extruder's push
+  allows, and the highest value whose walls fit the bed; the plate and its page say which, and what the ceiling would
+  need. Given values whose walls do not fit, or that would push the extruder past its limit, are refused.
+  Every line the plate lays, its base, its labels, and its walls' slow and fast stretches, runs at no more than 75 % of
+  the filament's measured maximum flow (`hardware.tool.<key>.calibrate.pressure_advance.share`), the labels at a visible
+  wall's speed. Where the extruder's highest filament speed is known (`hardware.tool.<key>.extrude.speed.max`, or the
+  machine model's toolhead's), every move at a wall's value, its step and its corner from rest, keeps the extruder within
+  the same share of it, by the push the firmware's pressure-advance smoothing gives (Klipper's triangular weighting over
+  `hardware.model.<key>.pressure_advance.smooth_time`, 0.04 s unless set); the plate's check reads each move's push back
+  from the g-code. The first layer is laid at the first-layer line width, and the plate's conditions say so.
+  The base is a strip per wall with a gap between neighbors, joined by break-off tabs, so the plate lifts in one piece
+  and each wall snaps out on its own strip. A hole in the base marks each speed change, an arrow the way each wall
+  prints, each value is written in front of its wall in milliseconds; the page draws the three readings and how to read
+  a wall held against a light and in a raking light, a fingernail as a cross-check.
 - `--confirm VALUE --confirm-step S`: the value and its two neighbors, each at three flow steps; a machine that sets its
   own gets `--confirm machine`, its own value with no command written.
 - `plymeld calibrate pressure-advance readings` and `values`: the sheet to fill in (groove, flat, or ridge at each mark;
   bulge, sharp, or round at a corner), and the value from it: the middle of the bracket between the highest groove and
   the lowest ridge, written as the filament's `pressure_advance` (the tool's with `--into tool`) with the plate, its
   conditions, and the bracket in the note above it. Refused, saying why, when nothing flips, the two rows disagree by
-  more than one wall's place on the plate, the readings are out of order, a corner contradicts its wall, or a wall reads
-  the same at both marks. It names the next plates as commands that run as printed: a fine plate inside the bracket, or
+  more than one wall's place on the plate, the readings are out of order, or a wall reads the same at both marks. The
+  corners are a reading of their own: where they flip from bulge to round, reported beside the walls' bracket with
+  whether the two agree; the value is the walls'. It names the next plates as commands that run as printed: a fine plate inside the bracket, or
   the confirm plate with the bracket's ends as the neighbors, each to within the labels' 0.1 ms; it names the neighbors
   and the fine plate's steps as the plates will print them.
 

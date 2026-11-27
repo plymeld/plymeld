@@ -247,9 +247,14 @@ plymeld calibrate pressure-advance values pa-readings.toml
 Its first plate tries 0 and values from the tool's lowest (`hardware.tool.<key>.calibrate.pressure_advance.min`) up to
 its top, each a fixed ratio below the next, so one plate brackets a short filament path and a long tube. Each wall's
 slow lead-in and fast middle are long enough for the pressure to settle within them at the plate's highest value, so a
-higher value, or a faster middle, makes longer walls; the first plate's top is the tool's ceiling (`.max`) or the
-highest value whose walls fit the bed, whichever is lower, and the plate says which. Every value is held to its
-label's tenth of a millisecond. The `values` it prints names the next plate as a command to run as printed, with its
+higher value makes longer walls; the first plate's top is the lowest of the tool's ceiling (`.max`, its machine model's
+toolhead's where it gives one), the highest value the extruder's push allows, and the highest value whose walls fit the
+bed, and the plate says which. Every line the plate lays runs at no more than a share of the filament's measured
+maximum flow (`hardware.tool.<key>.calibrate.pressure_advance.share`, 75 % unless set); where the extruder's highest
+filament speed is known (`hardware.tool.<key>.extrude.speed.max`), every move at a wall's value keeps the extruder within
+the same share of it, by the push the firmware's pressure-advance smoothing gives. Every value is held to its label's
+tenth of a millisecond. The base is a strip per wall, joined by break-off tabs: once printed, snap each wall out and
+read it held against a light and in a raking light, as its page shows. The `values` it prints names the next plate as a command to run as printed, with its
 own `-o`: a finer one evenly inside the bracket (`--bracket LOW-HIGH`, each value held to the tenth of a millisecond,
 so neighbors may stand that much nearer or further apart), or the confirm plate (`--confirm VALUE --confirm-step S`, its
 neighbors the bracket's ends to within that tenth, and it says which they are). A machine that sets its own pressure advance
@@ -257,9 +262,11 @@ neighbors the bracket's ends to within that tenth, and it says which they are). 
 (`--confirm machine`), with no command written. The machine's model must say how pressure advance is set
 (`hardware.model.<key>.pressure_advance.command`; the bundled models carry Klipper's).
 
-![The default first pressure-advance plate on a 250 x 250 mm bed, from above: two rows of walls with their values, arrows, speed-change holes, and corners; below, the three readings](../renders/pressure_advance_plate.png)
+![The default first pressure-advance plate on a 250 x 250 mm bed, from above: two rows of walls on their strips with their values, arrows, speed-change holes, and corners; below, the three readings](../renders/pressure_advance_plate.png)
 
-![The same plate's g-code from above: the base's second layer with a hole at each speed change, and the first wall layer with each wall's value, arrow, and corner](../renders/pressure_advance_toolpath.png)
+![Reading a wall snapped out on its strip: held against a light, a groove shows brighter and a ridge darker just after the mark; in a raking light, a groove a bright line and a ridge a shadow](../renders/pressure_advance_reading.png)
+
+![The same plate's g-code from above: the base's second layer, its strips and break-off tabs, with a hole at each speed change, and the first wall layer with each wall's value, arrow, and corner](../renders/pressure_advance_toolpath.png)
 
 ## Look at a g-code
 

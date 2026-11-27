@@ -8,7 +8,9 @@ package plymeld.check
  * extruder ahead by the value SET (its push is the nominal flow plus the set value times the nominal flow's rate of change,
  * Klipper's model). Where the two are equal the plastic laid is exactly what the g-code asks for; where they differ by dK, a
  * step in flow of dQ leaves dK x dQ too little (set short) or too much (set long) just after it, spread over the lag.
- * Klipper's pressure-advance smoothing is not modelled.
+ * The laying does not model Klipper's pressure-advance smoothing (it moves the plastic a few milliseconds, not the sign of a
+ * mark's defect); how fast the smoothed push runs the extruder, the limit a plate holds to, is
+ * [plymeld.core.calibrate.PressureAdvancePush], read with the same smoothing.
  *
  * A file is read as the firmware runs it: each run of printing moves (from a stop to the next stop: a travel, a retraction,
  * a Z move) planned with the acceleration in force, trapezoid by trapezoid, a junction between two moves in line taken at

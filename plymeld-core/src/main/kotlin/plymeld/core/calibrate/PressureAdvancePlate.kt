@@ -30,23 +30,25 @@ import plymeld.program.Step
  * **The find plate** ([PressureAdvanceSpec.Kind.FIND]): two rows of walls, the front row's values rising from the left, the
  * back row's the same values falling (each value twice, in another place and another order, so a trend across the bed cannot
  * pass as the flip), and beside each wall a sharp corner (two short lines meeting square, at the wall's value and its fast
- * speed: a bulge there says too low, a rounded or gapped corner too high), read only to confirm the walls. **The confirm
- * plate** ([PressureAdvanceSpec.Kind.CONFIRM]): one row, each value at three flow steps (three fast speeds), no corners; on a
- * machine that sets its own, one "value" (the machine's, no command written) at the three steps.
+ * speed: a bulge there says too low, a rounded or gapped corner too high), a reading of its own beside the wall's marks.
+ * **The confirm plate** ([PressureAdvanceSpec.Kind.CONFIRM]): one row, each value at three flow steps (three fast speeds), no
+ * corners; on a machine that sets its own, one "value" (the machine's, no command written) at the three steps.
  *
  * **The marks** ([PlateMarks]): the base's front-left corner chamfered (the origin); beside each wall, on its left, a hole cut
  * through the base's upper layers at each speed change (where the head starts to speed up, and where it starts to slow
  * down: the defect is just after each, in the direction of travel); in front of each wall an arrow pointing the way it
- * prints, and in front of that its value in milliseconds, written along the wall ("40" = 0.04 s); a tally between the walls
- * in the base's front edge (the front row) and back edge (the back row), so a wall is found by counting from the chamfer; on
- * the confirm plate the front edge carries the wall's flow step instead (one notch small, two medium, three large).
+ * prints, and in front of that its value in milliseconds, written along the wall ("40" = 0.04 s); on the confirm plate the
+ * front edge under each wall carries its flow step (one notch small, two medium, three large).
  *
- * **One base**, one piece ([PressureAdvanceGeometry.baseLayers] layers, the first whole, the marks cut in the ones above),
- * at the first layer's and the frame's values; the walls start above it, so neither the first layer nor the base is read.
- * The base and the labels print at [PressureAdvanceSpec.framePa]. Lengths in µm, speeds mm/s, accelerations mm/s².
+ * **The base**: a strip per wall ([PressureAdvanceSpec.strip], [PressureAdvanceGeometry.baseLayers] layers), a gap between
+ * neighbors, joined by break-off tabs on its layers but the last, so the plate lifts as one piece and each wall snaps out on
+ * its own strip to be held up to a light; the marks cut in the layers above the first; at the first layer's and the frame's
+ * values; the walls start above it, so neither the first layer nor the base is read. The base and the labels print at
+ * [PressureAdvanceSpec.framePa], the labels at their own speed. Every move at a wall's value keeps the extruder within
+ * [PressureAdvanceSpec.pushLimit] ([PressureAdvanceSpec.peakOf]). Lengths in µm, speeds mm/s, accelerations mm/s².
  */
 object PressureAdvanceGeometry {
-    /** The base's layers (the first whole, the marks cut through the ones above): one piece, at least two. */
+    /** The base's layers (the marks cut through the ones above the first): its strips joined on all but the last, at least two. */
     const val baseLayers = 3
     /**
      * A wall's shortest slow lead-in and fast middle, and its slow tail, along it. plymeld's choices; the lead-in and the
@@ -63,7 +65,7 @@ object PressureAdvanceGeometry {
     const val wallX = 4_500L
     /** The base past the cells at the left and right. */
     const val margin = 3_000L
-    /** A row's labels from its front edge: clear of the tally's long notches ([PlateMarks.TALLY_LONG_IN]). */
+    /** A row's labels from its front edge: clear of the confirm plate's flow-step notches ([PlateMarks.TALLY_LONG_IN] and less). */
     const val front = 4_000L
     /** Label to arrow, arrow to wall. */
     const val gap = 1_500L
@@ -71,10 +73,22 @@ object PressureAdvanceGeometry {
     const val back = 4_000L
     /** A speed-change mark: a hole [PlateMarks.TALLY_W] along the wall and [PlateMarks.TALLY_IN] across, this far from the wall's edge. */
     const val holeGap = 1_000L
-    /** The corner beside a wall: its first line this far right of the wall, along the middle of the wall's fast middle, this long; its second this long to the right. */
+    /**
+     * The corner beside a wall: its first line this far right of the wall, along the middle of the wall's fast middle, this
+     * long; its second this long to the right, ending inside the wall's strip. plymeld's choices.
+     */
     const val cornerX = 3_500L
     const val cornerUp = 10_000L
-    const val cornerOut = 5_000L
+    const val cornerOut = 3_500L
+    /**
+     * Between two walls' strips of the base (across a row, and between the rows), so each wall snaps out on its own; the
+     * break-off tabs across a gap: this wide, reaching this far into each strip, on the base's layers but its last (so the
+     * plate lifts as one piece and a strip breaks off along its gap). plymeld's choices.
+     */
+    const val stripGap = 1_200L
+    const val tabW = 1_200L
+    const val tabReach = 500L
+    const val tabLayers = baseLayers - 1
     /** The labels' and arrows' layers (on the first wall layers). */
     const val labelLayers = 2
     /** The arrow's head, a share (%) of its length. plymeld's choice. */
@@ -120,7 +134,14 @@ class PressureAdvanceSpec(
     val levelGcode: String? = null,
     /** The walls' slow lead-in and fast middle (µm): long enough for the pressure to settle within them at the plate's highest value. */
     val leadUm: Long = PressureAdvanceGeometry.leadMin, val fastUm: Long = PressureAdvanceGeometry.fastMin,
+    /** The labels' and arrows' values (their own speed); null = the frame's. */
+    labels: PathValues? = null,
+    /** The firmware's smoothing of pressure advance (s), for the push ([PressureAdvancePush]). */
+    val smoothS: Double = 0.0,
+    /** The filament speed (mm/s) every move at a wall's value keeps within, the extruder's limit times the plate's share; null = none known. */
+    val pushLimit: Double? = null,
 ) {
+    val labels: PathValues = labels ?: frame
     /** Find (two rows, replicates, corners) or confirm (one row, three flow steps a value). */
     enum class Kind(val key: String) { FIND("find"), CONFIRM("confirm") }
 
@@ -166,7 +187,7 @@ class PressureAdvanceSpec(
     /** A value in seconds as the conditions block and the readings write it (to the hundred-thousandth). */
     fun valueText(v: Double): String = java.math.BigDecimal(v).setScale(5, java.math.RoundingMode.HALF_UP).stripTrailingZeros().toPlainString()
     /** The longest label, along Y (µm): every row's walls start behind it. */
-    val labelLength: Long get() = walls.mapNotNull { labelText(it) }.maxOfOrNull { PlateMarks.labelWidth(it) } ?: 0L
+    val labelLength: Long by lazy { walls.mapNotNull { labelText(it) }.distinct().maxOfOrNull { PlateMarks.labelWidth(it) } ?: 0L }
     /** The arrow in front of each wall: as long as a label is tall ([PlateMarks.LABEL_H]); see [PressureAdvancePlate.arrow]. */
     val arrowLength: Long get() = PlateMarks.LABEL_H
     val wallLength: Long get() = leadUm + fastUm + g.tail
@@ -191,8 +212,56 @@ class PressureAdvanceSpec(
     val filamentMm2: Double get() = Math.PI * filamentDiameterMm * filamentDiameterMm / 4
     fun beadMm2(w: Long, h: Long): Double { val hm = h / 1000.0; return hm * (w / 1000.0 - hm * (1 - Math.PI / 4)) }
 
-    /** The base's front edge for a row's tally ([PlateMarks.between]): the cells' far edges from the left. */
-    fun cellBounds(): List<Long> = (0 until perRow).map { g.margin + (it + 1) * g.pitch }
+
+    /** This specification with [limit] as its push limit (a check's control: the same plate read against another limit). */
+    fun withPushLimit(limit: Double?): PressureAdvanceSpec = PressureAdvanceSpec(tool, spool, kind, walls, layerUm, firstLayerUm, widthUm, firstWidthUm, filamentDiameterMm,
+        flowRatio, tempC, firstTempC, fanPct, adhesion, frame, slowSpeed, accel, framePa, liftUm, originXUm, originYUm, levelGcode, leadUm, fastUm, labels, smoothS, limit)
+
+    /** The filament per mm of a wall's line over its length (the bead at the flow ratio, over the filament's cross-section). */
+    val filamentPerMm: Double get() = beadMm2(widthUm, layerUm) * flowRatio / filamentMm2
+    /**
+     * The extruder's fastest filament speed (mm/s) at wall [w]'s value ([PressureAdvancePush.peak]): the largest of its speed
+     * changes, from rest to the slow lead-in, the step to its fast middle, and (on the find plate) its corner from rest to the
+     * fast speed. 0 where the plate sets no value (a machine's own).
+     */
+    fun peakOf(w: PressureAdvanceWall): Double {
+        val k = w.value ?: return 0.0
+        val r = filamentPerMm
+        return listOfNotNull(PressureAdvancePush.peak(k, 0.0, slowSpeed, accel, smoothS, r), PressureAdvancePush.peak(k, slowSpeed, w.fastSpeed, accel, smoothS, r),
+            if (corners) PressureAdvancePush.peak(k, 0.0, w.fastSpeed, accel, smoothS, r) else null).max()
+    }
+
+    /**
+     * Each wall's strip of the base (µm, before placing: x0, y0, x1, y1): its cell in its row, the first and last taking the
+     * base's margins, [PressureAdvanceGeometry.stripGap] between neighbors (across a row and between the rows), so each wall
+     * snaps out on its own strip.
+     */
+    fun strip(row: Int, position: Int): LongArray {
+        val h = g.stripGap / 2
+        val x0 = if (position == 0) 0L else g.margin + position * g.pitch + h
+        val x1 = if (position == perRow - 1) baseW else g.margin + (position + 1) * g.pitch - h
+        val y0 = if (row == 0) 0L else row * rowDepth + h
+        val y1 = if (row == rows - 1) baseD else (row + 1) * rowDepth - h
+        return longArrayOf(x0, y0, x1, y1)
+    }
+    /**
+     * The break-off tabs joining the strips (µm, before placing): across each gap between two strips in a row, two (at a
+     * quarter and three quarters of the row's depth); across the gap between the rows, one under each wall's strip, at the
+     * strip's middle. Each [PressureAdvanceGeometry.tabW] wide, reaching [PressureAdvanceGeometry.tabReach] into each strip.
+     */
+    fun tabs(): List<LongArray> {
+        val out = ArrayList<LongArray>()
+        val t = g.tabW / 2; val reach = g.tabReach
+        for (r in 0 until rows) for (k in 1 until perRow) {
+            val x = g.margin + k * g.pitch
+            for (q in listOf(1, 3)) { val y = r * rowDepth + rowDepth * q / 4; out += longArrayOf(x - g.stripGap / 2 - reach, y - t, x + g.stripGap / 2 + reach, y + t) }
+        }
+        for (r in 1 until rows) for (k in 0 until perRow) {
+            val s = strip(r, k); val x = (s[0] + s[2]) / 2; val y = r * rowDepth
+            out += longArrayOf(x - t, y - g.stripGap / 2 - reach, x + t, y + g.stripGap / 2 + reach)
+        }
+        return out
+    }
     val baseLabel: String get() = "base"
     fun labelCell(w: PressureAdvanceWall) = "label ${w.row + 1}.${w.position + 1}"
 }
@@ -202,9 +271,9 @@ class PressureAdvanceSpec(
  * catch them: "value" (wall 1.3 set to wall 1.4's value), "command" (no command before wall 2.2: it prints at wall
  * 2.1's value), "order" (the back row in the front row's order), "direction" (wall 1.2 printed back to front on odd layers),
  * "speed" (wall 1.1's middle at the slow speed: no speed change), "holes" (no speed-change marks), "chamfer" (no chamfer),
- * "tally" (no tally; on the confirm plate no flow-step notches either), "corner" (wall 1.2's corner left out); on the
- * confirm plate "steps" (wall 1.2's flow-step notches one short, centered: one missing, the rest moved) and "notch" (wall
- * 1.1's with one more at its next place).
+ * "gaps" (the base whole, no strips), "tabs" (the break-off tabs left out: the strips apart), "corner" (wall 1.2's corner
+ * left out); on the confirm plate "steps" (wall 1.2's flow-step notches one short, centered: one missing, the rest moved)
+ * and "notch" (wall 1.1's with one more at its next place).
  */
 class PressureAdvancePlate(private val spec: PressureAdvanceSpec, private val without: Set<String> = emptySet()) {
     private val g = PressureAdvanceGeometry
@@ -217,32 +286,35 @@ class PressureAdvancePlate(private val spec: PressureAdvanceSpec, private val wi
         return w.value
     }
 
-    /** The base's outline on [layer] (µm, before placing): its rectangle, chamfered at the front-left; above the first layer the tallies and the speed-change holes cut out. */
+    /**
+     * The base's outline on [layer] (µm, before placing): a strip per wall ([PressureAdvanceSpec.strip]) with the gaps
+     * between them, the first strip's front-left corner chamfered, joined by the break-off tabs on the base's layers but its
+     * last; above the first layer the speed-change holes and, on the confirm plate, the flow-step notches cut out.
+     */
     fun baseOutline(layer: Int): List<Polygon> {
         val b = longArrayOf(0, 0, spec.baseW, spec.baseD)
-        val outline = PlateMarks.box(b[0], b[1], b[2], b[3], if ("chamfer" in without) 0L else PlateMarks.CHAMFER)
-        if (layer == 0) return listOf(outline)
+        val parts = ArrayList<Polygon>()
+        if ("gaps" in without) parts += PlateMarks.box(b[0], b[1], b[2], b[3], if ("chamfer" in without) 0L else PlateMarks.CHAMFER)
+        else for (r in 0 until spec.rows) for (k in 0 until spec.perRow) { val s = spec.strip(r, k)
+            parts += PlateMarks.box(s[0], s[1], s[2], s[3], if (r == 0 && k == 0 && "chamfer" !in without) PlateMarks.CHAMFER else 0L) }
+        if (layer < g.tabLayers && "tabs" !in without) for (t in spec.tabs()) parts += PlateMarks.box(t[0], t[1], t[2], t[3], 0L)
+        val outline = Booleans.unionPositive(parts)
+        if (layer == 0) return outline
         val cuts = ArrayList<Polygon>()
-        if ("tally" !in without) {
-            if (spec.kind == PressureAdvanceSpec.Kind.FIND) {
-                cuts += PlateMarks.between(b, PlateMarks.Edge.FRONT, spec.cellBounds())
-                if (spec.rows > 1) cuts += PlateMarks.between(b, PlateMarks.Edge.BACK, spec.cellBounds())
-            } else {
-                // the flow step under each wall: 1, 2, or 3 notches, centered on the wall
-                for (w in spec.walls) {
-                    val n = w.step + 1; val first = spec.wallXUm(w) - PlateMarks.countLength(n) / 2 + PlateMarks.TALLY_W / 2
-                    val cut = when {
-                        "steps" in without && w.row == 0 && w.position == 1 -> n - 1
-                        "notch" in without && w.row == 0 && w.position == 0 -> n + 1
-                        else -> n
-                    }
-                    cuts += PlateMarks.count(b, PlateMarks.Edge.FRONT, if (cut < n) spec.wallXUm(w) - PlateMarks.countLength(cut) / 2 + PlateMarks.TALLY_W / 2 else first, cut)
+        if (spec.kind == PressureAdvanceSpec.Kind.CONFIRM) {
+            // the flow step under each wall: 1, 2, or 3 notches, centered on the wall
+            for (w in spec.walls) {
+                val n = w.step + 1; val first = spec.wallXUm(w) - PlateMarks.countLength(n) / 2 + PlateMarks.TALLY_W / 2
+                val cut = when {
+                    "steps" in without && w.row == 0 && w.position == 1 -> n - 1
+                    "notch" in without && w.row == 0 && w.position == 0 -> n + 1
+                    else -> n
                 }
-                cuts += PlateMarks.between(b, PlateMarks.Edge.BACK, spec.cellBounds())
+                cuts += PlateMarks.count(b, PlateMarks.Edge.FRONT, if (cut < n) spec.wallXUm(w) - PlateMarks.countLength(cut) / 2 + PlateMarks.TALLY_W / 2 else first, cut)
             }
         }
         if ("holes" !in without) for (w in spec.walls) cuts += holes(w)
-        return Booleans.difference(listOf(outline), cuts)
+        return Booleans.difference(outline, cuts)
     }
 
     /** Wall [w]'s speed-change marks: a hole at each, on the wall's left (µm, before placing). */
@@ -330,7 +402,7 @@ class PressureAdvancePlate(private val spec: PressureAdvanceSpec, private val wi
             steps += LayerStart(g.baseLayers + i, z, h)
             if (i < g.labelLayers) {
                 spec.framePa?.let { steps += SetPressureAdvance(spec.tool, it) }
-                for (w in spec.walls) lay("Outer wall", spec.labelCell(w), labelAndArrow(w), z, lw, h, spec.frame, if (i == 0) 0.0 else 90.0)
+                for (w in spec.walls) lay("Outer wall", spec.labelCell(w), labelAndArrow(w), z, lw, h, spec.labels, if (i == 0) 0.0 else 90.0)
             }
             for ((k, w) in spec.walls.withIndex()) {
                 val v = valueOf(w)

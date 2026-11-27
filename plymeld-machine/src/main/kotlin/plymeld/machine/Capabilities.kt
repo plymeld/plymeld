@@ -54,9 +54,10 @@ data class Command(val word: String, val purpose: String = "", val evidence: Lis
 
 /**
  * The g-code that sets pressure advance mid-print for the tool in hand: [template] in plymeld's template language, the
- * name `pressure_advance` standing for the value in [unit] ("s" or "ms"), with its [evidence].
+ * name `pressure_advance` standing for the value in [unit] ("s" or "ms"), with its [evidence]; [smoothS], the time the
+ * firmware smooths pressure advance over, null where the model gives none.
  */
-data class PressureAdvanceCommand(val template: String, val unit: String, val evidence: List<Evidence>) {
+data class PressureAdvanceCommand(val template: String, val unit: String, val evidence: List<Evidence>, val smoothS: Double? = null) {
     init { require(unit in UNITS) { "pressure advance unit '$unit' is not one of ${UNITS.joinToString()}" } }
     /** [seconds] in the command's unit. */
     fun inUnit(seconds: Double): Double = if (unit == "ms") seconds * 1000 else seconds
@@ -94,7 +95,11 @@ data class Fan(val name: String, val role: String, val command: String? = null, 
  */
 data class Toolhead(val index: Int, val geometry: Map<String, Double>, val evidence: List<Evidence>,
                     /** How long (s) its nozzle takes to heat to print temperature: a tool's preheat when it sets none (hardware.tool.<key>.heat.time); null = not known. */
-                    val heatS: Double? = null) {
+                    val heatS: Double? = null,
+                    /** The pressure-advance plate's ceiling for its tools (s) and its evidence: a tool's calibrate.pressure_advance.max when it sets none; null = not given. */
+                    val paCeilingS: Double? = null, val paCeilingEvidence: String? = null,
+                    /** The extruder's highest filament speed for a pressure-advance push (mm/s) and its evidence: a tool's extrude.speed.max when it sets none; null = not known. */
+                    val extrudeSpeedMax: Double? = null, val extrudeSpeedEvidence: String? = null) {
     /** [settings]: what a tool or its model's toolhead sets to give the tier, for a message naming what is missing. */
     enum class Tier(val keys: List<String>, val settings: String) {
         TIP_CONE(listOf("tip_cone_deg", "head.nozzle.height"), "head.nozzle.angle and head.nozzle.height"),

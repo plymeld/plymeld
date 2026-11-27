@@ -48,7 +48,7 @@ class PressureAdvanceValuesCommand : FilamentValuesCommand("pressure-advance pla
     private val into by option("--into", metavar = "filament|tool", help = "write the value as the filament's (hardware.filament.<key>.pressure_advance, the default) or the tool's (hardware.tool.<key>.pressure_advance)").choice("filament", "tool").default("filament")
 
     override fun help(context: com.github.ajalt.clikt.core.Context) =
-        "Turn a filled-in pressure-advance readings sheet into a pressure advance: on the find plate the middle of the bracket between the highest groove and the lowest ridge at the speed-up marks (flat walls inside it), refused when nothing flips, the two rows disagree by more than one step (one wall's place on the plate), the readings are out of order, a corner contradicts its wall, or a wall's two marks read alike; " +
+        "Turn a filled-in pressure-advance readings sheet into a pressure advance: on the find plate the middle of the bracket between the highest groove and the lowest ridge at the speed-up marks (flat walls inside it), refused when nothing flips, the two rows disagree by more than one step (one wall's place on the plate), the readings are out of order, or a wall's two marks read alike; the corners read beside the walls, where they flip from bulge to round, and whether that agrees with the walls (a disagreement reported, the value the walls'); " +
             "on the confirm plate whether the value holds at the three flow steps, depends on the flow, or gives none. Writes it into the config file that defines the filament (among the files -cf names; else plymeld's config folder's), or the tool's with --into tool, the plate, its conditions, and the bracket in the comment above it; prints the change, checks it, writes it, and records it for `plymeld journal --undo`."
 
     override fun run() {
@@ -191,9 +191,6 @@ object PressureAdvanceRecord {
         if (values.size < 2) throw IllegalArgumentException("$name: a find plate's walls have at least two values")
         // a step is one place on the plate (its values need not be evenly spaced): a bracket's place the middle of its two ends'
         fun place(v: Double) = values.indexOfFirst { Math.abs(it - v) < 1e-9 }.toDouble()
-        // the corners confirm their walls: one reading too low where the other reads too high is refused
-        s.walls.filter { it.cornerSign * it.sign < 0 }.takeIf { it.isNotEmpty() }?.let { ws -> throw IllegalArgumentException("$name: " + ws.joinToString("; ") {
-            "${it.name}'s corner reads ${it.corner} (${if (it.cornerSign < 0) "too low" else "too high"}) where its wall reads ${if (it.sign < 0) "too low" else "too high"}" } + ": the corner contradicts the wall; no value") }
         class Bracket(val row: String, val lo: Double, val hi: Double) { val mid get() = (lo + hi) / 2; val at get() = (place(lo) + place(hi)) / 2 }
         val brackets = rows.map { (row, ws) ->
             val byValue = ws.sortedBy { it.value!! }
@@ -205,7 +202,10 @@ object PressureAdvanceRecord {
             if (lo == null || hi == null) throw IllegalArgumentException("$name: " + when {
                 lo == null && hi == null -> "the $row row reads flat everywhere: nothing flips; the flow step is too small to show at this spacing, or the firmware sets its own value regardless; no value"
                 hi == null -> "the $row row never reads a ridge: no flip, the value is above the highest, ${n(byValue.last().value!!)} s: " +
-                    (s.top?.takeIf { "fit" in it }?.let { "the plate's top is $it. Reaching higher takes a longer bed axis, or a lower fast speed (--speeds SLOW,FAST, or the machine's print speed, hardware.machine.<key>.motion.print.speed), which shortens the walls; no value" }
+                    (s.top?.let { top -> when {
+                        "fit" in top.substringBefore(";") -> "the plate's top is $top. Reaching higher takes a longer bed axis; no value"
+                        "push" in top.substringBefore(";") -> "the plate's top is $top. Higher values would push the extruder past its limit on this plate; no value"
+                        else -> null } }
                         ?: "raise the tool's ceiling (hardware.tool.<key>.calibrate.pressure_advance.max) or give higher --values; no value")
                 else -> "the $row row never reads a groove: no flip, the value is at or below the lowest, ${n(byValue.first().value!!)} s" +
                     (if (byValue.first().value!! == 0.0) " (0: this filament and tool may need none, or the firmware adds its own)" else ": give lower --values") + "; no value"
@@ -230,11 +230,38 @@ object PressureAdvanceRecord {
             else "its neighbors ${n(lower)} and ${n(upper)} s, a step either side of the value: the bracket's ends, ${n(lo)} and ${n(hi)} s, to the labels' ${PressureAdvanceSpec.LABEL_STEP_S * 1000} ms, both at or above 0"
         val report = listOf("pressure advance from ${s.plate}:") + brackets.map { "  the ${it.row} row: grooves up to ${n(it.lo)} s, ridges from ${n(it.hi)} s" } +
             "  value: ${n(v)} s, the middle of ${n(lo)} to ${n(hi)} s ($agree), +/- ${n((hi - lo) / 2)} s" +
+            corners(s, lo, hi) +
             (if (fineStep >= PressureAdvanceSpec.LABEL_STEP_S - 1e-12) "  next, a finer value: ${next(s, "--bracket ${n(lo)}-${n(hi)}", "fine")} (${PlateValues} values, $apart)"
                 else "  next: the bracket is already as narrow as the labels' ${PressureAdvanceSpec.LABEL_STEP_S * 1000} ms allow a finer plate to space") +
             "  next, to confirm it: ${next(s, "--confirm ${n(v)} --confirm-step ${n(step)}", "confirm")} ($neighbors)"
         return Result(report, v, s.plate, s.conditions,
             "Readings: the walls' speed-up marks, grooves up to ${n(lo)} s and ridges from ${n(hi)} s ($agree; the plate's values ${values.joinToString(", ") { n(it) }} s); the value the middle, +/- ${n((hi - lo) / 2)} s.", s.filament, s.tool)
+    }
+
+    /**
+     * The corners, a reading of their own beside the walls' marks (too little pressure advance bulges a corner, too much rounds
+     * it in): per row, where its corners flip from bulge to round, and whether that agrees with the walls' bracket [lo] to
+     * [hi]. The value stays the walls' (their marks are read along a straight line at two speed changes, a corner at one
+     * turn the firmware takes at its own corner speed); a disagreement is reported, never averaged in.
+     */
+    private fun corners(s: Sheet, lo: Double, hi: Double): List<String> {
+        val read = s.walls.filter { it.corner != null && it.value != null }
+        if (read.isEmpty()) return emptyList()
+        return read.groupBy { it.row }.map { (row, ws) ->
+            val byValue = ws.sortedBy { it.value!! }
+            val outOfOrder = byValue.zipWithNext().firstOrNull { (a, b) -> b.cornerSign < a.cornerSign }
+            val bulge = byValue.filter { it.cornerSign < 0 }.maxOfOrNull { it.value!! }
+            val round = byValue.filter { it.cornerSign > 0 }.minOfOrNull { it.value!! }
+            val where = "  the $row row's corners: " + when {
+                outOfOrder != null -> "out of order (${n(outOfOrder.first.value!!)} s reads ${outOfOrder.first.corner}, ${n(outOfOrder.second.value!!)} s ${outOfOrder.second.corner})"
+                bulge == null && round == null -> "sharp everywhere"
+                else -> listOfNotNull(bulge?.let { "bulges up to ${n(it)} s" }, round?.let { "round from ${n(it)} s" }).joinToString(", ")
+            }
+            // the corners' flip lies between the highest bulge and the lowest round (open where one side is missing)
+            val cLo = bulge ?: 0.0; val cHi = round ?: Double.MAX_VALUE
+            val agrees = outOfOrder == null && cLo < hi && cHi > lo
+            where + if (agrees) ": they agree with the walls" else ": they disagree with the walls' ${n(lo)} to ${n(hi)} s; the value is the walls'"
+        }
     }
 
     private fun confirm(s: Sheet, name: String): Result {

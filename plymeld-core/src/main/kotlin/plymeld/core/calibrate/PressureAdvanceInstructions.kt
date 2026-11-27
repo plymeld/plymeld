@@ -12,18 +12,19 @@ import java.util.Locale
 
 /**
  * The page that goes with each pressure-advance plate ([PressureAdvancePlate]): the question, what to do before printing,
- * the conditions, a labeled picture (the walls from above, their marks, the corners, the tallies, the chamfer) with a legend
- * drawing the three readings, how to read each wall, what each kind of result means (decided before printing), and how the
- * readings become a value.
+ * the conditions and the plate's limits, a labeled picture (the walls on their strips from above, their marks, the corners,
+ * the chamfer) with a legend drawing the three readings, how to read each wall (snapped out on its strip, held against a
+ * light and in a raking light, each drawn; a fingernail as a cross-check), the corners as a reading of their own, what each
+ * kind of result means (decided before printing), and how the readings become a value.
  */
 object PressureAdvanceInstructions {
     /** A wall's reading at a mark: thin just after it, as the rest of the line, or fat. */
     val MARKS = listOf("groove", "flat", "ridge")
     val MARK_MEANING = mapOf(
-        "groove" to "the wall is thinner just after the mark than a few millimeters on: a shallow vertical channel up the wall's face, the fingernail dips into it",
-        "flat" to "nothing to see or feel: the face runs on past the mark as it was",
-        "ridge" to "the wall is fatter just after the mark: a vertical bead up the face, the fingernail catches on it")
-    /** A corner's reading (the find plate's cross-check): bulging (too low), sharp, or rounded or gapped (too high). */
+        "groove" to "the wall is thinner just after the mark than a few millimeters on: held against a light it shows a brighter band there; in a raking light a bright line runs up the face (a shallow channel, the fingernail dips into it)",
+        "flat" to "nothing to see: against a light and in a raking light the face runs on past the mark as it was",
+        "ridge" to "the wall is fatter just after the mark: held against a light it shows a darker band there; in a raking light a ridge up the face casts a shadow (the fingernail catches on it)")
+    /** A corner's reading, its own beside the marks: bulging (too low), sharp, or rounded or gapped (too high). */
     val CORNERS = listOf("bulge", "sharp", "round")
     val CORNER_MEANING = mapOf(
         "bulge" to "the corner's outside swells: a blob or a lip where the two lines meet",
@@ -38,18 +39,22 @@ object PressureAdvanceInstructions {
         /** The config's pressure advance for the tool (s), or null; whether the machine sets its own. */
         val configuredPa: Double?, val machineOwn: Boolean,
         val retractMm: Double, val date: java.time.LocalDate = java.time.LocalDate.now(),
-        /** A first plate's top and why it is there (the tool's ceiling, or the highest value whose walls fit the bed); null = none of plymeld's choosing. */
+        /** A first plate's top and why it is there (the tool's ceiling, the highest value the extruder's push allows, or the highest value whose walls fit the bed); null = none of plymeld's choosing. */
         val top: String? = null,
+        /** The plate's limits as it states them: its share of the filament's maximum flow, and its push limit or that none is known. */
+        val limits: String = "",
     )
 
-    /** Writes [mdFile] and its picture beside it (same name, .png). */
+    /** Writes [mdFile], its picture of the plate beside it (same name, .png), and its picture of the two ways to read a wall (-reading.png). */
     fun write(mdFile: java.nio.file.Path, spec: PressureAdvanceSpec, plate: PressureAdvancePlate, info: Info) {
-        val png = mdFile.resolveSibling(mdFile.fileName.toString().removeSuffix(".md") + ".png")
+        val stem = mdFile.fileName.toString().removeSuffix(".md")
+        val png = mdFile.resolveSibling("$stem.png"); val reading = mdFile.resolveSibling("$stem-reading.png")
         picture(png, spec, plate)
-        java.nio.file.Files.writeString(mdFile, markdown(spec, info, png.fileName.toString()))
+        readingPicture(reading)
+        java.nio.file.Files.writeString(mdFile, markdown(spec, info, png.fileName.toString(), reading.fileName.toString()))
     }
 
-    fun markdown(spec: PressureAdvanceSpec, info: Info, pngName: String): String {
+    fun markdown(spec: PressureAdvanceSpec, info: Info, pngName: String, readingPng: String = "reading.png"): String {
         val sb = StringBuilder()
         fun l(s: String = "") { sb.append(s).append('\n') }
         val g = PressureAdvanceGeometry
@@ -89,7 +94,9 @@ object PressureAdvanceInstructions {
         l(if (spec.firstTempC != spec.tempC) "| nozzle temperature | the walls at ${spec.tempC} C (the filament's print temperature), waited for with the head parked in front of the plate; the base's first layer at ${spec.firstTempC} C |"
             else "| nozzle temperature | ${spec.tempC} C throughout (the filament's print temperature) |")
         l("| layer height, line width | ${n(spec.layerUm / 1000.0, 2)} mm, ${n(spec.widthUm / 1000.0, 2)} mm; the walls ${spec.wallLayers} layers above a ${g.baseLayers}-layer base |")
-        l("| the walls' speeds | a ${n(spec.leadUm / 1000.0, 0)} mm lead-in at ${n(spec.slowSpeed, 0)} mm/s, a ${n(spec.fastUm / 1000.0, 0)} mm middle at ${spec.walls.map { it.fastSpeed }.distinct().joinToString(", ") { n(it, 0) }} mm/s, a ${n(g.tail / 1000.0, 0)} mm tail at ${n(spec.slowSpeed, 0)} mm/s (a visible wall's speed and the machine's print speed, each held to the filament's maximum flow) |")
+        l("| the walls' speeds | a ${n(spec.leadUm / 1000.0, 0)} mm lead-in at ${n(spec.slowSpeed, 0)} mm/s, a ${n(spec.fastUm / 1000.0, 0)} mm middle at ${spec.walls.map { it.fastSpeed }.distinct().joinToString(", ") { n(it, 0) }} mm/s, a ${n(g.tail / 1000.0, 0)} mm tail at ${n(spec.slowSpeed, 0)} mm/s (a visible wall's speed and the machine's print speed, each held to the plate's share of the filament's maximum flow) |")
+        l("| the base and the labels | the first layer ${n(spec.firstWidthUm / 1000.0, 2)} mm lines (the first-layer line width) at ${n(spec.adhesion.speed, 0)} mm/s; above it ${n(spec.frame.speed, 0)} mm/s; the labels and arrows at ${n(spec.labels.speed, 0)} mm/s (a visible wall's speed) |")
+        if (info.limits.isNotEmpty()) l("| the plate's limits | ${info.limits} |")
         l("| flow step | ${spec.walls.map { spec.flowStep(it) }.distinct().joinToString(", ") { n(it, 1) }} mm3/s (the defect grows with it) |")
         l("| acceleration | ${n(spec.accel, 0)} mm/s2 (the machine's print acceleration) |")
         l("| flow ratio | ${n(spec.flowRatio, 3)} |")
@@ -98,36 +105,46 @@ object PressureAdvanceInstructions {
             find -> "each wall its own: ${values.joinToString(", ") { spec.valueText(it) }} s; the base and the labels at ${spec.framePa?.let { v(it) + if (info.configuredPa != null) " (the config's)" else " (the plate's lowest)" } ?: "none"} |"
             else -> "each wall its own: ${values.joinToString(", ") { spec.valueText(it) }} s; the base and the labels at ${spec.framePa?.let { v(it) } ?: "none"} |"
         })
-        l("| the firmware's pressure-advance smoothing | its own (plymeld sets none) |")
+        l("| the firmware's pressure-advance smoothing | its own (plymeld sets none); ${n(spec.smoothS, 3)} s read for the extruder's push |")
         l("| the values' resolution | ${n(PressureAdvanceSpec.LABEL_STEP_S * 1000, 1)} ms: every value printed to a tenth of a millisecond, as its label shows it |")
         info.top?.let { l("| the plate's top | $it |") }
-        l("| the walls' stretches | a ${n(spec.leadUm / 1000.0, 0)} mm lead-in and a ${n(spec.fastUm / 1000.0, 0)} mm middle: long enough, at these speeds and this acceleration, for the pressure to settle within them up to ${spec.valueText(info.settlesUpToS)} s (plymeld's pressure model); faster speeds or a higher value need longer walls |")
+        l("| the walls' stretches | a ${n(spec.leadUm / 1000.0, 0)} mm lead-in and a ${n(spec.fastUm / 1000.0, 0)} mm middle: long enough, at these speeds and this acceleration, for the pressure to settle within them up to ${spec.valueText(info.settlesUpToS)} s (plymeld's pressure model); a higher value needs longer walls |")
         l("| bed, part fan, retraction | ${info.bedTempC} C; off on the first layer, ${n(spec.fanPct, 0)} % above; ${n(info.retractMm, 2)} mm, between walls only |")
         l()
         l("## The plate")
         l()
-        l("![The plate from above: the walls, their marks and labels, the corners, the tallies, and the chamfer; below, the three readings]($pngName)")
+        l("![The plate from above: the walls on their strips, their marks and labels, the corners, and the chamfer; below, the three readings]($pngName)")
         l()
         l("- **The origin**: the base's front-left corner is cut off. The front faces you.")
+        l("- **A strip per wall**: the base is cut into a strip under each wall, a gap between neighbors bridged by small break-off tabs, so the plate lifts off the bed in one piece and each wall then snaps out on its own strip, both faces free to look through and along.")
         l("- **Every wall prints from the front to the back** on every layer, the way its **arrow** points; in front of the arrow, its **value in milliseconds**, written along the wall (`40` is 0.04 s).")
         l("- **The marks**: on each wall's left, two small holes in the base: the front one where the head **starts to speed up**, the back one where it **starts to slow down**. The defect is just behind each hole, in the first few millimeters of the wall after it.")
         if (find) {
-            l("- **Two rows**: the front row's values rise from the left, the back row's fall from the left: each value is printed twice. A tally in the base's front edge (the front row) and back edge (the back row) marks where one wall's place ends and the next begins; count the notches from the chamfered side for a wall's place, every ${PlateMarks.TALLY_LONG_EVERY}th long.")
-            l("- **A corner beside each wall** (two short lines meeting square, on the wall's right, at its value and its fast speed): read only to confirm the wall.")
-        } else l("- **The flow steps**: under each wall, in the base's front edge, one notch for the small step, two for the medium, three for the large. The back edge's tally marks where each wall's place ends.")
+            l("- **Two rows**: the front row's values rise from the left, the back row's fall from the left: each value is printed twice. Each wall's value is printed on its own strip; count the strips from the chamfered side for a wall's place.")
+            l("- **A corner beside each wall** (two short lines meeting square, on the wall's right, at its value and its fast speed): a reading of its own, beside the wall's marks.")
+        } else l("- **The flow steps**: under each wall, in its strip's front edge, one notch for the small step, two for the medium, three for the large.")
         l()
         l("## How to read the walls")
         l()
-        l("Let the plate cool, then look at each wall's **left face** with a light raking along it from the front or the back, and run a fingernail up the face just behind each hole. Compare the stretch just behind the hole with the same face a few millimeters further back. Write one word per mark:")
+        l("Let the plate cool, lift it off, and snap each wall out on its strip (bend along the gap; the tabs break). Compare the stretch of wall just behind each hole with the same wall a few millimeters further back, two ways:")
+        l()
+        l("- **Against a light**: hold the strip up with a light behind the wall (a window, a lamp, a phone's torch): a thinner stretch lets more light through and shows **brighter**, a thicker one **darker**.")
+        l("- **In a raking light**: in a dim room, hold a light low, almost along the wall's face: a ridge casts a **shadow** beside it, a groove shows as a **bright line**.")
+        l()
+        l("![Reading a wall: held against a light (left) and in a raking light (right), a groove, a flat stretch, and a ridge just after the mark]($readingPng)")
+        l()
+        l("A fingernail run up the face just behind each hole is a cross-check: it dips into a groove and catches on a ridge. Write one word per mark:")
         l()
         for (m in MARKS) l("- **$m**: ${MARK_MEANING.getValue(m)}.")
         l()
         l("The **speed-up mark** (the front hole) is the reading. The **slow-down mark** (the back hole) must read the opposite (a groove there with a ridge at the speed-up mark, or both flat); where both read the same (two grooves or two ridges), the wall shows something other than pressure advance, and the readings are refused.")
         if (find) {
             l()
-            l("Then each wall's **corner**, its outside edge where the two lines meet:")
+            l("Then each wall's **corner**, its outside edge where the two lines meet, a reading of its own (too little pressure advance bulges it, too much rounds it in):")
             l()
             for (c in CORNERS) l("- **$c**: ${CORNER_MEANING.getValue(c)}.")
+            l()
+            l("`values` reports where the corners flip from bulge to round beside the walls' bracket and whether the two agree; the value is the walls' (their marks are read along a straight line, a corner at one turn the printer takes at its own corner speed), and a disagreement is reported, not averaged in.")
         }
         l()
         l("The lead-in and the middle are ${n(spec.leadUm / 1000.0, 0)} and ${n(spec.fastUm / 1000.0, 0)} mm long so that the pressure settles within them, at these speeds, up to a true pressure advance of ${v(info.settlesUpToS)} (plymeld's pressure model), at least the plate's highest value: up to there the slow-down mark reads opposite to the speed-up mark. Should the true value lie above it, both marks may read alike and the readings are refused; the speed-up mark is the one that flips at the true value.")
@@ -141,7 +158,9 @@ object PressureAdvanceInstructions {
             l("| the change spans several flat walls | the flow step is too small for the spacing: the value is honest but wide; a fine plate (`--bracket`) narrows it |")
             l("| both marks the same on a wall | something other than pressure dominates there (the firmware's acceleration limits, a slipping extruder at high values, or a pressure that does not settle within the middle); refused |")
             l("| no defect anywhere, even at 0 | the firmware applies its own value regardless, or the step is too small: check that no value of the printer's own replaces the file's |")
-            l("| grooves everywhere | the ceiling is too low: raise the tool's `calibrate.pressure_advance.max`, or give higher `--values` |")
+            l("| grooves everywhere | the value lies above the plate's top: raise the tool's `calibrate.pressure_advance.max`, or give higher `--values`, where the top is the ceiling; where it is the bed's, a longer bed axis; where it is the extruder's push limit, this extruder cannot reach it on this plate |")
+            l("| the corners flip somewhere else than the walls | reported beside the value, which stays the walls': a corner is taken at the printer's corner speed, so it carries more than pressure advance |")
+            l("| stringing, blobs, or clicking on the highest walls | the extruder slipped or squirted at its push: set the tool's `extrude.speed.max` (the plate then keeps its walls within its share of it) |")
             l("| ridges everywhere | even the lowest value is too high: 0 on a first plate means the firmware adds its own |")
             l("| the two rows disagree by more than one step (one wall's place on the plate) | position or print order matters (cooling, the bed's warm side); refused |")
             l("| walls wobble or fall | a single line is too frail at this height |")
@@ -161,7 +180,58 @@ object PressureAdvanceInstructions {
         return sb.toString()
     }
 
-    /** The picture: the plate from above (the walls, their marks, corners, labels, tallies, the chamfer) and a legend of the three readings. */
+    /**
+     * The two ways to read a wall, drawn: a wall's face seen square on with the mark's hole below it, a groove, a flat
+     * stretch, and a ridge just after the mark, held against a light behind it (a thinner stretch brighter, a thicker one
+     * darker) and in a raking light along its face from the left (a groove a bright line, a ridge a shadow beside it).
+     */
+    fun readingPicture(file: java.nio.file.Path) {
+        System.setProperty("java.awt.headless", "true")
+        val W = 1600; val H = 520
+        val img = BufferedImage(W, H, BufferedImage.TYPE_INT_RGB)
+        val gr = img.createGraphics()
+        gr.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        gr.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
+        gr.color = Color(250, 250, 252); gr.fillRect(0, 0, W, H)
+        gr.color = Color.BLACK; gr.font = Font("SansSerif", Font.BOLD, 22)
+        gr.drawString("Reading a wall snapped out on its strip: its face square on, printing left to right, the mark's hole below it", 40, 36)
+        val panelW = (W - 120) / 2; val subW = (panelW - 40) / 3
+        for ((p, how) in listOf("held against a light behind it", "in a raking light along its face, from the left").withIndex()) {
+            val px0 = 40 + p * (panelW + 40)
+            gr.color = Color.BLACK; gr.font = Font("SansSerif", Font.BOLD, 18)
+            gr.drawString(how, px0, 80)
+            for ((i, m) in MARKS.withIndex()) {
+                val x0 = (px0 + i * (subW + 20)).toDouble(); val y0 = 110.0; val fw = subW.toDouble(); val fh = 300.0
+                val xm = x0 + fw * 0.35; val xr = xm + fw * 0.25
+                if (p == 0) {
+                    // a backlit face: the plastic's light through it, brighter where thinner, darker where thicker
+                    gr.color = Color(150, 120, 70); gr.fill(Rectangle2D.Double(x0, y0, fw, fh))
+                    if (m != "flat") { gr.color = if (m == "groove") Color(225, 200, 140) else Color(90, 70, 40); gr.fill(Rectangle2D.Double(xm, y0, xr - xm, fh)) }
+                } else {
+                    // a face in a raking light from the left: a groove's far side lit (a bright line), a ridge's far side in shadow
+                    gr.color = Color(120, 120, 128); gr.fill(Rectangle2D.Double(x0, y0, fw, fh))
+                    if (m == "groove") { gr.color = Color(235, 235, 240); gr.fill(Rectangle2D.Double(xr - 10, y0, 10.0, fh)) }
+                    if (m == "ridge") { gr.color = Color(220, 220, 228); gr.fill(Rectangle2D.Double(xm, y0, 10.0, fh)); gr.color = Color(40, 40, 46); gr.fill(Rectangle2D.Double(xr, y0, 22.0, fh)) }
+                }
+                // the mark's hole below the face, and the direction of travel
+                gr.color = Color(250, 250, 252); gr.fill(Rectangle2D.Double(xm - 8, y0 + fh + 6, 16.0, 14.0))
+                gr.color = Color(70, 70, 80); gr.stroke = BasicStroke(2f)
+                gr.draw(Line2D.Double(x0, y0 + fh + 36, x0 + 60, y0 + fh + 36)); gr.draw(Line2D.Double(x0 + 50, y0 + fh + 30, x0 + 60, y0 + fh + 36)); gr.draw(Line2D.Double(x0 + 50, y0 + fh + 42, x0 + 60, y0 + fh + 36))
+                gr.color = Color.BLACK; gr.font = Font("SansSerif", Font.BOLD, 17)
+                gr.drawString(m, x0.toInt(), (y0 + fh + 70).toInt())
+                gr.font = Font("SansSerif", Font.PLAIN, 13)
+                gr.drawString(when {
+                    m == "flat" -> "the same past the mark"
+                    p == 0 -> if (m == "groove") "brighter just after the mark" else "darker just after the mark"
+                    else -> if (m == "groove") "a bright line just after it" else "a shadow just after it"
+                }, x0.toInt(), (y0 + fh + 90).toInt())
+            }
+        }
+        gr.dispose()
+        javax.imageio.ImageIO.write(img, "png", file.toFile())
+    }
+
+    /** The picture: the plate from above (the walls on their strips, their marks, corners, labels, the chamfer) and a legend of the three readings. */
     fun picture(file: java.nio.file.Path, spec: PressureAdvanceSpec, plate: PressureAdvancePlate) {
         System.setProperty("java.awt.headless", "true")
         val b = plate.bounds()
