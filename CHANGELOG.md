@@ -49,7 +49,7 @@ section the release's version and date.
   The base is a strip per wall with a gap between neighbors, joined by break-off tabs, so the plate lifts in one piece
   and each wall snaps out on its own strip, which carries its row's number. A hole in the base marks each speed change, an arrow the way each wall
   prints, each value is written in front of its wall in milliseconds; the page draws the three readings and how to read
-  a wall held against a light and in a raking light, a fingernail as a cross-check.
+  a wall held against a light and in a raking light, a fingernail as a cross-check, and gives no levelling step.
 - `--confirm VALUE --confirm-step S`: the value and its two neighbors, each at three flow steps; a machine that sets its
   own gets `--confirm machine`, its own value with no command written.
 - `plymeld calibrate pressure-advance readings` and `values`: the sheet to fill in (groove, flat, or ridge at each mark;

@@ -43,7 +43,7 @@ object PressureAdvanceInstructions {
         val top: String? = null,
         /** The plate's limits as it states them: its share of the filament's maximum flow, and its push limit or that none is known. */
         val limits: String = "",
-        /** Whether the printer levels the bed as a print starts when asked (`plymeld printer send --print --level`). */
+        /** Whether the printer can level the bed as a print starts when asked (`plymeld printer send --print --level`): mentioned as an option, never as a step. */
         val levelsOnStart: Boolean = false,
     )
 
@@ -76,19 +76,14 @@ object PressureAdvanceInstructions {
         if (info.warnings.isNotEmpty()) { l("**Warnings:**"); l(); for (wn in info.warnings) l("- $wn"); l() }
         l("## Before you print")
         l()
-        val steps = listOfNotNull(
-            when {
-                info.levels -> "**Level the bed.** This file runs the printer's bed levelling (hardware.machine.<key>.gcode.level) before the plate, once it has heated."
-                info.levelSkipped -> "**Level the bed.** This file does **not** level the bed (it was made with `--no-level`): run the printer's bed levelling yourself first."
-                info.levelsOnStart -> "**Level the bed** as the print starts: `plymeld printer send --print --level`, or the printer's own option when you start it."
-                else -> null
-            },
+        val steps = listOf(
             "**Measure the melt rate and the flow ratio first** (`plymeld calibrate melt`, `calibrate flow`): every line is held to a share of the filament's maximum flow, and the readings assume the line is laid at its flow ratio.",
             "**Set the printer's speed and flow to 100 %** (its screen's speed and flow overrides): the walls' speeds and their plastic are the readings' conditions.",
             "**Turn off any pressure-advance calibration the printer runs by itself before a print**" + (if (info.machineOwn) ": not here, where the machine's own value is what the plate checks" else ": the plate sets its own value before each wall, and a value the printer sets afterwards would replace them") + ".",
             "**Clean the bed**${if (info.plate.isNotEmpty()) ", and use the build plate the file was made for (`${info.plate}`)" else ""}; the bed heats to ${info.bedTempC} C.",
             "**Load `${info.filament}` on tool ${info.tool + 1}**, dry.")
         for ((k, st) in steps.withIndex()) l("${k + 1}. $st")
+        if (info.levelsOnStart) { l(); l("The printer can level the bed as the print starts, should you want it: `plymeld printer send --print --level`.") }
         l()
         l("## What the plate prints with")
         l()
@@ -167,7 +162,7 @@ object PressureAdvanceInstructions {
             l("| no defect anywhere, even at 0 | the firmware applies its own value regardless, or the step is too small: check that no value of the printer's own replaces the file's |")
             l("| grooves everywhere | the value lies above the plate's top: raise the tool's `calibrate.pressure_advance.max`, or give higher `--values`, where the top is the ceiling; where it is the bed's, a longer bed axis; where it is the extruder's push limit, this extruder cannot reach it on this plate |")
             l("| the corners flip somewhere else than the walls | reported beside the value, which stays the walls': a corner is taken at the printer's corner speed, so it carries more than pressure advance |")
-            l("| stringing, blobs, or clicking on the highest walls | the extruder slipped or squirted at its push: set the tool's `extrude.speed.max` (the plate then keeps its walls within its share of it) |")
+            l("| stringing, blobs, or clicking on the highest walls | the extruder slipped or squirted at its push: its highest filament speed is lower than the plate took it to be, or not set (see the plate's limits) |")
             l("| ridges everywhere | even the lowest value is too high: 0 on a first plate means the firmware adds its own |")
             l("| the two rows disagree by more than one step (one wall's place on the plate) | position or print order matters (cooling, the bed's warm side); refused |")
             l("| walls wobble or fall | a single line is too frail at this height |")

@@ -203,8 +203,8 @@ object PressureAdvanceRecord {
                 lo == null && hi == null -> "the $row row reads flat everywhere: nothing flips; the flow step is too small to show at this spacing, or the firmware sets its own value regardless; no value"
                 hi == null -> "the $row row never reads a ridge: no flip, the value is above the highest, ${n(byValue.last().value!!)} s: " +
                     (s.top?.let { top -> when {
-                        "fit" in top.substringBefore(";") -> "the plate's top is $top. Reaching higher takes a longer bed axis; no value"
-                        "push" in top.substringBefore(";") -> "the plate's top is $top. Higher values would push the extruder past its limit on this plate; no value"
+                        "fit" in top.substringBefore(";") -> "the bed set the plate's top; a longer bed axis reaches higher; no value"
+                        "push" in top.substringBefore(";") -> "the extruder's push limit set the plate's top; this extruder cannot reach higher on this plate; no value"
                         else -> null } }
                         ?: "raise the tool's ceiling (hardware.tool.<key>.calibrate.pressure_advance.max) or give higher --values; no value")
                 else -> "the $row row never reads a groove: no flip, the value is at or below the lowest, ${n(byValue.first().value!!)} s" +

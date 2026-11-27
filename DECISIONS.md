@@ -2691,7 +2691,10 @@ through a single wall; a dark or opaque one is read in a raking light), and in a
 slope facing the light shows bright and each facing away dark, so a groove shows a dark edge then a bright one and a
 ridge a bright edge then a dark one, read from the light's side; the page draws both, and a fingernail is a cross-check.
 Each strip carries its row's number (1 the front row, 2 the back), raised upright beside its wall's lead-in, since every
-value is printed in both rows and `values` compares the rows: a strip snapped out still says where it came from. The
+value is printed in both rows and `values` compares the rows: a strip snapped out still says where it came from.
+Neither the page nor the command tells the reader to level the bed: the reading does not depend on a levelled bed beyond
+what the reader already prints with; where the printer can level as a print starts, the page names that as an option.
+The command's output states one thing a line and cites each limit's setting once, its page once. The
 corner beside each wall is a reading of its own (a bulge too little, a rounded corner too much): `values` reports where
 the corners flip beside the walls' bracket and whether the two agree, and the value stays the walls', since a wall's
 marks are read along a straight line at two speed changes and a corner at one turn the firmware takes at its own

@@ -4,6 +4,7 @@ import com.github.ajalt.clikt.core.parse
 import io.kotest.assertions.withClue
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.StringSpec
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.doubles.plusOrMinus
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -206,7 +207,7 @@ class PressureAdvanceReadingsTest : StringSpec({
         valuesOf(long).max() shouldBe (1.0 plusOrMinus 1e-9)
         conditions(long).single { it.startsWith("; top = ") } shouldContain "the tool's ceiling"
         // the tool's lowest value above what fits: refused, saying why
-        shouldThrow<IllegalArgumentException> { plate(dir, "-cv", "hardware.tool.t1.calibrate.pressure_advance.max=1 s", "-cv", "hardware.tool.t1.calibrate.pressure_advance.min=0.9 s") }.message!! shouldContain "even from the tool's lowest value"
+        shouldThrow<IllegalArgumentException> { plate(dir, "-cv", "hardware.tool.t1.calibrate.pressure_advance.max=1 s", "-cv", "hardware.tool.t1.calibrate.pressure_advance.min=0.9 s") }.message!! shouldContain "from the tool's lowest value"
     }
 
     "the extruder's push: with a highest filament speed set, the first plate's top is the highest value whose corner from rest keeps within the share of it, said; unset, no push limit, said" {
@@ -383,7 +384,7 @@ class PressureAdvanceReadingsTest : StringSpec({
             "-cv", "hardware.filament.pla-white.melt.flow.max=40 mm3/s")
         fun depth(min: String, slowAt: Int, fast: Int): Double { val (status, lines) = said(*rangeOf(min), "-cv", "hardware.machine.example-corexy.build.y=900 mm", "--speeds", "$slowAt,$fast")
             withClue(lines.joinToString("\n")) { status shouldBe 0 }
-            return Regex("""^pressure-advance plate \(find\).*: [0-9.]+ x ([0-9.]+) mm""").find(lines.first { it.startsWith("pressure-advance plate (find)") })!!.groupValues[1].toDouble() }
+            return Regex("""^plate: [0-9.]+ x ([0-9.]+) mm""").find(lines.first { it.startsWith("plate: ") })!!.groupValues[1].toDouble() }
         val tried = ArrayList<String>()
         val (case, shallow) = listOf("0.9", "0.7").flatMap { t -> listOf(50, 30).map { t to it } }.asSequence().mapNotNull { (t, sl) ->
             val dTop = depth(t, sl, 160)
@@ -401,16 +402,54 @@ class PressureAdvanceReadingsTest : StringSpec({
         withClue(msg) { slow shouldBe "$slowAt"; (fast >= shallow.first && fast < 160) shouldBe true }
         // the speed named makes the plate; one faster is refused
         plate(dir, *high, "--speeds", "$slow,${PressureAdvanceRecord.n(fast)}")
-        shouldThrow<IllegalArgumentException> { plate(dir, *high, "--speeds", "$slow,${PressureAdvanceRecord.n(fast + 1)}") }.message!! shouldContain "even from the tool's lowest value"
+        shouldThrow<IllegalArgumentException> { plate(dir, *high, "--speeds", "$slow,${PressureAdvanceRecord.n(fast + 1)}") }.message!! shouldContain "from the tool's lowest value"
         // a lowest value too high for any fast speed on this bed: none named
         val none = shouldThrow<IllegalArgumentException> { plate(dir, "-cv", "hardware.tool.t1.calibrate.pressure_advance.max=1 s", "-cv", "hardware.tool.t1.calibrate.pressure_advance.min=0.9 s") }.message!!
         none shouldContain "No fast speed from"
         (Regex("""--speeds [0-9]""").containsMatchIn(none)) shouldBe false
         // a bed too short for the walls at their shortest: none named, and that said
         val short = shouldThrow<IllegalArgumentException> { plate(dir, "-cv", "hardware.machine.example-corexy.build.y=60 mm") }.message!!
-        short shouldContain "even with its walls at their shortest"
-        short shouldContain "of its Y axis"
+        short shouldContain "with its shortest walls"
+        short shouldContain "mm of Y with the head"
         short.contains("values from") shouldBe false
         (Regex("""--speeds [0-9]""").containsMatchIn(short)) shouldBe false
+    }
+
+    /** The lines of [lines] over 200 characters that name no file (a path or a file name with its extension). */
+    fun overLong(lines: List<String>) = lines.filter { it.length > 200 && !Regex("""[\w./-]+\.(gcode|toml|md|png)\b""").containsMatchIn(it) }
+
+    "every line the command prints, its refusals, and values' report: one thing a line, none over 200 characters but one naming a file; each limit's setting cited once in the output and once on the page" {
+        val one = arrayOf("-cv", "hardware.tool.t1.calibrate.pressure_advance.max=1 s")
+        // the push-limited plate made last, so its page is the one beside said.gcode
+        val runs = listOf(said(*one), said("--confirm", "0.04", "--confirm-step", "0.004"), said(*one, "--values", "0,0.1,0.2,0.3", "-cv", "hardware.tool.t1.extrude.speed.max=20 mm/s"),
+            said("-cv", "hardware.machine.example-corexy.build.y=60 mm"), said(*one, "-cv", "hardware.tool.t1.extrude.speed.max=20 mm/s"))
+        for ((status, lines) in runs) withClue(lines.joinToString("\n")) { overLong(lines).shouldBeEmpty(); (status == 0 || lines.size == 1) shouldBe true }
+        // the push-limited plate: each limit's setting once in the output, once on its page
+        val limited = runs[4].second
+        limited.count { "calibrate.pressure_advance.share" in it } shouldBe 1
+        limited.count { "extrude.speed.max" in it } shouldBe 1
+        val page = Files.readString(dir.resolve("said.md"))
+        Regex("calibrate\\.pressure_advance\\.share").findAll(page).count() shouldBe 1
+        Regex("extrude\\.speed\\.max").findAll(page).count() shouldBe 1
+        // the over-push refusal and the bed refusal: refused, one line each
+        runs[2].first shouldBe 1; runs[3].first shouldBe 1
+        // values' report on a first plate's sheet
+        overLong(values(fill(sheet(plate(dir, *one)), truth(0.05))).report).shouldBeEmpty()
+        // control: a line as the plate's values line was written, its top's whole reason and the push limit in it, is caught
+        val old = "values: 0, 0.01, 0.0128, 0.0163, 0.0209, 0.0267, 0.0341, 0.0436, 0.0558, 0.0713, 0.0927 s, the front row rising from the left, the back row falling; a corner beside each wall " +
+            "(0, then the tool's lowest value, 0.01 s (hardware.tool.<key>.calibrate.pressure_advance.min, plymeld default), up to the plate's top, each 1.28 times the one before, to the labels' 0.1 ms; " +
+            "the top 0.0927 s: the highest value the extruder's push allows (every move at a wall's value within 38.03 mm/s of filament, 75 % of the extruder's 50.7 mm/s))"
+        overLong(listOf(old)) shouldBe listOf(old)
+    }
+
+    "the bed refusal states the plate's own size: the same plate on a bed it fits is that size" {
+        val range = arrayOf("-cv", "hardware.tool.t1.calibrate.pressure_advance.max=0.1 s")
+        // at 0.1 s the walls are their shortest (10 and 30 mm) at these speeds, so the plate that fits is the refusal's
+        val (status, lines) = said(*range)
+        status shouldBe 0
+        val made = Regex("""^plate: ([0-9.]+) x ([0-9.]+) mm""").find(lines.first { it.startsWith("plate: ") })!!.groupValues.drop(1)
+        Files.readString(dir.resolve("said.gcode")).contains("lead-in 10 mm at") shouldBe true
+        val refusal = shouldThrow<IllegalArgumentException> { plate(dir, *range, "-cv", "hardware.machine.example-corexy.build.y=60 mm") }.message!!
+        Regex("""it is ([0-9.]+) x ([0-9.]+) mm""").find(refusal)!!.groupValues.drop(1) shouldBe made
     }
 })

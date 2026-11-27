@@ -222,11 +222,12 @@ class PressureAdvancePlateTest : StringSpec({
         // control: a word the page does not say is not found
         md.contains("tally") shouldBe false
         // levelling only where the file levels or the printer can as a print starts; a step for each
-        md.contains("Level the bed") shouldBe false
+        // no instruction to level, in any case; the option named only where the printer can level as a print starts
+        md.contains("Level the bed") shouldBe false; md.contains("--level") shouldBe false
         fun info(levels: Boolean, onStart: Boolean) = PressureAdvanceInstructions.Info("pla-generic", "qidi-q2", 0, "test", "pa.gcode", 40.0, 60,
             "pei", levels, false, emptyList(), 0.1, null, false, 0.8, levelsOnStart = onStart)
-        PressureAdvanceInstructions.markdown(find, info(true, false), "pa.png") shouldContain "This file runs the printer's bed levelling"
-        PressureAdvanceInstructions.markdown(find, info(false, true), "pa.png") shouldContain "printer send --print --level"
+        PressureAdvanceInstructions.markdown(find, info(true, false), "pa.png").let { it.contains("Level the bed") shouldBe false; it.contains("--level") shouldBe false }
+        PressureAdvanceInstructions.markdown(find, info(false, true), "pa.png").let { it shouldContain "printer send --print --level"; it.contains("Level the bed") shouldBe false }
         // the reading picture drawn
         val reading = java.nio.file.Files.createTempFile("pa-reading", ".png")
         PressureAdvanceInstructions.readingPicture(reading)
