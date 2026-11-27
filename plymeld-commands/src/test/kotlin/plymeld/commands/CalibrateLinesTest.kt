@@ -17,13 +17,16 @@ import java.nio.file.Path
 class CalibrateLinesTest : StringSpec({
     val samples = Path.of("..", "test-models", "config").toAbsolutePath().normalize()
 
-    "every calibration plate, readings, and values with long keys: every line within the limit, every comment written within the config files' width" {
-        val d = OutputLines.longNamed(samples)
-        val config = listOf("-cf", d.resolve("0*.toml").toString())
-        val model = listOf("-cv", "hardware.machine.${OutputLines.MACHINE}.model=qidi-q2")
-        val journal = listOf("--journal", d.resolve("journal.json").toString())
+    /**
+     * A copy of the sample config with long keys, the commands [run] in it (each must end with status 0) and what each
+     * printed; [check] holds every line they printed and every comment in the config files after them to the rules.
+     */
+    class Run(samples: Path) {
+        val d: Path = OutputLines.longNamed(samples)
+        val config = arrayOf("-cf", d.resolve("0*.toml").toString())
+        val model = arrayOf("-cv", "hardware.machine.${OutputLines.MACHINE}.model=qidi-q2")
+        val journal = arrayOf("--journal", d.resolve("journal.json").toString())
         val all = ArrayList<Pair<String, List<String>>>()
-        /** Runs `plymeld` [args], which must end with status 0; what it printed, kept in [all]. */
         fun run(vararg args: String): List<String> {
             val (status, lines) = OutputLines.run(args.toList())
             all += args.joinToString(" ") to lines
@@ -31,44 +34,67 @@ class CalibrateLinesTest : StringSpec({
             return lines
         }
         fun out(name: String) = d.resolve(name).toString()
-        fun gcode(name: String) = Files.readString(d.resolve(name))
-
-        // the filament plate (two of its families: all of them take more than a test's heap), and the pressure-advance
-        // plate and its sheet, before any values changes the filament
-        run("calibrate", "filament", *config.toTypedArray(), *model.toTypedArray(), "--tests", "overhangs,stringing", "-o", out("filament.gcode"))
-        run("calibrate", "pressure-advance", *config.toTypedArray(), *model.toTypedArray(), "-o", out("pa.gcode"))
-        run("calibrate", "pressure-advance", "readings", out("pa.gcode"), "-o", out("pa-readings.toml"))
-        // the melt plate and its values: each column's reading the filament's expected maximum flow, as the plate says it
-        val melt = run("calibrate", "melt", *config.toTypedArray(), *model.toTypedArray(), "-o", out("melt.gcode"))
-        val meltCols = Regex("""columns: ([0-9, ]+) C""").find(melt.joinToString("\n"))!!.groupValues[1].split(", ").map { it.trim() }
-        val expected = Regex("""expected maximum flow: ([0-9.]+)""").find(melt.joinToString("\n"))!!.groupValues[1]
-        run("calibrate", "melt", "values", *config.toTypedArray(), *journal.toTypedArray(), "--plate-gcode", out("melt.gcode"), *meltCols.map { "$it=$expected" }.toTypedArray())
-        // the flow plate and its values
-        val flow = run("calibrate", "flow", *config.toTypedArray(), *model.toTypedArray(), "-o", out("flow.gcode"))
-        val flowCols = Regex("""columns: ([0-9, ]+) C""").find(flow.joinToString("\n"))!!.groupValues[1].split(", ").map { it.trim() }
-        run("calibrate", "flow", "values", *config.toTypedArray(), *journal.toTypedArray(), "--plate-gcode", out("flow.gcode"), *flowCols.map { "$it=1" }.toTypedArray())
-        // the first-layer plate and its values: each column's slowest speed at its lowest height, a tile no plate leaves out
-        run("calibrate", "first-layer", *config.toTypedArray(), *model.toTypedArray(), "-o", out("first-layer.gcode"))
-        val tiles = Regex("""; first_layer_tiles = speeds ([0-9.]+)[^;]*? mm/s .*?heights ([0-9.]+)""").find(gcode("first-layer.gcode"))!!.groupValues
-        val blocks = Regex("""; block \d+ = (\d+) C""").findAll(gcode("first-layer.gcode")).map { it.groupValues[1] }.toList()
-        run("calibrate", "first-layer", "values", *config.toTypedArray(), *journal.toTypedArray(), "--plate-gcode", out("first-layer.gcode"), *blocks.map { "$it=${tiles[2]},${tiles[1]}" }.toTypedArray())
-        // the motion, ironing, and seam plates, their sheets, and their values
-        for ((kind, grade) in listOf("motion" to "hidden", "ironing" to "good", "seams" to "faint")) {
-            run("calibrate", kind, *config.toTypedArray(), *model.toTypedArray(), "-o", out("$kind.gcode"))
-            run("calibrate", kind, "readings", out("$kind.gcode"), "-o", out("$kind-readings.toml"))
-            // every "?" graded: a `grade = "?"` line, or a grid's cells
-            Files.writeString(d.resolve("$kind-readings.toml"), gcode("$kind-readings.toml").lines().joinToString("\n") { l ->
-                if (l == "grade = \"?\"") "grade = \"$grade\"" else if (Regex("""^[0-9.]+ mm/s2\s""").containsMatchIn(l)) l.replace("?", grade) else l })
-            run("calibrate", kind, "values", out("$kind-readings.toml"), "-o", out("$kind-values.toml"))
+        fun text(name: String): String = Files.readString(d.resolve(name))
+        /** Every line within its limit (the change a values shows, its comments as the file has them under the two spaces it is indented by), every comment in the config files. */
+        fun check(count: Int) {
+            all.size shouldBe count
+            all.none { it.second.isEmpty() } shouldBe true
+            val over = all.flatMap { (args, lines) -> (OutputLines.overLong(lines) + OutputLines.badComments(lines.map { it.removePrefix("  ") })).map { "$args\n    ${it.length}: $it" } } +
+                Files.list(d).use { fs -> fs.toList() }.filter { it.fileName.toString().matches(Regex("0.*\\.toml")) }.flatMap { f -> OutputLines.badComments(Files.readString(f).lines()).map { "${f.fileName}\n    ${it.length}: $it" } }
+            withClue(over.joinToString("\n")) { over.shouldBeEmpty() }
         }
-        // every command ran (each must end with status 0) and printed something
-        all.size shouldBe 18
-        all.none { it.second.isEmpty() } shouldBe true
-        // every line within its limit (the change a values shows, its comments as the file has them under the two spaces
-        // it is indented by), and every comment in the config files
-        val over = all.flatMap { (args, lines) -> (OutputLines.overLong(lines) + OutputLines.badComments(lines.map { it.removePrefix("  ") })).map { "$args\n    ${it.length}: $it" } } +
-            Files.list(d).use { fs -> fs.toList() }.filter { it.fileName.toString().matches(Regex("0.*\\.toml")) }.flatMap { f -> OutputLines.badComments(Files.readString(f).lines()).map { "${f.fileName}\n    ${it.length}: $it" } }
-        withClue(over.joinToString("\n")) { over.shouldBeEmpty() }
+    }
+
+    "the filament plate with long keys (two of its families: all of them take more than a test's heap)" {
+        val r = Run(samples)
+        r.run("calibrate", "filament", *r.config, *r.model, "--tests", "overhangs,stringing", "-o", r.out("filament.gcode"))
+        r.check(1)
+    }
+
+    "the pressure-advance plate and its sheet with long keys (its values in PressureAdvanceReadingsTest)" {
+        val r = Run(samples)
+        r.run("calibrate", "pressure-advance", *r.config, *r.model, "-o", r.out("pa.gcode"))
+        r.run("calibrate", "pressure-advance", "readings", r.out("pa.gcode"), "-o", r.out("pa-readings.toml"))
+        r.check(2)
+    }
+
+    "the melt plate and its values with long keys: each column's reading the filament's expected maximum flow, as the plate says it" {
+        val r = Run(samples)
+        val melt = r.run("calibrate", "melt", *r.config, *r.model, "-o", r.out("melt.gcode")).joinToString("\n")
+        val cols = Regex("""columns: ([0-9, ]+) C""").find(melt)!!.groupValues[1].split(", ").map { it.trim() }
+        val expected = Regex("""expected maximum flow: ([0-9.]+)""").find(melt)!!.groupValues[1]
+        r.run("calibrate", "melt", "values", *r.config, *r.journal, "--plate-gcode", r.out("melt.gcode"), *cols.map { "$it=$expected" }.toTypedArray())
+        r.check(2)
+    }
+
+    "the flow plate and its values with long keys" {
+        val r = Run(samples)
+        val flow = r.run("calibrate", "flow", *r.config, *r.model, "-o", r.out("flow.gcode")).joinToString("\n")
+        val cols = Regex("""columns: ([0-9, ]+) C""").find(flow)!!.groupValues[1].split(", ").map { it.trim() }
+        r.run("calibrate", "flow", "values", *r.config, *r.journal, "--plate-gcode", r.out("flow.gcode"), *cols.map { "$it=1" }.toTypedArray())
+        r.check(2)
+    }
+
+    "the first-layer plate and its values with long keys: each column's slowest speed at its lowest height, a tile no plate leaves out" {
+        val r = Run(samples)
+        r.run("calibrate", "first-layer", *r.config, *r.model, "-o", r.out("first-layer.gcode"))
+        val tiles = Regex("""; first_layer_tiles = speeds ([0-9.]+)[^;]*? mm/s .*?heights ([0-9.]+)""").find(r.text("first-layer.gcode"))!!.groupValues
+        val blocks = Regex("""; block \d+ = (\d+) C""").findAll(r.text("first-layer.gcode")).map { it.groupValues[1] }.toList()
+        r.run("calibrate", "first-layer", "values", *r.config, *r.journal, "--plate-gcode", r.out("first-layer.gcode"), *blocks.map { "$it=${tiles[2]},${tiles[1]}" }.toTypedArray())
+        r.check(2)
+    }
+
+    for ((kind, grade) in listOf("motion" to "hidden", "ironing" to "good", "seams" to "faint")) {
+        "the $kind plate, its sheet, and its values with long keys: every '?' graded $grade" {
+            val r = Run(samples)
+            r.run("calibrate", kind, *r.config, *r.model, "-o", r.out("$kind.gcode"))
+            r.run("calibrate", kind, "readings", r.out("$kind.gcode"), "-o", r.out("$kind-readings.toml"))
+            // every "?" graded: a `grade = "?"` line, or a grid's cells
+            Files.writeString(r.d.resolve("$kind-readings.toml"), r.text("$kind-readings.toml").lines().joinToString("\n") { l ->
+                if (l == "grade = \"?\"") "grade = \"$grade\"" else if (Regex("""^[0-9.]+ mm/s2\s""").containsMatchIn(l)) l.replace("?", grade) else l })
+            r.run("calibrate", kind, "values", r.out("$kind-readings.toml"), "-o", r.out("$kind-values.toml"))
+            r.check(3)
+        }
     }
 
     "control: a plate's line over the limit, a comment over the width, and one without its space are caught; a path counts as its file name" {
