@@ -2694,7 +2694,12 @@ Each strip carries its row's number (1 the front row, 2 the back), raised uprigh
 value is printed in both rows and `values` compares the rows: a strip snapped out still says where it came from.
 Neither the page nor the command tells the reader to level the bed: the reading does not depend on a levelled bed beyond
 what the reader already prints with; where the printer can level as a print starts, the page names that as an option.
-The command's output states one thing a line and cites each limit's setting once, its page once. The
+The command's output states one thing a line, each within 200 characters with a path counted as its file name (a
+command line to copy and run excepted), whatever the length of the user's own keys; it cites each limit's setting once,
+its page once, and a value given on the command line as set there, without the whole option again. The note every
+calibration's `values` writes above a value in the config is wrapped between words at 120 columns, each line starting
+`# `, as the config files' own comments are; a prediction prints as a line for the time and filament, a line for each
+place its motion limits come from, and a line for the tool changes. The
 corner beside each wall is a reading of its own (a bulge too little, a rounded corner too much): `values` reports where
 the corners flip beside the walls' bracket and whether the two agree, and the value stays the walls', since a wall's
 marks are read along a straight line at two speed changes and a corner at one turn the firmware takes at its own

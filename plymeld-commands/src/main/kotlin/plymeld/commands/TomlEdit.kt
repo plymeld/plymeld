@@ -63,7 +63,7 @@ object TomlEdit {
     }
 
     /**
-     * [path] set to [value] with [comment] (lines, without their "# ") directly above it: a line already holding the path
+     * [path] set to [value] with [comment] (lines, without their "# ", wrapped as [commentLines] wraps them) directly above it: a line already holding the path
      * goes first, with the comment directly above it ([unset]), so the new comment replaces the old.
      */
     fun setWithComment(text: String, path: String, value: String, comment: List<String>): String {
@@ -71,8 +71,26 @@ object TomlEdit {
         val lines = c.text.split("\n").toMutableList()
         val at = c.line - 1
         val indent = lines[at].takeWhile { it == ' ' || it == '\t' }
-        lines.addAll(at, comment.map { "$indent# $it" })
+        lines.addAll(at, commentLines(comment, indent))
         return lines.joinToString("\n")
+    }
+
+    /** The widest a comment line plymeld writes into a config file runs, in columns (its indent and `# ` counted). */
+    const val COMMENT_WIDTH = 120
+
+    /**
+     * [comment] (lines, without their "# ") as the comment lines plymeld writes: each at [indent], starting `# `, wrapped
+     * between words to at most [COMMENT_WIDTH] columns; a word longer than that (a path) stays whole, on a line of its own.
+     */
+    fun commentLines(comment: List<String>, indent: String = ""): List<String> = comment.flatMap { c ->
+        val out = ArrayList<String>(); val cur = StringBuilder()
+        for (word in c.split(' ').filter { it.isNotEmpty() }) {
+            if (cur.isNotEmpty() && indent.length + 2 + cur.length + 1 + word.length > COMMENT_WIDTH) { out += "$indent# $cur"; cur.clear() }
+            if (cur.isNotEmpty()) cur.append(' ')
+            cur.append(word)
+        }
+        out += "$indent# $cur"
+        out
     }
 
     /**

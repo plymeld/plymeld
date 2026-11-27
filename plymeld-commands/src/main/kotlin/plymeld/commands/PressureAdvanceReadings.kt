@@ -68,7 +68,7 @@ class PressureAdvanceValuesCommand : FilamentValuesCommand("pressure-advance pla
         try { ConfigFiles.readToml(after, t.file.toString()) } catch (e: IllegalArgumentException) { error("the change would leave ${t.file} unreadable (${e.message}); nothing written") }
         val got = valueWith(t, path, value, Dimension.TIME)
         check(Math.abs(got - v) < 1e-9) { "the value written gives $got s, not $v s: nothing written" }
-        val shown = comment.map { "# $it" } + "$path = \"$value\"" + listOfNotNull(TomlEdit.get(before, path)?.let { "(was \"$it\")" })
+        val shown = TomlEdit.commentLines(comment) + "$path = \"$value\"" + listOfNotNull(TomlEdit.get(before, path)?.let { "(was \"$it\")" })
         commit(t, before, after, shown, "plymeld calibrate pressure-advance values ${sheet.fileName}" + (if (into == "tool") " --into tool" else ""),
             under = if (into == "tool") "hardware.tool.${t.tool}" else "hardware.filament.${t.filament}")
     }
@@ -179,9 +179,13 @@ object PressureAdvanceRecord {
     fun values(text: String, name: String): Result {
         val s = parse(text, name)
         // a wall whose two marks read alike is not pressure's
-        s.walls.filter { it.void }.takeIf { it.isNotEmpty() }?.let { vs -> throw IllegalArgumentException("$name: " + vs.joinToString("; ") { "${it.name} reads ${it.speedUp} at both marks" } +
-            ": the slow-down mark must read the opposite of the speed-up mark, so something other than pressure advance shows there (the firmware's acceleration limits, a slipping extruder, or a pressure that does not settle within the wall's middle" +
-            (s.settles?.let { ": the plate's walls are long enough for it to settle up to a true value of $it, by plymeld's pressure model" } ?: "") + "); no value") }
+        // one line naming the cause, the walls and what else may show there on lines of their own
+        s.walls.filter { it.void }.takeIf { it.isNotEmpty() }?.let { vs -> throw IllegalArgumentException("$name: " +
+            (if (vs.size == 1) "${vs[0].name} reads ${vs[0].speedUp} at both marks" else "${vs.size} walls read the same at both marks") +
+            ": pressure advance reads the opposite at the slow-down mark; no value" +
+            (if (vs.size == 1) "" else vs.joinToString("") { "\n  ${it.name} reads ${it.speedUp} at both marks" }) +
+            "\n  something else shows there: the firmware's acceleration limits, a slipping extruder, or a pressure that does not settle within the wall's middle" +
+            (s.settles?.let { "\n  the plate's walls are long enough for it to settle up to a true value of $it, by plymeld's pressure model" } ?: "")) }
         return if (s.kind == "find") find(s, name) else confirm(s, name)
     }
 

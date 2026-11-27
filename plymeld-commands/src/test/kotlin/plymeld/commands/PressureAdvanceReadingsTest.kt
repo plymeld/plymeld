@@ -415,10 +415,13 @@ class PressureAdvanceReadingsTest : StringSpec({
         (Regex("""--speeds [0-9]""").containsMatchIn(short)) shouldBe false
     }
 
-    /** The lines of [lines] over 200 characters that name no file (a path or a file name with its extension). */
-    fun overLong(lines: List<String>) = lines.filter { it.length > 200 && !Regex("""[\w./-]+\.(gcode|toml|md|png)\b""").containsMatchIn(it) }
+    /**
+     * The lines of [lines] over 200 characters, a path counted as its file name alone (its folder is the user's), but a
+     * command line to run (in backquotes), which is copied whole rather than read.
+     */
+    fun overLong(lines: List<String>) = lines.filter { it.replace(Regex("""/[^\s'`]*/"""), "").length > 200 && "`plymeld " !in it }
 
-    "every line the command prints, its refusals, and values' report: one thing a line, none over 200 characters but one naming a file; each limit's setting cited once in the output and once on the page" {
+    "every line the command prints, its refusals, and values' report: one thing a line, none over 200 characters (a path counted as its file name) but a command line to run; each limit's setting cited once in the output and once on the page" {
         val one = arrayOf("-cv", "hardware.tool.t1.calibrate.pressure_advance.max=1 s")
         // the push-limited plate made last, so its page is the one beside said.gcode
         val runs = listOf(said(*one), said("--confirm", "0.04", "--confirm-step", "0.004"), said(*one, "--values", "0,0.1,0.2,0.3", "-cv", "hardware.tool.t1.extrude.speed.max=20 mm/s"),
@@ -440,6 +443,75 @@ class PressureAdvanceReadingsTest : StringSpec({
             "(0, then the tool's lowest value, 0.01 s (hardware.tool.<key>.calibrate.pressure_advance.min, plymeld default), up to the plate's top, each 1.28 times the one before, to the labels' 0.1 ms; " +
             "the top 0.0927 s: the highest value the extruder's push allows (every move at a wall's value within 38.03 mm/s of filament, 75 % of the extruder's 50.7 mm/s))"
         overLong(listOf(old)) shouldBe listOf(old)
+        // control: a refusal as the same-sign one was written, naming the readings file, is caught; its folder is not counted
+        val named = "/a/folder/of/the/users/readings.toml: the front row's wall 2 (0.01 s) reads groove at both marks: the slow-down mark must read the opposite of the speed-up mark, " +
+            "so something other than pressure advance shows there (the firmware's acceleration limits, a slipping extruder, or a pressure that does not settle within the wall's middle); no value"
+        overLong(listOf(named)) shouldBe listOf(named)
+        val deep = "/" + "folder/".repeat(40) + "readings.toml: the front row's wall 2 (0.01 s) reads groove at both marks: pressure advance reads the opposite at the slow-down mark; no value"
+        overLong(listOf(deep)).shouldBeEmpty()
+    }
+
+    /** The comment lines of [lines] over the config files' own width (TomlEdit.COMMENT_WIDTH) or not starting `# `. */
+    fun badComments(lines: List<String>) = lines.filter { it.trimStart().startsWith("#") && !it.startsWith("#:schema") && (it.length > TomlEdit.COMMENT_WIDTH || !it.trimStart().startsWith("# ")) }
+
+    "with a machine, filament, and tool key of 40 characters or more: every line the plate, values, the plates its suggestions make, and their refusals print within the limit, and every comment values writes into the config within the config files' width" {
+        val machine = "a-workshop-corexy-printer-with-a-much-longer-name"; val filament = "a-matte-silk-pla-in-a-deep-ocean-blue-color"; val tool = "a-left-hand-nozzle-with-a-hardened-steel-tip"
+        for (k in listOf(machine, filament, tool)) withClue(k) { (k.length >= 40) shouldBe true }
+        // the sample config with those keys in place of its own
+        val d = copy()
+        Files.list(d).use { fs -> fs.toList() }.forEach { p -> Files.writeString(p, Files.readString(p).replace("example-corexy", machine).replace("pla-white", filament)
+            .replace("tool.t1]", "tool.$tool]").replace("tool.t1.", "tool.$tool.")) }
+        Files.readString(d.resolve("01_TOOLS.toml")) shouldContain "[hardware.tool.$tool]"
+        val config = arrayOf("-cf", d.resolve("0*.toml").toString())
+        // a push limit through the model's toolhead, so the toolhead's setting is said
+        val base = config + arrayOf("-cv", "hardware.machine.$machine.model=qidi-q2", "-cv", "hardware.model.qidi-q2.toolhead.0.extrude.speed.max=50 mm/s")
+        val all = ArrayList<Pair<String, List<String>>>()
+        /** Runs the command line [args], which must end with status [want]; what it printed, line by line, kept in [all]. */
+        fun run(want: Int, vararg args: String) {
+            val lines = ArrayList<String>()
+            val status = Commands.invoke(args.toList(), { lines += it }, { lines += it })
+            all += args.joinToString(" ") to lines.flatMap { it.lines() }
+            withClue(all.last().let { (a, l) -> "$a\n${l.joinToString("\n")}" }) { status shouldBe want }
+        }
+        val first = d.resolve("first.gcode")
+        run(0, "calibrate", "pressure-advance", *base, "-o", first.toString())
+        Files.readString(first) shouldContain filament
+        // the tool's own limits, set on the command line under its key
+        run(0, "calibrate", "pressure-advance", *base, "-cv", "hardware.tool.$tool.extrude.speed.max=60 mm/s", "-cv", "hardware.tool.$tool.calibrate.pressure_advance.max=0.15 s", "-o", d.resolve("own.gcode").toString())
+        all.last().second.any { Regex("""hardware\.tool\.\S+\.extrude\.speed\.max""").containsMatchIn(it) } shouldBe true
+        // the over-push refusal and the bed refusal
+        run(1, "calibrate", "pressure-advance", *base, "--values", "0,0.1,0.2,0.3", "-cv", "hardware.tool.$tool.extrude.speed.max=20 mm/s", "-o", d.resolve("refused.gcode").toString())
+        run(1, "calibrate", "pressure-advance", *base, "-cv", "hardware.machine.$machine.build.y=60 mm", "-o", d.resolve("refused.gcode").toString())
+        // values on the first plate's sheet: its report, the change it writes into the config, the plates its suggestions make
+        val vs = planned(first)
+        val readings = d.resolve("readings.toml")
+        Files.writeString(readings, fill(sheet(first), truth((vs[4] + vs[5]) / 2)))
+        run(0, "calibrate", "pressure-advance", "values", *config, "--journal", d.resolve("journal.json").toString(), readings.toString())
+        val written = Files.readString(d.resolve("01_FILAMENTS.toml"))
+        written shouldContain "pressure_advance = "
+        val commented = written.lines().takeWhile { !it.startsWith("pressure_advance = ") }.takeLastWhile { it.startsWith("#") }
+        withClue(written) { (commented.size >= 3) shouldBe true }
+        val suggestions = suggested(values(Files.readString(readings)))
+        suggestions.size shouldBe 2
+        for (line in suggestions) {
+            val w = words(line)
+            w.first() shouldBe "plymeld"
+            withClue(line) { run(0, *w.drop(1).toTypedArray()) }
+        }
+        // the same-sign refusal: one wall, then two, reading alike at both marks
+        for (alike in listOf(listOf(vs[1]), listOf(vs[1], vs[2]))) {
+            Files.writeString(readings, fill(sheet(first)) { r, v, s -> truth((vs[4] + vs[5]) / 2)(r, v, s).let { t -> if (alike.any { Math.abs(it - v!!) < 1e-9 }) t.copy(second = t.first) else t } })
+            run(1, "calibrate", "pressure-advance", "values", *config, "--journal", d.resolve("journal.json").toString(), readings.toString())
+        }
+        all.any { (_, lines) -> lines.any { "at both marks" in it } } shouldBe true
+        // every line within its limit, all of them gathered: what each run printed (the change values shows, its comments as
+        // the file has them, under the two spaces it is indented by) and the comments written into the config
+        val over = all.flatMap { (args, lines) -> (overLong(lines) + badComments(lines.map { it.removePrefix("  ") })).map { "$args\n    ${it.length}: $it" } } +
+            badComments(written.lines()).map { "01_FILAMENTS.toml\n    ${it.length}: $it" }
+        withClue(over.joinToString("\n")) { over.shouldBeEmpty() }
+        // control: a comment line one column over the width, and one without its space, are caught
+        val wide = "# " + "x".repeat(TomlEdit.COMMENT_WIDTH - 1)
+        badComments(listOf(wide, "#x", "# " + "x".repeat(TomlEdit.COMMENT_WIDTH - 2))) shouldBe listOf(wide, "#x")
     }
 
     "the bed refusal states the plate's own size: the same plate on a bed it fits is that size" {

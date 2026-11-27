@@ -68,7 +68,7 @@ class InvestigateSliceCommand : CliktCommand(name = "slice") {
     private fun predicted(s: SliceSettings, setup: plymeld.model.Setup) {
         val changeS = (plymeld.model.Resolver.resolveOrNull(setup, "hardware.machine.tool_change.time")?.value as Number?)?.toDouble()
         val p = plymeld.core.Predict.gcode(Files.readString(output), s.machineDescription, changeS)
-        echo("predicted: $p")
+        p.lines().forEach { echo(it) }
         val text = Files.readString(output)
         val changes = plymeld.core.Predict.toolChanges(text)
         if (changes > 0) {

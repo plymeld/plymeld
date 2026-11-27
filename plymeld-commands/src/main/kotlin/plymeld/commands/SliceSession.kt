@@ -139,7 +139,7 @@ class SliceSession(private val keepSlicers: Boolean = true) {
         // what the file was made from (version, models, config, plan), at its end, for anyone reproducing it (SourceBlock)
         val text = SourceBlock.append(withMachineHeader(pictured, pr.config, setup, s, prediction), PlymeldVersion.value, pr.usedStack, pr.modelPaths, pr.planFile(plan), pr.config.machine, pr.usedKeys)
         Files.writeString(output, text)
-        echo("predicted: $prediction")
+        prediction.lines().forEach { echo(it) }
         // where the time goes, by feature (a feature that costs more than it should is hidden in the total alone)
         prediction.byFeature()?.let { echo("predicted by feature: $it") }
         echo(seamScar?.let { "seams: ${it.words()} (seam_scar)" } ?: "seams: not measured (a multi-filament object: its outer walls are laid per filament)")

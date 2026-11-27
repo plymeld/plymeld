@@ -73,7 +73,7 @@ class FirstLayerValuesCommand : FilamentValuesCommand("first-layer plate") {
         check(problems.isEmpty() && back != null) { "the window written does not read back (${problems.joinToString("; ")}): nothing written" }
         check(Math.abs(back.boreMm - bore) < 1e-9 && back.readings.size == good.size && good.sortedBy { it.tempC }.zip(back.readings).all { (g, r) ->
             Math.abs(r.tempC - g.tempC) < 1e-9 && Math.abs(r.heightMinMm - g.heightMm!!) < 1e-9 && Math.abs(r.speedMaxMmS - g.speedMmS!!) < 1e-9 }) { "the window written reads back other values than the readings: nothing written" }
-        val shown = comment.map { "# $it" } + set.map { (k, v) -> "${k.removePrefix("hardware.filament.${ConfigFiles.pathText(listOf(t.filament))}.")} = \"$v\"" } +
+        val shown = TomlEdit.commentLines(comment) + set.map { (k, v) -> "${k.removePrefix("hardware.filament.${ConfigFiles.pathText(listOf(t.filament))}.")} = \"$v\"" } +
             listOfNotNull(TomlEdit.get(before, "$key.bore")?.let { "(replaces the window that was there)" })
         val line = (listOf("plymeld calibrate first-layer values") + given.map { g -> "${g.tempC}=" + (g.heightMm?.let { "${n(it)},${n(g.speedMmS!!)}" } ?: "none") } +
             listOf("--plate-gcode", gcode.fileName.toString(), "--tool", "${t.toolN}")).joinToString(" ")

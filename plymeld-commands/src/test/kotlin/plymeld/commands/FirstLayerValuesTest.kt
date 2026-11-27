@@ -58,7 +58,7 @@ class FirstLayerValuesTest : StringSpec({
         run(dir, "210=0.24,100", "220=0.2,140")
         run(dir, "210=none", "220=0.24,60")
         window(dir)!!.readings.map { Triple(it.tempC, it.heightMinMm, it.speedMaxMmS) } shouldBe listOf(Triple(220.0, 0.24, 60.0))
-        Files.readString(f) shouldContain "no good tile at 210 C, left out"
+        Files.readString(f).replace("\n# ", " ") shouldContain "no good tile at 210 C, left out"   // the note read across its wrapped lines
         val j = Journal.read(dir.resolve("journal.json"))
         j.undo(); Journal.read(dir.resolve("journal.json")).undo()
         Files.readString(f) shouldBe original

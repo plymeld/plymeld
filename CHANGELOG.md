@@ -65,9 +65,14 @@ section the release's version and date.
 ### Changed
 
 - A calibration plate's refusal (a plate that does not fit, a value the config does not give, readings that give no
-  value) prints as one line, as plymeld's other refusals do, without the command line's usage; a mistake in the command
-  line's own form still shows it.
+  value) prints as plymeld's other refusals do, its cause on one line (any details on lines of their own below it),
+  without the command line's usage; a mistake in the command line's own form still shows it.
 - A command reading the config folder's files (no `-cf`) says so once, where a calibration plate said it twice.
+- A print's or a plate's prediction prints over several lines, one fact each: the time and filament, then the motion
+  limits from each place they come from (the config, or the machine model with its evidence), then the tool changes,
+  where it ran as one long line.
+- The note a calibration's `values` writes above a value in the config is wrapped between words at 120 columns, each
+  line starting `# `, as the config files' own comments are, where each of its parts was one long line.
 - The stroke font's "1", in every plate's raised labels, has a base and a flat flag at its top, where a slanted flag
   made it read as an arrow; its decimal point is a short upright bar two lines long, where a dot was a single short line.
 

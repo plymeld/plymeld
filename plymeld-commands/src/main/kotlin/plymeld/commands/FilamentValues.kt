@@ -81,7 +81,7 @@ abstract class FilamentValuesCommand(private val plateName: String) : ConfigComm
             val got = at.quantity(at.entry(TomlEdit.segments(path))!!, dim, site)
             check(Math.abs(got - p.value) < 1e-6) { "the value written gives $got at ${p.tempC} C, not the reading ${p.value}: nothing written" }
         }
-        val shown = comment.map { "# $it" } + "$path = \"$value\"" + listOfNotNull(TomlEdit.get(before, path)?.let { "(was \"$it\")" })
+        val shown = TomlEdit.commentLines(comment) + "$path = \"$value\"" + listOfNotNull(TomlEdit.get(before, path)?.let { "(was \"$it\")" })
         commit(t, before, after, shown, line)
     }
 

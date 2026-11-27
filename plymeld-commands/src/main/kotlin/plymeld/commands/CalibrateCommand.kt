@@ -730,7 +730,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             frameAccel = frameAccel, frameParts = frameParts, frameWhy = frameWhy))
         echo("-> $output")
         echo("-> $page (and ${page.fileName.toString().removeSuffix(".md")}.png): before printing, the conditions, the picture, how to read it")
-        echo("predicted: $prediction")
+        prediction.lines().forEach { echo(it) }
     }
 
     /**
@@ -1063,7 +1063,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             plate = plateName, levels = level != null, levelSkipped = noLevel && s.levelGcode != null, warnings = warnings))
         echo("-> $output")
         echo("-> $page (and ${page.fileName.toString().removeSuffix(".md")}.png): before printing, the conditions, the picture, how to read it")
-        echo("predicted: $prediction (the waits for each column's temperature are not in it)")
+        prediction.lines(" (the waits for each column's temperature are not in it)").forEach { echo(it) }
     }
 
     /** Every first-layer plate cell's own height (mm), for the g-code check: its tiles, its frame rings, its prime lines and labels. */
@@ -1270,7 +1270,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             plate = plateName, levels = level != null, levelSkipped = noLevel && s.levelGcode != null, warnings = warnings))
         echo("-> $output")
         echo("-> $page (and ${page.fileName.toString().removeSuffix(".md")}.png): the question, before printing, the conditions, the picture, the zone plan, how to grade, what to enter")
-        echo("predicted: $prediction" + (ironS?.let { "; the ironing passes ${n(it / 60)} min of it" } ?: ""))
+        prediction.lines(ironS?.let { "; the ironing passes ${n(it / 60)} min of it" } ?: "").forEach { echo(it) }
         echo("after printing: `plymeld calibrate ironing readings ${output.fileName} -o readings.toml`, grade each zone, then `plymeld calibrate ironing values readings.toml -o ironing.toml`")
     }
 
@@ -1385,7 +1385,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             plate = plateName, levels = level != null, levelSkipped = noLevel && s.levelGcode != null, warnings = warnings))
         echo("-> $output")
         echo("-> $page (and ${page.fileName.toString().removeSuffix(".md")}.png): the question, before printing, the conditions, the picture, the pieces, how to grade, what to enter")
-        echo("predicted: $prediction")
+        prediction.lines().forEach { echo(it) }
         echo("after printing: `plymeld calibrate seams readings ${output.fileName} -o readings.toml`, grade each piece, then `plymeld calibrate seams values readings.toml -o seams.toml`")
     }
 
@@ -1459,13 +1459,19 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         val extrudeR = Resolver.resolveOrNull(setup, "hardware.tool.extrude.speed.max", plymeld.model.Context(0))
         val extrudeMax = (extrudeR?.value as Number?)?.toDouble() ?: toolhead?.extrudeSpeedMax
         // a toolhead's value said short: its setting and its evidence's kind; `plymeld config` shows the evidence in full
-        fun toolheadSource(key: String, evidence: String?) = "hardware.model.$model.toolhead.${toolhead?.index}.$key, " + (evidence?.let { e -> if (": " in e) "${e.substringBefore(": ")}; `plymeld config` shows its evidence" else e } ?: "no evidence given")
-        val extrudeFrom = extrudeR?.from ?: toolhead?.extrudeSpeedMax?.let { toolheadSource("extrude.speed.max", toolhead.extrudeSpeedEvidence) }
+        // a value set on the command line said without its text again (the setting is named beside it)
+        fun short(from: String) = from.replace(Regex("""command line --config-value '[^']*'"""), "set on the command line")
+        fun toolheadSource(key: String, evidence: String?): String { val path = "hardware.model.$model.toolhead.${toolhead?.index}.$key"
+            return if (evidence != null && evidence.startsWith(path)) short(evidence)
+            else "$path, " + (evidence?.let { e -> if (": " in e) "${e.substringBefore(": ")}; `plymeld config` shows its evidence" else e } ?: "no evidence given") }
+        val extrudeFrom = extrudeR?.from?.let { "hardware.tool.<key>.extrude.speed.max, ${short(it)}" } ?: toolhead?.extrudeSpeedMax?.let { toolheadSource("extrude.speed.max", toolhead.extrudeSpeedEvidence) }
         val pushLimit = extrudeMax?.let { share * it }
         val ratio = plymeld.core.calibrate.MeltSpec.bead(w, h) * s.flowRatio / (Math.PI * s.filamentDiameterMm * s.filamentDiameterMm / 4)
+        // the push limit and, on a line of its own where printed, where the extruder's speed comes from (a setting with a
+        // user's own key in it can be long)
         val pushWords = if (pushLimit == null) "no push limit: the extruder's highest filament speed is not known (hardware.tool.<key>.extrude.speed.max)"
-            else "every move at a wall's value within ${n(pushLimit)} mm/s of filament, ${n(share * 100)} % of the extruder's ${n(extrudeMax)} mm/s ($extrudeFrom)"
-        val limitsWords = "every line at most $flowWords; " + (if (pushLimit == null) pushWords else "push: $pushWords, smoothed over $smoothWords")
+            else "every move at a wall's value within ${n(pushLimit)} mm/s of filament, ${n(share * 100)} % of the extruder's ${n(extrudeMax)} mm/s"
+        val limitsWords = "every line at most $flowWords; " + (if (pushLimit == null) pushWords else "push: $pushWords ($extrudeFrom), smoothed over $smoothWords")
         // the values, each to the labels' resolution (a wall's value and its label agree)
         val g = plymeld.core.calibrate.PressureAdvanceGeometry
         val atLabel = plymeld.core.calibrate.PressureAdvanceSpec::atLabel
@@ -1474,7 +1480,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         val fromToolhead = toolhead?.paCeilingS?.takeIf { ceilingOwn.entityName == "catalog" }
         val ceiling = fromToolhead ?: (ceilingOwn.value as Number).toDouble()
         val ceilingR = object { val from = if (fromToolhead != null) toolheadSource("calibrate.pressure_advance.max", toolhead.paCeilingEvidence)
-            else "hardware.tool.<key>.calibrate.pressure_advance.max, " + if (ceilingOwn.entityName == "catalog") "plymeld's default" else ceilingOwn.from }
+            else "hardware.tool.<key>.calibrate.pressure_advance.max, " + if (ceilingOwn.entityName == "catalog") "plymeld's default" else short(ceilingOwn.from) }
         val evenly = plymeld.core.calibrate.PressureAdvanceSpec::evenly
         // the first plate: 0, then from the tool's lowest value to its top, each a fixed ratio below the next (the ratio set
         // by the two and the plate's count): one plate brackets a short filament path and a long tube
@@ -1486,7 +1492,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         // wall makes, held within the push limit (to the labels' resolution, rounded down); null = no push limit
         val pushTop = pushLimit?.let { lim ->
             val k = plymeld.core.calibrate.PressureAdvancePush.highestK(lim, fastMax, accel, smoothS, ratio)
-                ?: throw IllegalArgumentException("the walls' own filament speed at ${n(fastMax)} mm/s, ${n(ratio * fastMax)} mm/s, is already over the push limit ($pushWords): a lower fast speed (--speeds SLOW,FAST)")
+                ?: throw IllegalArgumentException("the walls' own filament speed at ${n(fastMax)} mm/s, ${n(ratio * fastMax)} mm/s, is already over the push limit ($pushWords, hardware.tool.<key>.extrude.speed.max): a lower fast speed (--speeds SLOW,FAST)")
             atLabel(Math.floor(k / plymeld.core.calibrate.PressureAdvanceSpec.LABEL_STEP_S + 1e-9) * plymeld.core.calibrate.PressureAdvanceSpec.LABEL_STEP_S)
         }
         fun geometric(lo: Double, hi: Double): List<Double> {
@@ -1677,6 +1683,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         echo("flow: every line at most $flowWords")
         echo("speeds: the first layer ${n(firstSpeed)} mm/s, the base above it ${n(frameSpeed)}, the labels ${n(labelSpeed)} (a visible wall's), the walls ${n(slow)} and ${n(fastMax)}")
         echo(if (pushLimit == null) pushWords else "push: $pushWords")
+        if (pushLimit != null) echo("the extruder's highest filament speed: ${n(extrudeMax)} mm/s, $extrudeFrom")
         if (pushLimit != null) echo("push smoothing: $smoothWords; the highest push on the plate ${n(spec.walls.maxOf { w -> spec.peakOf(w) })} mm/s")
         echo(when {
             machineCheck -> "values: the machine's own, no command written; three flow steps (one, two, three notches in the front edge)"
@@ -1709,9 +1716,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             levelsOnStart = levelsOnStart))
         echo("-> $output")
         echo("-> $page (and its pictures): the question, the conditions and limits, how to read each wall, what to enter")
-        // the prediction, and the motion limits it was made with on a line of their own
-        "$prediction".let { pr -> val at = pr.indexOf(" (motion limits: ")
-            if (at < 0) echo("predicted: $pr") else { echo("predicted: ${pr.substring(0, at)}"); echo("predicted with the motion limits ${pr.substring(at + " (motion limits: ".length).removeSuffix(")")}") } }
+        prediction.lines().forEach { echo(it) }
         echo("after printing: `plymeld calibrate pressure-advance readings ${output.fileName} -o readings.toml`, read each wall, then `plymeld calibrate pressure-advance values readings.toml`")
     }
 
@@ -1902,7 +1907,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
                 if (maxFlowPlaceholder) "This filament's maximum flow (`$maxFlowKey`) is still plymeld's bundled placeholder, not a measurement, and the fastest faces are held to it. " + plymeld.core.calibrate.PlateInstructions.MELT_FIRST else null))
         echo("-> $output")
         echo("-> $page (and ${page.fileName.toString().removeSuffix(".md")}.png): the question, before printing, the conditions, the picture, the faces and bands, how to grade, what each result means, what to enter")
-        echo("predicted: $prediction")
+        prediction.lines().forEach { echo(it) }
         echo("after printing: `plymeld calibrate motion readings ${output.fileName} -o readings.toml`, grade each cell, then `plymeld calibrate motion values readings.toml -o motion.toml`")
     }
 
