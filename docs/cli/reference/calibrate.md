@@ -145,7 +145,7 @@ Options:
 - `--values=<s,s,...>`: the find plate's values (s, or 40ms), rising, each printed twice; default: 0 and 10 values from the tool's lowest (hardware.tool.&lt;key&gt;.calibrate.pressure\_advance.min) to the plate's top, each a fixed ratio below the next: the lowest of the tool's ceiling (.max), the highest value the extruder's push allows, and the highest value whose walls fit the bed
 - `--bracket=<low-high>`: a fine find plate: 11 values evenly from LOW to HIGH (s), the bracket a first plate gave (`pressure-advance values` prints it)
 - `--confirm=S|machine`: the confirm plate: the value (s) and its neighbors, each at three flow steps; 'machine' on a machine that sets its own (hardware.machine.&lt;key&gt;.firmware.own\_pressure\_advance): its own value, no command written
-- `--confirm-step=<s>`: with --confirm VALUE: the step (s) from the value to each neighbor, the step of the plate that gave it (`pressure-advance values` prints it)
+- `--confirm-step=S|DOWN,UP`: with --confirm VALUE: the step (s) from the value to each neighbor, or two, down to the lower neighbor and up to the higher, so the neighbors are a bracket's ends exactly (`pressure-advance values` prints them)
 - `--speeds=<slow,fast>`: the walls' slow and fast speeds (mm/s); default: a visible wall's speed (plan.mechanism.motion.visible.speed) and the machine's print speed (hardware.machine.&lt;key&gt;.motion.print.speed), each held to the plate's share of the filament's measured maximum flow (hardware.tool.&lt;key&gt;.calibrate.pressure\_advance.share)
 - `-h, --help`: Show this message and exit
 

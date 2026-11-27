@@ -262,7 +262,10 @@ class PressureAdvanceReadingsTest : StringSpec({
         fun conditions(g: Path) = Files.readString(g).lines().filter { it.startsWith("; ") }
         val q2 = plate(dir, "-cv", "hardware.machine.example-corexy.build.y=700 mm")
         // the sample machine is a Q2 (model qidi-q2): its toolhead's ceiling, no push limit known
-        conditions(q2).single { it.startsWith("; top = ") } shouldContain "toolhead.0.calibrate.pressure_advance.max"
+        conditions(q2).single { it.startsWith("; top = ") } shouldContain "toolhead.0.calibrate.pressure_advance.max, condition; `plymeld config` shows its evidence"
+        // the evidence itself stays in the config: not in the conditions, nor the page
+        Files.readString(q2).substringAfter("; CALIBRATION_PLATE_START").substringBefore("; CALIBRATION_PLATE_END").contains("Bowden") shouldBe false
+        Files.readString(q2.resolveSibling(q2.fileName.toString().removeSuffix(".gcode") + ".md")).contains("Bowden") shouldBe false
         Regex("""; values = (.*) s""").find(Files.readString(q2))!!.groupValues[1].split(", ").map { it.toDouble() }.max() shouldBe (0.2 plusOrMinus 1e-9)
         conditions(q2).single { it.startsWith("; limits = ") } shouldContain "no push limit"
         // control: the tool's own ceiling wins over its toolhead's
@@ -271,7 +274,7 @@ class PressureAdvanceReadingsTest : StringSpec({
         // the Creator 5's four toolheads: the ceiling and the push limit, with their evidence; the Q2's no push limit
         val c5 = plymeld.config.Models.bundled.forModel("flashforge-c5").toolheads
         c5.size shouldBe 4
-        for (th in c5) { th.paCeilingS shouldBe (0.2 plusOrMinus 1e-9); th.extrudeSpeedMax shouldBe (50.0 plusOrMinus 1e-9); th.extrudeSpeedEvidence!! shouldContain "measured"; th.paCeilingEvidence!! shouldContain "direct-drive" }
+        for (th in c5) { th.paCeilingS shouldBe (0.2 plusOrMinus 1e-9); th.extrudeSpeedMax shouldBe (50.7 plusOrMinus 1e-9); th.extrudeSpeedEvidence!! shouldContain "measured"; th.paCeilingEvidence!! shouldContain "direct-drive" }
         plymeld.config.Models.bundled.forModel("qidi-q2").toolheads.single().extrudeSpeedMax shouldBe null
         // a push limit through a model's toolhead (here the sample machine's model's) reaches the plate
         val limited = plate(dir, "-cv", "hardware.model.qidi-q2.toolhead.0.extrude.speed.max=50 mm/s", "-cv", "hardware.machine.example-corexy.build.y=700 mm")
@@ -358,7 +361,7 @@ class PressureAdvanceReadingsTest : StringSpec({
         val r = oddRead; val text = r.report.joinToString("\n")
         val confirm = planned(runPrinted(suggested(r).single { "--confirm " in it }))
         // the neighbors the report names, or the bracket's ends where it names those
-        val named = Regex("""its neighbors ([0-9.]+) and ([0-9.]+) s""").find(text)?.groupValues?.let { listOf(it[1].toDouble(), it[2].toDouble()) }
+        val named = Regex("""its neighbors the bracket's ends, ([0-9.]+) and ([0-9.]+) s""").find(text)?.groupValues?.let { listOf(it[1].toDouble(), it[2].toDouble()) }
             ?: Regex("""the middle of ([0-9.]+) to ([0-9.]+) s""").find(text)!!.groupValues.let { listOf(it[1].toDouble(), it[2].toDouble()) }
         listOf(confirm.first(), confirm.last()) shouldBe named
         confirm[1] shouldBe r.value
@@ -405,7 +408,9 @@ class PressureAdvanceReadingsTest : StringSpec({
         (Regex("""--speeds [0-9]""").containsMatchIn(none)) shouldBe false
         // a bed too short for the walls at their shortest: none named, and that said
         val short = shouldThrow<IllegalArgumentException> { plate(dir, "-cv", "hardware.machine.example-corexy.build.y=60 mm") }.message!!
-        short shouldContain "even at their shortest"
+        short shouldContain "even with its walls at their shortest"
+        short shouldContain "of its Y axis"
+        short.contains("values from") shouldBe false
         (Regex("""--speeds [0-9]""").containsMatchIn(short)) shouldBe false
     }
 })

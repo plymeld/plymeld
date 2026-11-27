@@ -66,8 +66,10 @@ class PressureAdvancePlateTest : StringSpec({
         val quiet = PressureAdvancePush.peak(0.1116, 0.0, 294.65, 15000.0, 0.04, r)
         val squirt = PressureAdvancePush.peak(0.1668, 100.0, 294.65, 15000.0, 0.04, r)
         withClue("corner at 111.6 ms $quiet, step at 166.8 ms $squirt") { (quiet > 50.0 && quiet < 51.0 && squirt > 54.0 && squirt < 55.0) shouldBe true }
-        // with a limit between them, every move at 111.6 ms and below is inside, at 166.8 ms and above outside
-        val limit = (quiet + squirt) / 2
+        // the bundled Creator 5's limit (the highest peak seen quiet), at a share of 100 % and the printed plate's speeds: every
+        // move at 111.6 ms and below inside, at 166.8 ms and above outside
+        val limit = plymeld.config.Models.bundled.forModel("flashforge-c5").toolheads.first().extrudeSpeedMax!!
+        withClue("limit $limit") { (quiet <= limit && limit < squirt) shouldBe true }
         for (k in listOf(0.0, 0.01, 0.0223, 0.0499, 0.0746, 0.1116)) for (v0 in listOf(0.0, 100.0)) (PressureAdvancePush.peak(k, v0, 294.65, 15000.0, 0.04, r) <= limit) shouldBe true
         for (k in listOf(0.1668, 0.2494, 0.3727)) (PressureAdvancePush.peak(k, 100.0, 294.65, 15000.0, 0.04, r) > limit) shouldBe true
         // controls: the push spread evenly over the window (half the documented weighting's peak) orders the corner at 111.6 ms
@@ -192,13 +194,39 @@ class PressureAdvancePlateTest : StringSpec({
         GcodeCheck.check(slipped, Expectations.forSetup(own)).filter { "pressure advance" in it }.shouldNotBeEmpty()
     }
 
+    "each strip carries its row's number beside its wall's lead-in, the front row's 1 and the back row's 2; a one-row plate none (control)" {
+        fun area(ps: List<plymeld.geom.Polygon>) = ps.sumOf { p -> val n = p.xy.size / 2; (0 until n).sumOf { i -> val j = (i + 1) % n; p.xy[2 * i].toDouble() * p.xy[2 * j + 1] - p.xy[2 * j].toDouble() * p.xy[2 * i + 1] } / 2 }
+        // what the wall's labels hold to its right, from its start on (its value and arrow stand in front of it)
+        fun beside(sp: PressureAdvanceSpec, w: PressureAdvanceWall) = PressureAdvancePlate(sp).labelAndArrow(w).filter { it.bounds()[0] > sp.wallXUm(w) + sp.widthUm && it.bounds()[1] >= sp.wallStartY(w) }
+        for (w in find.walls) {
+            val mark = beside(find, w)
+            val want = plymeld.core.calibrate.PlateMarks.label("${w.row + 1}", 0, 0)
+            withClue(w.label) { mark.size shouldBe want.size; (Math.abs(area(mark) - area(want)) < 1.0) shouldBe true
+                // beside the lead-in, clear of the strip's edge
+                val b = find.strip(w.row, w.position)
+                (mark.all { it.bounds()[1] >= find.wallStartY(w) && it.bounds()[3] <= find.wallStartY(w) + find.leadUm && it.bounds()[2] < b[2] }) shouldBe true }
+        }
+        // the two digits differ, so the reading of a strip's row can fail
+        (Math.abs(area(plymeld.core.calibrate.PlateMarks.label("1", 0, 0)) - area(plymeld.core.calibrate.PlateMarks.label("2", 0, 0))) > 1.0) shouldBe true
+        val one = spec(values.indices.map { PressureAdvanceWall(0, it, values[it], fast) }, PressureAdvanceSpec.Kind.FIND, 0.0)
+        one.walls.all { beside(one, it).isEmpty() } shouldBe true
+    }
+
     "the page: the question, the conditions, the readings' words, what to enter; its picture drawn" {
         val md = PressureAdvanceInstructions.markdown(find, PressureAdvanceInstructions.Info("pla-generic", "qidi-q2", 0, "test", "pa.gcode", 40.0, 60,
             "pei", false, false, emptyList(), 0.1, null, false, 0.8), "pa.png")
         for (w in listOf("groove", "flat", "ridge", "bulge", "sharp", "round", "pressure-advance readings pa.gcode", "pressure-advance values", "speed-up", "slow-down",
-            "snap each wall out", "Against a light", "In a raking light", "reading.png", "a reading of its own")) md shouldContain w
+            "snap each wall out", "Against a light", "In a raking light", "reading.png", "a reading of its own",
+            "dark edge, then a bright one", "bright edge, then a dark one", "lets light through", "dark or opaque", "row's number", "keep each strip's row",
+            "Set the printer's speed and flow to 100 %")) md shouldContain w
         // control: a word the page does not say is not found
         md.contains("tally") shouldBe false
+        // levelling only where the file levels or the printer can as a print starts; a step for each
+        md.contains("Level the bed") shouldBe false
+        fun info(levels: Boolean, onStart: Boolean) = PressureAdvanceInstructions.Info("pla-generic", "qidi-q2", 0, "test", "pa.gcode", 40.0, 60,
+            "pei", levels, false, emptyList(), 0.1, null, false, 0.8, levelsOnStart = onStart)
+        PressureAdvanceInstructions.markdown(find, info(true, false), "pa.png") shouldContain "This file runs the printer's bed levelling"
+        PressureAdvanceInstructions.markdown(find, info(false, true), "pa.png") shouldContain "printer send --print --level"
         // the reading picture drawn
         val reading = java.nio.file.Files.createTempFile("pa-reading", ".png")
         PressureAdvanceInstructions.readingPicture(reading)

@@ -86,6 +86,9 @@ object PressureAdvanceGeometry {
      * plate lifts as one piece and a strip breaks off along its gap). plymeld's choices.
      */
     const val stripGap = 1_200L
+    /** A strip's row number: its lower-left this far right of its wall's line and this far along the lead-in from its start (clear of the wall, its corner, and the strip's edge). plymeld's choices. */
+    const val rowMarkX = 2_300L
+    const val rowMarkY = 2_000L
     const val tabW = 1_200L
     const val tabReach = 500L
     const val tabLayers = baseLayers - 1
@@ -324,7 +327,11 @@ class PressureAdvancePlate(private val spec: PressureAdvanceSpec, private val wi
         return listOf(spec.markUp(w), spec.markDown(w)).map { m -> PlateMarks.box(x0, y0 + m - PlateMarks.TALLY_W / 2, x1, y0 + m + PlateMarks.TALLY_W / 2) }
     }
 
-    /** Wall [w]'s label (its value, written along +Y, reading from the front) and arrow (pointing +Y), as raised polygons (µm, before placing). */
+    /**
+     * Wall [w]'s label (its value, written along +Y, reading from the front), arrow (pointing +Y), and, on a plate of more
+     * than one row, its row's number (1 the front row) upright beside the wall's lead-in on its right, so a strip snapped out
+     * still says which row it came from, as raised polygons (µm, before placing).
+     */
     fun labelAndArrow(w: PressureAdvanceWall): List<Polygon> {
         val x = spec.wallXUm(w); val y0 = w.row * spec.rowDepth + g.front
         val out = ArrayList<Polygon>()
@@ -335,6 +342,7 @@ class PressureAdvancePlate(private val spec: PressureAdvanceSpec, private val wi
             for (p in flat) out += Polygon(LongArray(p.xy.size) { i -> if (i % 2 == 0) x + h / 2 - p.xy[i + 1] else y0 + p.xy[i - 1] })
         }
         out += arrow(x, y0 + spec.labelLength + g.gap)
+        if (spec.rows > 1) out += PlateMarks.label("${w.row + 1}", x + g.rowMarkX, spec.wallStartY(w) + g.rowMarkY)
         return out
     }
 

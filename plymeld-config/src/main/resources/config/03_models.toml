@@ -528,9 +528,9 @@ measured: head.size, head.nozzle.x / .y, head.nozzle.height and head.nozzle.angl
 documented: temperature.max: Flashforge's Creator 5 specifications, maximum nozzle temperature 320 C
 placeholder: heat.time 15 s, a starting value for how long one nozzle takes to heat from idle to print temperature; not measured
 condition: calibrate.pressure_advance.max: a ceiling for a direct-drive toolhead (the extruder at the nozzle, a short filament path): values above about 0.2 s belong to a long filament path (a Bowden tube); plymeld's choice for such a toolhead, below the generic 1 s (the top of Klipper's typical range) that a tool stating nothing keeps
-measured: extrude.speed.max: on one Creator 5 with PLA, from a pressure-advance find plate: quiet at a computed peak of 50.7 mm/s of filament (a corner from rest at 0.1116 s), squirting at 54.6 mm/s (a wall's step at 0.1668 s), Klipper's documented smoothing at 0.04 s; a bound for that machine, not a default for others"""
+measured: extrude.speed.max: the highest peak seen quiet on one Creator 5 with PLA, from a pressure-advance find plate: a corner from rest at 0.1116 s, computed at 50.7 mm/s of filament (Klipper's documented smoothing at 0.04 s), laid quietly; a wall's step at 0.1668 s, computed at 54.6 mm/s, squirted; the true limit lies between the two. A bound for that machine, not a default for others"""
 calibrate.pressure_advance.max = "0.2 s"
-extrude.speed.max = "50 mm/s"
+extrude.speed.max = "50.7 mm/s"
 
 [hardware.model.flashforge-c5.toolhead.1]
 head.radius = "92 mm"
@@ -549,9 +549,9 @@ measured: by hand, as head 1's (each of the four heads measured, all alike)
 documented: temperature.max: as head 1's
 placeholder: heat.time 15 s, a starting value for how long one nozzle takes to heat from idle to print temperature; not measured
 condition: calibrate.pressure_advance.max: a ceiling for a direct-drive toolhead (the extruder at the nozzle, a short filament path): values above about 0.2 s belong to a long filament path (a Bowden tube); plymeld's choice for such a toolhead, below the generic 1 s (the top of Klipper's typical range) that a tool stating nothing keeps
-measured: extrude.speed.max: on one Creator 5 with PLA, from a pressure-advance find plate: quiet at a computed peak of 50.7 mm/s of filament (a corner from rest at 0.1116 s), squirting at 54.6 mm/s (a wall's step at 0.1668 s), Klipper's documented smoothing at 0.04 s; a bound for that machine, not a default for others"""
+measured: extrude.speed.max: the highest peak seen quiet on one Creator 5 with PLA, from a pressure-advance find plate: a corner from rest at 0.1116 s, computed at 50.7 mm/s of filament (Klipper's documented smoothing at 0.04 s), laid quietly; a wall's step at 0.1668 s, computed at 54.6 mm/s, squirted; the true limit lies between the two. A bound for that machine, not a default for others"""
 calibrate.pressure_advance.max = "0.2 s"
-extrude.speed.max = "50 mm/s"
+extrude.speed.max = "50.7 mm/s"
 
 [hardware.model.flashforge-c5.toolhead.2]
 head.radius = "92 mm"
@@ -570,9 +570,9 @@ measured: by hand, as head 1's (each of the four heads measured, all alike)
 documented: temperature.max: as head 1's
 placeholder: heat.time 15 s, a starting value for how long one nozzle takes to heat from idle to print temperature; not measured
 condition: calibrate.pressure_advance.max: a ceiling for a direct-drive toolhead (the extruder at the nozzle, a short filament path): values above about 0.2 s belong to a long filament path (a Bowden tube); plymeld's choice for such a toolhead, below the generic 1 s (the top of Klipper's typical range) that a tool stating nothing keeps
-measured: extrude.speed.max: on one Creator 5 with PLA, from a pressure-advance find plate: quiet at a computed peak of 50.7 mm/s of filament (a corner from rest at 0.1116 s), squirting at 54.6 mm/s (a wall's step at 0.1668 s), Klipper's documented smoothing at 0.04 s; a bound for that machine, not a default for others"""
+measured: extrude.speed.max: the highest peak seen quiet on one Creator 5 with PLA, from a pressure-advance find plate: a corner from rest at 0.1116 s, computed at 50.7 mm/s of filament (Klipper's documented smoothing at 0.04 s), laid quietly; a wall's step at 0.1668 s, computed at 54.6 mm/s, squirted; the true limit lies between the two. A bound for that machine, not a default for others"""
 calibrate.pressure_advance.max = "0.2 s"
-extrude.speed.max = "50 mm/s"
+extrude.speed.max = "50.7 mm/s"
 
 [hardware.model.flashforge-c5.toolhead.3]
 head.radius = "92 mm"
@@ -591,9 +591,9 @@ measured: by hand, as head 1's (each of the four heads measured, all alike)
 documented: temperature.max: as head 1's
 placeholder: heat.time 15 s, a starting value for how long one nozzle takes to heat from idle to print temperature; not measured
 condition: calibrate.pressure_advance.max: a ceiling for a direct-drive toolhead (the extruder at the nozzle, a short filament path): values above about 0.2 s belong to a long filament path (a Bowden tube); plymeld's choice for such a toolhead, below the generic 1 s (the top of Klipper's typical range) that a tool stating nothing keeps
-measured: extrude.speed.max: on one Creator 5 with PLA, from a pressure-advance find plate: quiet at a computed peak of 50.7 mm/s of filament (a corner from rest at 0.1116 s), squirting at 54.6 mm/s (a wall's step at 0.1668 s), Klipper's documented smoothing at 0.04 s; a bound for that machine, not a default for others"""
+measured: extrude.speed.max: the highest peak seen quiet on one Creator 5 with PLA, from a pressure-advance find plate: a corner from rest at 0.1116 s, computed at 50.7 mm/s of filament (Klipper's documented smoothing at 0.04 s), laid quietly; a wall's step at 0.1668 s, computed at 54.6 mm/s, squirted; the true limit lies between the two. A bound for that machine, not a default for others"""
 calibrate.pressure_advance.max = "0.2 s"
-extrude.speed.max = "50 mm/s"
+extrude.speed.max = "50.7 mm/s"
 
 [hardware.model.flashforge-c5.command]
 G1 = """purpose: linear move (with or without extrusion)

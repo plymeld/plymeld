@@ -2613,9 +2613,9 @@ second) and a long tube's. A fine plate runs evenly inside the bracket; a confir
 neighbors at three flow steps and reports whether it holds, depends on the flow (the medium step's written, the range
 noted; a value that follows the flow is a later decision on this evidence), or gives none. The next plates `values`
 names are commands that run as printed: the fine plate inside the bracket, and the confirm plate with the bracket's
-ends (the highest groove and the lowest ridge) as the neighbors, never below 0: the value and the step each held to
-the labels' 0.1 ms, so a neighbor may stand that much off its end, and `values` names the neighbors the plate will
-print, and the fine plate's steps as they come out.
+ends (the highest groove and the lowest ridge) as the neighbors exactly, never below 0: the value is held to the labels'
+0.1 ms, so the steps down and up may differ by that much (`--confirm-step DOWN,UP`), and `values` names the fine
+plate's steps as they come out.
 The speeds are the config's (a visible wall's, the machine's print speed, each held to the plate's share of the
 filament's maximum flow, decision 75), the acceleration the machine's. A pressure model in plymeld's test tooling (a first-order lag of the true value, the set
 value run ahead as Klipper runs it) proves the flip falls exactly at the true value. The slow-down mark reads opposite
@@ -2673,7 +2673,7 @@ fast speed, the step from the slow speed to it, the lead-in from rest. A test ho
 the bundled Creator 5's evidence: a corner the extruder laid quietly below it, a step it squirted at above it.
 The extruder's highest filament speed is a tool's setting (`hardware.tool.<key>.extrude.speed.max`), unset by default:
 not known, the plate applies no push limit and says so. A machine model's toolhead may give one (the bundled Creator
-5's, 50 mm/s, measured on one machine with PLA as above: a bound for that machine, not a default for others). One
+5's, 50.7 mm/s, the highest push seen laid quietly on one machine with PLA, the limit lying between it and the lowest seen to squirt: a bound for that machine, not a default for others). One
 margin serves both of the plate's limits (`hardware.tool.<key>.calibrate.pressure_advance.share`, 75 %): every line the
 plate lays, its base, its labels, and its walls' slow and fast stretches, runs at no more than that share of the
 filament's measured maximum flow, stricter than the general melt buffer (decision 3), and every move at a wall's value
@@ -2686,15 +2686,19 @@ bundled Creator 5's and Q2's, where the extruder drives the filament at the nozz
 to a long filament path; a tool's own ceiling wins, and a tool that states nothing keeps the generic 1 s.
 Each wall stands on its own strip of the base, a gap between neighbors (across a row and between the rows) bridged by
 break-off tabs on the base's layers but its last, so the plate lifts in one piece and each wall snaps out to be held up
-alone: against a light, where a thinner stretch shows brighter and a thicker one darker, and in a raking light, where a
-ridge casts a shadow and a groove shows as a bright line; the page draws both, and a fingernail is a cross-check. The
+alone: against a light, where a thinner stretch shows brighter and a thicker one darker (a filament that lets light
+through a single wall; a dark or opaque one is read in a raking light), and in a raking light from one side, where each
+slope facing the light shows bright and each facing away dark, so a groove shows a dark edge then a bright one and a
+ridge a bright edge then a dark one, read from the light's side; the page draws both, and a fingernail is a cross-check.
+Each strip carries its row's number (1 the front row, 2 the back), raised upright beside its wall's lead-in, since every
+value is printed in both rows and `values` compares the rows: a strip snapped out still says where it came from. The
 corner beside each wall is a reading of its own (a bulge too little, a rounded corner too much): `values` reports where
 the corners flip beside the walls' bracket and whether the two agree, and the value stays the walls', since a wall's
 marks are read along a straight line at two speed changes and a corner at one turn the firmware takes at its own
 corner speed; a disagreement is reported, not averaged in. The labels and arrows are laid at a visible wall's speed, the
 base above its first layer at a hidden line's, each held to the flow share; the first layer at the first-layer line
-width the slice and the other plates use. The strips' gap, the tabs' width and reach, and the corner's shorter arm (so
-it ends inside its strip) are plymeld's choices.
+width the slice and the other plates use. The strips' gap, the tabs' width and reach, the row number's place, and the
+corner's shorter arm (so it ends inside its strip) are plymeld's choices.
 
 **Rejected (the model).** Spreading the push evenly over the window: it is not the weighting Klipper documents, and
 against the measured bound it orders a quietly laid corner above a step the extruder squirted at. The push over the

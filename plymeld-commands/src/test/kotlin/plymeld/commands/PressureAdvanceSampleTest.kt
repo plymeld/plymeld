@@ -58,7 +58,7 @@ class PressureAdvanceSampleTest : StringSpec({
         val win = TechniqueRender.Window(x0..x0 + 4 * PressureAdvanceGeometry.pitch / 1000.0 + 3, y0..y0 + (y1 - y0) / 2)
         val size = TechniqueRender.render("The pressure-advance plate as written: the front row's first walls", TechniqueRender.View.TOP, listOf(
             TechniqueRender.Panel(listOf("the base's second layer", "strips, tabs, a hole at each speed change"), tp, { it.layer == 1 }),
-            TechniqueRender.Panel(listOf("the first wall layer", "each wall's value (ms) and arrow, the wall, its corner"), tp, { it.layer == PressureAdvanceGeometry.baseLayers })),
+            TechniqueRender.Panel(listOf("the first wall layer", "each wall's value (ms), arrow, row number, corner"), tp, { it.layer == PressureAdvanceGeometry.baseLayers })),
             reviewRender("pressure_advance_toolpath.png"), window = win)
         (size.first > 0) shouldBe true
     }

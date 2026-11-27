@@ -253,11 +253,11 @@ bed, and the plate says which. Every line the plate lays runs at no more than a 
 maximum flow (`hardware.tool.<key>.calibrate.pressure_advance.share`, 75 % unless set); where the extruder's highest
 filament speed is known (`hardware.tool.<key>.extrude.speed.max`), every move at a wall's value keeps the extruder within
 the same share of it, by the push the firmware's pressure-advance smoothing gives. Every value is held to its label's
-tenth of a millisecond. The base is a strip per wall, joined by break-off tabs: once printed, snap each wall out and
-read it held against a light and in a raking light, as its page shows. The `values` it prints names the next plate as a command to run as printed, with its
+tenth of a millisecond. The base is a strip per wall, joined by break-off tabs, each strip numbered with its row: once
+printed, snap each wall out and read it held against a light and in a raking light, as its page shows. The `values` it prints names the next plate as a command to run as printed, with its
 own `-o`: a finer one evenly inside the bracket (`--bracket LOW-HIGH`, each value held to the tenth of a millisecond,
-so neighbors may stand that much nearer or further apart), or the confirm plate (`--confirm VALUE --confirm-step S`, its
-neighbors the bracket's ends to within that tenth, and it says which they are). A machine that sets its own pressure advance
+so neighbors may stand that much nearer or further apart), or the confirm plate (`--confirm VALUE --confirm-step S`, or `DOWN,UP` where the value is not
+the bracket's middle on that tenth, its neighbors exactly the bracket's ends). A machine that sets its own pressure advance
 (`hardware.machine.<key>.firmware.own_pressure_advance`) gets only the confirm plate at its own value
 (`--confirm machine`), with no command written. The machine's model must say how pressure advance is set
 (`hardware.model.<key>.pressure_advance.command`; the bundled models carry Klipper's).

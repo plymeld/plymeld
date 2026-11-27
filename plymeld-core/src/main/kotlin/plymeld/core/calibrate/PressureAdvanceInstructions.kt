@@ -21,9 +21,9 @@ object PressureAdvanceInstructions {
     /** A wall's reading at a mark: thin just after it, as the rest of the line, or fat. */
     val MARKS = listOf("groove", "flat", "ridge")
     val MARK_MEANING = mapOf(
-        "groove" to "the wall is thinner just after the mark than a few millimeters on: held against a light it shows a brighter band there; in a raking light a bright line runs up the face (a shallow channel, the fingernail dips into it)",
+        "groove" to "the wall is thinner just after the mark than a few millimeters on: held against a light it shows a brighter band there; in a raking light from the left a dark edge, then a bright one, runs up the face (a shallow channel, the fingernail dips into it)",
         "flat" to "nothing to see: against a light and in a raking light the face runs on past the mark as it was",
-        "ridge" to "the wall is fatter just after the mark: held against a light it shows a darker band there; in a raking light a ridge up the face casts a shadow (the fingernail catches on it)")
+        "ridge" to "the wall is fatter just after the mark: held against a light it shows a darker band there; in a raking light from the left a bright edge, then a dark one, runs up the face (a bead, the fingernail catches on it)")
     /** A corner's reading, its own beside the marks: bulging (too low), sharp, or rounded or gapped (too high). */
     val CORNERS = listOf("bulge", "sharp", "round")
     val CORNER_MEANING = mapOf(
@@ -43,6 +43,8 @@ object PressureAdvanceInstructions {
         val top: String? = null,
         /** The plate's limits as it states them: its share of the filament's maximum flow, and its push limit or that none is known. */
         val limits: String = "",
+        /** Whether the printer levels the bed as a print starts when asked (`plymeld printer send --print --level`). */
+        val levelsOnStart: Boolean = false,
     )
 
     /** Writes [mdFile], its picture of the plate beside it (same name, .png), and its picture of the two ways to read a wall (-reading.png). */
@@ -74,15 +76,19 @@ object PressureAdvanceInstructions {
         if (info.warnings.isNotEmpty()) { l("**Warnings:**"); l(); for (wn in info.warnings) l("- $wn"); l() }
         l("## Before you print")
         l()
-        l("1. **Level the bed.** " + when {
-            info.levels -> "This file runs the printer's bed levelling (hardware.machine.<key>.gcode.level) before the plate, once it has heated."
-            info.levelSkipped -> "This file does **not** level the bed (it was made with `--no-level`): run the printer's bed levelling yourself first."
-            else -> "plymeld cannot level this printer from the g-code: turn on the printer's own levelling when you start the print, or run it from the printer's menu first."
-        })
-        l("2. **Measure the melt rate and the flow ratio first** (`plymeld calibrate melt`, `calibrate flow`): the fast speed is held to the filament's maximum flow, and the readings assume the line is laid at its flow ratio.")
-        l("3. **Turn off any pressure-advance calibration the printer runs by itself before a print**" + (if (info.machineOwn) ": not here, where the machine's own value is what the plate checks" else ": the plate sets its own value before each wall, and a value the printer sets afterwards would replace them") + ".")
-        l("4. **Clean the bed**${if (info.plate.isNotEmpty()) ", and use the build plate the file was made for (`${info.plate}`)" else ""}; the bed heats to ${info.bedTempC} C.")
-        l("5. **Load `${info.filament}` on tool ${info.tool + 1}**, dry.")
+        val steps = listOfNotNull(
+            when {
+                info.levels -> "**Level the bed.** This file runs the printer's bed levelling (hardware.machine.<key>.gcode.level) before the plate, once it has heated."
+                info.levelSkipped -> "**Level the bed.** This file does **not** level the bed (it was made with `--no-level`): run the printer's bed levelling yourself first."
+                info.levelsOnStart -> "**Level the bed** as the print starts: `plymeld printer send --print --level`, or the printer's own option when you start it."
+                else -> null
+            },
+            "**Measure the melt rate and the flow ratio first** (`plymeld calibrate melt`, `calibrate flow`): every line is held to a share of the filament's maximum flow, and the readings assume the line is laid at its flow ratio.",
+            "**Set the printer's speed and flow to 100 %** (its screen's speed and flow overrides): the walls' speeds and their plastic are the readings' conditions.",
+            "**Turn off any pressure-advance calibration the printer runs by itself before a print**" + (if (info.machineOwn) ": not here, where the machine's own value is what the plate checks" else ": the plate sets its own value before each wall, and a value the printer sets afterwards would replace them") + ".",
+            "**Clean the bed**${if (info.plate.isNotEmpty()) ", and use the build plate the file was made for (`${info.plate}`)" else ""}; the bed heats to ${info.bedTempC} C.",
+            "**Load `${info.filament}` on tool ${info.tool + 1}**, dry.")
+        for ((k, st) in steps.withIndex()) l("${k + 1}. $st")
         l()
         l("## What the plate prints with")
         l()
@@ -116,7 +122,8 @@ object PressureAdvanceInstructions {
         l("![The plate from above: the walls on their strips, their marks and labels, the corners, and the chamfer; below, the three readings]($pngName)")
         l()
         l("- **The origin**: the base's front-left corner is cut off. The front faces you.")
-        l("- **A strip per wall**: the base is cut into a strip under each wall, a gap between neighbors bridged by small break-off tabs, so the plate lifts off the bed in one piece and each wall then snaps out on its own strip, both faces free to look through and along.")
+        l("- **A strip per wall**: the base is cut into a strip under each wall, a gap between neighbors bridged by small break-off tabs, so the plate lifts off the bed in one piece and each wall then snaps out on its own strip, both faces free to look through and along." +
+            (if (spec.rows > 1) " Each strip carries its row's number, upright beside the wall's lead-in on its right (1 the front row, 2 the back row): the same value is printed in both rows, and `values` compares the rows, so keep each strip's row as you read it." else ""))
         l("- **Every wall prints from the front to the back** on every layer, the way its **arrow** points; in front of the arrow, its **value in milliseconds**, written along the wall (`40` is 0.04 s).")
         l("- **The marks**: on each wall's left, two small holes in the base: the front one where the head **starts to speed up**, the back one where it **starts to slow down**. The defect is just behind each hole, in the first few millimeters of the wall after it.")
         if (find) {
@@ -128,8 +135,8 @@ object PressureAdvanceInstructions {
         l()
         l("Let the plate cool, lift it off, and snap each wall out on its strip (bend along the gap; the tabs break). Compare the stretch of wall just behind each hole with the same wall a few millimeters further back, two ways:")
         l()
-        l("- **Against a light**: hold the strip up with a light behind the wall (a window, a lamp, a phone's torch): a thinner stretch lets more light through and shows **brighter**, a thicker one **darker**.")
-        l("- **In a raking light**: in a dim room, hold a light low, almost along the wall's face: a ridge casts a **shadow** beside it, a groove shows as a **bright line**.")
+        l("- **Against a light**: hold the strip up with a light behind the wall (a window, a lamp, a phone's torch): a thinner stretch lets more light through and shows **brighter**, a thicker one **darker**. This needs a filament that lets light through a single ${n(spec.widthUm / 1000.0, 2)} mm wall; with a dark or opaque one, read in a raking light.")
+        l("- **In a raking light**: in a dim room, hold a light low, almost along the wall's face, from its left: each slope facing the light shows bright and each facing away dark, so a **groove** shows a **dark edge, then a bright one**, and a **ridge** a **bright edge, then a dark one** (from the left; from the right the order turns round).")
         l()
         l("![Reading a wall: held against a light (left) and in a raking light (right), a groove, a flat stretch, and a ridge just after the mark]($readingPng)")
         l()
@@ -183,11 +190,13 @@ object PressureAdvanceInstructions {
     /**
      * The two ways to read a wall, drawn: a wall's face seen square on with the mark's hole below it, a groove, a flat
      * stretch, and a ridge just after the mark, held against a light behind it (a thinner stretch brighter, a thicker one
-     * darker) and in a raking light along its face from the left (a groove a bright line, a ridge a shadow beside it).
+     * darker) and in a raking light along its face from the left (each slope facing the light bright, each facing away
+     * dark: a groove dark then bright, a ridge bright then dark, from the left). The base under the face carries the mark's
+     * hole, so "just after the mark" points somewhere.
      */
     fun readingPicture(file: java.nio.file.Path) {
         System.setProperty("java.awt.headless", "true")
-        val W = 1600; val H = 520
+        val W = 1600; val H = 540
         val img = BufferedImage(W, H, BufferedImage.TYPE_INT_RGB)
         val gr = img.createGraphics()
         gr.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
@@ -208,23 +217,29 @@ object PressureAdvanceInstructions {
                     gr.color = Color(150, 120, 70); gr.fill(Rectangle2D.Double(x0, y0, fw, fh))
                     if (m != "flat") { gr.color = if (m == "groove") Color(225, 200, 140) else Color(90, 70, 40); gr.fill(Rectangle2D.Double(xm, y0, xr - xm, fh)) }
                 } else {
-                    // a face in a raking light from the left: a groove's far side lit (a bright line), a ridge's far side in shadow
+                    // a face in a raking light from the left: each slope facing the light bright, each facing away dark; a groove
+                    // dips (its near slope faces away, its far slope toward the light): dark, then bright; a ridge rises: bright, then dark
                     gr.color = Color(120, 120, 128); gr.fill(Rectangle2D.Double(x0, y0, fw, fh))
-                    if (m == "groove") { gr.color = Color(235, 235, 240); gr.fill(Rectangle2D.Double(xr - 10, y0, 10.0, fh)) }
-                    if (m == "ridge") { gr.color = Color(220, 220, 228); gr.fill(Rectangle2D.Double(xm, y0, 10.0, fh)); gr.color = Color(40, 40, 46); gr.fill(Rectangle2D.Double(xr, y0, 22.0, fh)) }
+                    if (m != "flat") {
+                        val bright = Color(235, 235, 240); val dark = Color(40, 40, 46)
+                        val (first, second) = if (m == "groove") dark to bright else bright to dark
+                        gr.color = first; gr.fill(Rectangle2D.Double(xm, y0, 14.0, fh))
+                        gr.color = second; gr.fill(Rectangle2D.Double(xr - 14, y0, 14.0, fh))
+                    }
                 }
-                // the mark's hole below the face, and the direction of travel
-                gr.color = Color(250, 250, 252); gr.fill(Rectangle2D.Double(xm - 8, y0 + fh + 6, 16.0, 14.0))
+                // the base under the face, the mark's hole in it at the start of the stretch read; the direction of travel
+                gr.color = Color(205, 208, 214); gr.fill(Rectangle2D.Double(x0, y0 + fh, fw, 28.0))
+                gr.color = Color(250, 250, 252); gr.fill(Rectangle2D.Double(xm - 14, y0 + fh + 7, 14.0, 14.0))
                 gr.color = Color(70, 70, 80); gr.stroke = BasicStroke(2f)
-                gr.draw(Line2D.Double(x0, y0 + fh + 36, x0 + 60, y0 + fh + 36)); gr.draw(Line2D.Double(x0 + 50, y0 + fh + 30, x0 + 60, y0 + fh + 36)); gr.draw(Line2D.Double(x0 + 50, y0 + fh + 42, x0 + 60, y0 + fh + 36))
+                gr.draw(Line2D.Double(x0, y0 + fh + 46, x0 + 60, y0 + fh + 46)); gr.draw(Line2D.Double(x0 + 50, y0 + fh + 40, x0 + 60, y0 + fh + 46)); gr.draw(Line2D.Double(x0 + 50, y0 + fh + 52, x0 + 60, y0 + fh + 46))
                 gr.color = Color.BLACK; gr.font = Font("SansSerif", Font.BOLD, 17)
-                gr.drawString(m, x0.toInt(), (y0 + fh + 70).toInt())
+                gr.drawString(m, x0.toInt(), (y0 + fh + 80).toInt())
                 gr.font = Font("SansSerif", Font.PLAIN, 13)
                 gr.drawString(when {
                     m == "flat" -> "the same past the mark"
                     p == 0 -> if (m == "groove") "brighter just after the mark" else "darker just after the mark"
-                    else -> if (m == "groove") "a bright line just after it" else "a shadow just after it"
-                }, x0.toInt(), (y0 + fh + 90).toInt())
+                    else -> if (m == "groove") "dark, then bright, just after it" else "bright, then dark, just after it"
+                }, x0.toInt(), (y0 + fh + 100).toInt())
             }
         }
         gr.dispose()

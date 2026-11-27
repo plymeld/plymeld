@@ -223,17 +223,17 @@ object PressureAdvanceRecord {
         // the fine plate's values as it makes them, each at the labels' resolution: their steps as they come out
         val gaps = PressureAdvanceSpec.evenly(lo, hi).zipWithNext { a, b -> PressureAdvanceSpec.atLabel(b - a) }.distinct().sorted()
         val apart = if (gaps.size == 1) "${n(gaps[0])} s apart" else "${n(gaps.first())} to ${n(gaps.last())} s apart (the even step held to the labels' ${PressureAdvanceSpec.LABEL_STEP_S * 1000} ms)"
-        // the confirm plate's neighbors as it makes them: a step either side of the value, each at the labels' resolution
-        val step = confirmStep(lo, hi)
-        val lower = PressureAdvanceSpec.atLabel(v - step); val upper = PressureAdvanceSpec.atLabel(v + step)
-        val neighbors = if (lower == lo && upper == hi) "its neighbors the bracket's ends, ${n(lo)} and ${n(hi)} s, the highest groove and the lowest ridge, both at or above 0"
-            else "its neighbors ${n(lower)} and ${n(upper)} s, a step either side of the value: the bracket's ends, ${n(lo)} and ${n(hi)} s, to the labels' ${PressureAdvanceSpec.LABEL_STEP_S * 1000} ms, both at or above 0"
+        // the confirm plate's neighbors: exactly the bracket's ends, a step down and a step up from the value (equal where the
+        // value is the bracket's middle on the labels' grid, else a tenth of a millisecond apart)
+        val down = PressureAdvanceSpec.atLabel(v - lo); val up = PressureAdvanceSpec.atLabel(hi - v)
+        val steps = if (down == up) n(down) else "${n(down)},${n(up)}"
+        val neighbors = "its neighbors the bracket's ends, ${n(lo)} and ${n(hi)} s, the highest groove and the lowest ridge"
         val report = listOf("pressure advance from ${s.plate}:") + brackets.map { "  the ${it.row} row: grooves up to ${n(it.lo)} s, ridges from ${n(it.hi)} s" } +
             "  value: ${n(v)} s, the middle of ${n(lo)} to ${n(hi)} s ($agree), +/- ${n((hi - lo) / 2)} s" +
             corners(s, lo, hi) +
             (if (fineStep >= PressureAdvanceSpec.LABEL_STEP_S - 1e-12) "  next, a finer value: ${next(s, "--bracket ${n(lo)}-${n(hi)}", "fine")} (${PlateValues} values, $apart)"
                 else "  next: the bracket is already as narrow as the labels' ${PressureAdvanceSpec.LABEL_STEP_S * 1000} ms allow a finer plate to space") +
-            "  next, to confirm it: ${next(s, "--confirm ${n(v)} --confirm-step ${n(step)}", "confirm")} ($neighbors)"
+            "  next, to confirm it: ${next(s, "--confirm ${n(v)} --confirm-step $steps", "confirm")} ($neighbors)"
         return Result(report, v, s.plate, s.conditions,
             "Readings: the walls' speed-up marks, grooves up to ${n(lo)} s and ridges from ${n(hi)} s ($agree; the plate's values ${values.joinToString(", ") { n(it) }} s); the value the middle, +/- ${n((hi - lo) / 2)} s.", s.filament, s.tool)
     }
@@ -298,13 +298,6 @@ object PressureAdvanceRecord {
             }
         }
     }
-
-    /**
-     * The confirm plate's step for a value read between [lo] and [hi]: half the bracket at the labels' resolution, so its
-     * neighbors are the bracket's ends (the highest groove and the lowest ridge, which the find plate printed) to within the
-     * labels' 0.1 ms (the value and the step each rounded to it): never below 0.
-     */
-    private fun confirmStep(lo: Double, hi: Double) = PressureAdvanceSpec.atLabel((hi - lo) / 2)
 
     /**
      * The next plate for the sheet [s]'s filament, tool, and machine, as a command to run as printed: the options its plate was

@@ -18,7 +18,7 @@ section the release's version and date.
 - The bundled Creator 5's and Q2's toolheads give the pressure-advance plate a ceiling of 0.2 s
   (`hardware.model.<key>.toolhead.<key>.calibrate.pressure_advance.max`): their extruders drive the filament at the
   nozzle, and values above about 0.2 s belong to a long filament path. The Creator 5's toolheads give the extruder's
-  highest filament speed for a push, 50 mm/s (`toolhead.<key>.extrude.speed.max`), measured on one machine with PLA; a
+  highest filament speed for a push, 50.7 mm/s (`toolhead.<key>.extrude.speed.max`), the highest seen quiet on one machine with PLA; a
   tool's own values win over its toolhead's.
 - `hardware.machine.<key>.firmware.own_pressure_advance = true`: the machine sets its own pressure advance, and plymeld
   writes none, whatever the machine, a tool, or a filament sets.
@@ -47,7 +47,7 @@ section the release's version and date.
   `hardware.model.<key>.pressure_advance.smooth_time`, 0.04 s unless set); the plate's check reads each move's push back
   from the g-code. The first layer is laid at the first-layer line width, and the plate's conditions say so.
   The base is a strip per wall with a gap between neighbors, joined by break-off tabs, so the plate lifts in one piece
-  and each wall snaps out on its own strip. A hole in the base marks each speed change, an arrow the way each wall
+  and each wall snaps out on its own strip, which carries its row's number. A hole in the base marks each speed change, an arrow the way each wall
   prints, each value is written in front of its wall in milliseconds; the page draws the three readings and how to read
   a wall held against a light and in a raking light, a fingernail as a cross-check.
 - `--confirm VALUE --confirm-step S`: the value and its two neighbors, each at three flow steps; a machine that sets its
@@ -59,8 +59,8 @@ section the release's version and date.
   more than one wall's place on the plate, the readings are out of order, or a wall reads the same at both marks. The
   corners are a reading of their own: where they flip from bulge to round, reported beside the walls' bracket with
   whether the two agree; the value is the walls'. It names the next plates as commands that run as printed: a fine plate inside the bracket, or
-  the confirm plate with the bracket's ends as the neighbors, each to within the labels' 0.1 ms; it names the neighbors
-  and the fine plate's steps as the plates will print them.
+  the confirm plate with exactly the bracket's ends as the neighbors (`--confirm-step DOWN,UP` where the two steps
+  differ by the labels' 0.1 ms); it names the fine plate's steps as the plate will print them.
 
 ### Changed
 
