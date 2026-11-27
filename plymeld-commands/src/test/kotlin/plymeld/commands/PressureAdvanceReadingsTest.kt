@@ -248,4 +248,86 @@ class PressureAdvanceReadingsTest : StringSpec({
         c.parse(emptyList())
         said.count { it.startsWith("config: no -cf") } shouldBe 1
     }
+
+    /** Runs `calibrate pressure-advance` on the sample config with [args]: its status and what it printed, line by line. */
+    fun said(vararg args: String): Pair<Int, List<String>> {
+        val lines = ArrayList<String>()
+        val status = Commands.invoke(listOf("calibrate", "pressure-advance", "-cf", dir.resolve("0*.toml").toString(), "-cv", "hardware.machine.example-corexy.model=qidi-q2") + args.toList() +
+            listOf("-o", dir.resolve("said.gcode").toString()), { lines += it }, { lines += it })
+        return status to lines.flatMap { it.lines() }
+    }
+
+    "the first plate's top and why are said once" {
+        // the sample's 250 mm bed: the top the bed's, with the length the ceiling would need
+        val (status, lines) = said()
+        status shouldBe 0
+        lines.count { "would need" in it } shouldBe 1
+        // control: the same top's reason is in the plate's conditions and its page, once each
+        Files.readString(dir.resolve("said.gcode")).lines().count { "would need" in it } shouldBe 1
+    }
+
+    // a first plate read with its flip inside a bracket whose middle and half fall between the labels' tenths of a
+    // millisecond (an odd number of them apart): its report's text and suggested lines
+    fun units(v: Double) = Math.round(v * 10_000)
+    fun planned(p: Path) = Regex("""; values = (.*) s""").find(Files.readString(p))!!.groupValues[1].split(", ").map { it.toDouble() }
+    val oddRead by lazy {
+        val g = plate(dir)
+        val vs = planned(g)
+        val k = (1 until vs.size - 1).first { (units(vs[it + 1]) - units(vs[it])) % 2 == 1L }
+        values(fill(sheet(g), truth((vs[k] + vs[k + 1]) / 2)))
+    }
+
+    "a first plate's confirm suggestion names the neighbors the plate made by the printed line has" {
+        val r = oddRead; val text = r.report.joinToString("\n")
+        val confirm = planned(runPrinted(suggested(r).single { "--confirm " in it }))
+        // the neighbors the report names, or the bracket's ends where it names those
+        val named = Regex("""its neighbors ([0-9.]+) and ([0-9.]+) s""").find(text)?.groupValues?.let { listOf(it[1].toDouble(), it[2].toDouble()) }
+            ?: Regex("""the middle of ([0-9.]+) to ([0-9.]+) s""").find(text)!!.groupValues.let { listOf(it[1].toDouble(), it[2].toDouble()) }
+        listOf(confirm.first(), confirm.last()) shouldBe named
+        confirm[1] shouldBe r.value
+    }
+
+    "a first plate's fine suggestion names the steps between the values of the plate made by the printed line" {
+        val r = oddRead; val text = r.report.joinToString("\n")
+        val fine = planned(runPrinted(suggested(r).single { "--bracket " in it }))
+        val steps = fine.zipWithNext { a, b -> units(b - a) }.distinct().sorted()
+        val stated = Regex("""values, ([0-9.]+)(?: to ([0-9.]+))? s apart""").find(text)!!.groupValues.drop(1).filter { it.isNotEmpty() }.map { units(it.toDouble()) }
+        listOf(steps.first(), steps.last()).distinct() shouldBe stated
+    }
+
+    "the first plate not fitting even from the lowest value: the refusal names the highest whole fast speed below the plate's at which it fits, which makes it and the next does not, or says none does" {
+        // values from a lowest value to 1.4 ms above it, so the lowest values' plate is the whole range's: its depth on a long
+        // bed with a middle at 160 mm/s and at lower fast speeds, for a few lowest and slow speeds; a bed between the depth at
+        // 160 mm/s and a shallower one at a lower fast speed fits the lowest values only at a lower fast speed
+        fun rangeOf(min: String) = arrayOf("-cv", "hardware.tool.t1.calibrate.pressure_advance.max=${PressureAdvanceRecord.n(min.toDouble() + 0.0014)} s", "-cv", "hardware.tool.t1.calibrate.pressure_advance.min=$min s")
+        fun depth(min: String, slowAt: Int, fast: Int): Double { val (status, lines) = said(*rangeOf(min), "-cv", "hardware.machine.example-corexy.build.y=900 mm", "--speeds", "$slowAt,$fast")
+            withClue(lines.joinToString("\n")) { status shouldBe 0 }
+            return Regex("""^pressure-advance plate \(find\).*: [0-9.]+ x ([0-9.]+) mm""").find(lines.first { it.startsWith("pressure-advance plate (find)") })!!.groupValues[1].toDouble() }
+        val tried = ArrayList<String>()
+        val (case, shallow) = listOf("0.9", "0.7").flatMap { t -> listOf(50, 30).map { t to it } }.asSequence().mapNotNull { (t, sl) ->
+            val d160 = depth(t, sl, 160)
+            listOf(130, 100).filter { it > sl }.asSequence().map { it to depth(t, sl, it) }.onEach { tried += "$t s, $sl,${it.first}: ${it.second} mm (at 160: $d160)" }
+                .firstOrNull { Math.ceil(it.second + 20) < d160 + 20 }?.let { (t to sl) to it }
+        }.firstOrNull() ?: error("no lower fast speed makes the plate shallower than at 160 mm/s by a whole millimeter:\n${tried.joinToString("\n")}")
+        val (min, slowAt) = case
+        val range = rangeOf(min)
+        // the bed: that plate and the head's room to park in front and behind (10 mm each), to the millimeter above
+        val high = range + arrayOf("-cv", "hardware.machine.example-corexy.build.y=${PressureAdvanceRecord.n(Math.ceil(shallow.second + 20))} mm")
+        val msg = shouldThrow<IllegalArgumentException> { plate(dir, *high, "--speeds", "$slowAt,160") }.message!!
+        val m = Regex("""--speeds ([0-9.]+),([0-9.]+)""").find(msg)
+        withClue(msg) { (m != null) shouldBe true }
+        val slow = m!!.groupValues[1]; val fast = m.groupValues[2].toDouble()
+        withClue(msg) { slow shouldBe "$slowAt"; (fast >= shallow.first && fast < 160) shouldBe true }
+        // the speed named makes the plate; one faster is refused
+        plate(dir, *high, "--speeds", "$slow,${PressureAdvanceRecord.n(fast)}")
+        shouldThrow<IllegalArgumentException> { plate(dir, *high, "--speeds", "$slow,${PressureAdvanceRecord.n(fast + 1)}") }.message!! shouldContain "even from the tool's lowest value"
+        // a lowest value too high for any fast speed on this bed: none named
+        val none = shouldThrow<IllegalArgumentException> { plate(dir, "-cv", "hardware.tool.t1.calibrate.pressure_advance.min=0.9 s") }.message!!
+        none shouldContain "No fast speed from"
+        (Regex("""--speeds [0-9]""").containsMatchIn(none)) shouldBe false
+        // a bed too short for the walls at their shortest: none named, and that said
+        val short = shouldThrow<IllegalArgumentException> { plate(dir, "-cv", "hardware.machine.example-corexy.build.y=60 mm") }.message!!
+        short shouldContain "even at their shortest"
+        (Regex("""--speeds [0-9]""").containsMatchIn(short)) shouldBe false
+    }
 })

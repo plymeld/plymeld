@@ -43,7 +43,8 @@ section the release's version and date.
   conditions, and the bracket in the note above it. Refused, saying why, when nothing flips, the two rows disagree by
   more than one wall's place on the plate, the readings are out of order, a corner contradicts its wall, or a wall reads
   the same at both marks. It names the next plates as commands that run as printed: a fine plate inside the bracket, or
-  the confirm plate with the bracket's ends as the neighbors.
+  the confirm plate with the bracket's ends as the neighbors, each to within the labels' 0.1 ms; it names the neighbors
+  and the fine plate's steps as the plates will print them.
 
 ### Changed
 

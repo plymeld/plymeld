@@ -129,6 +129,11 @@ class PressureAdvanceSpec(
         const val LABEL_STEP_S = 0.0001
         /** [v] at the labels' resolution: the value a wall prints at and its label agree. */
         fun atLabel(v: Double): Double = java.math.BigDecimal(v).setScale(4, java.math.RoundingMode.HALF_UP).toDouble()
+        /**
+         * A fine plate's values: [PressureAdvanceGeometry.values] evenly from [lo] to [hi], each at the labels' resolution
+         * (so neighbors may stand a tenth of a millisecond nearer or further apart than the even step).
+         */
+        fun evenly(lo: Double, hi: Double): List<Double> { val k = PressureAdvanceGeometry.values - 1; return (0..k).map { atLabel(lo + (hi - lo) * it / k) } }
     }
 
     init {

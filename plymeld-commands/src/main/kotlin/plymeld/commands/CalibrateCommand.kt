@@ -1448,7 +1448,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         val atLabel = plymeld.core.calibrate.PressureAdvanceSpec::atLabel
         val ceilingR = Resolver.resolve(setup, "hardware.tool.calibrate.pressure_advance.max", plymeld.model.Context(0))
         val ceiling = (ceilingR.value as Number).toDouble()
-        fun evenly(lo: Double, hi: Double) = (0 until g.values).map { k -> atLabel(lo + (hi - lo) * k / (g.values - 1)) }
+        val evenly = plymeld.core.calibrate.PressureAdvanceSpec::evenly
         // the first plate: 0, then from the tool's lowest value to its top, each a fixed ratio below the next (the ratio set
         // by the two and the plate's count): one plate brackets a short filament path and a long tube
         val floorR = Resolver.resolve(setup, "hardware.tool.calibrate.pressure_advance.min", plymeld.model.Context(0))
@@ -1461,7 +1461,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         }
         fun distinct(vs: List<Double>, what: String): List<Double> = vs.also {
             if (it.zipWithNext().any { (a, b) -> b <= a }) throw IllegalArgumentException("$what: ${vs.joinToString(", ") { v -> n4(v) }} s at the labels' ${plymeld.core.calibrate.PressureAdvanceSpec.LABEL_STEP_S * 1000} ms: two walls would carry one value; a wider range") }
-        fun findWalls(vs: List<Double>) = vs.indices.map { plymeld.core.calibrate.PressureAdvanceWall(0, it, vs[it], fastMax) } + vs.indices.map { plymeld.core.calibrate.PressureAdvanceWall(1, it, vs[vs.size - 1 - it], fastMax) }
+        fun findWalls(vs: List<Double>, fast: Double = fastMax) = vs.indices.map { plymeld.core.calibrate.PressureAdvanceWall(0, it, vs[it], fast) } + vs.indices.map { plymeld.core.calibrate.PressureAdvanceWall(1, it, vs[vs.size - 1 - it], fast) }
         val confirmStep = paConfirmStep?.let { seconds(it, "--confirm-step").takeIf { v -> v > 0 } ?: throw UsageError("--confirm-step is above 0") }
         val autoTop = kind == plymeld.core.calibrate.PressureAdvanceSpec.Kind.FIND && paValues == null && paBracket == null
         val given: List<plymeld.core.calibrate.PressureAdvanceWall>? = when (kind) {
@@ -1507,9 +1507,9 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
         // the first plate's top: the tool's ceiling, or the highest value whose walls fit the bed, whichever is lower
         var topWhy = ""
         val walls: List<plymeld.core.calibrate.PressureAdvanceWall> = given ?: run {
-            fun tried(top: Double): plymeld.core.calibrate.PressureAdvanceSpec? {
+            fun tried(top: Double, fast: Double = fastMax): plymeld.core.calibrate.PressureAdvanceSpec? {
                 val vs = geometric(floor, top).takeIf { v -> v.zipWithNext().all { (a, b) -> b > a } } ?: return null
-                val ws = findWalls(vs)
+                val ws = findWalls(vs, fast)
                 return stretchesOf(ws)?.let { specOf(ws, it) }?.takeIf { fits(it) }
             }
             val atCeiling = findWalls(geometric(floor, ceiling)).let { ws -> stretchesOf(ws)?.let { specOf(ws, it) } }
@@ -1517,8 +1517,25 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             val need = atCeiling?.let { sizeWords(it) } ?: "walls longer than the bed at ${n(fastMax)} mm/s"
             // the lowest top that still spaces the values apart at the labels' resolution, then up as far as the walls fit
             var lo = floor * Math.pow(1 + 1.5 * plymeld.core.calibrate.PressureAdvanceSpec.LABEL_STEP_S / floor, (g.values - 2).toDouble())
-            if (lo >= ceiling || tried(lo) == null) throw IllegalArgumentException("the pressure-advance find plate does not fit this machine even from the tool's lowest value: the bed is ${n(bedW)} x ${n(bedD)} mm (hardware.machine.<key>.build), " +
-                "and values from ${n4(floor)} s (hardware.tool.<key>.calibrate.pressure_advance.min, ${floorR.from}) already need longer walls than it allows; the ceiling, ${n4(ceiling)} s, would need $need. A lower fast speed (--speeds SLOW,FAST, or the machine's print speed hardware.machine.<key>.motion.print.speed) makes the walls shorter")
+            if (lo >= ceiling) throw IllegalArgumentException("the find plate's values from hardware.tool.<key>.calibrate.pressure_advance.min (${n4(floor)} s, ${floorR.from}) to .max (${n4(ceiling)} s, ${ceilingR.from}) " +
+                "are too close to space ${g.values - 1} values apart at the labels' ${plymeld.core.calibrate.PressureAdvanceSpec.LABEL_STEP_S * 1000} ms: a wider range")
+            if (tried(lo) == null) {
+                // the highest whole fast speed below this one, above the slow one, at which the lowest values' walls fit, by the
+                // same pressure model and layout, tried one mm/s at a time from the top (how long the walls must be is not
+                // monotonic in the fast speed: a step barely above the slow speed settles slowly too); none where even the
+                // shortest walls do not fit
+                fun fitsAt(f: Double) = f > slow && try { tried(lo, f) != null } catch (e: IllegalArgumentException) { false }
+                val lowest = findWalls(geometric(floor, lo), Math.floor(slow) + 1)
+                val shortestFits = try { fits(specOf(lowest, Triple(g.leadMin / 1000.0, g.fastMin / 1000.0, g.tail / 1000.0))) } catch (e: IllegalArgumentException) { false }
+                val slower = if (!shortestFits) null else generateSequence(Math.ceil(fastMax) - 1) { it - 1 }.takeWhile { it > slow }.firstOrNull { fitsAt(it) }
+                throw IllegalArgumentException("the pressure-advance find plate does not fit this machine even from the tool's lowest value: the bed is ${n(bedW)} x ${n(bedD)} mm (hardware.machine.<key>.build), " +
+                    "and values from ${n4(floor)} s (hardware.tool.<key>.calibrate.pressure_advance.min, ${floorR.from}) already need longer walls than it allows at ${n(fastMax)} mm/s; the ceiling, ${n4(ceiling)} s, would need $need. " +
+                    when {
+                        slower != null -> "At a fast speed of ${n(slower)} mm/s, the highest whole one below that does by plymeld's pressure model, the lowest values' walls fit: --speeds ${n(slow)},${n(slower)}"
+                        !shortestFits -> "No fast speed makes them fit: even at their shortest (a ${n(g.leadMin / 1000.0)} mm lead-in, a ${n(g.fastMin / 1000.0)} mm middle) the plate does not fit; a longer bed axis"
+                        else -> "No fast speed from ${n(Math.floor(slow) + 1)} to ${n(Math.ceil(fastMax) - 1)} mm/s makes them fit (plymeld's pressure model): a longer bed axis, or a lower lowest value (hardware.tool.<key>.calibrate.pressure_advance.min)"
+                    })
+            }
             var hi = ceiling
             repeat(24) { val m = Math.sqrt(lo * hi); if (tried(m) != null) lo = m else hi = m }
             topWhy = "the highest value whose walls fit the ${n(bedD)} mm bed at these speeds; the tool's ceiling, ${n4(ceiling)} s (hardware.tool.<key>.calibrate.pressure_advance.max), would need $need"
@@ -1602,7 +1619,7 @@ abstract class PlateCommand(name: String, protected val kind: String) : ConfigCo
             else -> "values: ${values.joinToString(", ") { spec.valueText(it) }} s (the value and its neighbors), each at three flow steps (one, two, three notches in the front edge)"
         })
         echo("the lead-in and the middle are ${n(spec.leadUm / 1000.0)} and ${n(spec.fastUm / 1000.0)} mm long so the pressure settles within them up to a true value of ${spec.valueText(settles)} s at these speeds (plymeld's pressure model), " +
-            "at least ${n4(highest)} s ($highestWhy): up to it the slow-down mark reads opposite to the speed-up mark")
+            "at least ${n4(highest)} s (${if (autoTop) "the plate's top, as above" else highestWhy}): up to it the slow-down mark reads opposite to the speed-up mark")
         echo(when { level != null -> "bed levelling before the plate (hardware.machine.<key>.gcode.level); --no-level to skip it"; noLevel -> "bed levelling: skipped (--no-level)"; else -> "bed levelling: this machine has none plymeld can run (hardware.machine.<key>.gcode.level is empty): level it when you start the print" })
         warnings.forEach { echo("warning: $it") }
         echo("check: the layers and cells; every wall at its own pressure advance, set before it and by nothing inside a cell, one unbroken straight line toward +Y on every layer, slow, fast, slow with the speed changes where the middle starts and ends, at its acceleration and filament per mm; " +

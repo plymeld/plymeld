@@ -2537,7 +2537,9 @@ second) and a long tube's. A fine plate runs evenly inside the bracket; a confir
 neighbors at three flow steps and reports whether it holds, depends on the flow (the medium step's written, the range
 noted; a value that follows the flow is a later decision on this evidence), or gives none. The next plates `values`
 names are commands that run as printed: the fine plate inside the bracket, and the confirm plate with the bracket's
-ends (the highest groove and the lowest ridge) as the neighbors, never below 0.
+ends (the highest groove and the lowest ridge) as the neighbors, never below 0: the value and the step each held to
+the labels' 0.1 ms, so a neighbor may stand that much off its end, and `values` names the neighbors the plate will
+print, and the fine plate's steps as they come out.
 The speeds are the config's (a visible wall's, the machine's print speed, each held to the maximum flow), the
 acceleration the machine's. A pressure model in plymeld's test tooling (a first-order lag of the true value, the set
 value run ahead as Klipper runs it) proves the flip falls exactly at the true value. The slow-down mark reads opposite
@@ -2545,7 +2547,9 @@ to the speed-up mark only where the pressure settles within the wall's lead-in a
 10 and 30 mm) until, by the same model at the plate's speeds, it settles at the plate's highest value. A first plate's
 top is the tool's ceiling or the highest value whose walls fit the bed at the plate's speeds, whichever is lower, found
 with the same model and layout; the plate and its page say which and the length the ceiling would need, and a plate
-that does not fit even from the tool's lowest value is refused with that reason. Given values whose walls do not fit
+that does not fit even from the tool's lowest value is refused with that reason and the highest whole fast speed below
+the plate's at which it would fit (by the same model and layout, tried one mm/s at a time: how long the walls must be is
+not monotonic in the fast speed), or that none does. Given values whose walls do not fit
 are refused. Every value is held to its label's resolution (0.1 ms), so a wall's value and its label agree. The
 shortest stretches, the tail, the wall's height, the pitch, the values per row, the arrow's head, and the stretch a
 reading looks at are plymeld's choices.

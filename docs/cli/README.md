@@ -248,8 +248,9 @@ slow lead-in and fast middle are long enough for the pressure to settle within t
 higher value, or a faster middle, makes longer walls; the first plate's top is the tool's ceiling (`.max`) or the
 highest value whose walls fit the bed, whichever is lower, and the plate says which. Every value is held to its
 label's tenth of a millisecond. The `values` it prints names the next plate as a command to run as printed, with its
-own `-o`: a finer one evenly inside the bracket (`--bracket LOW-HIGH`), or the confirm plate (`--confirm VALUE
---confirm-step S`, its neighbors the bracket's ends). A machine that sets its own pressure advance
+own `-o`: a finer one evenly inside the bracket (`--bracket LOW-HIGH`, each value held to the tenth of a millisecond,
+so neighbors may stand that much nearer or further apart), or the confirm plate (`--confirm VALUE --confirm-step S`, its
+neighbors the bracket's ends to within that tenth, and it says which they are). A machine that sets its own pressure advance
 (`hardware.machine.<key>.firmware.own_pressure_advance`) gets only the confirm plate at its own value
 (`--confirm machine`), with no command written. The machine's model must say how pressure advance is set
 (`hardware.model.<key>.pressure_advance.command`; the bundled models carry Klipper's).
