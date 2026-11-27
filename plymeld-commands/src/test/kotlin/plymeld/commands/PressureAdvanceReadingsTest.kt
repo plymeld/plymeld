@@ -161,12 +161,16 @@ class PressureAdvanceReadingsTest : StringSpec({
     "every plate a result suggests is made as printed, run through the command parser unmodified: from a first plate, a fine plate, and a confirm plate" {
         // a first plate (0, then the tool's lowest to a ceiling of 0.1 s, each a fixed ratio below the next), read with the
         // true value at its lowest flip: 0 and the lowest value bracket it, the case a fixed step pushed below 0
-        val first = values(fill(sheet(plate(dir, "-cv", "hardware.tool.t1.calibrate.pressure_advance.max=0.1 s")), truth(0.0005)))
+        val firstPlate = plate(dir, "-cv", "hardware.tool.t1.calibrate.pressure_advance.max=0.1 s")
+        val first = values(fill(sheet(firstPlate), truth(0.0005)))
         val fromFirst = suggested(first)
         fromFirst.size shouldBe 2
         first.report.none { it.endsWith(" ") } shouldBe true
         val made = fromFirst.map { runPrinted(it) }
         made.map { it.fileName.toString() }.all { it.endsWith("-fine.gcode") || it.endsWith("-confirm.gcode") } shouldBe true
+        // each made with the first plate's own options (config, machine, tool, filament, build plate), not the defaults
+        fun madeWith(g: Path) = Files.readString(g).lines().single { it.startsWith("; made_with = ") }
+        for (g in made) withClue(g.fileName) { madeWith(g) shouldBe madeWith(firstPlate) }
         // the fine plate it made, read, and its own suggestions
         val fine = values(fill(sheet(made.first { it.fileName.toString().endsWith("-fine.gcode") }), truth(0.0006)))
         val fromFine = suggested(fine)

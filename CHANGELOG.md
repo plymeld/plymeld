@@ -51,8 +51,8 @@ section the release's version and date.
   value) prints as one line, as plymeld's other refusals do, without the command line's usage; a mistake in the command
   line's own form still shows it.
 - A command reading the config folder's files (no `-cf`) says so once, where a calibration plate said it twice.
-- The stroke font's "1", in every plate's raised labels, has a base, so it is not taken for an arrow; its decimal point
-  is a short upright bar two lines long, where a dot was a single short line.
+- The stroke font's "1", in every plate's raised labels, has a base and a flat flag at its top, where a slanted flag
+  made it read as an arrow; its decimal point is a short upright bar two lines long, where a dot was a single short line.
 - An outer wall is never widened or moved to share a slit behind it. Where a slit too narrow for a line lies between
   the outer wall (round the outline or round a hole) and the line inside it, the outer wall keeps its width and place
   along the face, and the inner wall beside the slit takes all of it (it took half, the outer wall the other half); two

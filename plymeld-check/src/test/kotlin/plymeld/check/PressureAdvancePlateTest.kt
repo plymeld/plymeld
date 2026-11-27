@@ -22,7 +22,7 @@ import plymeld.model.SliceSettings
  * check, and every control the check must catch is caught; the plate is deterministic; read by the virtual printer's pressure
  * model (PressureModel), its walls' speed-up marks flip from groove to ridge exactly where the set value crosses the true one,
  * in both rows, the slow-down marks the opposite; the confirm plate and the machine's own check pass theirs. The page's
- * picture is drawn for review (build/renders).
+ * picture is drawn; the docs' pictures are the command's own plate's (plymeld-commands, PressureAdvanceSampleTest).
  */
 class PressureAdvancePlateTest : StringSpec({
     val setup = testSetup()
@@ -136,17 +136,27 @@ class PressureAdvancePlateTest : StringSpec({
         GcodeCheck.check(slipped, Expectations.forSetup(own)).filter { "pressure advance" in it }.shouldNotBeEmpty()
     }
 
-    "the page: the question, the conditions, the readings' words, what to enter; its picture drawn for review" {
+    "the page: the question, the conditions, the readings' words, what to enter; its picture drawn" {
         val md = PressureAdvanceInstructions.markdown(find, PressureAdvanceInstructions.Info("pla-generic", "qidi-q2", 0, "test", "pa.gcode", 40.0, 60,
             "pei", false, false, emptyList(), 0.1, null, false, 0.8), "pa.png")
         for (w in listOf("groove", "flat", "ridge", "bulge", "sharp", "round", "pressure-advance readings pa.gcode", "pressure-advance values", "speed-up", "slow-down")) md shouldContain w
-        PressureAdvanceInstructions.picture(reviewRender("pressure_advance_plate.png"), find, PressureAdvancePlate(find))
+        // the docs' copy is the command's own (plymeld-commands, PressureAdvanceSampleTest); this one is only drawn
+        val png = java.nio.file.Files.createTempFile("pa-page", ".png")
+        PressureAdvanceInstructions.picture(png, find, PressureAdvancePlate(find))
+        (javax.imageio.ImageIO.read(png.toFile()).width > 0) shouldBe true
     }
 
-    "the stroke font's 1 has a base, so it is not taken for the arrow beside it" {
-        fun width(t: String) = plymeld.core.calibrate.StrokeFont.polygons(t, 0, 0, 6_000, 800).let { ps -> ps.maxOf { p -> p.bounds()[2] } - ps.minOf { p -> p.bounds()[0] } }
-        // the hooked stem alone spans 1.8 mm at this size; with its base, as wide as the base (0.5 to 3.5 units, and the strokes)
-        (width("1") >= 3_500) shouldBe true
+    "the stroke font's 1 has a base and a flat flag, so it is not taken for the arrow beside it" {
+        val one = plymeld.core.calibrate.StrokeFont.polygons("1", 0, 0, 6_000, 800)
+        val width = one.maxOf { p -> p.bounds()[2] } - one.minOf { p -> p.bounds()[0] }
+        // the stem alone spans 0.8 mm at this size; with its base, as wide as the base (0.5 to 3.5 units, and the strokes)
+        (width >= 3_500) shouldBe true
+        // no slanted stroke: every edge of its outline runs across or along it, so no stroke meets the stem at an angle as an
+        // arrowhead's barb does (a slanted flag at the stem's top read as one)
+        for (p in one) for (i in 0 until p.xy.size / 2) {
+            val j = (i + 1) % (p.xy.size / 2)
+            withClue("edge ${p.xy[2 * i]},${p.xy[2 * i + 1]} to ${p.xy[2 * j]},${p.xy[2 * j + 1]}") { (p.xy[2 * i] == p.xy[2 * j] || p.xy[2 * i + 1] == p.xy[2 * j + 1]) shouldBe true }
+        }
     }
 
     "the decimal point is a short bar two beads tall, not one bead; the arrow is one outline, laid without fragments at its tip" {
@@ -157,18 +167,11 @@ class PressureAdvancePlateTest : StringSpec({
         val arrow = PressureAdvancePlate(find).arrow(10_000, 10_000)
         val (rings, _) = plymeld.core.calibrate.PlateFill.fill(listOf(arrow), 450, 200, 0.0)
         (rings.size <= plymeld.core.calibrate.PlateGeometry.frameWalls) shouldBe true
-    }
-
-    "a sample toolpath for the docs: the plate's g-code from above, the base's second layer with its marks and the first wall layer with its labels" {
-        val tp = TechniqueRender.read(text)
-        val base = PressureAdvanceGeometry.baseLayers
-        // the front row's first four walls (mm, on the bed)
-        val x0 = (find.originXUm) / 1000.0; val y0 = find.originYUm / 1000.0
-        val win = TechniqueRender.Window(x0..x0 + 4 * PressureAdvanceGeometry.pitch / 1000.0 + 3, y0..y0 + find.rowDepth / 1000.0)
-        val size = TechniqueRender.render("The pressure-advance plate as written: the front row's first walls", TechniqueRender.View.TOP, listOf(
-            TechniqueRender.Panel(listOf("the base's second layer", "a hole at each wall's speed changes, a tally in the front edge"), tp, { it.layer == 1 }),
-            TechniqueRender.Panel(listOf("the first wall layer", "each wall's value (ms) and arrow, the wall, its corner"), tp, { it.layer == base })),
-            reviewRender("pressure_advance_toolpath.png"), window = win)
-        (size.first > 0) shouldBe true
+        // no fragments: every edge of every ring at least half the line's width (a shorter move is lost in the bead); a shaft
+        // and a head of crossing strokes leave edges of a few hundredths of a millimeter where their square ends meet at the tip
+        for (r in rings) for (i in 0 until r.size / 2) {
+            val j = (i + 1) % (r.size / 2)
+            withClue("edge ${r[2 * i]},${r[2 * i + 1]} to ${r[2 * j]},${r[2 * j + 1]}") { (Math.hypot((r[2 * j] - r[2 * i]).toDouble(), (r[2 * j + 1] - r[2 * i + 1]).toDouble()) >= 450 / 2.0) shouldBe true }
+        }
     }
 })

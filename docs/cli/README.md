@@ -254,9 +254,9 @@ own `-o`: a finer one evenly inside the bracket (`--bracket LOW-HIGH`), or the c
 (`--confirm machine`), with no command written. The machine's model must say how pressure advance is set
 (`hardware.model.<key>.pressure_advance.command`; the bundled models carry Klipper's).
 
-![The pressure-advance plate from above: two rows of walls with their values, arrows, speed-change holes, and corners; below, the three readings](../renders/pressure_advance_plate.png)
+![The default first pressure-advance plate on a 250 x 250 mm bed, from above: two rows of walls with their values, arrows, speed-change holes, and corners; below, the three readings](../renders/pressure_advance_plate.png)
 
-![The plate's g-code from above: the base's second layer with a hole at each speed change, and the first wall layer with each wall's value, arrow, and corner](../renders/pressure_advance_toolpath.png)
+![The same plate's g-code from above: the base's second layer with a hole at each speed change, and the first wall layer with each wall's value, arrow, and corner](../renders/pressure_advance_toolpath.png)
 
 ## Look at a g-code
 
