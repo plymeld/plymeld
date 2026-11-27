@@ -197,7 +197,9 @@ class PressureAdvanceSpec(
  * catch them: "value" (wall 1.3 set to wall 1.4's value), "command" (no command before wall 2.2: it prints at wall
  * 2.1's value), "order" (the back row in the front row's order), "direction" (wall 1.2 printed back to front on odd layers),
  * "speed" (wall 1.1's middle at the slow speed: no speed change), "holes" (no speed-change marks), "chamfer" (no chamfer),
- * "tally" (no tally), "corner" (wall 1.2's corner left out).
+ * "tally" (no tally; on the confirm plate no flow-step notches either), "corner" (wall 1.2's corner left out); on the
+ * confirm plate "steps" (wall 1.2's flow-step notches one short, centered: one missing, the rest moved) and "notch" (wall
+ * 1.1's with one more at its next place).
  */
 class PressureAdvancePlate(private val spec: PressureAdvanceSpec, private val without: Set<String> = emptySet()) {
     private val g = PressureAdvanceGeometry
@@ -222,7 +224,15 @@ class PressureAdvancePlate(private val spec: PressureAdvanceSpec, private val wi
                 if (spec.rows > 1) cuts += PlateMarks.between(b, PlateMarks.Edge.BACK, spec.cellBounds())
             } else {
                 // the flow step under each wall: 1, 2, or 3 notches, centered on the wall
-                for (w in spec.walls) { val n = w.step + 1; val x = spec.wallXUm(w); cuts += PlateMarks.count(b, PlateMarks.Edge.FRONT, x - PlateMarks.countLength(n) / 2 + PlateMarks.TALLY_W / 2, n) }
+                for (w in spec.walls) {
+                    val n = w.step + 1; val first = spec.wallXUm(w) - PlateMarks.countLength(n) / 2 + PlateMarks.TALLY_W / 2
+                    val cut = when {
+                        "steps" in without && w.row == 0 && w.position == 1 -> n - 1
+                        "notch" in without && w.row == 0 && w.position == 0 -> n + 1
+                        else -> n
+                    }
+                    cuts += PlateMarks.count(b, PlateMarks.Edge.FRONT, if (cut < n) spec.wallXUm(w) - PlateMarks.countLength(cut) / 2 + PlateMarks.TALLY_W / 2 else first, cut)
+                }
                 cuts += PlateMarks.between(b, PlateMarks.Edge.BACK, spec.cellBounds())
             }
         }

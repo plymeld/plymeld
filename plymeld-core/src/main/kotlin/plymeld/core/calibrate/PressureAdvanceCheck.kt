@@ -14,7 +14,8 @@ package plymeld.core.calibrate
  *    speed changes where the middle starts and ends), the slow speed over its tail; at the machine's acceleration; its
  *    filament per mm the bead's at the flow ratio;
  *  - the base one piece: its first layer over the whole base (the marks under it filled), and above it nothing laid in a
- *    speed-change hole, a tally notch, or the chamfer;
+ *    speed-change hole, a tally notch, the confirm plate's flow-step notches (one, two, or three under each wall, centered
+ *    on it), or the chamfer; and the front edge whole where a wall's next flow-step notch would go;
  *  - the base's first layer at the first-layer temperature, the walls at theirs, waited for; the fan off on the first layer.
  *
  * Returns the problems (empty = the plate prints as specified).
@@ -102,10 +103,22 @@ object PressureAdvanceCheck {
                 marks += "${w.label}'s $name mark" to doubleArrayOf(x0, y - holeW / 2, x1, y + holeW / 2)
             }
         }
-        val edgeY = listOf(oy) + if (spec.rows > 1 || spec.kind == PressureAdvanceSpec.Kind.CONFIRM) listOf(oy + spec.baseD / 1000.0) else emptyList()
-        if (spec.kind == PressureAdvanceSpec.Kind.FIND) for ((k, at) in spec.cellBounds().dropLast(1).withIndex()) for ((r, ey) in edgeY.withIndex()) {
-            val d = PlateMarks.depth(k) / 1000.0; val x = at / 1000.0 + ox
-            marks += "the tally notch ${k + 1} in the ${if (r == 0) "front" else "back"} edge" to (if (r == 0) doubleArrayOf(x - holeW / 2, ey, x + holeW / 2, ey + d) else doubleArrayOf(x - holeW / 2, ey - d, x + holeW / 2, ey))
+        val frontY = oy; val backY = oy + spec.baseD / 1000.0
+        fun notch(x: Double, k: Int, front: Boolean): DoubleArray { val d = PlateMarks.depth(k) / 1000.0
+            return if (front) doubleArrayOf(x - holeW / 2, frontY, x + holeW / 2, frontY + d) else doubleArrayOf(x - holeW / 2, backY - d, x + holeW / 2, backY) }
+        // the tally between the walls: the find plate's in its front edge, and its back edge where it has a back row; the confirm
+        // plate's in its back edge
+        val tallyEdges = if (spec.kind == PressureAdvanceSpec.Kind.FIND) listOf(true) + (if (spec.rows > 1) listOf(false) else emptyList()) else listOf(false)
+        for ((k, at) in spec.cellBounds().dropLast(1).withIndex()) for (front in tallyEdges)
+            marks += "the tally notch ${k + 1} in the ${if (front) "front" else "back"} edge" to notch(at / 1000.0 + ox, k, front)
+        // the confirm plate's flow steps: under each wall, in the front edge, one notch per step, centered on the wall; where a
+        // next notch would go, the edge whole (so a wall's count reads no higher)
+        val whole = ArrayList<Pair<String, DoubleArray>>()
+        if (spec.kind == PressureAdvanceSpec.Kind.CONFIRM) for (w in spec.walls) {
+            val n = w.step + 1
+            val first = (spec.wallXUm(w) - PlateMarks.countLength(n) / 2 + PlateMarks.TALLY_W / 2) / 1000.0 + ox
+            for (k in 0 until n) marks += "${w.label}'s flow-step notch ${k + 1} of $n in the front edge" to notch(first + k * PlateMarks.TALLY_PITCH / 1000.0, k, true)
+            whole += "${w.label}'s flow step: the front edge where a notch ${n + 1} would go" to notch(first + n * PlateMarks.TALLY_PITCH / 1000.0, n, true)
         }
         fun crosses(m: Move, box: DoubleArray, shrink: Double): Boolean {
             val n = maxOf(2, Math.ceil(m.len / 0.05).toInt())
@@ -117,6 +130,8 @@ object PressureAdvanceCheck {
             if (base.filter { it.layer == 0 }.none { crosses(it, box, 0.0) }) bad("first $name", "$name: the base's first layer leaves it open (the first layer is whole)")
             base.firstOrNull { it.layer > 0 && crosses(it, box, -lw / 2 + 0.1) }?.let { bad("filled $name", "$name: laid over on layer ${it.layer + 1} (open above the first layer)") }
         }
+        for ((name, box) in whole) for (l in 1 until g.baseLayers)
+            if (base.filter { it.layer == l }.none { crosses(it, box, 0.0) }) bad("cut $name", "$name: open on layer ${l + 1} (a notch there, read as one more step)")
         val ch = PlateMarks.CHAMFER / 1000.0
         val corner = doubleArrayOf(ox, oy, ox + ch / 3, oy + ch / 3)
         base.firstOrNull { crosses(it, corner, -lw / 2) }?.let { bad("chamfer", "the base's front-left corner laid on layer ${it.layer + 1}: no chamfer") }

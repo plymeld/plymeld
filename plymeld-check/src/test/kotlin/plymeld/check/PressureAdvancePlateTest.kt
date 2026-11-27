@@ -124,7 +124,10 @@ class PressureAdvancePlateTest : StringSpec({
         val confirm = spec(listOf(0.036, 0.04, 0.044).flatMapIndexed { vi, v -> fasts.indices.map { k -> PressureAdvanceWall(0, vi * 3 + k, v, fasts[k], k) } }, PressureAdvanceSpec.Kind.CONFIRM, 0.04)
         val ct = gcodeOf(PressureAdvancePlate(confirm))
         problems(confirm, ct).shouldBeEmpty()
-        for (c in listOf("value", "direction", "speed", "holes")) withClue(c) { problems(confirm, gcodeOf(PressureAdvancePlate(confirm, setOf(c)))).shouldNotBeEmpty() }
+        for (c in listOf("value", "direction", "speed", "holes", "tally", "steps", "notch")) withClue(c) { problems(confirm, gcodeOf(PressureAdvancePlate(confirm, setOf(c)))).shouldNotBeEmpty() }
+        // the flow-step notches read back: one missing and the rest moved, or one too many, each named
+        problems(confirm, gcodeOf(PressureAdvancePlate(confirm, setOf("steps")))).any { "wall 1.2's flow-step notch" in it } shouldBe true
+        problems(confirm, gcodeOf(PressureAdvancePlate(confirm, setOf("notch")))).any { "wall 1.1's flow step" in it && "notch 2 would go" in it } shouldBe true
         val own = testSetup("hardware.machine.tm.firmware.own_pressure_advance" to true)
         val machine = spec(fasts.indices.map { PressureAdvanceWall(0, it, null, fasts[it], it) }, PressureAdvanceSpec.Kind.CONFIRM, null)
         val mt = PressureAdvancePlate(machine).gcode(SliceSettings.of(own), own.foreignTemplateVars, "test")
