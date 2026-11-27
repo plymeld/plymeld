@@ -9,6 +9,8 @@ section the release's version and date.
 
 ## [Unreleased]
 
+## [0.20261127.1] - 2026-11-27
+
 ### Changed
 
 - An outer wall is never widened or moved to share a slit behind it. Where a slit too narrow for a line lies between
