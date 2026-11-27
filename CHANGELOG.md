@@ -73,10 +73,16 @@ section the release's version and date.
   where it ran as one long line; the melt and flow plates print it so too, where they gave the time alone.
 - Every calibration plate's output, and every `readings` and `values` report, keeps each line within 200 characters,
   a path counted as its file name, whatever the length of the config's own names: a longer line breaks where its facts
-  part (between sentences, then clauses, then items), its later lines indented. The flow plate's patches and the melt
-  plate's rows take a line per fact; a next plate `values` names is its command alone, on a line below what it makes.
-- The note a calibration's `values` writes above a value in the config is wrapped between words at 120 columns, each
-  line starting `# `, as the config files' own comments are, where each of its parts was one long line.
+  part (between sentences, then clauses, then items; inside a parenthesis only where no break outside it is short
+  enough), its later lines indented. The flow plate's patches and the melt plate's rows take a line per fact; a next
+  plate `values` names is its command alone, on a line below what it makes.
+- The note a calibration's `values` writes above a value in the config, the notes in the files the motion, ironing,
+  and seam plates' `values` write, and those atop every readings sheet are wrapped between words at 120 columns, each line starting `# `, as the config
+  files' own comments are, where each of their parts was one long line.
+- No calibration plate tells you to level the bed: each says, in its output and on its page, what its file does where it
+  runs the machine's levelling or was made with `--no-level`, and otherwise names levelling as the print starts as an
+  option where the printer's connection can (`plymeld printer send --print --level`), as the pressure-advance plate does.
+  The melt and flow plates say it too, where they said nothing.
 - The stroke font's "1", in every plate's raised labels, has a base and a flat flag at its top, where a slanted flag
   made it read as an arrow; its decimal point is a short upright bar two lines long, where a dot was a single short line.
 

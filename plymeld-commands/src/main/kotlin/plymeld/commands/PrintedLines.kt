@@ -4,7 +4,8 @@ package plymeld.commands
  * A line a command prints, held to [WIDTH] characters: a path counts as its file name alone (its folder is the user's),
  * and a line that is nothing but a command to run, in backquotes, is left whole (it is copied, not read). A longer line
  * is broken where its facts part: between sentences, then at the semicolons between its clauses, then at the commas
- * between a clause's items, then between words; each break outside parentheses where it can be. Its pieces are packed
+ * between a clause's items, then between words; every one of those outside parentheses before any inside, so a
+ * parenthesis breaks only where no break outside it keeps the line within the width. Its pieces are packed
  * back together up to the width, so a line breaks only where it must, and the lines after its first are indented two
  * spaces past it.
  */
@@ -25,12 +26,15 @@ object PrintedLines {
         return listOf(indent + parts[0]) + parts.drop(1).map { more + it }
     }
 
-    // the separators a line breaks at, the strongest first; each kept at the end of the piece before it
-    private val BREAKS = listOf(Regex("""(?<=\.) (?=[A-Z])"""), Regex("""(?<=;) """), Regex("""(?<=,) """), Regex(""" """))
+    // the separators a line breaks at, the strongest first, each kept at the end of the piece before it: every one outside
+    // parentheses before any inside one
+    private val SENTENCE = Regex("""(?<=\.) (?=[A-Z])"""); private val CLAUSE = Regex("""(?<=;) """)
+    private val ITEM = Regex("""(?<=,) """); private val WORD = Regex(""" """)
+    private val BREAKS = listOf(SENTENCE to true, CLAUSE to true, ITEM to true, WORD to true, CLAUSE to false, ITEM to false, WORD to false)
 
     private fun pieces(text: String, level: Int, width: Int): List<String> {
         if (length(text) <= width || level >= BREAKS.size) return listOf(text)
-        val tokens = splitOutside(text, BREAKS[level], outsideOnly = level < BREAKS.size - 1)
+        val tokens = splitOutside(text, BREAKS[level].first, outsideOnly = BREAKS[level].second)
         // a token too long on its own breaks at the next, weaker separator; then the pieces packed up to the width
         val small = tokens.flatMap { t -> if (length(t) > width) pieces(t, level + 1, width) else listOf(t) }
         val out = ArrayList<String>()

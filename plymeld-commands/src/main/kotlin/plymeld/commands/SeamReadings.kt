@@ -101,7 +101,7 @@ object SeamRecord {
             sb.append("\n[piece.${p.index + 1}]\n")
             sb.append("kind = \"${p.key}\"\nseam = \"${words.replace("\"", "'")}\"\ngrade = \"?\"\nnotes = \"\"\n")
         }
-        val text = sb.toString()
+        val text = TomlEdit.wrapComments(sb.toString().split("\n")).joinToString("\n")   // its notes wrapped as the config files' own are
         val back = parse(text, fileName, ungradedAllowed = true)
         check(back.pieces.size == pieces.size && back.pieces.all { it.grade == null }) { "the sheet written does not read back" }
         return text
@@ -200,7 +200,7 @@ object SeamRecord {
         report += lines.map { "  $it" }
         report += missing.map { "  $it" }
         cornerNote?.let { report += "  $it" }
-        val out = head.joinToString("\n") + "\n"
+        val out = TomlEdit.wrapComments(head).joinToString("\n") + "\n"   // its notes wrapped as the config files' own are
         // the file reads back as config entries at the paths written
         val back = ConfigFiles.readToml(out, name)
         check(shares.keys.all { k -> back.any { it.path == k.split('.') } }) { "the shares written do not read back" }

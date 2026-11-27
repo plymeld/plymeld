@@ -45,7 +45,10 @@ object PressureAdvanceInstructions {
         val limits: String = "",
         /** Whether the printer can level the bed as a print starts when asked (`plymeld printer send --print --level`): mentioned as an option, never as a step. */
         val levelsOnStart: Boolean = false,
-    )
+    ) {
+        /** What the page says of levelling ([Levelling]). */
+        val levelling: Levelling.State get() = Levelling.State(levels, levelSkipped, levelsOnStart)
+    }
 
     /** Writes [mdFile], its picture of the plate beside it (same name, .png), and its picture of the two ways to read a wall (-reading.png). */
     fun write(mdFile: java.nio.file.Path, spec: PressureAdvanceSpec, plate: PressureAdvancePlate, info: Info) {
@@ -83,7 +86,7 @@ object PressureAdvanceInstructions {
             "**Clean the bed**${if (info.plate.isNotEmpty()) ", and use the build plate the file was made for (`${info.plate}`)" else ""}; the bed heats to ${info.bedTempC} C.",
             "**Load `${info.filament}` on tool ${info.tool + 1}**, dry.")
         for ((k, st) in steps.withIndex()) l("${k + 1}. $st")
-        if (info.levelsOnStart) { l(); l("The printer can level the bed as the print starts, should you want it: `plymeld printer send --print --level`.") }
+        Levelling.page(info.levelling)?.let { l(); l(it) }
         l()
         l("## What the plate prints with")
         l()

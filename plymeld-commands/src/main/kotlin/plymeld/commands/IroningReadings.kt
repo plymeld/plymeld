@@ -117,7 +117,7 @@ object IroningRecord {
             else sb.append("speed = \"${z.speed}\"\nflow = \"${z.flow}\"\nspacing = \"${z.spacing}\"\nangle = \"${z.angle}\"\ninset = \"${z.inset}\"\n")
             sb.append("grade = \"?\"\nnotes = \"\"\n")
         }
-        val text = sb.toString()
+        val text = TomlEdit.wrapComments(sb.toString().split("\n")).joinToString("\n")   // its notes wrapped as the config files' own are
         // read it back: every zone there, ungraded
         val back = parse(text, fileName, ungradedAllowed = true)
         check(back.zones.size == zones.size && back.zones.all { it.grade == null }) { "the sheet written does not read back" }
@@ -216,7 +216,7 @@ object IroningRecord {
         report += lines.map { "  $it" }
         report.add(0, "ironing values from ${sheet.plate}:")
         report += "  best zone: ${bestZone.index} (${bestZone.grade}), agreeing on $agree of ${SETTINGS.size}"
-        val out = head.joinToString("\n") + "\n"
+        val out = TomlEdit.wrapComments(head).joinToString("\n") + "\n"   // its notes wrapped as the config files' own are
         // the file reads back as config entries at the five paths
         val back = ConfigFiles.readToml(out, name)
         val under = if (sheet.filament != null) listOf("hardware", "filament", sheet.filament, "technique", "ironing") else listOf("plan", "technique", "ironing")

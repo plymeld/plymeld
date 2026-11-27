@@ -122,7 +122,7 @@ object PressureAdvanceRecord {
             if (find) sb.append("corner = \"?\"\n")
             sb.append("notes = \"\"\n")
         }
-        val text = sb.toString()
+        val text = TomlEdit.wrapComments(sb.toString().split("\n")).joinToString("\n")   // its notes wrapped as the config files' own are
         val back = parse(text, fileName, unreadAllowed = true)
         check(back.walls.size == walls.size) { "the sheet written does not read back" }
         return text

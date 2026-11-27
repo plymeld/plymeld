@@ -565,13 +565,13 @@ class CalibrationPlateTest : StringSpec({
         firstZ("pedestal") shouldBe (0.4 plusOrMinus 1e-9)
         CalibrationCheck.check(raisedSpec, CalibrationPlate(raised(14)).gcode(s, setup.foreignTemplateVars, "test")).any { it.contains("fit block") || it.contains("pedestal") } shouldBe true
     }
-    "the plate's page: levelling first, the conditions, the melt test's strips and flows per band, how to read it, what to enter" {
+    "the plate's page: no levelling step, the conditions, the melt test's strips and flows per band, how to read it, what to enter" {
         val plate = CalibrationPlate(meltSpec)
         val md = plymeld.core.calibrate.PlateInstructions.markdown(meltSpec, plate,
             plymeld.core.calibrate.PlateInstructions.Info("pla test", "a printer", 0, "test", "plate.gcode", 9.0, "0.035 s", 60, 40.0, 100.0, 0.8,
                 maxFlowKey = "hardware.filament.pla test.melt.flow.max", maxFlowNow = "15 mm3/s", printTempC = 214,
                 maxFlowEnterKey = "hardware.filament.\"pla test\".machine.p.melt.flow.max"), "plate.png")
-        md shouldContain "Level the bed"
+        md.contains("Level the bed") shouldBe false   // no step to level (Levelling; PlateLevellingTest holds every plate to it)
         md shouldContain "| pressure advance | 0.035 s |"
         md shouldContain "![The plate, from above and from the front](plate.png)"
         md shouldContain "**Run the melt test first**"

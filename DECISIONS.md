@@ -2694,6 +2694,9 @@ Each strip carries its row's number (1 the front row, 2 the back), raised uprigh
 value is printed in both rows and `values` compares the rows: a strip snapped out still says where it came from.
 Neither the page nor the command tells the reader to level the bed: the reading does not depend on a levelled bed beyond
 what the reader already prints with; where the printer can level as a print starts, the page names that as an option.
+Every calibration plate says the same of levelling, in its output and on its page, through one helper
+(`Levelling`): no instruction to level; what the file does where it runs the machine's levelling or was made with
+`--no-level`; else the option to level as the print starts where the printer's connection can.
 The command's output states one thing a line, each within 200 characters with a path counted as its file name (a
 line that is nothing but a command to copy and run excepted), whatever the length of the user's own keys; every
 calibration plate's output and every `readings` and `values` report is held to the same width, a longer line broken

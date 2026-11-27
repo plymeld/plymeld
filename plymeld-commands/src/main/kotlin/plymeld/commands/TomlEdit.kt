@@ -82,15 +82,28 @@ object TomlEdit {
      * [comment] (lines, without their "# ") as the comment lines plymeld writes: each at [indent], starting `# `, wrapped
      * between words to at most [COMMENT_WIDTH] columns; a word longer than that (a path) stays whole, on a line of its own.
      */
-    fun commentLines(comment: List<String>, indent: String = ""): List<String> = comment.flatMap { c ->
+    fun commentLines(comment: List<String>, indent: String = ""): List<String> = comment.flatMap { wrapped(it, "$indent# ", "$indent# ") }
+
+    /**
+     * A file's [lines] with every comment line wider than [COMMENT_WIDTH] wrapped as [commentLines] wraps a note: its
+     * continuations under the same `#`, two spaces further in than its text began (so an item in a list reads as one); the
+     * other lines as they are.
+     */
+    fun wrapComments(lines: List<String>): List<String> = lines.flatMap { l ->
+        val m = Regex("""^(\s*#)( +)(.*)$""").matchEntire(l)
+        if (m == null || l.length <= COMMENT_WIDTH) listOf(l) else { val lead = m.groupValues[1] + m.groupValues[2]; wrapped(m.groupValues[3], lead, "$lead  ") }
+    }
+
+    /** [text] wrapped between words to [COMMENT_WIDTH] columns: its first line after [first], the rest after [more]. */
+    private fun wrapped(text: String, first: String, more: String): List<String> {
         val out = ArrayList<String>(); val cur = StringBuilder()
-        for (word in c.split(' ').filter { it.isNotEmpty() }) {
-            if (cur.isNotEmpty() && indent.length + 2 + cur.length + 1 + word.length > COMMENT_WIDTH) { out += "$indent# $cur"; cur.clear() }
+        for (word in text.split(' ').filter { it.isNotEmpty() }) {
+            if (cur.isNotEmpty() && (if (out.isEmpty()) first else more).length + cur.length + 1 + word.length > COMMENT_WIDTH) { out += (if (out.isEmpty()) first else more) + cur; cur.clear() }
             if (cur.isNotEmpty()) cur.append(' ')
             cur.append(word)
         }
-        out += "$indent# $cur"
-        out
+        out += (if (out.isEmpty()) first else more) + cur
+        return out
     }
 
     /**

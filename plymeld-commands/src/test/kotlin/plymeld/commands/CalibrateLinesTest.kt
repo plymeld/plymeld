@@ -35,12 +35,14 @@ class CalibrateLinesTest : StringSpec({
         }
         fun out(name: String) = d.resolve(name).toString()
         fun text(name: String): String = Files.readString(d.resolve(name))
-        /** Every line within its limit (the change a values shows, its comments as the file has them under the two spaces it is indented by), every comment in the config files. */
+        /** Every line within its limit (the change a values shows, its comments as the file has them under the two spaces it is indented by), every comment in the TOML files the commands read and write (the config files, the sheets, the values files). */
         fun check(count: Int) {
             all.size shouldBe count
             all.none { it.second.isEmpty() } shouldBe true
+            // the sample machine neither levels nor has a printer to level as a print starts: no word of levelling (PlateLevellingTest)
+            withClue(all.joinToString("\n") { it.second.joinToString("\n") }) { all.flatMap { it.second }.filter { "levelling" in it }.shouldBeEmpty() }
             val over = all.flatMap { (args, lines) -> (OutputLines.overLong(lines) + OutputLines.badComments(lines.map { it.removePrefix("  ") })).map { "$args\n    ${it.length}: $it" } } +
-                Files.list(d).use { fs -> fs.toList() }.filter { it.fileName.toString().matches(Regex("0.*\\.toml")) }.flatMap { f -> OutputLines.badComments(Files.readString(f).lines()).map { "${f.fileName}\n    ${it.length}: $it" } }
+                Files.list(d).use { fs -> fs.toList() }.filter { it.fileName.toString().endsWith(".toml") }.flatMap { f -> OutputLines.badComments(Files.readString(f).lines()).map { "${f.fileName}\n    ${it.length}: $it" } }
             withClue(over.joinToString("\n")) { over.shouldBeEmpty() }
         }
     }

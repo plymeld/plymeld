@@ -31,6 +31,22 @@ class PrintedLinesTest : StringSpec({
         PrintedLines.of(two).any { it.trimStart().startsWith("Controls caught:") } shouldBe true
     }
 
+    "a parenthesis breaks only where no break outside it keeps the line within the width" {
+        fun balanced(l: String) = l.count { it == '(' } == l.count { it == ')' }
+        val cost = "predicted cost by family (by the g-code's cells: each family's lines, its base, and the travels into them; shared: layer changes, the parked cooling pause, " +
+            "temperature waits counted as 0, start and end):"
+        (cost.length > PrintedLines.WIDTH) shouldBe true
+        val out = PrintedLines.of(cost)
+        out shouldBe listOf("predicted cost by family", "  " + cost.removePrefix("predicted cost by family "))
+        out.all(::balanced) shouldBe true
+        // control: a parenthesis longer than the width breaks inside, at its clauses, each line within the width
+        val long = "values (" + (1..12).joinToString("; ") { "clause $it of the note in parentheses" } + ")"
+        val inside = PrintedLines.of(long)
+        inside.all { it.length <= PrintedLines.WIDTH } shouldBe true
+        inside.all(::balanced) shouldBe false
+        inside.dropLast(1).all { it.endsWith(";") } shouldBe true
+    }
+
     "left as they are: a line within the width, one within it with a path's folder not counted, one that is only a command" {
         val short = "plate: 149 x 163.6 mm"
         PrintedLines.of(short) shouldBe listOf(short)

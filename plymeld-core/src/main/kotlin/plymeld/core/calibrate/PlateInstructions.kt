@@ -43,7 +43,12 @@ object PlateInstructions {
          * print speed and acceleration, held to the filament's maximum flow). NaN / empty / null: not given.
          */
         val frameAccel: Double = Double.NaN, val frameParts: List<String> = emptyList(), val frameWhy: String? = null,
-    )
+        /** Whether the printer can level the bed as a print starts when asked (`plymeld printer send --print --level`): mentioned as an option, never as a step. */
+        val levelsOnStart: Boolean = false,
+    ) {
+        /** What the page says of levelling ([Levelling]). */
+        val levelling: Levelling.State get() = Levelling.State(levels, levelSkipped, levelsOnStart)
+    }
 
     /**
      * What a part of the plate costs by plymeld's prediction, attributed by
@@ -213,18 +218,14 @@ object PlateInstructions {
         l()
         l("The readings are only as good as the print's first layers and the printer's own state, so:")
         l()
-        l("1. **Level the bed.** " + when {
-            info.levels -> "This file runs the printer's bed levelling (hardware.machine.<key>.gcode.level) before the plate, once it has heated. If your printer also offers levelling when a print starts, you need not use both."
-            info.levelSkipped -> "This file does **not** level the bed (it was made with `--no-level`): run the printer's bed levelling (mesh) yourself first."
-            else -> "plymeld cannot level this printer from the g-code (no levelling command is known for it): turn on the printer's own levelling when you start the print (e.g. its \"level before print\" option), or run it from the printer's menu first."
-        })
-        l("2. **Run any other calibration your printer offers before a print**: nozzle or tool offsets on a multi-tool machine, its own flow or pressure-advance calibration (note whether it ran: it changes the conditions below), a nozzle clean or wipe.")
-        l("3. **Clean the bed** (no fingerprints)${if (info.plate.isNotEmpty()) ", and use the build plate the file was made for (`${info.plate}`)" else ""}; the bed heats to ${info.bedTempC} C.")
-        l("4. **Load `${info.filament}` on tool ${info.tool + 1}.** Dry filament matters: moisture looks like a melt limit (bubbles, rough walls).")
-        l("5. **Watch the first layer**: every part's first layer should be flat and joined. Stop and re-level if it is not.")
-        l("6. **During the print**: after each layer the head moves off to the front of the plate and pauses, so every layer cools alike; that is expected." +
+        l("1. **Run any other calibration your printer offers before a print**: nozzle or tool offsets on a multi-tool machine, its own flow or pressure-advance calibration (note whether it ran: it changes the conditions below), a nozzle clean or wipe.")
+        l("2. **Clean the bed** (no fingerprints)${if (info.plate.isNotEmpty()) ", and use the build plate the file was made for (`${info.plate}`)" else ""}; the bed heats to ${info.bedTempC} C.")
+        l("3. **Load `${info.filament}` on tool ${info.tool + 1}.** Dry filament matters: moisture looks like a melt limit (bubbles, rough walls).")
+        l("4. **Watch the first layer**: every part's first layer should be flat and joined. Stop the print if it is not.")
+        l("5. **During the print**: after each layer the head moves off to the front of the plate and pauses, so every layer cools alike; that is expected." +
             (if (m != null) " Before each step after the first, the head also waits there until the nozzle has reached that step's temperature; then it prints one layer (not read) and the step's top." else "") +
             (if (m != null) " On each melt step's top layer the FAST surface's thicker strips ask for up to ${n(spec.stripFlow(m.count - 1, 0), 1)} mm3/s, likely past what the filament melts, more so in the colder bands (the upper steps): the extruder may click there. That is the test working. If it keeps grinding, or the filament stops feeding, stop the print: a ground filament starves every band above." else ""))
+        Levelling.page(info.levelling)?.let { l(); l(it) }
         l()
         l("## What the plate prints with")
         l()

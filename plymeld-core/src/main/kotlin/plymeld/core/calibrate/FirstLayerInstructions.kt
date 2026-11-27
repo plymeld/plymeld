@@ -43,17 +43,13 @@ object FirstLayerInstructions {
         l()
         l("The whole plate is a first layer, so the bed decides it:")
         l()
-        l("1. **Level the bed.** " + when {
-            info.levels -> "This file runs the printer's bed levelling (hardware.machine.<key>.gcode.level) before the plate, once it has heated. If your printer also offers levelling when a print starts, you need not use both."
-            info.levelSkipped -> "This file does **not** level the bed (it was made with `--no-level`): run the printer's bed levelling (mesh) yourself first."
-            else -> "plymeld cannot level this printer from the g-code (no levelling command is known for it): turn on the printer's own levelling when you start the print (e.g. its \"level before print\" option), or run it from the printer's menu first."
-        } + " Every tile is read against its neighbors: a bed that is not level reads as a height that is wrong.")
-        l("2. **Run any other calibration your printer offers before a print**: nozzle or tool offsets on a multi-tool machine, a z-offset, its own flow or pressure-advance calibration (note whether it ran: it changes the conditions below), a nozzle clean or wipe.")
-        l("3. **Clean the bed** (no fingerprints: they show as tiles that did not stick)${if (info.plate.isNotEmpty()) ", and use the build plate the file was made for (`${info.plate}`)" else ""}; the bed heats to ${info.bedTempC} C and stays there.")
-        l("4. **Load `${info.filament}` on tool ${info.tool + 1}.** Dry filament matters: moisture shows as rough, bubbly tiles at every height.")
-        l("5. **During the print**: some tiles are meant to come out badly (too low or too high): do not stop for them. Between columns the head moves off to the front of the plate and waits while the nozzle heats to the next column's temperature; that is expected. " +
+        l("1. **Run any other calibration your printer offers before a print**: nozzle or tool offsets on a multi-tool machine, a z-offset, its own flow or pressure-advance calibration (note whether it ran: it changes the conditions below), a nozzle clean or wipe.")
+        l("2. **Clean the bed** (no fingerprints: they show as tiles that did not stick)${if (info.plate.isNotEmpty()) ", and use the build plate the file was made for (`${info.plate}`)" else ""}; the bed heats to ${info.bedTempC} C and stays there.")
+        l("3. **Load `${info.filament}` on tool ${info.tool + 1}.** Dry filament matters: moisture shows as rough, bubbly tiles at every height.")
+        l("4. **During the print**: some tiles are meant to come out badly (too low or too high): do not stop for them. Between columns the head moves off to the front of the plate and waits while the nozzle heats to the next column's temperature; that is expected. " +
             "Each column starts with its prime line; after the last column come the base's upper layers, the raised labels, and the frame over every tile's wall with the border round the base.")
-        l("6. **After the print**, let the bed cool, then peel the plate as one piece by its raised edge (the frame and the border).")
+        l("5. **After the print**, let the bed cool, then peel the plate as one piece by its raised edge (the frame and the border).")
+        Levelling.page(info.levelling)?.let { l(); l(it) }
         l()
         l("## What the plate prints with")
         l()

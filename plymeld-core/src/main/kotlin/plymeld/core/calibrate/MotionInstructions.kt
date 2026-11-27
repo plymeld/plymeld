@@ -55,16 +55,12 @@ object MotionInstructions {
         }
         l("## Before you print")
         l()
-        l("1. **Level the bed.** " + when {
-            info.levels -> "This file runs the printer's bed levelling (hardware.machine.<key>.gcode.level) before the plate, once it has heated."
-            info.levelSkipped -> "This file does **not** level the bed (it was made with `--no-level`): run the printer's bed levelling yourself first."
-            else -> "plymeld cannot level this printer from the g-code (no levelling command is known for it): turn on the printer's own levelling when you start the print, or run it from the printer's menu first."
-        })
-        l("2. **Leave the printer's own motion settings as you print with them**: its vibration compensation (input shaping) on or off, its acceleration and corner-speed limits. The plate measures the machine as it is set; change one and the readings no longer hold. Note whether it ran any vibration or resonance calibration of its own before this print.")
-        l("3. **Check the machine is sound**: belts tensioned, nothing loose on the head or the bed, the printer standing firm. A loose part rings at every speed and reads as the machine's limit.")
-        l("4. **Clean the bed**${if (info.plate.isNotEmpty()) ", and use the build plate the file was made for (`${info.plate}`)" else ""}; the bed heats to ${info.bedTempC} C and stays there.")
-        l("5. **Load `${info.filament}` on tool ${info.tool + 1}.** A dark, glossy filament shows ripples best; any works.")
-        l("6. **During the print**: the tower speeds up and slows down at every corner, harder band by band; the top band prints at the machine's limits and may be loud. Where a layer would be quicker than the filament's minimum layer time the head parks in front of the plate and waits.")
+        l("1. **Leave the printer's own motion settings as you print with them**: its vibration compensation (input shaping) on or off, its acceleration and corner-speed limits. The plate measures the machine as it is set; change one and the readings no longer hold. Note whether it ran any vibration or resonance calibration of its own before this print.")
+        l("2. **Check the machine is sound**: belts tensioned, nothing loose on the head or the bed, the printer standing firm. A loose part rings at every speed and reads as the machine's limit.")
+        l("3. **Clean the bed**${if (info.plate.isNotEmpty()) ", and use the build plate the file was made for (`${info.plate}`)" else ""}; the bed heats to ${info.bedTempC} C and stays there.")
+        l("4. **Load `${info.filament}` on tool ${info.tool + 1}.** A dark, glossy filament shows ripples best; any works.")
+        l("5. **During the print**: the tower speeds up and slows down at every corner, harder band by band; the top band prints at the machine's limits and may be loud. Where a layer would be quicker than the filament's minimum layer time the head parks in front of the plate and waits.")
+        Levelling.page(info.levelling)?.let { l(); l(it) }
         l()
         l("## What the plate prints with")
         l()

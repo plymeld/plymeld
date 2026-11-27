@@ -352,7 +352,7 @@ class FirstLayerPlateTest : StringSpec({
 
     "the page: columns by temperature and melt limit, rows by speed and height, a table per column, the outcomes decided before printing" {
         val md = FirstLayerInstructions.markdown(sp, FirstLayerPlate(sp), PlateInstructions.Info("pla test", "a printer", 0, "test", "plate.gcode", 9.0, "0.035 s", 60, 40.0, 40.0, 0.8), "plate.png")
-        md shouldContain "Level the bed"
+        md.contains("Level the bed") shouldBe false   // no step to level (Levelling; PlateLevellingTest holds every plate to it)
         md shouldContain "| 1 | 205 C | 20 mm3/s | none |"
         md shouldContain "| 3 | 215 C | 20 mm3/s | none |"
         md shouldContain "| 5 | 70 | 0.16 |"
