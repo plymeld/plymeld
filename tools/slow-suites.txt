@@ -5,6 +5,7 @@
 # development report rather than a gate (it prints findings; its assertions are a floor).
 plymeld.commands.DocumentedCommandsTest   # 295 s: the README's and the docs' plan / slice commands, run as written
 plymeld.check.CalibrationPlateTest         # 157 s
+plymeld.commands.PressureAdvanceCommandTest # 593 s alone: the pressure-advance plate made many ways, its suggestions run as printed, its lines with long keys
 plymeld.commands.CalibrateLinesTest       # 203 s alone: every calibration plate, readings, and values with long keys, a line per command checked
 plymeld.check.OffsetVsSleevesTest          # 155 s: the two offset methods against each other on many shapes
 plymeld.commands.CalibrateSamplesTest     # 99 s
