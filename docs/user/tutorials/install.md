@@ -22,8 +22,8 @@ From the [releases page](https://github.com/plymeld/plymeld/releases), the lates
   `./plymeld.AppImage slice ...`, `./plymeld.AppImage update`. An alias makes it `plymeld` in your terminal:
   `alias plymeld="$HOME/Applications/plymeld.AppImage"` (wherever you keep it).
 - `plymeld-linux-x64.tar.gz` is the command line alone. Unpack it where you keep programs, and put the folder on your
-  `PATH` or link the program into one that is (keep the folder whole: the program draws pictures with the libraries and
-  the `lib/` folder beside it):
+  `PATH` or link the program into one that is (keep the folder whole: the program draws pictures with the libraries
+  beside it):
 
 ```
 mkdir -p ~/.local/opt ~/.local/bin

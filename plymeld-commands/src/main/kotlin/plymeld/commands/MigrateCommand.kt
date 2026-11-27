@@ -11,13 +11,14 @@ import plymeld.config.ConfigFiles
 import plymeld.config.Migrations
 
 /**
- * `plymeld migrate FILE...`: config and plan files rewritten to the settings' current names ([Migrations]): each renamed
+ * `plymeld migrate FILE...`: config and plan files (each a file or a glob, expanded by plymeld as `-cf` is, so a glob
+ * reads the same from any shell) rewritten to the settings' current names ([Migrations]): each renamed
  * setting's line rewritten in place under its new name and value ([TomlEdit.rename], its comments kept), each removed one
  * taken out; the rest of the file as it was. Every file is read back before it is written; each written file is
  * recorded in the config journal, for `plymeld journal --undo`. A file with nothing to change is left alone.
  */
 class MigrateCommand : CliktCommand(name = "migrate") {
-    private val files by argument("FILE", help = "a config or plan file (TOML) to rewrite").path(mustExist = true, canBeDir = false).multiple(required = true)
+    private val fileArgs by argument("FILE", help = "a config or plan file (TOML) to rewrite, or a glob of them").multiple(required = true)
     private val dryRun by option("--dry-run", help = "show the changes; write nothing").flag()
     private val journalOpt by option("--journal", metavar = "JOURNAL", help = "record each change in this journal file; default: the config journal in plymeld's state folder (${FilamentValuesCommand.JOURNAL})").path(canBeDir = false)
 
@@ -27,6 +28,8 @@ class MigrateCommand : CliktCommand(name = "migrate") {
             "each file written is recorded for `plymeld journal --undo`."
 
     override fun run() {
+        // each file or glob, as -cf reads them: a glob's matches in natural order, the same file once
+        val files = ConfigFiles.expand(fileArgs).distinct()
         var changed = 0
         for (file in files) {
             if (!file.toString().lowercase().endsWith(".toml")) throw UsageError("$file: only TOML files are rewritten (a JSON config is read with the new names, but not rewritten)")

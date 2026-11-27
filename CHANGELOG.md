@@ -54,6 +54,19 @@ section the release's version and date.
 - A command reading the config folder's files (no `-cf`) says so once, where a calibration plate said it twice.
 - The stroke font's "1", in every plate's raised labels, has a base and a flat flag at its top, where a slanted flag
   made it read as an arrow; its decimal point is a short upright bar two lines long, where a dot was a single short line.
+
+### Fixed
+
+- A Linux command line updated from 0.20261120.0 by `plymeld update` draws pictures. Every command that writes one
+  stopped with "Fontconfig head is null, check your fonts or fonts configuration": the update left out the empty `lib/`
+  folder beside the program, where the fonts of a picture's text look for their configuration. The command line no
+  longer depends on that folder being there: where it is missing, the command line makes it, and where the program's
+  folder cannot be written, it uses a folder in plymeld's cache instead.
+
+## [0.20261127.1] - 2026-11-27
+
+### Changed
+
 - An outer wall is never widened or moved to share a slit behind it. Where a slit too narrow for a line lies between
   the outer wall (round the outline or round a hole) and the line inside it, the outer wall keeps its width and place
   along the face, and the inner wall beside the slit takes all of it (it took half, the outer wall the other half); two
@@ -79,6 +92,15 @@ section the release's version and date.
   `plymeld calibrate` (after writing the plate's g-code), and `plymeld slice` where the pre-print check draws a layer.
   The machine's preview pictures in the g-code were not affected. The command line's folder now holds a `lib/` folder,
   where the fonts of a picture's text find their configuration; `plymeld update` makes it in an install from the tar.
+- The Windows command line draws pictures. As on Linux, every command that writes one stopped with an error before
+  writing it (`plymeld render`, `plymeld render-plate`, `plymeld layers --png`, the instructions page's picture of
+  `plymeld calibrate`, and `plymeld slice` where the pre-print check draws a layer).
+- On Windows, a glob reaches plymeld as it was typed. `plymeld slice -cf config\0*.toml ...` in cmd or PowerShell, or
+  through the window's program, stopped with "got unexpected extra arguments": the program's runtime replaced an
+  unquoted glob by the files it matched before plymeld read it, so `-cf` got the first file and the others were left
+  over. plymeld expands its globs itself on every platform, in natural order. `plymeld migrate` and
+  `plymeld investigate slice` and `plan` take a glob of files too, where they took files only and the runtime expanded
+  a glob for them on Windows.
 - `plymeld updates --check` and `plymeld update` say in one line that they could not reach the update feed, naming its
   address, where they stopped with a Java stack trace.
 - `plymeld schema --markdown` refuses a page that does not exist by name, where it stopped with a Java stack trace.
