@@ -72,16 +72,22 @@ written, a picture that decodes, a line of text (`render` in each of its views, 
 PNG and SVG; every calibration plate, its readings and values; the printer commands against a saved answer, or refused
 at a host that does not exist; `init`, `updates --check` and `update` at their refusals without a terminal or a feed).
 
-- `tools/native-smoke.sh check <executable> [--window <window executable>]` fails when a case fails. CI's "Native
-  command line" job runs it on every pull request with the native command line it builds; the release runs it on every
-  executable it packages, on Linux and on Windows, before the draft release is created. With `--window`, the window's
+- `tools/native-smoke.sh check <executable> [--window <window executable>]` fails when a case fails. CI runs it on
+  every pull request: the "Native command line" job with the native command line it builds on Linux, and the "Native
+  command line and window on Windows" job with the command line and the window built as the release builds them; the
+  release runs it on every executable it packages, on Linux and on Windows, before the draft release is created. The
+  config is named by an unquoted glob, and on Windows also by one in the folder's own separators, as cmd and
+  PowerShell pass it: an executable whose runtime expanded wildcards (native-image links the C runtime's expansion
+  into a Windows executable unless built with `-H:-EnableWildcardExpansion`) fails every case that reads it. With `--window`, the window's
   executable is held to what an install that starts only the window (the AppImage) runs: `--version`, a command,
   `--help`, and `update` through the command line beside it, an unknown argument refused, and its own `--icons`; each
   stopped after two minutes, so a window that opens fails the case. Run it on the package folder (the window's
   executable with the command line beside it), as the release does.
 - `tools/native-smoke.sh trace` runs the same cases on the JVM under GraalVM's tracing agent (`GRAALVM_HOME`, after
-  `./gradlew :plymeld-cli:installDist`), merging what they reach into the command line's metadata. A change that reaches
-  something new (a library, a drawing path, a protocol) traces again and commits the metadata's diff with it.
+  `./gradlew :plymeld-cli:installDist`), merging what they reach into the command line's metadata. It runs on Linux and
+  on Windows (under Git's bash, from a Windows checkout): each platform's imaging reaches JNI members the other's does
+  not, and the metadata holds both. A change that reaches something new (a library, a drawing path, a protocol) traces
+  again on both and commits the metadata's diff with it; the Windows CI job fails where only Windows reaches it.
 - `NativeSmokeCoverageTest` holds the script to the command tree: a command or subcommand added without a case fails the
   build, unless the script's not-yet ledger (`not_yet "<command>" "<reason>"`) says why it cannot run there; and it
   holds the window's cases to `--version`, a command, `--help`, and a refused argument.

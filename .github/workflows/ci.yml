@@ -140,8 +140,9 @@ jobs:
   # The tests above run on the JVM; the release ships the command line as a GraalVM native image, which reaches what
   # native-image cannot see (the JDK's imaging and its JNI calls, reflection, resources) only through its reachability
   # metadata (plymeld-cli/src/main/resources/META-INF/native-image). This builds that native command line as the
-  # release does and runs every command with it (tools/native-smoke.sh). The window's native build is left to the
-  # release, which smokes it on both platforms: it takes most of a runner's memory and much longer.
+  # release does and runs every command with it (tools/native-smoke.sh). The window's Linux native build is left to the
+  # release, which smokes it on both platforms: it takes most of a runner's memory and much longer; the Windows job
+  # below builds the Windows one, the platform whose argument handling and imaging differ.
   native:
     name: Native command line
     needs: changes
@@ -243,38 +244,6 @@ jobs:
           name: native-windows-smoke
           path: ${{ runner.temp }}/smoke/
           retention-days: 14
-      - name: Stop the build's daemons
-        if: always()
-        shell: cmd
-        run: taskkill /F /IM java.exe /T || exit /b 0
-
-  # TEMPORARY: the command line's metadata traced on Windows, kept as an artifact to be committed
-  trace-windows:
-    name: Trace on Windows (temporary)
-    runs-on: windows-latest
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@v7
-      - uses: graalvm/setup-graalvm@v1
-        with:
-          java-version: '21.0.7'
-          distribution: graalvm
-          github-token: ${{ github.token }}
-          cache: gradle
-      - name: The command line's jars
-        shell: cmd
-        run: gradlew.bat -Pkotlin.daemon.jvmargs=-Xmx2g :plymeld-cli:installDist
-      - name: Trace
-        shell: bash
-        continue-on-error: true
-        run: tools/native-smoke.sh trace "$(cygpath -u "$RUNNER_TEMP")/trace"
-      - name: Keep the metadata
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: windows-trace-metadata
-          path: plymeld-cli/src/main/resources/META-INF/native-image/com.plymeld/plymeld-cli/
-          retention-days: 7
       - name: Stop the build's daemons
         if: always()
         shell: cmd

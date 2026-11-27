@@ -28,7 +28,7 @@ Usage: `plymeld investigate slice [<options>] <models>...`
 
 Arguments:
 
-- `<models>`: STL or 3MF, one or more (a plate of objects)
+- `<models>`: STL or 3MF, one or more (a plate of objects), or a glob of them
 
 Options:
 
@@ -56,7 +56,7 @@ Usage: `plymeld investigate plan [<options>] <models>...`
 
 Arguments:
 
-- `<models>`: STL or 3MF, one or more
+- `<models>`: STL or 3MF, one or more, or a glob of them
 
 Options:
 

@@ -36,6 +36,15 @@ section the release's version and date.
   `plymeld calibrate` (after writing the plate's g-code), and `plymeld slice` where the pre-print check draws a layer.
   The machine's preview pictures in the g-code were not affected. The command line's folder now holds a `lib/` folder,
   where the fonts of a picture's text find their configuration; `plymeld update` makes it in an install from the tar.
+- The Windows command line draws pictures. As on Linux, every command that writes one stopped with an error before
+  writing it (`plymeld render`, `plymeld render-plate`, `plymeld layers --png`, the instructions page's picture of
+  `plymeld calibrate`, and `plymeld slice` where the pre-print check draws a layer).
+- On Windows, a glob reaches plymeld as it was typed. `plymeld slice -cf config\0*.toml ...` in cmd or PowerShell, or
+  through the window's program, stopped with "got unexpected extra arguments": the program's runtime replaced an
+  unquoted glob by the files it matched before plymeld read it, so `-cf` got the first file and the others were left
+  over. plymeld expands its globs itself on every platform, in natural order. `plymeld migrate` and
+  `plymeld investigate slice` and `plan` take a glob of files too, where they took files only and the runtime expanded
+  a glob for them on Windows.
 - `plymeld updates --check` and `plymeld update` say in one line that they could not reach the update feed, naming its
   address, where they stopped with a Java stack trace.
 - `plymeld schema --markdown` refuses a page that does not exist by name, where it stopped with a Java stack trace.

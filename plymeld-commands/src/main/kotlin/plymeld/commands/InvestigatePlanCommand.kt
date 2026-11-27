@@ -9,13 +9,13 @@ import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.multiple
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
-import com.github.ajalt.clikt.parameters.types.path
 import plymeld.config.OrcaImport
 import plymeld.core.decide.Plan
 
 /** `plymeld investigate plan MODEL --settings SRC` — INVESTIGATION ONLY: the decisions with another slicer's settings. */
 class InvestigatePlanCommand : CliktCommand(name = "plan") {
-    private val models by argument(help = "STL or 3MF, one or more").path(mustExist = true, canBeDir = false).multiple(required = true)
+    private val modelArgs by argument("MODELS", help = "STL or 3MF, one or more, or a glob of them").multiple(required = true)
+    private val models by lazy { plymeld.config.ConfigFiles.expand(modelArgs) }
     private val copies by option("--copies", help = "each model this many times (default: 1)").int().default(1)
     private val settings by option("--settings", help = InvestigateCommand.SETTINGS_HELP).required()
     private val pose by option("--pose", help = "derive (default) or as-given").default("derive")

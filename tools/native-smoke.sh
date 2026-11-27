@@ -223,7 +223,7 @@ run_all() {
   ok "plymeld journal" journal journal "$W/edits.journal" && text journal "applied"
   ok "plymeld journal" journal-undo journal "$W/edits.journal" --undo && text journal-undo "undone"
   ok "plymeld journal" journal-redo journal "$W/edits.journal" --redo && text journal-redo "redone"
-  ok "plymeld migrate" migrate migrate "$W/edit.toml" --dry-run && text migrate "nothing to change"
+  ok "plymeld migrate" migrate migrate "$W/edit*.toml" --dry-run && text migrate "nothing to change"
 
   # the investigate commands, with the settings of another slicer's project (a test project, completed where it leaves
   # a setting out)
