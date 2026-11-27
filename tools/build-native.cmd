@@ -33,7 +33,7 @@ rem arguments reach plymeld as typed: native-image links a Windows executable wi
 rem (setargv.obj) unless -H:-EnableWildcardExpansion, which would turn an unquoted `-cf config\0*.toml` into several
 rem words before plymeld reads it; plymeld expands its own globs, the same way on every platform
 call "%GRAALVM_HOME%\bin\native-image.cmd" --no-fallback -O2 -H:+ReportExceptionStackTraces -H:+UnlockExperimentalVMOptions -H:-EnableWildcardExpansion -H:-UnlockExperimentalVMOptions -H:IncludeResources="config/.*\.toml|plymeld-version\.txt|plymeld-update-feed\.txt" --initialize-at-build-time=org.slf4j,org.apache.sshd.common.file.root.RootedFileSystemProvider !ICONOPT! -cp "!CP!" plymeld.cli.MainKt -o "%OUT%\plymeld" %* || exit /b 1
-rem the executable's own folder is its java.home (Main.kt): the JDK's fonts read their configuration from its lib\
+rem the executable's own folder is its java.home (JavaHome.kt): the JDK's fonts read their configuration from its lib\
 rem (fontconfig.bfc, which the JDK ships on Windows), so lib\ goes beside the executable with that file
 if not exist "%OUT%\lib" mkdir "%OUT%\lib"
 if exist "%GRAALVM_HOME%\lib\fontconfig.bfc" copy /y "%GRAALVM_HOME%\lib\fontconfig.bfc" "%OUT%\lib\" >nul

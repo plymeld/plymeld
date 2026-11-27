@@ -82,7 +82,10 @@ at a host that does not exist; `init`, `updates --check` and `update` at their r
   executable is held to what an install that starts only the window (the AppImage) runs: `--version`, a command,
   `--help`, and `update` through the command line beside it, an unknown argument refused, and its own `--icons`; each
   stopped after two minutes, so a window that opens fails the case. Run it on the package folder (the window's
-  executable with the command line beside it), as the release does.
+  executable with the command line beside it), as the release does. On Linux it also runs `render` with the command
+  line from copies of its folder without `lib/`, one writable (the command line makes `lib/` there) and one read-only
+  (it takes a folder in plymeld's cache as java.home instead): the JDK's fonts find no configuration without that
+  folder, and an install can lack it (DECISIONS 72).
 - `tools/native-smoke.sh trace` runs the same cases on the JVM under GraalVM's tracing agent (`GRAALVM_HOME`, after
   `./gradlew :plymeld-cli:installDist`), merging what they reach into the command line's metadata. It runs on Linux and
   on Windows (under Git's bash, from a Windows checkout): each platform's imaging reaches JNI members the other's does
@@ -90,4 +93,5 @@ at a host that does not exist; `init`, `updates --check` and `update` at their r
   again on both and commits the metadata's diff with it; the Windows CI job fails where only Windows reaches it.
 - `NativeSmokeCoverageTest` holds the script to the command tree: a command or subcommand added without a case fails the
   build, unless the script's not-yet ledger (`not_yet "<command>" "<reason>"`) says why it cannot run there; and it
-  holds the window's cases to `--version`, a command, `--help`, and a refused argument.
+  holds the window's cases to `--version`, a command, `--help`, and a refused argument, and the cases of an install
+  without `lib/` to both of theirs.

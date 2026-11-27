@@ -12,8 +12,9 @@
 #   check <plymeld executable> [--window <plymeld-ui executable>] [dir]
 #     run every case with that executable (the native command line, or any launcher of it), and with --window the
 #     window's executable as a command line (--version, a command, --help, update, an unknown argument refused, its own
-#     --icons; it runs the command line beside it, so the window's executable is checked where it is packaged); exit 1
-#     when any case fails. CI and the release run it on what they build.
+#     --icons; it runs the command line beside it, so the window's executable is checked where it is packaged); on Linux,
+#     also `render` from copies of the executable's folder without lib/, writable and read-only; exit 1 when any case
+#     fails. CI and the release run it on what they build.
 #   trace [dir]
 #     run every case on the JVM (`./gradlew :plymeld-cli:installDist` first) under GraalVM's tracing agent, merging what
 #     they reach into the command line's metadata; once with a display and once without where there is one, so both of
@@ -216,6 +217,31 @@ run_all() {
   pictures "plymeld render" render-svg-views "$g" --cut-y 135 --outside left --3d --format svg --sheet sheet.svg
   pictures "plymeld render" render-svg-compare "$g" --layer 5 --compare-with "$W/fuzzy.gcode" --outline-of "$models/holeblock.stl" --format svg
   ok "plymeld render" render-features render "$g" --list-features && text render-features "Outer wall"
+  # an install with no lib/ beside the executable (an unpacker or updater that left the empty folder out): the command
+  # line still draws, its lib/ made where the folder can be written, a folder in plymeld's cache its java.home where it
+  # cannot. Linux's native executable only: on Windows lib\ holds the JDK's fontconfig.bfc, which every package ships, and
+  # a JVM has its own java.home
+  if [ "$mode" = check ] && [ -z "$win" ]; then
+    local d bare="$work/no-lib" saved=("${run[@]}")
+    for d in writable read-only; do
+      mkdir -p "$bare/$d" && cp "$exe" "$bare/$d/plymeld"
+      for f in "$(dirname "$exe")"/*.so; do [ -e "$f" ] && cp "$f" "$bare/$d/"; done
+    done
+    run=("$bare/writable/plymeld")
+    pictures "plymeld render" render-no-lib "$g" --layer 5
+    [ -d "$bare/writable/lib" ] || fail "render-no-lib: no lib/ made beside the executable"
+    chmod a-w "$bare/read-only"
+    run=("$bare/read-only/plymeld")
+    if [ -w "$bare/read-only" ]; then
+      echo "note   render-no-lib-read-only: this user writes a read-only folder (root), so it was not exercised" >&2
+    else
+      [ ! -e "$work/home/cache/java-home" ] || fail "render-no-lib-read-only: plymeld's cache held java-home/ before the case"
+      pictures "plymeld render" render-no-lib-read-only "$g" --layer 5
+      [ -d "$work/home/cache/java-home/lib" ] || fail "render-no-lib-read-only: no lib/ made in plymeld's cache"
+    fi
+    chmod u+w "$bare/read-only"
+    run=("${saved[@]}")
+  fi
 
   # editing config files, the journal of edits, migration
   printf '[plan.layer]\nwalls.count = "2"\n' > "$work/edit.toml"

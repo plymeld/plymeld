@@ -9,6 +9,14 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Fixed
+
+- A Linux command line updated from 0.20261120.0 by `plymeld update` draws pictures. Every command that writes one
+  stopped with "Fontconfig head is null, check your fonts or fonts configuration": the update left out the empty `lib/`
+  folder beside the program, where the fonts of a picture's text look for their configuration. The command line no
+  longer depends on that folder being there: where it is missing, the command line makes it, and where the program's
+  folder cannot be written, it uses a folder in plymeld's cache instead.
+
 ## [0.20261127.1] - 2026-11-27
 
 ### Changed
