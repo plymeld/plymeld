@@ -66,10 +66,11 @@ class FirstLayerValuesCommand : FilamentValuesCommand("first-layer plate") {
             set += "$key.\"${g.tempC} C\".speed.max" to "${n(g.speedMmS!!)} mm/s"
         }
         for ((i, kv) in set.withIndex()) after = if (i == 0) TomlEdit.setWithComment(after, kv.first, kv.second, comment) else TomlEdit.set(after, kv.first, kv.second).text
-        // the file reads back, and its window is the readings
+        // the file reads back, and the window written is the readings, on a build plate the config has (its own or
+        // plymeld's bundled ones, as a slice resolves them)
         val entries = try { ConfigFiles.readToml(after, t.file.toString()) } catch (e: IllegalArgumentException) { error("the change would leave ${t.file} unreadable (${e.message}); nothing written") }
         val problems = ArrayList<String>()
-        val back = FirstLayerWindow.read(entries, setOf(plate.buildPlate), problems)[t.filament]?.get(plate.buildPlate)
+        val back = FirstLayerWindow.read(entries.filter { it.path.size > win.size && it.path.subList(0, win.size) == win }, t.config.keysOf("plate").toSet(), problems)[t.filament]?.get(plate.buildPlate)
         check(problems.isEmpty() && back != null) { "the window written does not read back (${problems.joinToString("; ")}): nothing written" }
         check(Math.abs(back.boreMm - bore) < 1e-9 && back.readings.size == good.size && good.sortedBy { it.tempC }.zip(back.readings).all { (g, r) ->
             Math.abs(r.tempC - g.tempC) < 1e-9 && Math.abs(r.heightMinMm - g.heightMm!!) < 1e-9 && Math.abs(r.speedMaxMmS - g.speedMmS!!) < 1e-9 }) { "the window written reads back other values than the readings: nothing written" }

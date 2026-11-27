@@ -13,7 +13,8 @@ import java.nio.file.Path
 
 /**
  * `plymeld calibrate first-layer values` on a copy of the repo's sample config: the window it writes, read back through
- * the whole config; a window there before replaced; undo; and the readings and plates it refuses. The plate is a
+ * the whole config; a window there before replaced; windows on other build plates (bundled or the config's own) beside
+ * it; undo; and the readings and plates it refuses (a build plate neither the config nor the bundled set has among them). The plate is a
  * first-layer plate's g-code as plymeld writes it (its conditions block and its cells), 3 speeds x 2 heights, two columns,
  * one tile left out.
  */
@@ -63,6 +64,26 @@ class FirstLayerValuesTest : StringSpec({
         val j = Journal.read(dir.resolve("journal.json"))
         j.undo(); Journal.read(dir.resolve("journal.json")).undo()
         Files.readString(f) shouldBe original
+    }
+
+    "windows already there on other build plates, bundled or the config's own, do not stop one for the plate printed on; a plate that exists nowhere is refused, named" {
+        val dir = copy(); val f = dir.resolve("01_FILAMENTS.toml")
+        // the sample defines its own plates (textured-pei, smooth-pei); pei is one of plymeld's bundled plates
+        fun other(p: String, speed: Int) = "\n[hardware.filament.pla-white.first_layer.window.$p]\nfrom = \"other.gcode, tool 1, build plate $p\"\nbore = \"0.4 mm\"\n" +
+            "\"215 C\" = { height.min = \"0.2 mm\", speed.max = \"$speed mm/s\" }\n"
+        Files.writeString(f, Files.readString(f) + other("pei", 80) + other("smooth-pei", 90))
+        // the whole config (what a slice reads) takes both windows
+        fun windows() = Config(ConfigStack.load(listOf(dir.resolve("0*.toml").toString()), emptyList()), emptyList()).firstLayerWindows["pla-white"].orEmpty()
+        windows().mapValues { it.value.readings.single().speedMaxMmS } shouldBe mapOf("pei" to 80.0, "smooth-pei" to 90.0)
+        run(dir, "210=0.24,100", "220=0.2,140")
+        windows().keys shouldBe setOf("pei", "smooth-pei", "textured-pei")
+        window(dir)!!.readings.map { it.tempC } shouldBe listOf(210.0, 220.0)
+        // control: a plate printed on a build plate neither the config nor plymeld's bundled set has
+        val before = Files.readString(f)
+        val nowhere = copy(plate().replace("build plate textured-pei", "build plate glass-nowhere"))
+        Files.writeString(nowhere.resolve("01_FILAMENTS.toml"), before)
+        shouldThrow<IllegalStateException> { run(nowhere, "210=0.24,100", "220=0.2,140") }.message!! shouldContain "there is no build plate 'glass-nowhere'"
+        Files.readString(nowhere.resolve("01_FILAMENTS.toml")) shouldBe before
     }
 
     "refused: a column missing or not on the plate, a height or speed the plate did not try, a tile it left out, a plate in disagreement" {
