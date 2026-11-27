@@ -68,4 +68,21 @@ class MigrateCommandTest : StringSpec({
         Files.readString(current) shouldBe "[plan.layer.walls]\norder = \"inner_first\"\n"
         Files.exists(journal) shouldBe false
     }
+
+    "a glob names the files, expanded by plymeld whatever the shell left of it; control: a glob matching nothing is refused" {
+        val dir = Files.createTempDirectory("plymeld-migrate")
+        Files.createDirectories(dir.resolve("config"))
+        for (n in listOf("01_a.toml", "02_b.toml")) Files.writeString(dir.resolve("config").resolve(n), original)
+        Files.writeString(dir.resolve("config").resolve("notes.txt"), original)
+        val journal = dir.resolve("config.journal.json")
+        val (code, out) = run("migrate", dir.resolve("config").toString() + java.io.File.separator + "0*.toml", "--journal", journal.toString())
+        code shouldBe 0
+        for (n in listOf("01_a.toml", "02_b.toml")) Files.readString(dir.resolve("config").resolve(n)) shouldNotContain "inner_first ="
+        (out.indexOf("01_a.toml:") >= 0) shouldBe true
+        (out.indexOf("01_a.toml:") < out.indexOf("02_b.toml:")) shouldBe true
+        Files.readString(dir.resolve("config").resolve("notes.txt")) shouldBe original
+        val (code2, out2) = run("migrate", dir.resolve("config").toString() + java.io.File.separator + "9*.toml", "--journal", journal.toString())
+        code2 shouldBe 1
+        out2 shouldContain "no file matches"
+    }
 })

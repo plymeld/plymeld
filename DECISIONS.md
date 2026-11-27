@@ -2486,3 +2486,38 @@ usage error: the command line uses 1.
 unknown word: the window takes models by `-m`, and its desktop entry passes none. On Windows the window's program is
 a windowed program, so a command's output shows where its output is redirected (a script, a pipe), not in an
 interactive console; the installed `plymeld` is the command line there.
+
+## 71. A Windows executable reads its arguments as typed; the command line's metadata is traced on both platforms, and every pull request runs every command on Windows (2026-11-27)
+
+This extends decision 67, and replaces its Windows consequence (a gap in Windows' imaging found only by the release)
+and its rejection of a native window build in CI, for Windows.
+
+**Context.** native-image links a Windows executable with the C runtime's wildcard expansion (`setargv.obj`; the
+option `EnableWildcardExpansion`, on by default): before `main` runs, an unquoted argument holding `*` or `?` is
+replaced by the files it matches. plymeld expands its own globs (`-cf`, `-m`), so in cmd or PowerShell
+`-cf config\0*.toml` reached it as the first match and the rest as extra words, refused; through the window's program
+the same, since it hands its arguments on as it got them. And the JDK's imaging on Windows reaches JNI members its
+Linux code does not (`java.awt.Toolkit`'s, as AWT's library starts), absent from metadata traced on Linux only, so
+every command that draws stopped there. Both showed only in a run of the built Windows executables, which only the
+release made.
+
+**Decision.** The command line and the window are built with `-H:-EnableWildcardExpansion`: every argument reaches
+plymeld as typed, and plymeld expands a glob itself, the same way on every platform. Every argument that takes several
+files takes a glob as well (`plymeld migrate`'s files, `plymeld investigate slice` and `plan`'s models), so a glob for
+them does not depend on the shell. `tools/native-smoke.sh trace` runs on Windows under Git's bash as on Linux, and the
+command line's metadata is the merge of both platforms' traces. CI's "Native command line and window on Windows" job
+builds the command line and the window as the release does and runs `tools/native-smoke.sh check` with both on every
+pull request; the config is named there by an unquoted glob, and once in the folder's own separators as cmd passes it.
+
+**Rejected.** Leaving the expansion on and taking what it gave (`-cf` reading every word after it until the next
+option): an option taking a variable count of values is ambiguous beside positional arguments, a quoted glob in cmd is
+not expanded while one in PowerShell is, and a glob would then mean something different on Windows than on Linux.
+Quoting the glob in the smoke script: it would hide the failure from the check while every user typing a glob in cmd
+or PowerShell met it. Hand-written JNI entries for the members the first failure named: a trace records every member
+a run reaches, where a stack trace names one at a time. Keeping the Windows run to the release: a gap found there
+stops a release already tagged.
+
+**Consequences.** A pull request also waits for the Windows build of the command line and the window and their smoke
+run, about 25 minutes on a hosted runner (the command line's build about 6, the window's about 8, the smoke run about
+8), beside the Linux jobs. A change that reaches something new natively traces on both platforms. On Windows, a glob
+where plymeld reads one file (`render`'s g-code, `-o`) is taken as a name, as a quoted glob is on Linux.

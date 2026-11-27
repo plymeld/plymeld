@@ -17,7 +17,8 @@
 #   trace [dir]
 #     run every case on the JVM (`./gradlew :plymeld-cli:installDist` first) under GraalVM's tracing agent, merging what
 #     they reach into the command line's metadata; once with a display and once without where there is one, so both of
-#     AWT's paths are traced. Needs GRAALVM_HOME (a GraalVM for JDK 21).
+#     AWT's paths are traced. Needs GRAALVM_HOME (a GraalVM for JDK 21). On Linux and on Windows (under Git's bash):
+#     each platform's imaging reaches JNI members of its own, and the metadata holds both platforms'.
 # [dir] holds the cases' files (default: a new temporary directory, removed after a passing check).
 #
 # Every command of `plymeld commands` has a case here (NativeSmokeCoverageTest holds the list to the command tree): a
@@ -26,7 +27,11 @@
 # (no -e: a case that fails is recorded and the rest still run)
 set -uo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
-usage() { echo "usage: $0 check <plymeld executable> [--window <plymeld-ui executable>] [dir] | trace [dir]" >&2; exit 2; }
+# Paths handed to an executable in the platform's own form (on Windows, Git Bash's /d/... as D:/...), and nothing else
+# of the arguments rewritten
+win=""
+if command -v cygpath > /dev/null 2>&1; then win=1; p() { cygpath -m "$1"; }; export MSYS2_ARG_CONV_EXCL='*'; else p() { printf '%s' "$1"; }; fi
+usage(){ echo "usage: $0 check <plymeld executable> [--window <plymeld-ui executable>] [dir] | trace [dir]" >&2; exit 2; }
 [ $# -ge 1 ] || usage
 mode="$1"; shift
 window=""
@@ -39,6 +44,7 @@ case "$mode" in
     run=("$exe") ;;
   trace)
     graal="${GRAALVM_HOME:?set GRAALVM_HOME to a GraalVM for JDK 21 with native-image}"
+    [ -z "$win" ] || graal="$(cygpath -u "$graal")"
     lib="$here/plymeld-cli/build/install/plymeld/lib"
     [ -d "$lib" ] || { echo "no $lib - run ./gradlew :plymeld-cli:installDist first" >&2; exit 1; }
     meta="$here/plymeld-cli/src/main/resources/META-INF/native-image/com.plymeld/plymeld-cli"
@@ -46,24 +52,28 @@ case "$mode" in
     # the CLI's jars but JNA and the terminal library's JNA interface: on the JVM the terminal library (Mordant) would
     # reach the terminal through JNA, which a native image does not use (there it picks its own interface, with the
     # metadata it ships), so its calls stay out of the metadata
-    cp=""; for j in "$lib"/*.jar; do case "${j##*/}" in jna-*|mordant-jvm-jna-*) ;; *) cp="$cp${cp:+:}$j" ;; esac; done
+    sep=":"; [ -z "$win" ] || sep=";"
+    cp=""; for j in "$lib"/*.jar; do case "${j##*/}" in jna-*|mordant-jvm-jna-*) ;; *) cp="$cp${cp:+$sep}$(p "$j")" ;; esac; done
     # a home of its own, with no font cache in it (~/.java/fonts): the JDK then asks the system's fontconfig through
     # JNI, as an executable does on a machine with no cache yet, so those calls are traced
     run=("$graal/bin/java" -XX:+IgnoreUnrecognizedVMOptions -XX:+UnlockExperimentalVMOptions -XX:-UseJVMCICompiler
-      "-agentlib:native-image-agent=config-merge-dir=$meta" "-Duser.home=$(mktemp -d)" -cp "$cp" plymeld.cli.MainKt) ;;
+      "-agentlib:native-image-agent=config-merge-dir=$(p "$meta")" "-Duser.home=$(p "$(mktemp -d)")" -cp "$cp" plymeld.cli.MainKt) ;;
   *) usage ;;
 esac
 keep=1
 if [ $# -ge 1 ]; then work="$1"; mkdir -p "$work"; else work="$(mktemp -d)"; keep=0; fi
 work="$(cd "$work" && pwd)"
 
-# Paths handed to the executable in the platform's own form (on Windows, Git Bash's /d/... as D:/...), and nothing else
-# of the arguments rewritten
-if command -v cygpath > /dev/null 2>&1; then p() { cygpath -m "$1"; }; export MSYS2_ARG_CONV_EXCL='*'; else p() { printf '%s' "$1"; }; fi
 models="$(p "$here/test-models")"
 # a copy of the sample config: the calibration values commands write into it
 mkdir -p "$work/config" && cp "$here/test-models/config/"0*.toml "$work/config/" || { echo "native-smoke: cannot set up $work" >&2; exit 2; }
+# the config named by one glob, unquoted on the command line the executable gets (Git Bash does not quote an argument
+# for a * in it), so a Windows executable that expanded wildcards itself would fail every case that reads the config.
+# Under `trace` on Windows the files are named one by one: the JDK's launcher there expands an unquoted wildcard
+# before the program reads it, which a run on the JVM cannot turn off.
 config="$(p "$work/config")/0*.toml"
+cf=(-cf "$config")
+if [ "$mode" = trace ] && [ -n "$win" ]; then cf=(); for f in "$work/config/"0*.toml; do cf+=(-cf "$(p "$f")"); done; fi
 W="$(p "$work")"
 # plymeld's own folders (config, state, secrets) for these runs alone, never the user's
 export PLYMELD_HOME="$W/home"
@@ -126,7 +136,11 @@ run_all() {
   ok "plymeld investigate" investigate-help investigate --help && text investigate-help "predict"
 
   # the config, its schema, and the command model
-  ok "plymeld config" config config -cf "$config" hardware.machine && text config "example-corexy"
+  ok "plymeld config" config config "${cf[@]}" hardware.machine && text config "example-corexy"
+  # on Windows, the glob as it is typed in cmd or PowerShell: the folder's own separators, unquoted
+  if [ -n "$win" ] && [ "$mode" = check ]; then
+    ok "plymeld config" config-windows-glob config -cf "$(cygpath -w "$work/config")\\0*.toml" hardware.machine && text config-windows-glob "example-corexy"
+  fi
   ok "plymeld schema" schema schema -o "$W/schema.json" && file schema "$work/schema.json" '"\$schema"'
   printf '# settings\n\n%s\n' '<!-- generated by `plymeld schema --markdown`: everything below this line; do not edit by hand -->' > "$work/settings.md"
   ok "plymeld schema" schema-markdown schema --markdown "$W/settings.md" && file schema-markdown "$work/settings.md" "plan\.seam"
@@ -134,33 +148,33 @@ run_all() {
   ok "plymeld commands" commands-markdown commands --markdown "$W/reference" && file commands-markdown "$work/reference/slice.md"
 
   # slicing: the g-code the pictures are drawn from, with the machine's preview pictures; a plan; a slice from a g-code
-  ok "plymeld slice" slice slice -cf "$config" -cv "hardware.machine.example-corexy.gcode.pictures=64x64" -m "$models/holeblock.stl" -o "$g" \
+  ok "plymeld slice" slice slice "${cf[@]}" -cv "hardware.machine.example-corexy.gcode.pictures=64x64" -m "$models/holeblock.stl" -o "$g" \
     && file slice "$work/holeblock.gcode" "^; thumbnail begin 64x64"
-  ok "plymeld slice" slice-fuzzy slice -cf "$config" -cv "plan.faces.side.technique=fuzzy_skin" -m "$models/holeblock.stl" -o "$W/fuzzy.gcode" \
+  ok "plymeld slice" slice-fuzzy slice "${cf[@]}" -cv "plan.faces.side.technique=fuzzy_skin" -m "$models/holeblock.stl" -o "$W/fuzzy.gcode" \
     && file slice-fuzzy "$work/fuzzy.gcode" "^;LAYER_CHANGE|^;Z:"
-  ok "plymeld slice" slice-from slice -cf "$config" -m "$models/holeblock.stl" --from "$g" -o "$W/from.gcode" && file slice-from "$work/from.gcode"
+  ok "plymeld slice" slice-from slice "${cf[@]}" -m "$models/holeblock.stl" --from "$g" -o "$W/from.gcode" && file slice-from "$work/from.gcode"
   # the pre-print check's pictures: one for each layer with a finding (here, plastic laid twice, reported, not refused);
   # a slice with no finding draws none, which is named, not failed
-  if ok "plymeld slice" slice-check slice -cf "$config" -cf "$(p "$here/tools/regress/benchy.plan.toml")" -m "$models/3DBenchy.stl" -o "$W/benchy.gcode"; then
+  if ok "plymeld slice" slice-check slice "${cf[@]}" -cf "$(p "$here/tools/regress/benchy.plan.toml")" -m "$models/3DBenchy.stl" -o "$W/benchy.gcode"; then
     local checked=0
     for f in "$work/benchy.gcode.check"/*.png; do [ -e "$f" ] || continue; checked=1; picture slice-check "$f"; done
     [ $checked = 1 ] || echo "note   slice-check: the pre-print check found nothing to draw, so its pictures were not exercised" >&2
   fi
-  ok "plymeld plan" plan plan -cf "$config" -m "$models/holeblock.stl" -o "$W/holeblock.plan.toml" && file plan "$work/holeblock.plan.toml"
+  ok "plymeld plan" plan plan "${cf[@]}" -m "$models/holeblock.stl" -o "$W/holeblock.plan.toml" && file plan "$work/holeblock.plan.toml"
   ok "plymeld layers" layers layers "$models/holeblock.stl" --quiet --png "$W/layers.png" --svg "$W/layers-svg" && picture layers "$work/layers.png"
 
   # the calibration plates (each but melt and flow with its page's picture), their readings and values; values written
   # into the copy of the config
   local plate
   for plate in melt flow; do
-    ok "plymeld calibrate $plate" "calibrate-$plate" calibrate "$plate" -cf "$config" -o "$W/$plate.gcode" && file "calibrate-$plate" "$work/$plate.gcode"
+    ok "plymeld calibrate $plate" "calibrate-$plate" calibrate "$plate" "${cf[@]}" -o "$W/$plate.gcode" && file "calibrate-$plate" "$work/$plate.gcode"
   done
   for plate in filament first-layer motion ironing seams; do
-    ok "plymeld calibrate $plate" "calibrate-$plate" calibrate "$plate" -cf "$config" -o "$W/$plate.gcode" && picture "calibrate-$plate" "$work/$plate.png"
+    ok "plymeld calibrate $plate" "calibrate-$plate" calibrate "$plate" "${cf[@]}" -o "$W/$plate.gcode" && picture "calibrate-$plate" "$work/$plate.png"
   done
-  ok "plymeld calibrate melt values" melt-values calibrate melt values 210=12 -cf "$config" && file melt-values "$work/config/01_FILAMENTS.toml" "melt plate"
-  ok "plymeld calibrate flow values" flow-values calibrate flow values 210=0.98 -cf "$config" && file flow-values "$work/config/01_FILAMENTS.toml" "flow plate"
-  ok "plymeld calibrate first-layer values" first-layer-values calibrate first-layer values 205=0.2,40 215=0.2,40 225=none -cf "$config" \
+  ok "plymeld calibrate melt values" melt-values calibrate melt values 210=12 "${cf[@]}" && file melt-values "$work/config/01_FILAMENTS.toml" "melt plate"
+  ok "plymeld calibrate flow values" flow-values calibrate flow values 210=0.98 "${cf[@]}" && file flow-values "$work/config/01_FILAMENTS.toml" "flow plate"
+  ok "plymeld calibrate first-layer values" first-layer-values calibrate first-layer values 205=0.2,40 215=0.2,40 225=none "${cf[@]}" \
     --plate-gcode "$W/first-layer.gcode" && file first-layer-values "$work/config/01_FILAMENTS.toml" "first-layer plate"
   local kind grade
   for kind in motion:hidden ironing:good seams:faint; do
@@ -209,7 +223,7 @@ run_all() {
   ok "plymeld journal" journal journal "$W/edits.journal" && text journal "applied"
   ok "plymeld journal" journal-undo journal "$W/edits.journal" --undo && text journal-undo "undone"
   ok "plymeld journal" journal-redo journal "$W/edits.journal" --redo && text journal-redo "redone"
-  ok "plymeld migrate" migrate migrate "$W/edit.toml" --dry-run && text migrate "nothing to change"
+  ok "plymeld migrate" migrate migrate "$W/edit*.toml" --dry-run && text migrate "nothing to change"
 
   # the investigate commands, with the settings of another slicer's project (a test project, completed where it leaves
   # a setting out)
@@ -225,25 +239,25 @@ run_all() {
 
   # the printer: a saved answer read through the protocol; everything else at a host that does not exist, refused
   # where it would reach the printer; a credential written to a secrets file of these runs
-  ok "plymeld printer status" printer-status printer status -cf "$config" "${printer[@]}" \
+  ok "plymeld printer status" printer-status printer status "${cf[@]}" "${printer[@]}" \
     --from-response "$(p "$here/plymeld-printer/src/test/resources/moonraker/objects-query-standby.json")" && text printer-status "^status: idle"
-  ok "plymeld printer loadout" printer-loadout printer loadout -cf "$config" --api flashforge-http \
+  ok "plymeld printer loadout" printer-loadout printer loadout "${cf[@]}" --api flashforge-http \
     --from-response "$(p "$here/plymeld-printer/src/test/resources/flashforge/creator5-detail-2026-10-09.json")" && text printer-loadout "^tool 1: "
   local verb
   for verb in watch files pause resume cancel; do
-    refused "plymeld printer $verb" "printer-$verb" "could not reach printer\.invalid" printer "$verb" -cf "$config" "${printer[@]}"
+    refused "plymeld printer $verb" "printer-$verb" "could not reach printer\.invalid" printer "$verb" "${cf[@]}" "${printer[@]}"
   done
-  ok "plymeld printer clear" printer-clear printer clear -cf "$config" "${printer[@]}" && text printer-clear "nothing to clear"
-  refused "plymeld printer camera" printer-camera "could not reach printer\.invalid" printer camera -o "$W/frame.jpg" -cf "$config" "${printer[@]}" \
+  ok "plymeld printer clear" printer-clear printer clear "${cf[@]}" "${printer[@]}" && text printer-clear "nothing to clear"
+  refused "plymeld printer camera" printer-camera "could not reach printer\.invalid" printer camera -o "$W/frame.jpg" "${cf[@]}" "${printer[@]}" \
     -cv hardware.machine.example-corexy.connection.camera.url=http://printer.invalid/snapshot
-  refused "plymeld printer send" printer-send "could not reach printer\.invalid" printer send "$g" -cf "$config" "${printer[@]}"
+  refused "plymeld printer send" printer-send "could not reach printer\.invalid" printer send "$g" "${cf[@]}" "${printer[@]}"
   printf 'code-1\n' > "$work/credential.txt"
-  input="$work/credential.txt" ok "plymeld printer credential" printer-credential printer credential check_code -cf "$config" \
+  input="$work/credential.txt" ok "plymeld printer credential" printer-credential printer credential check_code "${cf[@]}" \
     -cv hardware.machine.example-corexy.connection.api=flashforge-http -cv hardware.machine.example-corexy.connection.host=printer.invalid \
     -cv "hardware.machine.example-corexy.connection.credential.check_code.file=$W/secrets.toml" && file printer-credential "$work/secrets.toml" 'check_code = "code-1"'
 
   # a problem report; set-up, update checks, and the update, as far as they go without a terminal or a release feed
-  ok "plymeld report" report report -cf "$config" -m "$models/holeblock.stl" -o "$W/report.zip" && file report "$work/report.zip"
+  ok "plymeld report" report report "${cf[@]}" -m "$models/holeblock.stl" -o "$W/report.zip" && file report "$work/report.zip"
   # (under `trace` this one fails: without JNA on the JVM the terminal library finds no terminal interface to ask with)
   refused "plymeld init" init "asks its questions in a terminal" init --folder "$W/init"
   ok "plymeld updates" updates-set updates --set notify && text updates-set "notify"
@@ -266,7 +280,7 @@ if [ -n "$window" ]; then
   run=("$window")
   [ ${#limit[@]} -eq 0 ] || limit=(timeout 120)
   ok "plymeld-ui" window-version --version && text window-version "^plymeld version "
-  ok "plymeld-ui" window-command config -cf "$config" hardware.machine && text window-command "example-corexy"
+  ok "plymeld-ui" window-command config "${cf[@]}" hardware.machine && text window-command "example-corexy"
   ok "plymeld-ui" window-help --help && text window-help "^Usage: plymeld " && text window-help "^Window options:"
   # `update` is the install's own command line's, never the window's refusal (the window's finder points to its bar)
   refused "plymeld-ui" window-update "updates\.invalid|not an install plymeld can update" update

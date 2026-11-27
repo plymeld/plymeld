@@ -54,7 +54,9 @@ rem the natives Skiko and LWJGL unpack from their jars, the bundled config, the 
 rem file-system provider at build time (the latter sits in the image heap through the installed providers list)
 rem a Windows GUI program (no console window beside it): the linker's /SUBSYSTEM:WINDOWS, with the C entry point kept
 rem (/ENTRY:mainCRTStartup); Main.kt then sends System.out and System.err to a log file when there is no console
-call "%GRAALVM_HOME%\bin\native-image.cmd" -J-Xmx%NATIVE_XMX% --no-fallback -O2 -H:+ReportExceptionStackTraces -H:+UnlockExperimentalVMOptions !ICONOPT! ^
+rem arguments reach the window's program as typed, as the command line's (build-native.cmd): no C runtime wildcard
+rem expansion (-H:-EnableWildcardExpansion), so a command it hands to the command line keeps its globs for plymeld
+call "%GRAALVM_HOME%\bin\native-image.cmd" -J-Xmx%NATIVE_XMX% --no-fallback -O2 -H:+ReportExceptionStackTraces -H:+UnlockExperimentalVMOptions -H:-EnableWildcardExpansion !ICONOPT! ^
   -H:NativeLinkerOption=/SUBSYSTEM:WINDOWS -H:NativeLinkerOption=/ENTRY:mainCRTStartup ^
   -H:IncludeResources=".*\.dll|.*\.sha256|.*\.sha1|config/.*\.toml|plymeld-version\.txt|plymeld-update-feed\.txt" ^
   -H:ConfigurationFileDirectories="%META%" --initialize-at-build-time=org.slf4j,org.apache.sshd.common.file.root.RootedFileSystemProvider ^

@@ -23,7 +23,9 @@ every setting has a source: plymeld's bundled files, your config files, or the c
 
 - With no `-cf`, plymeld reads every `.toml` file in its config folder (`secrets.toml` aside), after its bundled files.
 - `-cf FILE|GLOB` names config files instead, read in order; later files win. Giving `-cf` replaces the config folder,
-  so name your own files too when you add one: `-cf 'DIR/*.toml' -cf extra.toml`.
+  so name your own files too when you add one: `-cf 'DIR/*.toml' -cf extra.toml`. plymeld expands a glob itself, its
+  matches in natural order: quote it in a Linux or macOS shell, which would otherwise expand it first; in cmd and
+  PowerShell type it as it is (`-cf DIR\*.toml`).
 - `-cv PATH=VALUE` sets one value and wins over every file, for example `-cv plan.technique.flat.layer.height=0.12mm`.
 - `--machine KEY` picks the machine when the config has several and `job.machine` names none.
 

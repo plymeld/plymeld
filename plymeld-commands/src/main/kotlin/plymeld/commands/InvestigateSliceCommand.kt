@@ -30,7 +30,8 @@ import java.nio.file.Files
  *        machine.json,process.json pair (comma-separated, later wins). --set overrides any setting.
  */
 class InvestigateSliceCommand : CliktCommand(name = "slice") {
-    private val models by argument(help = "STL or 3MF, one or more (a plate of objects)").path(mustExist = true, canBeDir = false).multiple(required = true)
+    private val modelArgs by argument("MODELS", help = "STL or 3MF, one or more (a plate of objects), or a glob of them").multiple(required = true)
+    private val models by lazy { plymeld.config.ConfigFiles.expand(modelArgs) }
     private val copies by option("--copies", help = "print each model this many times (a plate of copies; default: 1)").int().default(1)
     private val output by option("-o", "--output", metavar = "FILE", help = "g-code file to write").path().required()
     private val settings by option("--settings", help = InvestigateCommand.SETTINGS_HELP).required()

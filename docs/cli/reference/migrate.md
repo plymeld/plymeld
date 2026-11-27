@@ -10,7 +10,7 @@ Usage: `plymeld migrate [<options>] <file>...`
 
 Arguments:
 
-- `<file>`: a config or plan file (TOML) to rewrite
+- `<file>`: a config or plan file (TOML) to rewrite, or a glob of them
 
 Options:
 
