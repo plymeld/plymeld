@@ -64,6 +64,61 @@ object Models {
         (0..120).map { k -> val a = 1.5 * Math.PI * (120 - k) / 120; doubleArrayOf(CX + 2.0 * Math.cos(a), CY + 2.0 * Math.sin(a)) }, 0.0, 0.4) }
 
     /**
+     * The outline (mm, counter-clockwise) of a stroke along the polyline [path], [widths] wide (across its way) at its points
+     * and evenly between, its bends mitred; its first end cut level where [levelStart] and its last where [levelEnd] (along
+     * X, through the end point, as a letter's baseline and cap line cut its strokes; the segment there may not run level),
+     * else square.
+     */
+    fun stroke(path: List<DoubleArray>, widths: List<Double>, levelStart: Boolean = true, levelEnd: Boolean = true): List<DoubleArray> {
+        val n = path.size
+        // each segment's left normal
+        val nx = DoubleArray(n - 1); val ny = DoubleArray(n - 1)
+        for (i in 0 until n - 1) { val dx = path[i + 1][0] - path[i][0]; val dy = path[i + 1][1] - path[i][1]; val l = Math.hypot(dx, dy)
+            nx[i] = -dy / l; ny[i] = dx / l }
+        /** The side [s] (1 left, -1 right) at point [i]: at an end, cut level or square; at a bend, the two segments' offset lines met. */
+        fun side(i: Int, s: Int): DoubleArray {
+            val h = widths[i] / 2
+            if (i == 0 || i == n - 1) {
+                val g = if (i == 0) 0 else n - 2
+                // along the segment (its direction is the normal turned right, (ny, -nx)) back to the end point's level
+                val t = if (if (i == 0) levelStart else levelEnd) s * h * ny[g] / nx[g] else 0.0
+                return doubleArrayOf(path[i][0] + s * h * nx[g] + t * ny[g], path[i][1] + s * h * ny[g] - t * nx[g])
+            }
+            val k = s * h / (1 + nx[i - 1] * nx[i] + ny[i - 1] * ny[i])
+            return doubleArrayOf(path[i][0] + k * (nx[i - 1] + nx[i]), path[i][1] + k * (ny[i - 1] + ny[i]))
+        }
+        return path.indices.map { side(it, -1) } + path.indices.reversed().map { side(it, 1) }
+    }
+
+    /**
+     * Strokes of a letter, each wide enough for the walls rig's three walls a side with a channel inside them about two lines
+     * wide (0.44 mm lines on 0.08 mm layers leave the stroke's width less 2.55 mm), and a short bulge in it, as a typeface's
+     * strokes swell: 0.07 mm wider along 0.4 mm, reached and left over 0.4 mm each. Three lean at 80, 70 and 60 deg from
+     * level, their ends level (a baseline and a cap line), the bulge 3 mm up; the fourth leans at 70 deg, its bulge 1.5 mm
+     * up, and turns 50 deg 5 mm up, its last end square. A slab a layer (the layers' tops at 0.2 mm, then every 0.08 mm):
+     * each stroke 3.36 mm wide to z 0.84, widening by the same step a layer to 3.43 mm at z 2.84, then 3.43 mm to z 3.64,
+     * so its channel's bulge passes through every width from about 0.88 to 0.95 mm while the rest stays under 0.88 mm, as a
+     * letter whose sides lean a little does.
+     */
+    val letterStrokes by lazy {
+        val zs = listOf(0.0) + (0..43).map { 0.2 + 0.08 * it }
+        /** Points up a stroke leaning at [lean] deg from level from ([x], CY - 3.5), at the heights [ups] above its foot. */
+        fun up(x: Double, lean: Double, ups: List<Double>) = ups.map { u -> doubleArrayOf(x + u / Math.tan(Math.toRadians(lean)), CY - 3.5 + u) }
+        // the bulge: 0.4 mm on, 0.4 mm along, 0.4 mm off, 3 mm up the stroke
+        val bulge = listOf(3.0, 3.4, 3.8, 4.2)
+        val leaning = listOf(80.0, 70.0, 60.0).mapIndexed { i, lean -> up(CX - 12.0 + 6.5 * i, lean, listOf(0.0) + bulge + listOf(7.0)) }
+        val a = Math.toRadians(20.0)
+        val stem = up(CX + 7.5, 70.0, listOf(0.0, 1.5, 1.9, 2.3, 2.7, 5.0))
+        val hook = stem + listOf(doubleArrayOf(stem.last()[0] + 3.0 * Math.cos(a), stem.last()[1] + 3.0 * Math.sin(a)))
+        Shapes.slabs(zs) { z ->
+            val w = if (z < 0.84) 3.36 else if (z > 2.84) 3.43 else 3.36 + 0.07 * (z - 0.84) / 2.0
+            val b = w + 0.07
+            leaning.map { Shapes.um(stroke(it, listOf(w, w, b, b, w, w))) } +
+                Shapes.um(stroke(hook, listOf(w, w, b, b, w, w, w), levelEnd = false))
+        }
+    }
+
+    /**
      * A block 12 by 10.6 mm with a round hole 6 mm across whose edge comes within [webMm] of the block's front: a web between
      * a hole and the side, too narrow for the set walls of both, in an island wide enough for them elsewhere. Its sides and
      * the hole's are sampled on the same rays from the hole's center (the block is star-shaped about it), the block's corners

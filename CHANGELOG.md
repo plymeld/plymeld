@@ -9,6 +9,21 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Fixed
+
+- A channel about two lines wide inside a stroke's walls (a letter's stroke wide enough for its walls, the channel
+  between its innermost walls) is laid by the line along it where it bulges a little. Where a stretch of it was just two
+  inner lines wide between the walls' bands, it was handed to infill: no sparse line crossed so short a piece, the line
+  along the rest of the channel stopped a line's width short of it, and the walls' beads, which reach a little past
+  their bands, left the bare ground there narrower than two lines, so the pre-print check refused it as a hole inside
+  the walls, a layer here and a layer there up a lettering's strokes. What the walls leave goes to infill now only as
+  pieces somewhere two inner lines wide between the beads beside them, and by the slicing tolerance a side more; a
+  narrower piece is laid as a thin area. Larger infill regions keep their shape.
+- The pre-print check reads a small loop written as arcs (G2 / G3, `hardware.machine.<key>.firmware.arcs` on) where it is laid. It read each
+  arc as chords up to 0.5 mm long, which on a loop under a millimeter round lie a few hundredths of a millimeter inside
+  it, so the middle of a small pin, wide enough for infill, read narrower and was refused as a hole inside the walls. It
+  now reads arcs as chords lying no more than 0.005 mm inside them.
+
 ## [0.20261128.0] - 2026-11-28
 
 ### Fixed
