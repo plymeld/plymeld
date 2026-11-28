@@ -25,7 +25,9 @@ object StrokeFont {
 
     private val glyphs: Map<Char, Glyph> = mapOf(
         '0' to g(4.0, p(0.0, 0.0, 4.0, 0.0, 4.0, 6.0, 0.0, 6.0, 0.0, 0.0)),
-        '1' to g(4.0, p(2.0, 0.0, 2.0, 6.0), p(1.0, 5.0, 2.0, 6.0)),
+        // a base under the stem and a flat flag at its top, so a "1" is not taken for an arrow beside the plates' direction
+        // arrows: a slanted flag meets the stem as an arrowhead's barb does
+        '1' to g(4.0, p(2.0, 0.0, 2.0, 6.0), p(0.5, 6.0, 2.0, 6.0), p(0.5, 0.0, 3.5, 0.0)),
         '2' to g(4.0, p(0.0, 6.0, 4.0, 6.0, 4.0, 3.0, 0.0, 3.0, 0.0, 0.0, 4.0, 0.0)),
         '3' to g(4.0, p(0.0, 6.0, 4.0, 6.0, 4.0, 0.0, 0.0, 0.0), p(1.0, 3.0, 4.0, 3.0)),
         '4' to g(4.0, p(0.0, 6.0, 0.0, 3.0, 4.0, 3.0), p(4.0, 6.0, 4.0, 0.0)),
@@ -34,7 +36,8 @@ object StrokeFont {
         '7' to g(4.0, p(0.0, 6.0, 4.0, 6.0, 4.0, 0.0)),
         '8' to g(4.0, p(0.0, 0.0, 4.0, 0.0, 4.0, 6.0, 0.0, 6.0, 0.0, 0.0), p(0.0, 3.0, 4.0, 3.0)),
         '9' to g(4.0, p(4.0, 3.0, 0.0, 3.0, 0.0, 6.0, 4.0, 6.0, 4.0, 0.0, 0.0, 0.0)),
-        '.' to g(0.0, p(0.0, 0.0, 0.0, 0.0)),
+        // a short upright bar at the baseline, a stroke wide and a sixth of the height tall: a dot of one stroke is a single short bead, the weakest mark
+        '.' to g(0.0, p(0.0, 0.0, 0.0, 1.0)),
         // the dots in from the corners: at the corners they touched the glyphs either side
         '%' to g(4.0, p(0.0, 0.0, 4.0, 6.0), p(1.0, 5.0, 1.0, 5.0), p(3.0, 1.0, 3.0, 1.0)),
         '=' to g(4.0, p(0.0, 2.0, 4.0, 2.0), p(0.0, 4.0, 4.0, 4.0)),

@@ -2562,3 +2562,186 @@ drops it: it guards one way of losing the folder, not a read-only install that l
 **Consequences.** A command line's folder gains a `lib/` at its first run where it had none. A read-only install
 without one keeps an empty `java-home/lib/` in plymeld's cache folder, made again if the cache is cleared. The smoke
 run's Linux check runs two more `render` cases.
+
+## 73. Pressure advance is set with the machine model's own command; a machine may keep it as its own (2026-11-20)
+
+**Context.** The writer wrote Klipper's `SET_PRESSURE_ADVANCE ADVANCE=` itself, whatever the machine. Other firmware
+sets it with other commands and units (Marlin `M900 K`, RepRapFirmware `M572 D S`), and a calibration plate that
+measures pressure advance must set it mid-print, before each element. Some machines measure or keep their own value,
+and a value in the g-code would replace it.
+
+**Decision.** The printer model describes how pressure advance is set mid-print, as it describes the commands it
+accepts: `hardware.model.<key>.pressure_advance.command`, a template with `{pressure_advance}` standing for the value,
+and `.unit`, the unit the command takes it in (`s` or `ms`; unset = `s`), with their evidence beside them. The bundled
+models carry Klipper's command in seconds (Klipper's G-Codes and Config Reference). The writer renders that template
+when a tool starts with a value set, and wherever a program sets one (`SetPressureAdvance`, a calibration plate's
+step); a value set for a model with no command is refused, naming the setting. `hardware.machine.<key>.firmware.own_pressure_advance = true`
+says the machine sets its own: plymeld then writes none, whatever the machine, a tool, or a filament sets. The g-code
+check reads every such command back through the same template and holds it to the config's value for the tool in hand
+(none where the config sets none or the machine sets its own), except on a plate that sets its own values on purpose.
+
+**Rejected.** A command per firmware flavor in the writer: the command is the machine's fact, with evidence, and a
+user's own model may need another. The command on the machine rather than its model: every other g-code fact about
+what a printer accepts is the model's, and a machine's config may override a bundled model's values as it may any.
+Dropping a value silently where no command is known: the print would differ from what the config says. A machine's own
+value as a third source under the filament's, tool's, and machine's: plymeld cannot read it, so it can only be left
+alone.
+
+**Consequences.** A machine of a bundled model writes the same files as before. A model of the user's own needs
+`pressure_advance.command` before a pressure advance can be set for it. Whether a machine's own value survives a
+command in the file is not known per machine: `own_pressure_advance` is the user's statement, and the pressure-advance
+plate offers such a machine only a check of its value (decision 74).
+
+## 74. Pressure advance is read as the sign of a defect on straight walls whose speed steps, each value twice (2026-11-20)
+
+**Context.** The usual tests read pressure advance as the best-looking of near-identical neighbors, on corners that
+also carry ringing and corner-speed limits, with the value changing by height (cooling and first-layer squish change
+with it), one sample per value, and one speed, acceleration, and flow.
+
+**Decision.** The value is read as the sign of a defect that reverses through it: a straight single-line wall printed
+the same way on every layer, slow, fast, slow, at its own value set just before it. Set short of the true value, the
+line just after the speed-up is thin (a groove stacked up the wall) and just after the slow-down fat (a ridge); set
+long, the other way round; the answer is where the grooves turn into ridges, bracketed from both sides. Values stand
+side by side on one base, never by height, the first layer and the base unread. Every value is printed twice, the back
+row in the opposite order, and rows that disagree by more than a step (one wall's place on the plate, whatever its size)
+refuse the result; a corner beside each wall is read on its own and reported beside them (decision 75); a wall whose two marks read alike,
+readings out of order, and no flip are refused. A first plate's values are 0 and, each a fixed ratio below the next,
+from its top (below: at most the tool's ceiling, `hardware.tool.<key>.calibrate.pressure_advance.max`, defaulting to
+the top of the typical range in Klipper's guide) down to the tool's lowest (`.min`, a hundredth of the default ceiling unless set), the ratio set by
+the two and the plate's count of values: one plate brackets both a short filament path's value (a few hundredths of a
+second) and a long tube's. A fine plate runs evenly inside the bracket; a confirm plate prints the value and its
+neighbors at three flow steps and reports whether it holds, depends on the flow (the medium step's written, the range
+noted; a value that follows the flow is a later decision on this evidence), or gives none. The next plates `values`
+names are commands that run as printed: the fine plate inside the bracket, and the confirm plate with the bracket's
+ends (the highest groove and the lowest ridge) as the neighbors exactly, never below 0: the value is held to the labels'
+0.1 ms, so the steps down and up may differ by that much (`--confirm-step DOWN,UP`), and `values` names the fine
+plate's steps as they come out.
+A row whose walls read flat at both marks on two or more walls (a flat span) says that any value in the span prints the
+same at this plate's speeds and flow step: each row's span is read on its own (a row with one flat wall reads that
+value, one with none its bracket), the rows' ranges must overlap (else refused, as rows that disagree are), and the value
+is the geometric middle of the overlap, sqrt(first x last) at the labels' 0.1 ms, since the plate spaces its values by a
+fixed ratio (a span from 0 takes its lowest value above 0 for the middle); the span is stated and written in the value's
+note, and the corners are reported against it. No finer plate follows a span: inside values that already read flat, the
+same flow step shows nothing more. Nor does the confirm plate: its three flow steps are a third, two thirds, and the
+whole of the find plate's step, so a span that reads flat at the find plate's step reads flat at all of them; only a
+larger flow step than the find plate's would separate the span's values, which takes a faster middle on the find plate
+(`--speeds`), within the filament's flow.
+The speeds are the config's (a visible wall's, the machine's print speed, each held to the plate's share of the
+filament's maximum flow, decision 75), the acceleration the machine's. A pressure model in plymeld's test tooling (a first-order lag of the true value, the set
+value run ahead as Klipper runs it) proves the flip falls exactly at the true value. The slow-down mark reads opposite
+to the speed-up mark only where the pressure settles within the wall's lead-in and middle, so these grow together (from
+10 and 30 mm) until, by the same model at the plate's speeds, it settles at the plate's highest value. A first plate's
+top is the lowest of the tool's ceiling, the highest value the extruder's push allows (decision 75), and the highest
+value whose walls fit the bed at the plate's speeds, found with the same model and layout; the plate and its page say which and the length the ceiling would need, and a plate
+that does not fit even from the tool's lowest value is refused with that reason and the highest whole fast speed below
+the plate's at which it would fit (by the same model and layout, tried one mm/s at a time: how long the walls must be is
+not monotonic in the fast speed), or that none does. Given values whose walls do not fit
+are refused. Every value is held to its label's resolution (0.1 ms), so a wall's value and its label agree. The
+shortest stretches, the tail, the wall's height, the pitch, the values per row, the arrow's head, and the stretch a
+reading looks at are plymeld's choices.
+
+**Rejected.** A tower with the value rising by height: cooling, layer time, and wall stiffness change with it. A row of
+corners or chevrons read for the best one: a judgment between near-identical neighbors, and corners carry other
+defects. One sample per value: a blob or a draft reads as a result. Calipers: the reading needs none. Averaging rows
+that disagree: a trend across the bed would pass as the value.
+
+**Rejected (the values).** Values evenly from 0 to the ceiling on a first plate: at a 1 s ceiling a short filament
+path's whole range falls inside the first step, so a fine plate was always needed. A confirm step of the plate's own
+spacing: from a bracket at the bottom of the plate its lower neighbor fell below 0. The arithmetic middle of a flat
+span: on values a fixed ratio apart it sits toward the span's high end, past most of the walls that read flat. A fine
+plate inside a flat span: at the same flow step its walls read flat too.
+
+**Rejected (the stretches).** Fixed stretches with the plate stating the true value they settle up to: a tool with a
+long filament path would read alike at both marks on every wall and be refused.
+
+**Rejected (the top).** Refusing a first plate whose ceiling's walls do not fit: with the default ceiling a user with no
+setting of their own could not start on most beds.
+
+**Consequences.** A higher value makes longer walls: at 100 and 170 mm/s and 10,000 mm/s2 (the repository's sample
+config) a lead-in and middle of 10 and 30 mm up to 0.1 s, 22 and 64 mm at 0.5 s, 43 and 127 mm at 1 s; two rows of the
+last do not fit a 250 mm bed, so there, with the generic 1 s ceiling, the first plate reaches about 0.4 s. A lower fast
+speed seldom shortens them: by the model the lead-in's settling at the slow speed sets their length as often as the
+middle's, and a step barely above the slow speed settles more slowly still. A filament path whose value lies above the
+top reads grooves on every wall, and the refusal names what reaching higher takes: a longer bed axis where the bed set
+the top, a higher ceiling where the ceiling did; where the extruder's push set it, the extruder cannot reach it on this
+plate.
+
+## 75. A pressure-advance plate keeps within its extruder's limits, and each wall is read on its own strip (2026-11-27)
+
+**Context.** At a high value the pressure-advance push at a speed change can ask more of the extruder than it
+delivers: its gear slips and the plastic squirts and strings, and the wall no longer shows pressure advance. A line laid
+close to the filament's maximum flow may lay less than asked, leaving gaps in a fill whose lines are exactly a spacing
+apart. Labels laid at the walls' fast speed read poorly, and walls standing a hand's width apart on one base are too
+close to look along or feel.
+
+**Decision.** The pressure-advance push is modelled as Klipper documents its smoothing: a weighted average of the
+pressure-advance position over a window of pressure_advance_smooth_time centred on each moment, the weight falling
+linearly to nothing at the window's ends (Klipper, Kinematics, "smoothed pressure advance"). A speed change of dv made
+in ta = dv / a, shorter than the window T, then pushes the filament at most K x dv x (2 / T - ta / T²), on top of the
+line's own, both times the line's plastic per mm over the filament's cross-section; a change longer than the window
+pushes at K x a. The model's smoothing is `hardware.model.<key>.pressure_advance.smooth_time`, Klipper's documented
+default of 0.04 s unless set. Every move a plate makes at a wall's value is held to a limit: the corner from rest to the
+fast speed, the step from the slow speed to it, the lead-in from rest. A test holds the model to the measured bound in
+the bundled Creator 5's evidence: a corner the extruder laid quietly below it, a step it squirted at above it.
+The extruder's highest filament speed is a tool's setting (`hardware.tool.<key>.extrude.speed.max`), unset by default:
+not known, the plate applies no push limit and says so. A machine model's toolhead may give one (the bundled Creator
+5's, 50.7 mm/s, the highest push seen laid quietly on one machine with PLA, the limit lying between it and the lowest seen to squirt: a bound for that machine, not a default for others). One
+margin serves both of the plate's limits (`hardware.tool.<key>.calibrate.pressure_advance.share`, 75 %): every line the
+plate lays, its base, its labels, and its walls' slow and fast stretches, runs at no more than that share of the
+filament's measured maximum flow, stricter than the general melt buffer (decision 3), and every move at a wall's value
+keeps the extruder within that share of its highest filament speed. The speeds are those the flow share gives; the
+first plate's top is capped where the push limit requires it, at the lowest of that, the bed's fit, and the ceiling,
+and the plate says which set it. The plate's check reads each move's push back from the g-code (its speed, the speed
+before it, its acceleration, its filament per mm, the value set) and refuses one over the limit.
+A machine model's toolhead may give the plate's ceiling (`toolhead.<key>.calibrate.pressure_advance.max`): 0.2 s on the
+bundled Creator 5's and Q2's, where the extruder drives the filament at the nozzle and values above about 0.2 s belong
+to a long filament path; a tool's own ceiling wins, and a tool that states nothing keeps the generic 1 s.
+Each wall stands on its own strip of the base, a gap between neighbors (across a row and between the rows) bridged by
+break-off tabs on the base's layers but its last, so the plate lifts in one piece and each wall snaps out to be held up
+alone: against a light, where a thinner stretch shows brighter and a thicker one darker (a filament that lets light
+through a single wall; a dark or opaque one is read in a raking light), and in a raking light from one side, where each
+slope facing the light shows bright and each facing away dark, so a groove shows a dark edge then a bright one and a
+ridge a bright edge then a dark one, read from the light's side; the page draws both, and a fingernail is a cross-check.
+Each strip carries its row's number (1 the front row, 2 the back), raised upright beside its wall's lead-in, since every
+value is printed in both rows and `values` compares the rows: a strip snapped out still says where it came from.
+Neither the page nor the command tells the reader to level the bed: the reading does not depend on a levelled bed beyond
+what the reader already prints with; where the printer can level as a print starts, the page names that as an option.
+Every calibration plate says the same of levelling, in its output and on its page, through one helper
+(`Levelling`): no instruction to level; what the file does where it runs the machine's levelling or was made with
+`--no-level`; else the option to level as the print starts where the printer's connection can. Every plate's page
+asks for the printer's speed and flow at 100 % before printing, in one shared sentence: the plate's speeds and its
+plastic are the readings' conditions.
+The command's output states one thing a line, each within 200 characters with a path counted as its file name (a
+line that is nothing but a command to copy and run excepted), whatever the length of the user's own keys; every
+calibration plate's output and every `readings` and `values` report is held to the same width, a longer line broken
+where its facts part (between sentences, then clauses, then items) with its later lines indented; a next plate's command
+is a line of its own below what it makes. It cites each limit's setting once,
+its page once, and a value given on the command line as set there, without the whole option again. The note every
+calibration's `values` writes above a value in the config is wrapped between words at 120 columns, each line starting
+`# `, as the config files' own comments are; a prediction prints as a line for the time and filament, a line for each
+place its motion limits come from, and a line for the tool changes. The
+corner beside each wall is a reading of its own (a bulge too little, a rounded corner too much): `values` reports where
+the corners flip beside the walls' bracket and whether the two agree, and the value stays the walls', since a wall's
+marks are read along a straight line at two speed changes and a corner at one turn the firmware takes at its own
+corner speed; a disagreement is reported, not averaged in. The labels and arrows are laid at a visible wall's speed, the
+base above its first layer at a hidden line's, each held to the flow share; the first layer at the first-layer line
+width the slice and the other plates use. The strips' gap, the tabs' width and reach, the row number's place, and the
+corner's shorter arm (so it ends inside its strip) are plymeld's choices.
+
+**Rejected (the model).** Spreading the push evenly over the window: it is not the weighting Klipper documents, and
+against the measured bound it orders a quietly laid corner above a step the extruder squirted at. The push over the
+acceleration time alone: it ignores the smoothing, and at a high acceleration it is several times the smoothed push.
+
+**Rejected (the limit).** A default limit for every extruder from the one measured machine: a bound for that machine
+and filament only. Lowering the acceleration to keep the push within the limit: with 0.04 s of smoothing and a 13 ms
+speed change, shorter than the window, the push is already spread over the window, so the acceleration barely changes it. Choosing the speeds
+for a readable step: no criterion of readability is known; the plate keeps the speeds the flow share gives and caps its
+top value.
+
+**Rejected (the reading).** One base read in place: the walls stand too close to look along or feel. Averaging the
+corners' bracket into the walls': a corner carries the firmware's corner speed as well as pressure advance.
+
+**Consequences.** A walls' fast speed near the filament's maximum flow comes down to the flow share, the flow step
+with it. On a machine whose extruder's limit is known the push limit usually sets the first plate's top, below a
+direct-drive toolhead's 0.2 s ceiling. A machine whose extruder's limit is not known gets no push limit; its page says
+so, and a plate whose high values squirt is the measurement to set one.

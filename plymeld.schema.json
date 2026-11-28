@@ -265,6 +265,24 @@
                         "pattern": "^\\s*="
                       }
                     ]
+                  },
+                  "own_pressure_advance": {
+                    "description": "true: the machine sets its own pressure advance (measured by the machine itself, or kept in its own profiles), and plymeld writes none, even where the machine, a tool, or a filament sets a pressure_advance; the pressure-advance plate is then offered only as a check of the machine's value (`plymeld calibrate pressure-advance --confirm machine`), printed with no command. Whether a machine's own value survives a command in the g-code differs by machine; unset = false — true or false; or a formula (= ...)",
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "enum": [
+                          "true",
+                          "false"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^\\s*="
+                      }
+                    ]
                   }
                 }
               },
@@ -290,7 +308,7 @@
                 }
               },
               "pressure_advance": {
-                "description": "pressure advance every tool prints with (Klipper's, in seconds, e.g. \"0.035 s\") unless the tool or the filament sets its own; none set = the firmware's own, and plymeld writes none — a time (s); or a formula (= ...)",
+                "description": "pressure advance every tool prints with, in seconds (how far the plastic leaving the nozzle lags the extruder, which runs that far ahead; Klipper's millimeters per millimeter/second), e.g. \"0.035 s\", written with its model's command (hardware.model.<key>.pressure_advance.command) when a tool starts, unless the tool or the filament sets its own; none set = the firmware's own, and plymeld writes none; not written at all where the machine sets its own (firmware.own_pressure_advance) — a time (s); or a formula (= ...)",
                 "type": [
                   "string",
                   "number"
@@ -706,6 +724,10 @@
                     "description": "the evidence of build.x / .y / .z, \"kind: detail\"",
                     "type": "string"
                   },
+                  "pressure_advance": {
+                    "description": "the evidence of pressure_advance.command, .unit, and .smooth_time, \"kind: detail\"",
+                    "type": "string"
+                  },
                   "gcode": {
                     "description": "the evidence of gcode.start / .end / .pause / .pictures, \"kind: detail\" (one line each)",
                     "type": "string"
@@ -732,6 +754,30 @@
                   },
                   "z": {
                     "description": "the build area's height on a machine of this model, as its maker gives it: the first-use setup's default for hardware.machine.<key>.build.z — a length (mm); or a formula (= ...)",
+                    "type": [
+                      "string",
+                      "number"
+                    ]
+                  }
+                }
+              },
+              "pressure_advance": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "command": {
+                    "description": "the g-code that sets pressure advance mid-print on this model, for the tool in hand, {pressure_advance} standing for the value in pressure_advance.unit (Klipper: SET_PRESSURE_ADVANCE ADVANCE={pressure_advance}); written when a tool starts with a pressure_advance set, and by the pressure-advance plate before each wall. Unset = plymeld cannot set pressure advance on this model: a pressure_advance set for it is refused, and the pressure-advance plate cannot be printed",
+                    "type": "string"
+                  },
+                  "unit": {
+                    "description": "the unit pressure_advance.command takes its value in: s (seconds, Klipper's) or ms (milliseconds); unset = s",
+                    "enum": [
+                      "s",
+                      "ms"
+                    ]
+                  },
+                  "smooth_time": {
+                    "description": "the time the model's firmware smooths pressure advance over (Klipper's pressure_advance_smooth_time): the push at a speed change is spread over it, which sets how fast the extruder runs for it (the pressure-advance plate's push limit, hardware.tool.<key>.extrude.speed.max); unset = 0.04 s, Klipper's documented default — a time (s); or a formula (= ...)",
                     "type": [
                       "string",
                       "number"
@@ -953,8 +999,46 @@
                       }
                     },
                     "evidence": {
-                      "description": "where a toolhead's geometry comes from, \"kind: detail\" per line",
+                      "description": "where a toolhead's values come from, \"kind: detail\" per line (a value beside its geometry: \"kind: key: detail\", e.g. \"measured: extrude.speed.max: ...\")",
                       "type": "string"
+                    },
+                    "calibrate": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "pressure_advance": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "max": {
+                              "description": "the pressure-advance plate's ceiling for a tool on this toolhead (as hardware.tool.<key>.calibrate.pressure_advance.max, which wins over it), where the toolhead's filament path gives one — a time (s); or a formula (= ...)",
+                              "type": [
+                                "string",
+                                "number"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "extrude": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "speed": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "max": {
+                              "description": "the extruder's highest filament speed for a pressure-advance push on this toolhead (as hardware.tool.<key>.extrude.speed.max, which wins over it) — a speed (mm/s); or a formula (= ...)",
+                              "type": [
+                                "string",
+                                "number"
+                              ]
+                            }
+                          }
+                        }
+                      }
                     }
                   }
                 },
@@ -1244,22 +1328,42 @@
                 }
               },
               "pressure_advance": {
-                "description": "pressure advance it prints with (Klipper's, in seconds, e.g. \"0.035 s\") unless the filament sets its own; unset = the machine's (hardware.machine.<key>.pressure_advance) — a time (s); or a formula (= ...)",
+                "description": "pressure advance it prints with, in seconds (as hardware.machine.<key>.pressure_advance), unless the filament sets its own; unset = the machine's (hardware.machine.<key>.pressure_advance) — a time (s); or a formula (= ...)",
                 "type": [
                   "string",
                   "number"
                 ]
               },
-              "heat": {
+              "calibrate": {
                 "type": "object",
                 "additionalProperties": false,
                 "properties": {
-                  "time": {
-                    "description": "on a multi-nozzle machine, heat the next nozzle this long (print time) before its change; unset = its machine model's toolhead's (hardware.model.<key>.toolhead.<key>.heat.time), else no preheat (the change waits for the nozzle) — a time (s); or a formula (= ...)",
-                    "type": [
-                      "string",
-                      "number"
-                    ]
+                  "pressure_advance": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "max": {
+                        "description": "the highest pressure advance this tool's filament path plausibly needs (a short path from the extruder to the nozzle needs little, a long tube more): the pressure-advance plate's first find plate tries 0 and values from calibrate.pressure_advance.min up to it (or to the highest value whose walls fit the bed, or the extruder's push allows, where that is lower), each a fixed ratio below the next (`plymeld calibrate pressure-advance`); unset = its machine model's toolhead's (hardware.model.<key>.toolhead.<key>.calibrate.pressure_advance.max), else 1 s (plymeld's default), the top of the typical range in Klipper's pressure advance guide (the high end there usually with a long tube). The plate's walls grow with it, long enough for the pressure to settle within them at the plate's highest value, so a high ceiling may make them too long for the bed: a tool with a short path sets less, for shorter walls — a time (s); or a formula (= ...)",
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      },
+                      "share": {
+                        "description": "the pressure-advance plate's margin below its two measured limits: every line it lays (the base, the labels, the walls' slow and fast stretches) at no more than this share of the filament's measured maximum flow (hardware.filament.<key>.melt.flow.max, without the general melt buffer), and every move at a wall's value at no more than this share of the extruder's highest filament speed (extrude.speed.max); unset = 75 % (plymeld's default), the lines the plate is read by laid well inside the limits they were measured at — a multiplier (0.15 or 15%); or a formula (= ...)",
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      },
+                      "min": {
+                        "description": "the lowest value above 0 the pressure-advance find plate tries for this tool: its values run from calibrate.pressure_advance.max down to this, each a fixed ratio below the next (the ratio set by the two and the plate's count of values), and 0; unset = 0.01 s (plymeld's default), a hundredth of the default ceiling, so one plate spans both a short filament path's values and a long tube's — a time (s); or a formula (= ...)",
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      }
+                    }
                   }
                 }
               },
@@ -1267,6 +1371,19 @@
                 "type": "object",
                 "additionalProperties": false,
                 "properties": {
+                  "speed": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "max": {
+                        "description": "the extruder's highest filament speed (mm/s of filament) for a pressure-advance push before it slips or squirts: the push at a speed change is the set pressure advance times the change, smoothed by the firmware (hardware.model.<key>.pressure_advance.smooth_time), times the line's plastic per mm over the filament's cross-section, on top of the line's own; the pressure-advance plate keeps every move at a wall's value within its share of this (calibrate.pressure_advance.share), capping its top value where needed; unset = its machine model's toolhead's (hardware.model.<key>.toolhead.<key>.extrude.speed.max), else not known: the plate applies no push limit and its page says so — a speed (mm/s); or a formula (= ...)",
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      }
+                    }
+                  },
                   "section": {
                     "type": "object",
                     "additionalProperties": false,
@@ -1279,6 +1396,19 @@
                         ]
                       }
                     }
+                  }
+                }
+              },
+              "heat": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "time": {
+                    "description": "on a multi-nozzle machine, heat the next nozzle this long (print time) before its change; unset = its machine model's toolhead's (hardware.model.<key>.toolhead.<key>.heat.time), else no preheat (the change waits for the nozzle) — a time (s); or a formula (= ...)",
+                    "type": [
+                      "string",
+                      "number"
+                    ]
                   }
                 }
               },
@@ -1713,7 +1843,7 @@
                 ]
               },
               "pressure_advance": {
-                "description": "pressure advance (Klipper's, in seconds, e.g. \"0.035 s\") for this filament, overriding the tool's (hardware.tool.<key>.pressure_advance) — a time (s); or a formula (= ...)",
+                "description": "pressure advance for this filament, in seconds (as hardware.machine.<key>.pressure_advance), overriding the tool's (hardware.tool.<key>.pressure_advance); the pressure-advance plate measures it (`plymeld calibrate pressure-advance values` writes it) — a time (s); or a formula (= ...)",
                 "type": [
                   "string",
                   "number"

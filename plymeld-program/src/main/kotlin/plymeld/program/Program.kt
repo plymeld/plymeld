@@ -187,6 +187,12 @@ class SetTemp(val tool: Int, val tempC: Int, val wait: Boolean) : Event
 class SetFan(val pct: Double) : Event
 
 /**
+ * Pressure advance for [tool] (0-based, the tool in hand) to [seconds] from here on, written with the machine model's own
+ * command: a calibration plate's, which sets its own value before each element it measures.
+ */
+class SetPressureAdvance(val tool: Int, val seconds: Double) : Event
+
+/**
  * Lift clear (retracted, the tool's z-hop above the layer), move to [xUm], [yUm] and wait [dwellS]
  * seconds there (0 = no wait): a calibration plate's cooling pause, so a layer takes at least the
  * filament's minimum layer time without any of its speeds changing, and a place away from the print for

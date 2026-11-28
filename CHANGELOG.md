@@ -9,6 +9,91 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Added
+
+- Pressure advance is written with the machine model's own command: `hardware.model.<key>.pressure_advance.command`,
+  `{pressure_advance}` standing for the value, and `.unit` (`s` or `ms`), with its evidence. The bundled models carry
+  Klipper's, `SET_PRESSURE_ADVANCE ADVANCE={pressure_advance}` in seconds, so their files are as before. A pressure
+  advance set for a machine whose model has no such command is refused, with what to set, rather than dropped.
+- The bundled Creator 5's and Q2's toolheads give the pressure-advance plate a ceiling of 0.2 s
+  (`hardware.model.<key>.toolhead.<key>.calibrate.pressure_advance.max`): their extruders drive the filament at the
+  nozzle, and values above about 0.2 s belong to a long filament path. The Creator 5's toolheads give the extruder's
+  highest filament speed for a push, 50.7 mm/s (`toolhead.<key>.extrude.speed.max`), the highest seen quiet on one machine with PLA; a
+  tool's own values win over its toolhead's.
+- `hardware.machine.<key>.firmware.own_pressure_advance = true`: the machine sets its own pressure advance, and plymeld
+  writes none, whatever the machine, a tool, or a filament sets.
+- The g-code check reads pressure advance back: every command setting it sets the config's value for the tool in hand,
+  and none is set where the config sets none or the machine sets its own.
+- `plymeld calibrate pressure-advance`: a plate of straight single-line walls on one base, each printed toward the back
+  on every layer, a slow lead-in, a fast middle, and a 10 mm slow tail, at its own pressure advance set just before it.
+  Too little leaves a groove up the wall just after the speed-up and a ridge just after the slow-down, too much the
+  other way round; the value is where the grooves turn into ridges. Two rows, the same values rising and falling, a
+  square corner beside each wall; the values 0, then from the tool's lowest value
+  (`hardware.tool.<key>.calibrate.pressure_advance.min`, 0.01 s unless set) to the plate's top, each a fixed ratio below
+  the next, so one plate brackets a short filament path and a long tube; or `--values`, or evenly inside `--bracket` for
+  a finer plate. Every value is held to its label's resolution, 0.1 ms. The lead-in and the middle (at least 10 and 30
+  mm) grow together until, by plymeld's pressure model, the pressure settles within them at the plate's highest value,
+  so the slow-down mark reads opposite to the speed-up mark on every wall; their lengths depend on the plate's speeds
+  and acceleration (at 100 and 170 mm/s and 10,000 mm/s2: 10 and 30 mm up to 0.1 s, 22 and 64 mm at 0.5 s, 43 and 127
+  mm at 1 s). The first plate's top is the lowest of the tool's ceiling (`.max`: its machine model's toolhead's where
+  that gives one, else 1 s, the top of the typical range in Klipper's guide), the highest value the extruder's push
+  allows, and the highest value whose walls fit the bed; the plate and its page say which, and what the ceiling would
+  need. Given values whose walls do not fit, or that would push the extruder past its limit, are refused.
+  Every line the plate lays, its base, its labels, and its walls' slow and fast stretches, runs at no more than 75 % of
+  the filament's measured maximum flow (`hardware.tool.<key>.calibrate.pressure_advance.share`), the labels at a visible
+  wall's speed. Where the extruder's highest filament speed is known (`hardware.tool.<key>.extrude.speed.max`, or the
+  machine model's toolhead's), every move at a wall's value, its step and its corner from rest, keeps the extruder within
+  the same share of it, by the push the firmware's pressure-advance smoothing gives (Klipper's triangular weighting over
+  `hardware.model.<key>.pressure_advance.smooth_time`, 0.04 s unless set); the plate's check reads each move's push back
+  from the g-code. The first layer is laid at the first-layer line width, and the plate's conditions say so.
+  The base is a strip per wall with a gap between neighbors, joined by break-off tabs, so the plate lifts in one piece
+  and each wall snaps out on its own strip, which carries its row's number. A hole in the base marks each speed change, an arrow the way each wall
+  prints, each value is written in front of its wall in milliseconds; the page draws the three readings and how to read
+  a wall held against a light and in a raking light, a fingernail as a cross-check, and gives no levelling step.
+- `--confirm VALUE --confirm-step S`: the value and its two neighbors, each at three flow steps; a machine that sets its
+  own gets `--confirm machine`, its own value with no command written.
+- `plymeld calibrate pressure-advance readings` and `values`: the sheet to fill in (groove, flat, or ridge at each mark;
+  bulge, sharp, or round at a corner), and the value from it: the middle of the bracket between the highest groove and
+  the lowest ridge, written as the filament's `pressure_advance` (the tool's with `--into tool`) with the plate, its
+  conditions, and the bracket in the note above it. Refused, saying why, when nothing flips, the two rows disagree by
+  more than one wall's place on the plate, the readings are out of order, or a wall reads the same at both marks. The
+  corners are a reading of their own: where they flip from bulge to round, reported beside the walls' bracket with
+  whether the two agree; the value is the walls'. It names the next plates as commands that run as printed: a fine plate inside the bracket, or
+  the confirm plate with exactly the bracket's ends as the neighbors (`--confirm-step DOWN,UP` where the two steps
+  differ by the labels' 0.1 ms); it names the fine plate's steps as the plate will print them. Where two or more walls
+  in a row read flat at both marks (a flat span), any value in the span prints the same at the plate's flow step: the
+  value is the geometric middle of the rows' overlapping spans (the plate spaces its values by a fixed ratio), the span
+  is stated and written in the note, rows whose spans do not overlap are refused, and no finer or confirm plate is
+  named, since neither would show more; the page says how to read a wall flat and what a flat span means.
+
+### Changed
+
+- A calibration plate's refusal (a plate that does not fit, a value the config does not give, readings that give no
+  value) prints as plymeld's other refusals do, its cause on one line (any details on lines of their own below it),
+  without the command line's usage; a mistake in the command line's own form still shows it.
+- A command reading the config folder's files (no `-cf`) says so once, where a calibration plate said it twice.
+- A print's or a plate's prediction prints over several lines, one fact each: the time and filament, then the motion
+  limits from each place they come from (the config, or the machine model with its evidence), then the tool changes,
+  where it ran as one long line; the melt and flow plates print it so too, where they gave the time alone.
+- Every calibration plate's output, and every `readings` and `values` report, keeps each line within 200 characters,
+  a path counted as its file name, whatever the length of the config's own names: a longer line breaks where its facts
+  part (between sentences, then clauses, then items; inside a parenthesis only where no break outside it is short
+  enough), its later lines indented. The flow plate's patches and the melt plate's rows take a line per fact; a next
+  plate `values` names is its command alone, on a line below what it makes.
+- The note a calibration's `values` writes above a value in the config, the notes in the files the motion, ironing,
+  and seam plates' `values` write, and those atop every readings sheet are wrapped between words at 120 columns, each line starting `# `, as the config
+  files' own comments are, where each of their parts was one long line.
+- No calibration plate tells you to level the bed: each says, in its output and on its page, what its file does where it
+  runs the machine's levelling or was made with `--no-level`, and otherwise names levelling as the print starts as an
+  option where the printer's connection can (`plymeld printer send --print --level`), as the pressure-advance plate does.
+  The melt and flow plates say it too, where they said nothing.
+- Every calibration plate's page has you set the printer's speed and flow to 100 % before printing, as the
+  pressure-advance page did: the plate's speeds and the plastic it lays are the readings' conditions.
+- A note in a values file or a readings sheet that ran over several lines is joined before it is wrapped, so it reads
+  as one paragraph, its items each still their own.
+- The stroke font's "1", in every plate's raised labels, has a base and a flat flag at its top, where a slanted flag
+  made it read as an arrow; its decimal point is a short upright bar two lines long, where a dot was a single short line.
+
 ### Fixed
 
 - A Linux command line updated from 0.20261120.0 by `plymeld update` draws pictures. Every command that writes one

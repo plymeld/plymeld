@@ -24,7 +24,7 @@ class IroningReadingsCommand : CliktCommand(name = "readings") {
 
     override fun run() {
         val text = try { IroningRecord.blank(java.nio.file.Files.readString(plate), plate.fileName.toString(), MadeBy.dateOf(plate)) }
-            catch (e: IllegalArgumentException) { throw UsageError(e.message ?: "not an ironing plate") }
+            catch (e: IllegalArgumentException) { throw IllegalArgumentException(e.message ?: "not an ironing plate") }
         output?.let { out ->
             out.parent?.let { java.nio.file.Files.createDirectories(it) }
             java.nio.file.Files.writeString(out, text)
@@ -47,8 +47,8 @@ class IroningValuesCommand : CliktCommand(name = "values") {
 
     override fun run() {
         val (text, report) = try { IroningRecord.values(java.nio.file.Files.readString(sheet), sheet.fileName.toString()) }
-            catch (e: IllegalArgumentException) { throw UsageError(e.message ?: "not a graded ironing sheet") }
-        report.forEach { echo(it) }
+            catch (e: IllegalArgumentException) { throw IllegalArgumentException(e.message ?: "not a graded ironing sheet") }
+        report.flatMap(PrintedLines::of).forEach { echo(it) }
         output?.let { out ->
             out.parent?.let { java.nio.file.Files.createDirectories(it) }
             java.nio.file.Files.writeString(out, text)
@@ -117,7 +117,7 @@ object IroningRecord {
             else sb.append("speed = \"${z.speed}\"\nflow = \"${z.flow}\"\nspacing = \"${z.spacing}\"\nangle = \"${z.angle}\"\ninset = \"${z.inset}\"\n")
             sb.append("grade = \"?\"\nnotes = \"\"\n")
         }
-        val text = sb.toString()
+        val text = TomlEdit.wrapComments(sb.toString().split("\n")).joinToString("\n")   // its notes wrapped as the config files' own are
         // read it back: every zone there, ungraded
         val back = parse(text, fileName, ungradedAllowed = true)
         check(back.zones.size == zones.size && back.zones.all { it.grade == null }) { "the sheet written does not read back" }
@@ -216,7 +216,7 @@ object IroningRecord {
         report += lines.map { "  $it" }
         report.add(0, "ironing values from ${sheet.plate}:")
         report += "  best zone: ${bestZone.index} (${bestZone.grade}), agreeing on $agree of ${SETTINGS.size}"
-        val out = head.joinToString("\n") + "\n"
+        val out = TomlEdit.wrapComments(head).joinToString("\n") + "\n"   // its notes wrapped as the config files' own are
         // the file reads back as config entries at the five paths
         val back = ConfigFiles.readToml(out, name)
         val under = if (sheet.filament != null) listOf("hardware", "filament", sheet.filament, "technique", "ironing") else listOf("plan", "technique", "ironing")

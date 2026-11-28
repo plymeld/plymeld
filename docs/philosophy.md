@@ -183,11 +183,11 @@ over air, how fast a visible wall may print. Calibration plates measure them. A 
 specified**: none of plymeld's usual decisions apply to it, and its g-code is read back to confirm each cell's
 speed, flow, temperature, and fan.
 
-- **[Built]** `plymeld calibrate`: melt, flow, first-layer, motion, filament, ironing, and seam plates, in the
-  order their results depend on each other; every plate but the melt and flow plates with an instructions page.
+- **[Built]** `plymeld calibrate`: melt, flow, pressure-advance, first-layer, motion, filament, ironing, and seam plates,
+  in the order their results depend on each other; every plate but the melt and flow plates with an instructions page.
 - **[Partial]** Reading results back: the melt rate, the flow ratio, and the first-layer window are written from the readings given as
-  arguments; the ironing values, the seam shares, and the machine's visible speed and
-  acceleration from graded sheets; the filament plate's results are not read back yet.
+  arguments; the pressure advance, the ironing values, the seam shares, and the machine's visible speed and
+  acceleration from filled-in sheets; the filament plate's results are not read back yet.
 
 ## 4. Goals
 
@@ -220,7 +220,7 @@ A summary of plymeld's column in [FEATURES.md](../FEATURES.md), which has the de
 | Pauses; planned inserts | **[Built]** |
 | Per-object and per-part values; several printers in one config | **[Built]** |
 | Multi-color on a tool changer with a purge tower; purge into infill or the object; several spools on one tool swapped by hand at a pause | **[Built]** |
-| Pressure advance per machine, tool or filament (none set: the firmware's own, nothing written) | **[Built]** |
+| Pressure advance per machine, tool or filament, with the machine model's own command (none set, or a machine that sets its own: nothing written) | **[Built]** |
 | Calibration plates | **[Built]** (some results not read back yet) |
 | Talking to printers | **[Partial]** (Flashforge's LAN API and Moonraker so far) |
 | An automatic filament changer; changing spool or tool between objects | **[Planned]** |

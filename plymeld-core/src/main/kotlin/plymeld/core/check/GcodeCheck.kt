@@ -35,6 +35,9 @@ import java.util.Locale
  *    the print before it moves sideways;
  *  - tools: every line printed by a tool the config's loadout gives the print ([Expect.allowedTools]), and every
  *    tool a part is assigned ([Expect.partTools]) printing something (which part each line belongs to is ModelCheck's);
+ *  - pressure advance ([Expect.pressureAdvance]): every command setting it, read through the machine model's own, sets the
+ *    config's value for the tool in hand, and none is set where the config sets none or the machine sets its own; a
+ *    calibration plate that sets its own values mid-print on purpose (the pressure-advance plate) is exempt;
  *  - header: a filament-use header (`; filament used [mm] = ...`, `; <filament id="n" ... used_m="..." />`, the
  *    Creator 5's) giving each tool the filament its T-selected lines actually push (id n = T(n-1)).
  *
@@ -104,7 +107,29 @@ object GcodeCheck {
         val extrudeSectionMaxMm2: Double? = null,
         /** The filament's cross-section (mm²), for [extrudeSectionMaxMm2]. */
         val filamentAreaMm2: Double = Math.PI * 1.75 * 1.75 / 4,
+        /** Pressure advance as the config sets it ([PressureAdvanceRule]); null = not judged (the model has no command plymeld reads back). */
+        val pressureAdvance: PressureAdvanceRule? = null,
     )
+
+    /**
+     * Pressure advance, read back through the machine model's own command ([pattern], its value group in [unit], "s" or
+     * "ms"): every such line but the start and end templates' own sets the value of the tool in hand as the config gives it
+     * ([byTool], 0-based tools, seconds; a tool not listed, or every tool where the machine sets its own, has none to set).
+     * [setByPlate]: a calibration plate that sets its own value before each element it measures (the pressure-advance
+     * plate), whose own check judges the values: any value is accepted, mid-print too.
+     */
+    class PressureAdvanceRule(val pattern: Regex, val unit: String, val byTool: Map<Int, Double>, val setByPlate: Boolean = false) {
+        companion object {
+            /** The rule for a [template] whose value is the bare `{pressure_advance}` (the only one read back); null for any other. */
+            fun of(template: String, unit: String, byTool: Map<Int, Double>, setByPlate: Boolean = false): PressureAdvanceRule? {
+                val at = template.indexOf("{pressure_advance}")
+                if (at < 0 || template.indexOf("{pressure_advance}", at + 1) >= 0) return null
+                val before = template.substring(0, at); val after = template.substring(at + "{pressure_advance}".length)
+                if ('{' in before + after || '[' in before + after || '\n' in template.trim()) return null
+                return PressureAdvanceRule(Regex(Regex.escape(before.trim()) + "(-?[0-9]+(?:\\.[0-9]+)?)" + Regex.escape(after.trimEnd())), unit, byTool, setByPlate)
+            }
+        }
+    }
 
     private class Seg(val x0: Double, val y0: Double, val x1: Double, val y1: Double, val halfW: Double, val feature: String, val z: Double)
 
@@ -153,6 +178,8 @@ object GcodeCheck {
         var cell: String? = null
         var lowStanding = Double.NaN    // the lowest standing cell's height met on this layer so far ([Expect.standing])
         var relativeE = false; var absoluteReported = false
+        // the start and end templates' own lines (a template may set pressure advance itself: not the config's to judge)
+        val templateLines = (e.startTemplate.lines() + e.endTemplate.lines()).map { it.substringBefore(';').trim() }.filter { it.isNotEmpty() }.toSet()
         for ((i, raw) in text.lineSequence().withIndex()) {
             val ln = i + 1
             val l = raw.trim()
@@ -190,6 +217,14 @@ object GcodeCheck {
             val w = c.split(Regex("\\s+"))
             fun num(ch: Char) = w.drop(1).firstOrNull { it.isNotEmpty() && it[0] == ch }?.substring(1)?.toDoubleOrNull()
             val inBody = i in firstLayer..lastExtrusion
+            e.pressureAdvance?.let { pa -> pa.pattern.matchEntire(c)?.let { m ->
+                if (c !in templateLines && !pa.setByPlate) {
+                    val set = m.groupValues[1].toDouble().let { if (pa.unit == "ms") it / 1000 else it }
+                    val want = pa.byTool[tool]
+                    if (want == null) bad(ln, "pressure advance set to ${plymeld.gcode.Num.trimmed(set, 5)} s for T$tool (tool ${tool + 1}), where the config sets none (the firmware's own applies, or the machine sets its own: hardware.machine.<key>.firmware.own_pressure_advance)")
+                    else if (Math.abs(set - want) > 6e-6) bad(ln, "pressure advance set to ${plymeld.gcode.Num.trimmed(set, 5)} s for T$tool (tool ${tool + 1}); the config's is ${plymeld.gcode.Num.trimmed(want, 5)} s")
+                }
+            } }
             when {
                 w[0].matches(Regex("T\\d+")) -> tool = w[0].substring(1).toInt()
                 w[0] == "M83" -> relativeE = true

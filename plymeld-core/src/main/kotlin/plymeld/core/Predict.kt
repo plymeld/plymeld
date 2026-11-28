@@ -26,11 +26,16 @@ object Predict {
                      /** The stringing and restart measures of the program as written (StringRisk); null = not measured (a file from elsewhere). */
                      val strings: plymeld.gcode.StringRisk.Result? = null,
                      /** The moves' time by the feature they print ("travel" for moves that print nothing; s); the tool changes' own time is not in it. */
-                     val featureS: Map<String, Double> = emptyMap()) {
-        override fun toString() = (timeS?.let { "%.1f min".format(Locale.ROOT, it / 60) } ?: "time not predicted") +
-            ", filament %.0f mm".format(Locale.ROOT, filamentMm) + " ($why)"
-        fun withSeamScar(r: SeamScar.Result?) = Prediction(timeS, filamentMm, why, layerS, filamentByToolMm, r, strings, featureS)
-        fun withStrings(r: plymeld.gcode.StringRisk.Result?) = Prediction(timeS, filamentMm, why, layerS, filamentByToolMm, seamScar, r, featureS)
+                     val featureS: Map<String, Double> = emptyMap(),
+                     /** [why] as the lines a command prints, one fact each: the motion limits by where they come from, the tool changes. */
+                     val reasons: List<String> = listOf("predicted from: $why")) {
+        private fun head() = (timeS?.let { "%.1f min".format(Locale.ROOT, it / 60) } ?: "time not predicted") +
+            ", filament %.0f mm".format(Locale.ROOT, filamentMm)
+        override fun toString() = head() + " ($why)"
+        /** The prediction as a command prints it: the time and filament, [note] after them, then [reasons], a line each. */
+        fun lines(note: String = ""): List<String> = listOf("predicted: ${head()}$note") + reasons
+        fun withSeamScar(r: SeamScar.Result?) = Prediction(timeS, filamentMm, why, layerS, filamentByToolMm, r, strings, featureS, reasons)
+        fun withStrings(r: plymeld.gcode.StringRisk.Result?) = Prediction(timeS, filamentMm, why, layerS, filamentByToolMm, seamScar, r, featureS, reasons)
 
         /** The time by feature, longest first (minutes, each a share of the moves' time), or null when none was predicted. */
         fun byFeature(): String? {
@@ -78,18 +83,24 @@ object Predict {
         val filament = netFilament(text)
         val byTool = filamentByTool(text)
         val m = NEEDED.associateWith { k -> limits[k]?.let { plymeld.machine.MotionLimit(it, plymeld.machine.Evidence("stand_in", "config")) } ?: machine.motion[k] }
-        m.filterValues { it == null }.keys.takeIf { it.isNotEmpty() }?.let { return Prediction(null, filament, "no ${it.joinToString()} for the ${machine.name}", filamentByToolMm = byTool) }
+        m.filterValues { it == null }.keys.takeIf { it.isNotEmpty() }?.let { val no = "no ${it.joinToString()} for the ${machine.name}"
+            return Prediction(null, filament, no, filamentByToolMm = byTool, reasons = listOf("predicted without a time: $no")) }
         fun v(k: String) = m.getValue(k)!!.value
         val t = TimeEstimator(v("max_velocity"), v("max_accel"), v("max_z_velocity"), v("max_z_accel"), v("square_corner_velocity")).estimate(BufferedReader(StringReader(text)))
         val changes = toolChanges(text)
         val changeNote = when {
-            changes == 0 -> ""
-            toolChangeS == null -> "; $changes tool changes, their own time not counted (hardware.machine.<key>.tool_change.time not set)"
-            else -> "; $changes tool changes x %.1f s (hardware.machine.<key>.tool_change.time)".format(Locale.ROOT, toolChangeS)
+            changes == 0 -> null
+            toolChangeS == null -> "$changes tool changes, their own time not counted (hardware.machine.<key>.tool_change.time not set)"
+            else -> "$changes tool changes x %.1f s (hardware.machine.<key>.tool_change.time)".format(Locale.ROOT, toolChangeS)
         }
+        fun from(k: String) = if (k in limits) "config" else "${machine.name}: ${m.getValue(k)!!.evidence.kind}"
+        // the lines: one for each place the limits come from, then the tool changes
+        val reasons = NEEDED.groupBy { k -> if (k in limits) "the config" else "the ${machine.name} (${m.getValue(k)!!.evidence.kind})" }.map { (src, ks) ->
+            "predicted with the motion limits from $src: " + ks.joinToString { k -> "$k ${v(k)}" } } +
+            listOfNotNull(changeNote?.let { "predicted with $it" })
         return Prediction(t.totalS + changes * (toolChangeS ?: 0.0), filament,
-            "motion limits: " + NEEDED.joinToString { k -> "$k ${v(k)} (${if (k in limits) "config" else "${machine.name}: ${m.getValue(k)!!.evidence.kind}"})" } + changeNote, t.perLayerS, byTool,
-            featureS = t.perFeatureS)
+            "motion limits: " + NEEDED.joinToString { k -> "$k ${v(k)} (${from(k)})" } + (changeNote?.let { "; $it" } ?: ""), t.perLayerS, byTool,
+            featureS = t.perFeatureS, reasons = reasons)
     }
 
     /**

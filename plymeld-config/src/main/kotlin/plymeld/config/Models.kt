@@ -74,9 +74,24 @@ object Models {
             val ev = es.firstOrNull { it.path.last() == "evidence" }
             // the toolhead's evidence speaks for the values set beside it; one set elsewhere (your config over a bundled model) is the config's
             val elsewhere = if (ev == null) emptyList() else es.filter { it !== ev && origin(it) != origin(ev) }.map { Evidence("config", "${it.key} (${it.source})") }
+            // a value's own line of the toolhead's evidence ("kind: key: detail"), where it was set beside that evidence; else where it was set
+            fun evidenceOf(k: String): String? = at(k)?.let { e -> if (ev != null && origin(e) == origin(ev)) (ev.value as? String)?.lines()?.map { it.trim() }?.firstOrNull { ": $k: " in it } else "${e.key} (${e.source})" }
+            // the geometry's evidence: the toolhead's lines but those for its own keyed values
+            val keyed = listOf("calibrate.pressure_advance.max", "extrude.speed.max")
+            val geometryText = (ev?.value as? String)?.lines()?.filter { l -> keyed.none { ": $it: " in l } }?.joinToString("\n")
             Toolhead(index.toIntOrNull() ?: error("hardware.model.$key.toolhead.$index: a toolhead is keyed by its index, from 0"),
-                geometry, evidence(ev?.value as? String, ev ?: es.first()) + elsewhere, at("heat.time")?.let { qty(it, Dimension.TIME) })
+                geometry, evidence(geometryText, ev ?: es.first()) + elsewhere, at("heat.time")?.let { qty(it, Dimension.TIME) },
+                at("calibrate.pressure_advance.max")?.let { qty(it, Dimension.TIME) }, evidenceOf("calibrate.pressure_advance.max"),
+                at("extrude.speed.max")?.let { qty(it, Dimension.SPEED) }, evidenceOf("extrude.speed.max"))
         }.sortedBy { it.index }
+        // how it sets pressure advance: its command and the unit the command takes, the evidence set beside them
+        val paCommand = c.entry(base + listOf("pressure_advance", "command"))
+        val pressureAdvance = paCommand?.let { e ->
+            val unit = (c.entry(base + listOf("pressure_advance", "unit"))?.value as? String) ?: "s"
+            val ev = c.entry(base + listOf("evidence", "pressure_advance"))?.takeIf { origin(it) == origin(e) }
+            plymeld.machine.PressureAdvanceCommand((e.value as String).trim(), unit, evidence(ev?.value as? String, e),
+                c.entry(base + listOf("pressure_advance", "smooth_time"))?.let { qty(it, Dimension.TIME) })
+        }?.takeIf { it.template.isNotEmpty() }
         return MachineDescription(
             id = key,
             name = text("name") ?: key,
@@ -88,6 +103,7 @@ object Models {
             toolheads = toolheads,
             motion = motion,
             notes = text("notes")?.lines()?.filter { it.isNotBlank() } ?: emptyList(),
+            pressureAdvance = pressureAdvance,
         )
     }
 

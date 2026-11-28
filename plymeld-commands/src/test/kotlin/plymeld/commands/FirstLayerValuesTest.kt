@@ -1,6 +1,5 @@
 package plymeld.commands
 
-import com.github.ajalt.clikt.core.UsageError
 import com.github.ajalt.clikt.core.parse
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.StringSpec
@@ -60,7 +59,7 @@ class FirstLayerValuesTest : StringSpec({
         run(dir, "210=0.24,100", "220=0.2,140")
         run(dir, "210=none", "220=0.24,60")
         window(dir)!!.readings.map { Triple(it.tempC, it.heightMinMm, it.speedMaxMmS) } shouldBe listOf(Triple(220.0, 0.24, 60.0))
-        Files.readString(f) shouldContain "no good tile at 210 C, left out"
+        Files.readString(f).replace("\n# ", " ") shouldContain "no good tile at 210 C, left out"   // the note read across its wrapped lines
         val j = Journal.read(dir.resolve("journal.json"))
         j.undo(); Journal.read(dir.resolve("journal.json")).undo()
         Files.readString(f) shouldBe original
@@ -88,16 +87,16 @@ class FirstLayerValuesTest : StringSpec({
 
     "refused: a column missing or not on the plate, a height or speed the plate did not try, a tile it left out, a plate in disagreement" {
         val dir = copy(); val f = dir.resolve("01_FILAMENTS.toml"); val original = Files.readString(f)
-        shouldThrow<UsageError> { run(dir, "210=0.24,100") }.message!! shouldContain "220 C missing"
-        shouldThrow<UsageError> { run(dir, "210=0.24,100", "220=0.2,140", "230=0.2,60") }.message!! shouldContain "230 C is not one of the plate's columns"
-        shouldThrow<UsageError> { run(dir, "210=0.28,100", "220=0.2,140") }.message!! shouldContain "0.28 mm is not one of the plate's heights"
-        shouldThrow<UsageError> { run(dir, "210=0.24,120", "220=0.2,140") }.message!! shouldContain "120 mm/s is not one of the plate's speeds"
-        shouldThrow<UsageError> { run(dir, "210=0.24,140", "220=0.2,140") }.message!! shouldContain "the plate left out its 140 mm/s tile at 0.24 mm"
-        shouldThrow<UsageError> { run(dir, "210=none", "220=none") }.message!! shouldContain "no column has a good tile"
-        shouldThrow<UsageError> { run(dir, "210=0.24", "220=0.2,140") }.message!! shouldContain "a reading is TEMP=HEIGHT,SPEED"
+        shouldThrow<RuntimeException> { run(dir, "210=0.24,100") }.message!! shouldContain "220 C missing"
+        shouldThrow<RuntimeException> { run(dir, "210=0.24,100", "220=0.2,140", "230=0.2,60") }.message!! shouldContain "230 C is not one of the plate's columns"
+        shouldThrow<RuntimeException> { run(dir, "210=0.28,100", "220=0.2,140") }.message!! shouldContain "0.28 mm is not one of the plate's heights"
+        shouldThrow<RuntimeException> { run(dir, "210=0.24,120", "220=0.2,140") }.message!! shouldContain "120 mm/s is not one of the plate's speeds"
+        shouldThrow<RuntimeException> { run(dir, "210=0.24,140", "220=0.2,140") }.message!! shouldContain "the plate left out its 140 mm/s tile at 0.24 mm"
+        shouldThrow<RuntimeException> { run(dir, "210=none", "220=none") }.message!! shouldContain "no column has a good tile"
+        shouldThrow<RuntimeException> { run(dir, "210=0.24", "220=0.2,140") }.message!! shouldContain "a reading is TEMP=HEIGHT,SPEED"
         Files.readString(f) shouldBe original
         // the plate's conditions and its tiles must agree: a left-out tile off the plate; one that was printed; one neither
-        fun refused(gcode: String) = shouldThrow<UsageError> { run(copy(gcode), "210=0.2,60", "220=0.2,60") }.message!!
+        fun refused(gcode: String) = shouldThrow<RuntimeException> { run(copy(gcode), "210=0.2,60", "220=0.2,60") }.message!!
         refused(plate(", left out: tile 3.2 (x); tile 8.1 (y)")) shouldContain "tile 8.1 as left out; the plate has 3 speeds x 2 heights"
         refused(plate(", left out: tile 3.2 (x)", "\n; CELL: block 1 tile 3.2")) shouldContain "tile 3.2 of column 1 is printed, but its conditions list it as left out"
         refused(plate("")) shouldContain "tile 3.2 of column 1 is neither printed nor listed as left out"

@@ -207,9 +207,11 @@ object Resolver {
  * Pressure advance by tool (0-based): each spool's filament value if it sets one (hardware.filament.pressure_advance),
  * else its tool's (hardware.tool.pressure_advance), else the machine's (hardware.machine.pressure_advance); tools where
  * none is set are left out (the firmware's own applies). Klipper keeps one value per extruder, so two
- * spools sharing a tool that come to different values are refused rather than one silently winning.
+ * spools sharing a tool that come to different values are refused rather than one silently winning. None at all where the
+ * machine sets its own ([ownPressureAdvance]).
  */
 fun Setup.pressureAdvanceByTool(): Map<Int, Double> {
+    if (ownPressureAdvance()) return emptyMap()
     val byTool = HashMap<Int, Pair<String, Double>>()
     for (sp in spools) {
         val v = ((materialTool[sp.material to sp.tool]?.get("hardware.filament.pressure_advance")
@@ -220,6 +222,9 @@ fun Setup.pressureAdvanceByTool(): Map<Int, Double> {
     }
     return byTool.mapValues { it.value.second }
 }
+
+/** Whether the machine sets its own pressure advance (hardware.machine.firmware.own_pressure_advance): plymeld then writes none. */
+fun Setup.ownPressureAdvance(): Boolean = machine["hardware.machine.firmware.own_pressure_advance"]?.value == true
 
 /**
  * The same setup with one object per name, each taking the first object's intent and spool and no

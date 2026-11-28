@@ -1,6 +1,7 @@
 package plymeld.commands
 
 import io.kotest.core.spec.style.StringSpec
+import io.kotest.matchers.collections.shouldContainInOrder
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
@@ -78,5 +79,26 @@ class TomlEditTest : StringSpec({
         val c = TomlEdit.set(plan, "plan.objects.printing", "together")
         c.text shouldBe plan
         c.before shouldBe "together"
+    }
+
+    // a note's lines filled: no line but its last could take the next line's first word within the width
+    fun filled(note: List<String>) = note.zipWithNext().all { (a, b) -> a.length + 1 + b.trimStart('#', ' ').substringBefore(' ').length > TomlEdit.COMMENT_WIDTH }
+
+    "a note broken across lines is joined, then wrapped filled; its items and the notes after it stay their own" {
+        val clean = "# Clean: hidden (--clean hidden). Per band, the fastest speed clean with every slower one in both directions, credited at most what a"
+        val lines = listOf(clean, "# 29.6 mm face reaches at the band's acceleration (sqrt(a x L)):", "#   band 1, 310 mm/s2: along X to 169 mm/s", "#   band 2, 630 mm/s2: along X to 140 mm/s",
+            "# A row per band, a column per speed. `plymeld calibrate motion values`", "# refuses a sheet with a \"?\" left.", "# The faces: along X 1, 3; along Y 2, 4.", "key = \"1\"")
+        val out = TomlEdit.wrapComments(lines)
+        val note = out.takeWhile { !it.startsWith("#   ") }
+        note.all { it.startsWith("# ") && it.length <= TomlEdit.COMMENT_WIDTH } shouldBe true
+        filled(note) shouldBe true
+        note.joinToString(" ") { it.removePrefix("# ") } shouldBe clean.removePrefix("# ") + " 29.6 mm face reaches at the band's acceleration (sqrt(a x L)):"
+        // the items as they were; the next note joined to its sentence's end; a note that ends its sentence on its own line kept
+        out.filter { it.startsWith("#   ") } shouldBe lines.subList(2, 4)
+        out shouldContainInOrder listOf("# A row per band, a column per speed. `plymeld calibrate motion values` refuses a sheet with a \"?\" left.", "# The faces: along X 1, 3; along Y 2, 4.", "key = \"1\"")
+        // control: the note wrapped line by line, as before, is caught, its first line's last word left on a line of its own
+        val lineByLine = listOf("# Clean: hidden (--clean hidden). Per band, the fastest speed clean with every slower one in both directions, credited", "#   at most what a",
+            "# 29.6 mm face reaches at the band's acceleration (sqrt(a x L)):")
+        filled(lineByLine) shouldBe false
     }
 })

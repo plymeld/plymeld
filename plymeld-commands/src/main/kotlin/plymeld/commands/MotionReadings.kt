@@ -27,7 +27,7 @@ class MotionReadingsCommand : CliktCommand(name = "readings") {
 
     override fun run() {
         val text = try { MotionRecord.blank(java.nio.file.Files.readString(plate), plate.fileName.toString(), MadeBy.dateOf(plate)) }
-            catch (e: IllegalArgumentException) { throw UsageError(e.message ?: "not a motion plate") }
+            catch (e: IllegalArgumentException) { throw IllegalArgumentException(e.message ?: "not a motion plate") }
         output?.let { out ->
             out.parent?.let { java.nio.file.Files.createDirectories(it) }
             java.nio.file.Files.writeString(out, text)
@@ -51,8 +51,8 @@ class MotionValuesCommand : CliktCommand(name = "values") {
 
     override fun run() {
         val (text, report) = try { MotionRecord.values(java.nio.file.Files.readString(sheet), sheet.fileName.toString(), clean.trim().lowercase()) }
-            catch (e: IllegalArgumentException) { throw UsageError(e.message ?: "not a graded motion sheet") }
-        report.forEach { echo(it) }
+            catch (e: IllegalArgumentException) { throw IllegalArgumentException(e.message ?: "not a graded motion sheet") }
+        report.flatMap(PrintedLines::of).forEach { echo(it) }
         output?.let { out ->
             out.parent?.let { java.nio.file.Files.createDirectories(it) }
             java.nio.file.Files.writeString(out, text)
@@ -113,7 +113,7 @@ object MotionRecord {
             sb.append(grid(speeds, accels) { _, _ -> "?" })
             sb.append("'''\n")
         }
-        val text = sb.toString()
+        val text = TomlEdit.wrapComments(sb.toString().split("\n")).joinToString("\n")   // its notes wrapped as the config files' own are
         val back = parse(text, fileName, ungradedAllowed = true)
         check(back.speeds.toList() == speeds && back.accels.toList() == accels && back.grades.values.all { g -> g.all { r -> r.all { it == null } } }) { "the sheet written does not read back" }
         return text
@@ -248,7 +248,7 @@ object MotionRecord {
         report += odd.map { "  note: $it" }
         report += "  $controlLine"
         report += if (best == null) "  no band is clean even at its slowest speed: no values" else "  chosen: ${num(best.accel)} mm/s2 at ${num(best.credited!!)} mm/s (the quickest clean pair over a ${num(l)} mm face)"
-        val out = head.joinToString("\n") + "\n"
+        val out = TomlEdit.wrapComments(head).joinToString("\n") + "\n"   // its notes wrapped as the config files' own are
         // the file reads back as config entries at the paths written
         val back = ConfigFiles.readToml(out, name)
         if (best != null) check(listOf("visible.speed", "visible.acceleration").all { k -> back.any { it.path == listOf("hardware", "machine", sheet.machine, "motion") + k.split('.') } }) { "the values written do not read back" }

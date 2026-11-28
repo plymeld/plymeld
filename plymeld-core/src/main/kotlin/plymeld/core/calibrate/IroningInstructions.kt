@@ -44,15 +44,12 @@ object IroningInstructions {
         }
         l("## Before you print")
         l()
-        l("1. **Level the bed.** " + when {
-            info.levels -> "This file runs the printer's bed levelling (hardware.machine.<key>.gcode.level) before the plate, once it has heated. If your printer also offers levelling when a print starts, you need not use both."
-            info.levelSkipped -> "This file does **not** level the bed (it was made with `--no-level`): run the printer's bed levelling (mesh) yourself first."
-            else -> "plymeld cannot level this printer from the g-code (no levelling command is known for it): turn on the printer's own levelling when you start the print (e.g. its \"level before print\" option), or run it from the printer's menu first."
-        } + " A slab that is not flat irons unevenly: a thicker part gets pressed harder.")
+        l("1. ${PlateInstructions.SPEED_AND_FLOW}")
         l("2. **Run any other calibration your printer offers before a print**: nozzle or tool offsets on a multi-tool machine, a z-offset, its own flow or pressure-advance calibration (note whether it ran: it changes the conditions below), a nozzle clean or wipe.")
         l("3. **Clean the bed**${if (info.plate.isNotEmpty()) ", and use the build plate the file was made for (`${info.plate}`)" else ""}; the bed heats to ${info.bedTempC} C and stays there.")
         l("4. **Load `${info.filament}` on tool ${info.tool + 1}.** Dry filament matters: moisture shows as a rough, bubbly top in every zone, ironed or not.")
         l("5. **During the print**: after the slabs' tops are laid, the nozzle goes back over them zone by zone, laying almost no plastic: that is the ironing, and it is expected. The controls are skipped. The whole plate prints at one temperature.")
+        Levelling.page(info.levelling)?.let { l(); l(it) }
         l()
         l("## What the plate prints with")
         l()

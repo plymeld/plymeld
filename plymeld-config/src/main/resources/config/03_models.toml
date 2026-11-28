@@ -33,6 +33,10 @@ gcode.start = "PRINT_START BED={first_layer_bed_temperature} HOTEND={first_layer
 gcode.end = "PRINT_END"
 evidence.gcode = """firmware_config: [gcode_macro PRINT_START] at q2_gcode_macro.cfg:213: heats the bed (BED), homes, cleans the nozzle, levels, heats the nozzle (HOTEND); CHAMBER unset = 0, the chamber fan on
 firmware_config: [gcode_macro PRINT_END] at q2_gcode_macro.cfg:396: heaters, fans and motors off"""
+pressure_advance.command = "SET_PRESSURE_ADVANCE ADVANCE={pressure_advance}"
+pressure_advance.unit = "s"
+evidence.pressure_advance = """used_by_firmware: the firmware's macro M900 calls SET_PRESSURE_ADVANCE at q2_gcode_macro.cfg:663
+documented: Klipper G-Codes, SET_PRESSURE_ADVANCE [EXTRUDER=<config_name>] [ADVANCE=<pressure_advance>]: the active hotend's extruder when EXTRUDER is not given; Klipper Config Reference, [extruder] pressure_advance, measured in millimeters per millimeter/second (seconds)"""
 
 [hardware.model.qidi-q2.fan.chamber_circulation_fan]
 role = "chamber_circulation"
@@ -81,7 +85,9 @@ head.radius = "75 mm"
 gantry.height = "47 mm"
 gantry.distance = "47 mm"
 lid.height = "152 mm"
-evidence = "manufacturer_profile: QIDI's own Q2 0.4 nozzle profile (in its slicer): extruder_clearance_max_radius 75, extruder_clearance_height_to_rod 47, extruder_clearance_dist_to_rod 47, extruder_clearance_height_to_lid 152; meanings as the profile format documents them"
+evidence = """manufacturer_profile: QIDI's own Q2 0.4 nozzle profile (in its slicer): extruder_clearance_max_radius 75, extruder_clearance_height_to_rod 47, extruder_clearance_dist_to_rod 47, extruder_clearance_height_to_lid 152; meanings as the profile format documents them
+condition: calibrate.pressure_advance.max: a ceiling for a direct-drive toolhead (the extruder at the nozzle, a short filament path): values above about 0.2 s belong to a long filament path (a Bowden tube); plymeld's choice for such a toolhead, below the generic 1 s (the top of Klipper's typical range) that a tool stating nothing keeps"""
+calibrate.pressure_advance.max = "0.2 s"
 
 [hardware.model.qidi-q2.command]
 AUTOTUNE_SHAPERS = """firmware_config: [gcode_macro AUTOTUNE_SHAPERS] defined at q2_gcode_macro.cfg:279
@@ -385,7 +391,7 @@ SET_PIN = """used_by_firmware: called by macro M106 at q2_gcode_macro.cfg:636
 used_by_firmware: called by macro M106 at q2_gcode_macro.cfg:638
 used_by_firmware: called by macro BEEP at q2_gcode_macro.cfg:935
 used_by_firmware: called by macro BEEP at q2_gcode_macro.cfg:937"""
-SET_PRESSURE_ADVANCE = """purpose: pressure advance (firmware's job; plymeld does not emit it)
+SET_PRESSURE_ADVANCE = """purpose: pressure advance (the firmware's by default; plymeld sends it only where a value is set, and on the pressure-advance plate)
 used_by_firmware: called by macro M900 at q2_gcode_macro.cfg:663
 used_by_firmware: called by macro M900 at q2_gcode_macro.cfg:666
 observed: sent by the machine's own slicer: its g-code for this machine, sample 1 (1x)
@@ -500,6 +506,10 @@ evidence.gcode = """manufacturer_profile: gcode.start: Flashforge's slicer profi
 manufacturer_profile: gcode.end: the profile's machine_end_gcode (the move to X150 Y150 with a 1.2 mm retract); before it plymeld's lift clear of the print, 10 mm, within the build height (plymeld's choice), and after it the start's four fans and every tool's heater off
 manufacturer_profile: gcode.pause: the profile's machine_pause_gcode, M25
 manufacturer_profile: gcode.pictures: the profile's thumbnails, 140x110/PNG"""
+pressure_advance.command = "SET_PRESSURE_ADVANCE ADVANCE={pressure_advance}"
+pressure_advance.unit = "s"
+evidence.pressure_advance = """observed: the machine's own slicer sends SET_PRESSURE_ADVANCE ADVANCE=<value>, its values of the size Klipper's seconds take (0.035), in a g-code file it made for this machine
+documented: Klipper G-Codes, SET_PRESSURE_ADVANCE [EXTRUDER=<config_name>] [ADVANCE=<pressure_advance>], the active hotend's extruder when EXTRUDER is not given; Klipper Config Reference, [extruder] pressure_advance in seconds (millimeters per millimeter/second). Whether this firmware keeps a value of its own past a command in the file is not known"""
 
 [hardware.model.flashforge-c5.toolhead.0]
 head.radius = "92 mm"
@@ -516,7 +526,11 @@ heat.time = "15 s"
 evidence = """manufacturer_profile: Flashforge's own Creator 5 profile (in its slicer): extruder_clearance_radius 92, extruder_clearance_height_to_rod 60, extruder_clearance_height_to_lid 360; one value set for all four heads; meanings as the profile format documents them
 measured: head.size, head.nozzle.x / .y, head.nozzle.height and head.nozzle.angle, by hand on each of one machine's four heads, all alike (90 x 75 mm, the nozzle 70 mm from its left edge and 40 mm from its front, its tip 4 mm below the rest, a 45 deg cone)
 documented: temperature.max: Flashforge's Creator 5 specifications, maximum nozzle temperature 320 C
-placeholder: heat.time 15 s, a starting value for how long one nozzle takes to heat from idle to print temperature; not measured"""
+placeholder: heat.time 15 s, a starting value for how long one nozzle takes to heat from idle to print temperature; not measured
+condition: calibrate.pressure_advance.max: a ceiling for a direct-drive toolhead (the extruder at the nozzle, a short filament path): values above about 0.2 s belong to a long filament path (a Bowden tube); plymeld's choice for such a toolhead, below the generic 1 s (the top of Klipper's typical range) that a tool stating nothing keeps
+measured: extrude.speed.max: the highest peak seen quiet on one Creator 5 with PLA, from a pressure-advance find plate: a corner from rest at 0.1116 s, computed at 50.7 mm/s of filament (Klipper's documented smoothing at 0.04 s), laid quietly; a wall's step at 0.1668 s, computed at 54.6 mm/s, squirted; the true limit lies between the two. A bound for that machine, not a default for others"""
+calibrate.pressure_advance.max = "0.2 s"
+extrude.speed.max = "50.7 mm/s"
 
 [hardware.model.flashforge-c5.toolhead.1]
 head.radius = "92 mm"
@@ -533,7 +547,11 @@ heat.time = "15 s"
 evidence = """manufacturer_profile: same profile values, applied to head 2 (the profile has one set for all heads)
 measured: by hand, as head 1's (each of the four heads measured, all alike)
 documented: temperature.max: as head 1's
-placeholder: heat.time 15 s, a starting value for how long one nozzle takes to heat from idle to print temperature; not measured"""
+placeholder: heat.time 15 s, a starting value for how long one nozzle takes to heat from idle to print temperature; not measured
+condition: calibrate.pressure_advance.max: a ceiling for a direct-drive toolhead (the extruder at the nozzle, a short filament path): values above about 0.2 s belong to a long filament path (a Bowden tube); plymeld's choice for such a toolhead, below the generic 1 s (the top of Klipper's typical range) that a tool stating nothing keeps
+measured: extrude.speed.max: the highest peak seen quiet on one Creator 5 with PLA, from a pressure-advance find plate: a corner from rest at 0.1116 s, computed at 50.7 mm/s of filament (Klipper's documented smoothing at 0.04 s), laid quietly; a wall's step at 0.1668 s, computed at 54.6 mm/s, squirted; the true limit lies between the two. A bound for that machine, not a default for others"""
+calibrate.pressure_advance.max = "0.2 s"
+extrude.speed.max = "50.7 mm/s"
 
 [hardware.model.flashforge-c5.toolhead.2]
 head.radius = "92 mm"
@@ -550,7 +568,11 @@ heat.time = "15 s"
 evidence = """manufacturer_profile: same profile values, applied to head 3 (the profile has one set for all heads)
 measured: by hand, as head 1's (each of the four heads measured, all alike)
 documented: temperature.max: as head 1's
-placeholder: heat.time 15 s, a starting value for how long one nozzle takes to heat from idle to print temperature; not measured"""
+placeholder: heat.time 15 s, a starting value for how long one nozzle takes to heat from idle to print temperature; not measured
+condition: calibrate.pressure_advance.max: a ceiling for a direct-drive toolhead (the extruder at the nozzle, a short filament path): values above about 0.2 s belong to a long filament path (a Bowden tube); plymeld's choice for such a toolhead, below the generic 1 s (the top of Klipper's typical range) that a tool stating nothing keeps
+measured: extrude.speed.max: the highest peak seen quiet on one Creator 5 with PLA, from a pressure-advance find plate: a corner from rest at 0.1116 s, computed at 50.7 mm/s of filament (Klipper's documented smoothing at 0.04 s), laid quietly; a wall's step at 0.1668 s, computed at 54.6 mm/s, squirted; the true limit lies between the two. A bound for that machine, not a default for others"""
+calibrate.pressure_advance.max = "0.2 s"
+extrude.speed.max = "50.7 mm/s"
 
 [hardware.model.flashforge-c5.toolhead.3]
 head.radius = "92 mm"
@@ -567,7 +589,11 @@ heat.time = "15 s"
 evidence = """manufacturer_profile: same profile values, applied to head 4 (the profile has one set for all heads)
 measured: by hand, as head 1's (each of the four heads measured, all alike)
 documented: temperature.max: as head 1's
-placeholder: heat.time 15 s, a starting value for how long one nozzle takes to heat from idle to print temperature; not measured"""
+placeholder: heat.time 15 s, a starting value for how long one nozzle takes to heat from idle to print temperature; not measured
+condition: calibrate.pressure_advance.max: a ceiling for a direct-drive toolhead (the extruder at the nozzle, a short filament path): values above about 0.2 s belong to a long filament path (a Bowden tube); plymeld's choice for such a toolhead, below the generic 1 s (the top of Klipper's typical range) that a tool stating nothing keeps
+measured: extrude.speed.max: the highest peak seen quiet on one Creator 5 with PLA, from a pressure-advance find plate: a corner from rest at 0.1116 s, computed at 50.7 mm/s of filament (Klipper's documented smoothing at 0.04 s), laid quietly; a wall's step at 0.1668 s, computed at 54.6 mm/s, squirted; the true limit lies between the two. A bound for that machine, not a default for others"""
+calibrate.pressure_advance.max = "0.2 s"
+extrude.speed.max = "50.7 mm/s"
 
 [hardware.model.flashforge-c5.command]
 G1 = """purpose: linear move (with or without extrusion)
@@ -598,7 +624,7 @@ M25 = """purpose: pause
 observed: sent by the machine's own slicer: a g-code file it made for this machine (1x)"""
 M83 = """purpose: relative extrusion
 observed: sent by the machine's own slicer: a g-code file it made for this machine (2x)"""
-SET_PRESSURE_ADVANCE = """purpose: pressure advance (firmware's job; plymeld does not emit it)
+SET_PRESSURE_ADVANCE = """purpose: pressure advance (the firmware's by default; plymeld sends it only where a value is set, and on the pressure-advance plate)
 observed: sent by the machine's own slicer: a g-code file it made for this machine (43x)"""
 SET_VELOCITY_LIMIT = """purpose: set speed / acceleration / corner limits
 observed: sent by the machine's own slicer: a g-code file it made for this machine (37384x)"""
@@ -618,6 +644,9 @@ notes = """A starting point for any printer running Klipper, not a real model: o
 reference documents (klipper3d.org/G-Codes.html, read 2026-10-26), each with the printer.cfg section it needs.
 No build area, motion limits, head shape, fans, heaters or start and end g-code: those differ from printer to printer
 and are set on the machine (hardware.machine.<key>), or in a model of your own that is `like` this one."""
+pressure_advance.command = "SET_PRESSURE_ADVANCE ADVANCE={pressure_advance}"
+pressure_advance.unit = "s"
+evidence.pressure_advance = """documented: Klipper G-Codes, SET_PRESSURE_ADVANCE [EXTRUDER=<config_name>] [ADVANCE=<pressure_advance>], the active hotend's extruder when EXTRUDER is not given; Klipper Config Reference, [extruder] pressure_advance in seconds (millimeters per millimeter/second), read 2026-11-20"""
 
 [hardware.model.generic-klipper.command]
 G0 = """purpose: move
@@ -668,7 +697,7 @@ M400 = """purpose: wait for moves to finish
 documented: Klipper G-Codes, a standard command"""
 SET_VELOCITY_LIMIT = """purpose: set speed / acceleration / corner limits
 documented: Klipper G-Codes, listed under [toolhead]"""
-SET_PRESSURE_ADVANCE = """purpose: pressure advance (the firmware's by default; plymeld sends it only where a value is set)
+SET_PRESSURE_ADVANCE = """purpose: pressure advance (the firmware's by default; plymeld sends it only where a value is set, and on the pressure-advance plate)
 documented: Klipper G-Codes, listed under [extruder]"""
 SET_PRINT_STATS_INFO = """purpose: layer count and current layer, for the printer's display
 documented: Klipper G-Codes, listed under [print_stats], which is loaded automatically"""

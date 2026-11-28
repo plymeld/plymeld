@@ -27,7 +27,7 @@ class InvestigatePredictCommand : CliktCommand(name = "predict") {
                 ?: throw com.github.ajalt.clikt.core.UsageError("$file has no plate g-code")
             z.getInputStream(e).readBytes().decodeToString()
         } else java.nio.file.Files.readString(file)
-        echo("predicted: " + plymeld.core.Predict.gcode(text, plymeld.config.Models.bundled.forModel(machine), toolChange))
+        plymeld.core.Predict.gcode(text, plymeld.config.Models.bundled.forModel(machine), toolChange).lines().forEach { echo(it) }
         val byFeature = plymeld.core.Predict.filamentByFeature(text)
         echo("filament by feature (mm): " + byFeature.entries.sortedByDescending { it.value }.joinToString { "%s %.0f".format(java.util.Locale.ROOT, it.key, it.value) })
     }

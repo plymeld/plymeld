@@ -63,7 +63,8 @@ class SeamReadingsTest : StringSpec({
         text shouldContain "[method.quality.seam]\nscarf_share = \"0.50\"\ncorner_share = \"0.50\""
         // lean30: 1/2 = 0.5 -> 1 - 0.5 / sin30 = 0; lean45: 0 -> 1 - 1 / sin45 < 0 -> 0: the underside share 0
         text shouldContain "[method.quality.visibility]\nunder = \"0.00\""
-        text shouldContain "a scarf in a corner: piece 6 (square corner scarf) faint 1 against piece 5 (square corner point) faint 1: no difference in a corner"
+        // the note read across its wrapped lines
+        text.replace(Regex("\n#\\s+"), " ") shouldContain "a scarf in a corner: piece 6 (square corner scarf) faint 1 against piece 5 (square corner point) faint 1: no difference in a corner"
         report.any { it.contains("scarf_share 0.50") } shouldBe true
         // the written file reads back as config entries
         val entries = plymeld.config.ConfigFiles.readToml(text, "seams.toml")

@@ -47,7 +47,8 @@ object Catalog {
         s("hardware.machine.firmware.flavor", MACHINE, TEXT, "firmware family the g-code is written for")
         s("hardware.machine.firmware.dialect", MACHINE, TEXT, "the g-code dialect (comments and acceleration command, by maker: flashforge, qidi) its files are written with; empty = its model's default", "", "optional: the model names its own")
         s("hardware.machine.tool_change.time", MACHINE, TIME, "time the machine spends on one tool change beyond the moves in the g-code (its own change routine); unset = not counted in time predictions")
-        s("hardware.machine.pressure_advance", MACHINE, TIME, "pressure advance (Klipper's, seconds) every tool prints with unless the tool (hardware.tool.pressure_advance) or its filament (hardware.filament.pressure_advance) sets its own; none set = the firmware's own, and plymeld writes none")
+        s("hardware.machine.pressure_advance", MACHINE, TIME, "pressure advance (seconds) every tool prints with unless the tool (hardware.tool.pressure_advance) or its filament (hardware.filament.pressure_advance) sets its own, written with the machine model's command; none set = the firmware's own, and plymeld writes none")
+        s("hardware.machine.firmware.own_pressure_advance", MACHINE, BOOL, "true: the machine sets its own pressure advance, and plymeld writes none, whatever the machine, a tool, or a filament sets; unset = false")
         s("hardware.machine.build.z", MACHINE, LENGTH, "tallest printable Z")
         s("hardware.machine.build.left", MACHINE, LENGTH, "printable bed area: lowest X")
         s("hardware.machine.build.front", MACHINE, LENGTH, "printable bed area: lowest Y")
@@ -83,7 +84,14 @@ object Catalog {
         s("hardware.tool.head.nozzle.y", TOOL, LENGTH, "the nozzle's position within the head along Y: its distance from the head's edge on the machine's -Y side")
         s("hardware.tool.temperature.max", TOOL, TEMP, "hottest this tool's nozzle may be set (the machine maker's figure); above it plymeld warns")
         s("hardware.tool.extrude.section.max", TOOL, AREA, "the largest cross-section a move may extrude, filament pushed per mm of head motion times the filament's cross-section, as the firmware checks it (Klipper's max_extrude_cross_section): a restore spread over a path stays within it; unset = not known, and every restore stands still")
-        s("hardware.tool.pressure_advance", TOOL, TIME, "pressure advance this tool prints with (Klipper's, seconds) unless its filament overrides it (hardware.filament.pressure_advance); unset = the machine's (hardware.machine.pressure_advance)")
+        s("hardware.tool.pressure_advance", TOOL, TIME, "pressure advance this tool prints with (seconds) unless its filament overrides it (hardware.filament.pressure_advance); unset = the machine's (hardware.machine.pressure_advance)")
+        s("hardware.tool.calibrate.pressure_advance.max", TOOL, TIME, "the highest pressure advance this tool's filament path plausibly needs: the pressure-advance find plate tries values up to it; unset on a tool whose machine model's toolhead gives one (hardware.model.<key>.toolhead.<key>.calibrate.pressure_advance.max) = that", 1.0,
+            "the top of the typical range in Klipper's pressure advance guide (klipper3d.org, Pressure_Advance: typical values 0.050 to 1.000, the high end usually only with a long tube to the nozzle)")
+        s("hardware.tool.calibrate.pressure_advance.share", TOOL, FRACTION, "the share of a measured limit the pressure-advance plate keeps within, for both its limits: every line it lays (the base, the labels, the walls' slow and fast stretches) at no more than this share of the filament's measured maximum flow (hardware.filament.melt.flow.max), and every move at a wall's value at no more than this share of the extruder's highest filament speed (hardware.tool.extrude.speed.max)", 0.75,
+            "the lines a plate is read by laid well inside the limits they were measured at, stricter than the general melt buffer (plan.mechanism.motion.melt.buffer)")
+        s("hardware.tool.extrude.speed.max", TOOL, SPEED, "the extruder's highest filament speed (mm/s of filament) for a pressure-advance push before it slips or squirts: the pressure-advance plate keeps every move at a wall's value within its share of it (hardware.tool.calibrate.pressure_advance.share); unset = its machine model's toolhead's (hardware.model.<key>.toolhead.<key>.extrude.speed.max), else not known: the plate applies no push limit and says so")
+        s("hardware.tool.calibrate.pressure_advance.min", TOOL, TIME, "the lowest value above 0 the pressure-advance find plate tries: its values run from the ceiling down to this, each a fixed ratio below the next, and 0", 0.01,
+            "a hundredth of the default ceiling, so one find plate spans two orders of magnitude: a short filament path's values and a long tube's")
         // ---- material: the plastic
         s("hardware.filament.diameter", MATERIAL, LENGTH, "filament diameter")
         s("hardware.filament.density", MATERIAL, Kind.DENSITY, "filament density (mass per volume): the decisions compare material by mass with it; unset = by volume, and the decision says so")
@@ -102,7 +110,7 @@ object Catalog {
         s("hardware.filament.temperature.min", MATERIAL_TOOL, TEMP, "lowest nozzle temperature the filament is meant to print at (the spool's label); below it plymeld warns")
         s("hardware.filament.temperature.max", MATERIAL_TOOL, TEMP, "highest nozzle temperature the filament is meant to print at (the spool's label); above it plymeld warns")
         s("hardware.filament.flow", MATERIAL_TOOL, FRACTION, "extrusion multiplier")
-        s("hardware.filament.pressure_advance", MATERIAL_TOOL, TIME, "pressure advance for this filament in this tool (Klipper's, seconds), overriding the tool's (hardware.tool.pressure_advance); written when its tool starts printing")
+        s("hardware.filament.pressure_advance", MATERIAL_TOOL, TIME, "pressure advance for this filament in this tool (seconds), overriding the tool's (hardware.tool.pressure_advance); written when its tool starts printing")
         s("hardware.filament.melt.flow.max", MATERIAL_TOOL, FLOW, "fastest the hotend can melt this plastic; every move is capped to it")
         s("hardware.filament.bridge.span.max", MATERIAL_TOOL, LENGTH, "the longest span this filament bridges cleanly between two anchors (mm): a bridge longer than this needs support under its middle")
         s("hardware.filament.overhang.share", MATERIAL_TOOL, FRACTION, "how far this filament's outer wall line may hang past the line below and hold, as a share of the line's width, cooled as it prints in this tool; the flattest face that holds follows from each layer's height (flatter faces get support, with support on, and count as unsupported in planning)")

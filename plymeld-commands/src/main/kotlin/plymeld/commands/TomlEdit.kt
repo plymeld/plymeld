@@ -63,7 +63,7 @@ object TomlEdit {
     }
 
     /**
-     * [path] set to [value] with [comment] (lines, without their "# ") directly above it: a line already holding the path
+     * [path] set to [value] with [comment] (lines, without their "# ", wrapped as [commentLines] wraps them) directly above it: a line already holding the path
      * goes first, with the comment directly above it ([unset]), so the new comment replaces the old.
      */
     fun setWithComment(text: String, path: String, value: String, comment: List<String>): String {
@@ -71,8 +71,56 @@ object TomlEdit {
         val lines = c.text.split("\n").toMutableList()
         val at = c.line - 1
         val indent = lines[at].takeWhile { it == ' ' || it == '\t' }
-        lines.addAll(at, comment.map { "$indent# $it" })
+        lines.addAll(at, commentLines(comment, indent))
         return lines.joinToString("\n")
+    }
+
+    /** The widest a comment line plymeld writes into a config file runs, in columns (its indent and `# ` counted). */
+    const val COMMENT_WIDTH = 120
+
+    /**
+     * [comment] (lines, without their "# ") as the comment lines plymeld writes: each at [indent], starting `# `, wrapped
+     * between words to at most [COMMENT_WIDTH] columns; a word longer than that (a path) stays whole, on a line of its own.
+     */
+    fun commentLines(comment: List<String>, indent: String = ""): List<String> = comment.flatMap { wrapped(it, "$indent# ", "$indent# ") }
+
+    /**
+     * A file's [lines] with each note in its comments wrapped as [commentLines] wraps one, the other lines as they are. A
+     * note is a comment line and the ones after it that go on with its sentence: the same lead (`#` and one space), not
+     * blank, the line before not ending a sentence or a clause (`.`, `:`, `;`); a line further in is an item, a note of its
+     * own. A note on one line within [COMMENT_WIDTH] stays as it is; any other is joined and wrapped between words, its
+     * continuations under the same lead (an item's two spaces further in, so it reads as one).
+     */
+    fun wrapComments(lines: List<String>): List<String> {
+        val re = Regex("""^(\s*#)( +)(.*)$""")
+        val out = ArrayList<String>(); var i = 0
+        while (i < lines.size) {
+            val m = re.matchEntire(lines[i])
+            if (m == null) { out += lines[i]; i++; continue }
+            val lead = m.groupValues[1] + m.groupValues[2]
+            val text = StringBuilder(m.groupValues[3].trim()); var j = i + 1
+            while (j < lines.size) {
+                val n = re.matchEntire(lines[j]) ?: break
+                if (m.groupValues[2].length > 1 || n.groupValues[1] + n.groupValues[2] != lead || n.groupValues[3].isBlank() || text.isEmpty() || text.last() in ".:;") break
+                text.append(' ').append(n.groupValues[3].trim()); j++
+            }
+            if (j == i + 1 && lines[i].length <= COMMENT_WIDTH) out += lines[i]
+            else out += wrapped(text.toString(), lead, if (m.groupValues[2].length > 1) "$lead  " else lead)
+            i = j
+        }
+        return out
+    }
+
+    /** [text] wrapped between words to [COMMENT_WIDTH] columns: its first line after [first], the rest after [more]. */
+    private fun wrapped(text: String, first: String, more: String): List<String> {
+        val out = ArrayList<String>(); val cur = StringBuilder()
+        for (word in text.split(' ').filter { it.isNotEmpty() }) {
+            if (cur.isNotEmpty() && (if (out.isEmpty()) first else more).length + cur.length + 1 + word.length > COMMENT_WIDTH) { out += (if (out.isEmpty()) first else more) + cur; cur.clear() }
+            if (cur.isNotEmpty()) cur.append(' ')
+            cur.append(word)
+        }
+        out += (if (out.isEmpty()) first else more) + cur
+        return out
     }
 
     /**

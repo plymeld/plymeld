@@ -202,6 +202,7 @@ per plate, run in this order, because each plate prints within values the plates
 |---|---|---|---|
 | 1 | `calibrate melt` | the filament's maximum flow at each temperature | `calibrate melt values` |
 | 2 | `calibrate flow` | the filament's flow ratio at each temperature | `calibrate flow values` |
+| 2 | `calibrate pressure-advance` | the pressure advance: where a groove just after a speed-up turns into a ridge, on straight walls each at its own value; then whether it holds at three flow steps (`--confirm`) | `calibrate pressure-advance readings`, then `calibrate pressure-advance values` |
 | 3 | `calibrate first-layer` | the first layer's nozzle height and speed at each temperature | `calibrate first-layer values` |
 | 4 | `calibrate motion` | the speed and acceleration a visible wall holds without ringing | `calibrate motion readings`, then `calibrate motion values` |
 | 5 | `calibrate filament` | overhangs, bridges, stringing, line widths, and fit, by temperature band | not read back yet |
@@ -234,7 +235,38 @@ plymeld calibrate first-layer values 210=0.28,120 220=0.28,120 230=0.28,120 --pl
 
 Each prints the change and checks it before writing; `--dry-run` writes nothing, and `plymeld journal --undo` takes
 the change back. The other plates write a sheet to grade (`readings`), then turn the graded sheet into a config file
-(`values`) to add with `-cf`.
+(`values`) to add with `-cf`; the pressure-advance plate's `values` writes the filament's pressure advance (or the
+tool's, `--into tool`) into the file that defines it, as the melt and flow plates' do:
+
+```
+plymeld calibrate pressure-advance --tool 1 -o pa.gcode
+plymeld calibrate pressure-advance readings pa.gcode -o pa-readings.toml
+plymeld calibrate pressure-advance values pa-readings.toml
+```
+
+Its first plate tries 0 and values from the tool's lowest (`hardware.tool.<key>.calibrate.pressure_advance.min`) up to
+its top, each a fixed ratio below the next, so one plate brackets a short filament path and a long tube. Each wall's
+slow lead-in and fast middle are long enough for the pressure to settle within them at the plate's highest value, so a
+higher value makes longer walls; the first plate's top is the lowest of the tool's ceiling (`.max`, its machine model's
+toolhead's where it gives one), the highest value the extruder's push allows, and the highest value whose walls fit the
+bed, and the plate says which. Every line the plate lays runs at no more than a share of the filament's measured
+maximum flow (`hardware.tool.<key>.calibrate.pressure_advance.share`, 75 % unless set); where the extruder's highest
+filament speed is known (`hardware.tool.<key>.extrude.speed.max`), every move at a wall's value keeps the extruder within
+the same share of it, by the push the firmware's pressure-advance smoothing gives. Every value is held to its label's
+tenth of a millisecond. The base is a strip per wall, joined by break-off tabs, each strip numbered with its row: once
+printed, snap each wall out and read it held against a light and in a raking light, as its page shows. The `values` it prints names the next plate as a command to run as printed, with its
+own `-o`: a finer one evenly inside the bracket (`--bracket LOW-HIGH`, each value held to the tenth of a millisecond,
+so neighbors may stand that much nearer or further apart), or the confirm plate (`--confirm VALUE --confirm-step S`, or `DOWN,UP` where the value is not
+the bracket's middle on that tenth, its neighbors exactly the bracket's ends). A machine that sets its own pressure advance
+(`hardware.machine.<key>.firmware.own_pressure_advance`) gets only the confirm plate at its own value
+(`--confirm machine`), with no command written. The machine's model must say how pressure advance is set
+(`hardware.model.<key>.pressure_advance.command`; the bundled models carry Klipper's).
+
+![The default first pressure-advance plate on a 250 x 250 mm bed, from above: two rows of walls on their strips with their values, arrows, speed-change holes, and corners; below, the three readings](../renders/pressure_advance_plate.png)
+
+![Reading a wall snapped out on its strip: held against a light, a groove shows brighter and a ridge darker just after the mark; in a raking light, a groove a bright line and a ridge a shadow](../renders/pressure_advance_reading.png)
+
+![The same plate's g-code from above: the base's second layer, its strips and break-off tabs, with a hole at each speed change, and the first wall layer with each wall's value, arrow, and corner](../renders/pressure_advance_toolpath.png)
 
 ## Look at a g-code
 
