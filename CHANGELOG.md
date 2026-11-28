@@ -9,6 +9,8 @@ section the release's version and date.
 
 ## [Unreleased]
 
+## [0.20261128.0] - 2026-11-28
+
 ### Fixed
 
 - A Linux command line updated from 0.20261120.0 by `plymeld update` draws pictures. Every command that writes one
