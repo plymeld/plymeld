@@ -193,7 +193,9 @@ class ConfigSetupTest : StringSpec({
         withClue(e.problems.joinToString("\n")) {
             (named.size > 1) shouldBe true
             for (k in listOf("cooling.fan", "cooling.layer.time.min", "temperature.print"))
-                named.any { it.endsWith("(set hardware.filament.bare.$k)") } shouldBe true
+                named.any { "(set hardware.filament.bare.$k: " in it } shouldBe true
+            // with what the value means, from the schema
+            named.any { "(set hardware.filament.bare.temperature.print: nozzle temperature)" in it } shouldBe true
         }
         setup(*bare, "hardware.filament.bare.like" to "pla-generic")   // control
     }
@@ -352,11 +354,12 @@ class ConfigSetupTest : StringSpec({
             return s.visibleSpeed to s.visibleAccel
         }
         val measured = arrayOf<Pair<String, Any>>("hardware.machine.n.motion.visible.speed" to "135 mm/s", "hardware.machine.n.motion.visible.acceleration" to "3750 mm/s2")
-        // plymeld's stand-ins (00_defaults.toml): 100 mm/s, the machine's print acceleration (10000) halved
-        vis("m") shouldBe (100.0 to 5000.0)
+        // plymeld's stand-ins (00_defaults.toml): a quarter of the machine's top speed and highest acceleration, here its model's
+        // (the bundled QIDI Q2's 600 mm/s and 20000 mm/s2)
+        vis("m") shouldBe (150.0 to 5000.0)
         vis("n", *measured) shouldBe (135.0 to 3750.0)
         // control: machine m sets none, so n's values do not reach it
-        vis("m", *measured) shouldBe (100.0 to 5000.0)
+        vis("m", *measured) shouldBe (150.0 to 5000.0)
         // a job value of yours wins over the machine's (the acceleration, not set in the job, stays the machine's)
         vis("n", *measured, "plan.mechanism.motion.visible.speed" to "90 mm/s") shouldBe (90.0 to 3750.0)
     }

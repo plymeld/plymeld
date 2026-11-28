@@ -18,9 +18,7 @@ val SLIVER_AT_SURFACE = listOf("own", "neighbor")
 
 class SliceSettings private constructor(r: (String) -> Any, opt: (String) -> Any?, private val models: plymeld.machine.ModelLibrary,
                                         /** Every setting read through [r] or [opt] so far, with its value as text. */
-                                        private val recorded: java.util.concurrent.ConcurrentHashMap<String, String>,
-                                        /** The 0-based tool these settings are read for (NozzleCone.toolOf); null when the setup does not say. */
-                                        private val tool: Int?) {
+                                        private val recorded: java.util.concurrent.ConcurrentHashMap<String, String>) {
     /**
      * Every setting this read so far with its value, in id order: what a per-layer result depended on (LayerCache). A
      * setting first read later (a lazy field) joins the key from then on; a result stored under a key without it was
@@ -226,16 +224,12 @@ class SliceSettings private constructor(r: (String) -> Any, opt: (String) -> Any
     /**
      * The loaded head's shape for clearance above printed plastic (null where nothing gives it): the nozzle's cone
      * (hardware.tool.head.nozzle.angle, degrees from horizontal) and how far the tip sits below the rest of the head
-     * (hardware.tool.head.nozzle.height, µm), each the tool's own, else its machine model's toolhead's ([NozzleCone]); and
-     * the head's reach from the nozzle towards -X, +X, -Y, +Y (µm, from hardware.tool.head.size.x/y and nozzle_x/y).
+     * (hardware.tool.head.nozzle.height, µm), the tool's (a config's tool takes its machine model's toolhead's where it sets
+     * none, plymeld-config's Config); and the head's reach from the nozzle towards -X, +X, -Y, +Y (µm, from
+     * hardware.tool.head.size.x/y and nozzle_x/y).
      */
-    val nozzleAngleDeg: Double? by setting { (opt("hardware.tool.head.nozzle.angle") as Number?)?.toDouble() ?: modelCone(NozzleCone.ANGLE_KEY, "angle") }
-    val nozzleHeightUm: Long? by setting { ((opt("hardware.tool.head.nozzle.height") as Number?)?.toDouble() ?: modelCone(NozzleCone.HEIGHT_KEY, "height"))?.let { Math.round(it * 1000) } }
-    /** The machine model's toolhead value [key] for this tool (a tool's own cone value wins over it: NozzleCone). */
-    private fun modelCone(key: String, what: String): Double? {
-        val id = optional("hardware.machine.model") as String? ?: return null
-        return NozzleCone.fromModel(models.all.firstOrNull { it.id == id || id in it.otherNames }, tool, key, what)?.first
-    }
+    val nozzleAngleDeg: Double? by setting { (opt("hardware.tool.head.nozzle.angle") as Number?)?.toDouble() }
+    val nozzleHeightUm: Long? by setting { (opt("hardware.tool.head.nozzle.height") as Number?)?.toDouble()?.let { Math.round(it * 1000) } }
     val headReachUm: LongArray? by setting {
         listOf("hardware.tool.head.size.x", "hardware.tool.head.size.y", "hardware.tool.head.nozzle.x", "hardware.tool.head.nozzle.y").map { (opt(it) as Number?)?.toDouble() }
         .takeIf { v -> v.all { it != null } }?.let { (sx, sy, nx, ny) -> doubleArrayOf(nx!!, sx!! - nx, ny!!, sy!! - ny).map { Math.round(it * 1000) }.toLongArray() }
@@ -585,7 +579,7 @@ class SliceSettings private constructor(r: (String) -> Any, opt: (String) -> Any
         fun of(setup: Setup, ctx: Context = Context()): SliceSettings {
             val rec = java.util.concurrent.ConcurrentHashMap<String, String>()
             return SliceSettings({ id -> capture.get()?.add(id); Resolver.resolve(setup, id, ctx).value.also { rec[id] = it.toString() } },
-                { id -> capture.get()?.add(id); Resolver.resolveOrNull(setup, id, ctx)?.value.also { rec[id] = it.toString() } }, setup.models, rec, NozzleCone.toolOf(setup, ctx))
+                { id -> capture.get()?.add(id); Resolver.resolveOrNull(setup, id, ctx)?.value.also { rec[id] = it.toString() } }, setup.models, rec)
         }
 
         private val capture = ThreadLocal<MutableSet<String>?>()
@@ -615,7 +609,7 @@ class SliceSettings private constructor(r: (String) -> Any, opt: (String) -> Any
                 try { Resolver.resolve(setup, id, probe).value } catch (e: MissingValue) { missing += e.message!!; standIn(Catalog[id].kind) }
             }
             try {
-                SliceSettings(read, { id -> Resolver.resolveOrNull(setup, id, probe)?.value }, setup.models, java.util.concurrent.ConcurrentHashMap(), NozzleCone.toolOf(setup, probe)).readAll()
+                SliceSettings(read, { id -> Resolver.resolveOrNull(setup, id, probe)?.value }, setup.models, java.util.concurrent.ConcurrentHashMap()).readAll()
             } catch (e: RuntimeException) {
                 if (missing.isEmpty()) throw e
             }

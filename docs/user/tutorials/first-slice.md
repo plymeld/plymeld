@@ -14,8 +14,9 @@ plymeld init
 written until the end):
 
 - **Your printer:** which model it is, a name for it, and its values (its build area, speeds and start g-code), each
-  offered with the model's own as the default (the generic Klipper printer has none for its build area and speeds:
-  you type yours); its address on your network, if you want plymeld to send prints to it;
+  offered with the model's own as the default (the print and travel speeds and accelerations as formulas of its top
+  speed and highest acceleration, so a change to those carries through; the generic Klipper printer has none for its
+  build area and speeds: you type yours); its address on your network, if you want plymeld to send prints to it;
   the nozzle on each tool; and the build plate on it.
 - **Your filaments:** each one's kind (PLA, PETG and so on: it starts from plymeld's own values for that kind), a name,
   and its color.

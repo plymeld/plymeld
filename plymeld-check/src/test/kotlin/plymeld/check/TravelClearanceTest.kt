@@ -38,7 +38,9 @@ class TravelClearanceTest : StringSpec({
         "plan.mechanism.adhesion.prime.enabled" to false)
     val head = listOf("hardware.tool.t1.head.nozzle.angle" to "45 deg", "hardware.tool.t1.head.nozzle.height" to "4 mm",
         "hardware.tool.t1.head.size.x" to "90 mm", "hardware.tool.t1.head.size.y" to "75 mm", "hardware.tool.t1.head.nozzle.x" to "70 mm", "hardware.tool.t1.head.nozzle.y" to "40 mm")
-    /** The tip and its cone alone (no outline: the head's body not counted), to judge those rules apart from it. */
+    /** [machine] on a model whose toolhead gives no cone and no outline (the Q2's), so only the tool's own values count. */
+    val bareModel = machine.map { if (it.first == "hardware.machine.m.model") it.first to "qidi-q2" else it }
+    /** The tip and its cone alone (no outline: the head's body not counted, on [bareModel]), to judge those rules apart from it. */
     val cone = head.filter { !it.first.contains("head.size") && !it.first.contains("head.nozzle.x") && !it.first.contains("head.nozzle.y") }
     val box = ModelObject("box", listOf("box"), listOf(1), "box.3mf")
     fun write(entries: List<Pair<String, Any>>, steps: List<plymeld.program.Step>): String {
@@ -76,13 +78,11 @@ class TravelClearanceTest : StringSpec({
 
     "the tip: a travel crossing a 5 mm line rises over it first (5 + 0.2 hop); control: 10 mm clear of it, no lift (it rises as it goes, from the print height)" {
         val tall = line(100.0, 110.0, 120.0, 110.0, 5.0)
-        val g = write(machine + cone, program(tall, 110.0 to 100.0, 110.0 to 120.0))
+        val g = write(bareModel + cone, program(tall, 110.0 to 100.0, 110.0 to 120.0))
         travelLow(g, 110.0 to 100.0, 110.0 to 120.0) shouldBe (5.2 plusOrMinus 1e-6)
-        val c = write(machine + cone, program(tall, 110.0 to 100.0, 130.0 to 100.0))
+        val c = write(bareModel + cone, program(tall, 110.0 to 100.0, 130.0 to 100.0))
         travelLow(c, 110.0 to 100.0, 130.0 to 100.0) shouldBe (0.4 plusOrMinus 1e-6)
     }
-    /** [machine] on a model whose toolhead gives no cone (the Q2's), so only the tool's own values count. */
-    val bareModel = machine.map { if (it.first == "hardware.machine.m.model") it.first to "qidi-q2" else it }
     "the cone: a travel 4 mm beside a 5 mm line rises to at least 5 - (4 - 0.2) + 0.2 = 1.4; control: without a nozzle angle (the tool's or its model's), no lift" {
         val tall = line(100.0, 110.0, 120.0, 110.0, 5.0)
         val g = write(machine + cone, program(tall, 90.0 to 106.0, 130.0 to 106.0))
@@ -94,11 +94,13 @@ class TravelClearanceTest : StringSpec({
     }
     "the cone where the tool sets none is its machine model's toolhead's (the Creator 5's 45 deg, 4 mm): the same travel lifts as with the tool's own; control: the tool's own 80 deg cone wins, and lifts less" {
         val tall = line(100.0, 110.0, 120.0, 110.0, 5.0)
-        val own = travelLow(write(machine + cone, program(tall, 90.0 to 106.0, 130.0 to 106.0)), 90.0 to 106.0, 130.0 to 106.0)
-        val model = travelLow(write(machine, program(tall, 90.0 to 106.0, 130.0 to 106.0)), 90.0 to 106.0, 130.0 to 106.0)
+        // the tool's own outline a 1 mm square round the nozzle, so the head's body (the model's outline otherwise) never reaches the line
+        val tiny = listOf("hardware.tool.t1.head.size.x" to "1 mm", "hardware.tool.t1.head.size.y" to "1 mm", "hardware.tool.t1.head.nozzle.x" to "0.5 mm", "hardware.tool.t1.head.nozzle.y" to "0.5 mm")
+        val own = travelLow(write(machine + tiny + cone, program(tall, 90.0 to 106.0, 130.0 to 106.0)), 90.0 to 106.0, 130.0 to 106.0)
+        val model = travelLow(write(machine + tiny, program(tall, 90.0 to 106.0, 130.0 to 106.0)), 90.0 to 106.0, 130.0 to 106.0)
         withClue("tool's own $own, model's $model") { model shouldBe (own plusOrMinus 1e-6); (model > 0.4 + 1e-6) shouldBe true }
         // an 80 deg cone, 4 mm high, reaches about 0.7 mm out from the bore's edge: 4 mm beside the line it clears it, no lift
-        val steep = travelLow(write(machine + listOf("hardware.tool.t1.head.nozzle.angle" to "80 deg"), program(tall, 90.0 to 106.0, 130.0 to 106.0)), 90.0 to 106.0, 130.0 to 106.0)
+        val steep = travelLow(write(machine + tiny + listOf("hardware.tool.t1.head.nozzle.angle" to "80 deg"), program(tall, 90.0 to 106.0, 130.0 to 106.0)), 90.0 to 106.0, 130.0 to 106.0)
         steep shouldBe (0.4 plusOrMinus 1e-6)
     }
     "the head: a 10 mm line 20 mm towards +Y (the head reaches 35) lifts the travel to 10 - 4 + 0.2 = 6.2; control: 40 mm away, no lift" {
@@ -107,10 +109,11 @@ class TravelClearanceTest : StringSpec({
         val far = line(100.0, 130.0, 120.0, 130.0, 10.0)
         travelLow(write(machine + head, program(far, 90.0 to 90.0, 130.0 to 90.0)), 90.0 to 90.0, 130.0 to 90.0) shouldBe (0.4 plusOrMinus 1e-6)
     }
-    "control: without the head's outline the body is not counted (the 10 mm line 20 mm away: no lift)" {
+    "a tool that sets no outline takes its machine model's toolhead's (the Creator 5's); control: on a model that gives none, the body is not counted (the 10 mm line 20 mm away: no lift)" {
         val near = line(100.0, 110.0, 120.0, 110.0, 10.0)
         val noOutline = head.filter { !it.first.contains("head.size") && !it.first.contains("head.nozzle.x") && !it.first.contains("head.nozzle.y") }
-        travelLow(write(machine + noOutline, program(near, 90.0 to 90.0, 130.0 to 90.0)), 90.0 to 90.0, 130.0 to 90.0) shouldBe (0.4 plusOrMinus 1e-6)
+        travelLow(write(machine + noOutline, program(near, 90.0 to 90.0, 130.0 to 90.0)), 90.0 to 90.0, 130.0 to 90.0) shouldBe (6.2 plusOrMinus 1e-6)
+        travelLow(write(bareModel + noOutline, program(near, 90.0 to 90.0, 130.0 to 90.0)), 90.0 to 90.0, 130.0 to 90.0) shouldBe (0.4 plusOrMinus 1e-6)
     }
 })
 

@@ -115,22 +115,28 @@ class Plan(/** Every decision, in the order made: each object's pose and techniq
         }.getOrNull()
 
         /**
-         * [machine] with tool [tool]'s head shape from the user's config for object [k], over the machine description's
-         *: the nozzle's angle and height (TIP_CONE: curved layers need it; one the tool sets alone takes the other from the
-         * machine description's toolhead, as [NozzleCone] reads them), and the
-         * head's XY size with the nozzle's position in it (UNDERSIDE: the reach from the tip towards -X, +X, -Y, +Y).
-         * A tier is set only when all its values are; a nozzle outside the head's outline is refused.
+         * [machine] with tool [tool]'s head shape from the config for object [k], over the machine description's: the
+         * nozzle's angle and height (TIP_CONE: curved layers need it, as [NozzleCone] reads them), the head's XY size with the
+         * nozzle's position in it (UNDERSIDE: the reach from the tip towards -X, +X, -Y, +Y), the head as a circle
+         * (CLEARANCE: head.radius), and the gantry's rod and the lid above the tip (GANTRY: gantry.height and lid.height). A
+         * config's tool takes each from its machine model's toolhead where it sets none (plymeld-config's Config), so these are
+         * the toolhead's or the user's. A tier is set only when all its values are; a nozzle outside the head's outline is
+         * refused.
          */
         fun headFromConfig(machine: plymeld.machine.MachineDescription, tool: Int, setup: Setup, k: Int, part: Int? = null): plymeld.machine.MachineDescription {
             fun v(id: String) = Resolver.resolveOrNull(setup, id, plymeld.model.Context(k, part))
+            fun mm(r: plymeld.model.Resolved) = (r.value as Number).toDouble()
             var m = machine
-            if (v("hardware.tool.head.nozzle.angle") != null || v("hardware.tool.head.nozzle.height") != null)
-                NozzleCone.of(setup, plymeld.model.Context(k, part), machine)?.let { c ->
-                    m = m.withHead(tool, mapOf(NozzleCone.ANGLE_KEY to c.angleDeg, NozzleCone.HEIGHT_KEY to c.heightMm), "nozzle angle and height", "${c.angleFrom}; ${c.heightFrom}") }
+            NozzleCone.of(setup, plymeld.model.Context(k, part))?.let { c ->
+                m = m.withHead(tool, mapOf(NozzleCone.ANGLE_KEY to c.angleDeg, NozzleCone.HEIGHT_KEY to c.heightMm), "nozzle angle and height", "${c.angleFrom}; ${c.heightFrom}") }
             headReach(setup, k, part)?.let { (r, from) ->
                 m = m.withHead(tool, mapOf("head_minus_x" to r.minusX, "head_plus_x" to r.plusX, "head_minus_y" to r.minusY, "head_plus_y" to r.plusY),
                     "head size and nozzle position", from)
             }
+            v("hardware.tool.head.radius")?.let { r -> m = m.withHead(tool, mapOf("head.radius" to mm(r)), "head radius", "hardware.tool.<key>.head.radius: ${r.from}") }
+            val rod = v("hardware.tool.gantry.height"); val lid = v("hardware.tool.lid.height")
+            if (rod != null && lid != null) m = m.withHead(tool, mapOf("gantry.height" to mm(rod), "lid.height" to mm(lid)), "gantry and lid heights",
+                "hardware.tool.<key>.gantry.height: ${rod.from}; hardware.tool.<key>.lid.height: ${lid.from}")
             return m
         }
 
@@ -167,7 +173,7 @@ class Plan(/** Every decision, in the order made: each object's pose and techniq
 
         /**
          * The strictest nozzle cone over every tool printing object [k] ([toolsOf]): the narrowest angle and the lowest tip,
-         * each the tool's own value or its machine model's toolhead's ([NozzleCone]); null when a tool has neither. What a
+         * each the tool's ([NozzleCone]); null when a tool has none. What a
          * curved island is found and checked with (which of an object's tools lays an island is known only once it is found,
          * and the slice refuses one over parts of different filaments), and what the pre-print check holds a curved band to.
          */
@@ -178,14 +184,13 @@ class Plan(/** Every decision, in the order made: each object's pose and techniq
         }
 
         /** The narrowest nozzle angle (deg) over every tool printing object [k], with where it came from; null when a tool has none ([nozzleCone]). */
-        fun nozzleAngle(setup: Setup, k: Int): Pair<Double, String>? = strictest(setup, k) { m, c -> NozzleCone.angle(setup, c, m) }
+        fun nozzleAngle(setup: Setup, k: Int): Pair<Double, String>? = strictest(setup, k) { c -> NozzleCone.angle(setup, c) }
 
         /** The lowest nozzle tip (mm) over every tool printing object [k], with where it came from; null when a tool has none ([nozzleCone]). */
-        fun nozzleHeight(setup: Setup, k: Int): Pair<Double, String>? = strictest(setup, k) { m, c -> NozzleCone.height(setup, c, m) }
+        fun nozzleHeight(setup: Setup, k: Int): Pair<Double, String>? = strictest(setup, k) { c -> NozzleCone.height(setup, c) }
 
-        private fun strictest(setup: Setup, k: Int, value: (plymeld.machine.MachineDescription?, plymeld.model.Context) -> Pair<Double, String>?): Pair<Double, String>? {
-            val machine = NozzleCone.machineOf(setup)
-            val each = toolsOf(setup, k).map { (t, part) -> t to (value(machine, plymeld.model.Context(k, part)) ?: return null) }
+        private fun strictest(setup: Setup, k: Int, value: (plymeld.model.Context) -> Pair<Double, String>?): Pair<Double, String>? {
+            val each = toolsOf(setup, k).map { (t, part) -> t to (value(plymeld.model.Context(k, part)) ?: return null) }
             val (t, v) = each.minBy { it.second.first }
             return if (each.size == 1) v else v.first to "tool ${t + 1}'s, the strictest of the object's tools: ${v.second}"
         }

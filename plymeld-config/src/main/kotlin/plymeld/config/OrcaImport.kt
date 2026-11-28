@@ -270,12 +270,39 @@ object OrcaImport {
         }
         val intentName = c["print_settings_id"] ?: "imported"
         val intent = Values(Entity.INTENT, intentName).also { fill(it, setOf(Entity.INTENT), 0, 0) }
+        fromToolheads(machine, tools, intent, toolOf(0))
         val obj = ObjectSetup(objectName, intentName, "spool 1", Values(Entity.INTENT, "object '$objectName' overrides"))
         return Setup(machine, tools, materials, spools, mt, mapOf(intentName to intent), listOf(obj),
             foreignTemplateVars = c.keys.associateWith { c.peek(it)!! },
             importReport = (used + listOfNotNull("filament_map_mode".takeIf { autoOwnNozzle })).let { m -> ImportReport(source, m, c.keys - m, notes) },
             keysOf = ::importedKeys, models = Models.bundled)
     }
+
+    /**
+     * Each tool's values its machine's bundled model's toolhead gives (the one of its index), where the import gives none: a
+     * profile carries no head shape, and a config's tool takes these from the same toolhead (Config's fallbacks), so an
+     * imported print reads them as a config's would. A value the pipeline reads per object (heat.time) is the object's
+     * tool's ([objectTool], 0-based).
+     */
+    private fun fromToolheads(machine: Values, tools: List<Values>, intent: Values, objectTool: Int) {
+        val model = machine["hardware.machine.model"]?.value as? String ?: return
+        val c = bundledConfig
+        for ((t, v) in tools.withIndex()) {
+            val head = listOf("hardware", "model", model, "toolhead", t.toString())
+            for (e in c.values.values.filter { it.path.size > head.size && it.path.subList(0, head.size) == head }) {
+                val rest = e.path.drop(head.size)
+                if (!Schema.fromToolhead(rest)) continue
+                val d = Schema.find(listOf("hardware", "tool", "k") + rest) ?: continue
+                val id = d.feeds ?: continue
+                val dim = (d.type as? Schema.Type.Quantity)?.dim ?: continue
+                val into = if (Catalog[id].entity == Entity.TOOL) v else if (t == objectTool) intent else continue
+                if (into[id] != null) continue
+                into[id] = Sourced(c.quantity(e, dim, Site()), "${e.source} via the machine's model $model, toolhead $t")
+            }
+        }
+    }
+
+    private val bundledConfig by lazy { Config(ConfigStack(ConfigFiles.bundled()), emptyList()) }
 
     /** The key of the bundled model a profile's printer_model names (its key, or the profile_name it goes by), else the name as it is. */
     fun modelFor(printerModel: String): String = Models.bundled.all.firstOrNull { it.id == printerModel || printerModel in it.otherNames }?.id ?: printerModel

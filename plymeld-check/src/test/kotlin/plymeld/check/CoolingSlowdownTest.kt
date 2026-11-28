@@ -111,8 +111,9 @@ class CoolingSlowdownTest : StringSpec({
             (px in 0.0..250.0 && py in 0.0..250.0) shouldBe true
         }
         gcode(*min10, *head, "plan.mechanism.cooling.dwell.enabled" to false).lines().count { it.startsWith("G4 P") } shouldBe 0   // control
-        val noHead = gcode(*min10, "plan.mechanism.cooling.dwell.enabled" to true, "plan.mechanism.cooling.dwell.style" to "park")
-        noHead.lines().count { it.startsWith("G4 P") } shouldBe 0     // control: no head size, no wait
+        // control: no head size (the tool sets none, and its model's toolhead, the QIDI Q2's, gives none), no wait
+        val noHead = gcode(*min10, "hardware.machine.m.model" to "qidi-q2", "plan.mechanism.cooling.dwell.enabled" to true, "plan.mechanism.cooling.dwell.style" to "park")
+        noHead.lines().count { it.startsWith("G4 P") } shouldBe 0
         noHead.contains("no wait: the head's size or the bed is not set") shouldBe true
     }
 

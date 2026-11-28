@@ -61,12 +61,48 @@ class FirstUseTest : StringSpec({
         said.joinToString("\n") shouldContain "c5: a 20 mm test cube sliced"
         said.joinToString("\n") shouldContain "k: a 20 mm test cube sliced"
 
-        // control: the build size left out, the cube is refused
+        // the build size left out on a machine whose model gives one: the model's stands in, and the cube slices
+        val fromModel = Files.createTempDirectory("plymeld-firstuse-model-build-")
+        FirstUse.write(FirstUse.files(FirstUse.Answers(listOf(printer("qidi-q2", "q2", omitBuild = true)), listOf(FirstUse.Filament("pla", "pla-generic", null))), fromModel), fromModel)
+        val modelSaid = ArrayList<String>()
+        withClue({ modelSaid.joinToString("\n") }) { FirstUse.check(fromModel, listOf("q2"), { modelSaid += it }) shouldBe true }
+        // control: left out on one whose model gives none, the cube is refused, naming the value
         val bare = Files.createTempDirectory("plymeld-firstuse-bare-")
-        FirstUse.write(FirstUse.files(FirstUse.Answers(listOf(printer("qidi-q2", "q2", omitBuild = true)), listOf(FirstUse.Filament("pla", "pla-generic", null))), bare), bare)
+        FirstUse.write(FirstUse.files(FirstUse.Answers(listOf(printer("generic-klipper", "k", omitBuild = true, typed = mapOf(
+            "motion.acceleration.max" to "5000 mm/s2", "motion.print.speed" to "200 mm/s"))), listOf(FirstUse.Filament("pla", "pla-generic", null))), bare), bare)
         val bareSaid = ArrayList<String>()
-        FirstUse.check(bare, listOf("q2"), { bareSaid += it }) shouldBe false
+        FirstUse.check(bare, listOf("k"), { bareSaid += it }) shouldBe false
         bareSaid.joinToString("\n") shouldContain "build.z"
+    }
+
+    "the speeds and accelerations the setup writes are formulas of the machine's top speed and acceleration where its model gives them; control: a model with none" {
+        fun ask(id: String, path: String) = FirstUse.printerAsks(model(id)).first { it.path == path }.default
+        ask("qidi-q2", "motion.speed.max") shouldBe "600 mm/s"
+        ask("qidi-q2", "motion.acceleration.max") shouldBe "20000 mm/s2"
+        ask("qidi-q2", "motion.travel.speed") shouldBe "= machine.motion.speed.max"
+        ask("qidi-q2", "motion.print.speed") shouldBe "= machine.motion.speed.max"   // the Q2's model names no print speed of its own
+        ask("qidi-q2", "motion.print.acceleration") shouldBe "= machine.motion.acceleration.max / 2"
+        ask("qidi-q2", "motion.travel.acceleration") shouldBe "= machine.motion.acceleration.max"
+        // control: the generic model gives no limits: nothing to copy, and travel follows the print speed (the top speed's stand-in)
+        ask("generic-klipper", "motion.speed.max") shouldBe null
+        ask("generic-klipper", "motion.travel.speed") shouldBe "= machine.motion.print.speed"
+        // a generic machine given only its print speed and acceleration: its top speed is its travel speed, so the visible lines
+        // print at a quarter of it
+        val dir = Files.createTempDirectory("plymeld-firstuse-generic-")
+        FirstUse.write(FirstUse.files(FirstUse.Answers(listOf(printer("generic-klipper", "k", typed = mapOf("build.x" to "220 mm", "build.y" to "220 mm", "build.z" to "250 mm",
+            "motion.acceleration.max" to "5000 mm/s2", "motion.print.speed" to "200 mm/s"))), listOf(FirstUse.Filament("pla", "pla-generic", null))), dir), dir)
+        val configs = Files.list(dir).use { s -> s.filter { it.toString().endsWith(".toml") }.map { it.toString() }.sorted().toList() }
+        val cfg = plymeld.config.Config(plymeld.config.ConfigStack.load(configs, emptyList()), emptyList())
+        val visible = cfg.entry(listOf("plan", "mechanism", "motion", "visible", "speed"))!!
+        cfg.quantity(visible, plymeld.config.Dimension.SPEED, plymeld.config.Site(machine = "k")) shouldBe 50.0
+        // control: with no acceleration given, its travel acceleration (a formula of the highest) cannot stand in: the message names it
+        val noAccel = Files.createTempDirectory("plymeld-firstuse-noaccel-")
+        FirstUse.write(FirstUse.files(FirstUse.Answers(listOf(printer("generic-klipper", "k", typed = mapOf("build.x" to "220 mm", "build.y" to "220 mm", "build.z" to "250 mm",
+            "motion.print.speed" to "200 mm/s"))), listOf(FirstUse.Filament("pla", "pla-generic", null))), noAccel), noAccel)
+        val said = ArrayList<String>()
+        FirstUse.check(noAccel, listOf("k"), { said += it }) shouldBe false
+        said.joinToString("\n") shouldContain "set hardware.machine.k.motion.acceleration.max"
+        said.joinToString("\n") shouldContain "cannot stand in"
     }
 
     "the Creator 5's defaults come from its model: Flashforge's start and end, print and travel speeds, pause, pictures, nozzle limit; controls: models without them" {
@@ -83,12 +119,13 @@ class FirstUseTest : StringSpec({
         ask("flashforge-c5", "gcode.pictures").default shouldBe "140x110"
         // the maker's print speed below the axes' top speed, which travel takes
         ask("flashforge-c5", "motion.print.speed").default shouldBe "300 mm/s"
-        ask("flashforge-c5", "motion.travel.speed").default shouldBe "600 mm/s"
+        ask("flashforge-c5", "motion.speed.max").default shouldBe "600 mm/s"
+        ask("flashforge-c5", "motion.travel.speed").default shouldBe "= machine.motion.speed.max"
         FirstUse.toolAsks(model("flashforge-c5")).first { it.path == "temperature.max" }.default shouldBe "320 C"
-        // controls: the Q2's model names no print speed of its own (its firmware limit, travel the same) and no nozzle limit;
-        // the generic model names no pause, pictures or travel speed
-        ask("qidi-q2", "motion.print.speed").default shouldBe "600 mm/s"
-        ask("qidi-q2", "motion.travel.speed").default shouldBe "600 mm/s"
+        // controls: the Q2's model names no print speed of its own (its top speed, as travel) and no nozzle limit;
+        // the generic model names no pause, pictures or top speed
+        ask("qidi-q2", "motion.print.speed").default shouldBe "= machine.motion.speed.max"
+        ask("qidi-q2", "motion.travel.speed").default shouldBe "= machine.motion.speed.max"
         FirstUse.toolAsks(model("qidi-q2")).first { it.path == "temperature.max" }.default shouldBe null
         ask("generic-klipper", "gcode.pause").default shouldBe null
         ask("generic-klipper", "gcode.pictures").default shouldBe null
