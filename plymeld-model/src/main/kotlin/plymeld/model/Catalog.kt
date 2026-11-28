@@ -267,9 +267,9 @@ object Catalog {
         s("plan.layer.bottom.thickness", INTENT, LENGTH, "solid shell thickness over a bottom surface (the number of layers follows from the layer heights)")
         s("plan.layer.infill.density", INTENT, FRACTION, "sparse infill density")
         s("plan.layer.infill.pattern", INTENT, CHOICE, "sparse infill pattern")
-        s("plan.layer.top.pattern", INTENT, CHOICE, "top surface pattern: line patterns (monotonic ...), concentric-outside-in, concentric-inside-out, or archimedeanchords",
+        s("plan.layer.top.pattern", INTENT, CHOICE, "top surface pattern: line patterns (monotonic or rectilinear, one pattern: lines laid in one monotonic sweep, as every solid fill of lines is, internal solid too), concentric-outside-in, concentric-inside-out, or archimedeanchords",
             "monotonic", "files from slicers without the key; the line pattern plymeld always used")
-        s("plan.layer.bottom.pattern", INTENT, CHOICE, "bottom surface pattern: line patterns (monotonic ...), concentric-outside-in, concentric-inside-out, or archimedeanchords",
+        s("plan.layer.bottom.pattern", INTENT, CHOICE, "bottom surface pattern: line patterns (monotonic or rectilinear, one pattern: lines laid in one monotonic sweep, as every solid fill of lines is, internal solid too), concentric-outside-in, concentric-inside-out, or archimedeanchords",
             "monotonic", "files from slicers without the key; the line pattern plymeld always used")
         s("plan.layer.infill.area.min", INTENT, Kind.AREA, "a sparse infill piece smaller than this is printed as internal solid infill instead",
             0.0, "files from slicers without the key: off, as plymeld always printed them")
@@ -278,7 +278,7 @@ object Catalog {
         s("plan.layer.infill.narrow.fill", INTENT, CHOICE, "what a narrow sparse piece gets: loop (one loop at bead contact inside its walls) or solid",
             "loop", "keep things sparse by default, solid as an option")
         s("plan.layer.infill.line.width", INTENT, LENGTH, "sparse infill line width")
-        s("plan.layer.solid.line.width", INTENT, LENGTH, "internal solid infill line width")
+        s("plan.layer.solid.line.width", INTENT, LENGTH, "internal solid infill line width (internal solid is laid in lines, in one monotonic sweep, as a top's or bottom's lines are)")
         s("plan.layer.top.line.width", INTENT, LENGTH, "top surface line width")
         s("plan.layer.infill.angle", INTENT, ANGLE, "infill line direction")
         s("plan.layer.infill.chord_tolerance", INTENT, LENGTH, "curved infill chord tolerance")

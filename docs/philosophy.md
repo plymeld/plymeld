@@ -202,7 +202,7 @@ What plymeld sets out to get right, and where each stands:
 | Sane settings organization | **[Partial]** the settings model and schema (2.4); the window's settings pages |
 | An open, documented interchange format | **[Planned]** |
 | Transparent printer connectivity | **[Partial]** `plymeld printer` over Flashforge's LAN API and Moonraker, each command saying what it sends |
-| No fragmented toolpaths (a surface broken into micro-islands, each with its own walls, fill, and seams) | **[Partial]** a shared fill grid, a near-monotonic sweep order, loops for narrow regions; a fragmentation metric is planned |
+| No fragmented toolpaths (a surface broken into micro-islands, each with its own walls, fill, and seams) | **[Partial]** a shared fill grid, every solid fill of lines in one monotonic sweep, loops for narrow regions; a fragmentation metric is planned |
 
 ## 5. Today's feature set at a glance
 

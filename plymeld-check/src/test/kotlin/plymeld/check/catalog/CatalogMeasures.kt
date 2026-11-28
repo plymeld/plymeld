@@ -26,7 +26,9 @@ import java.util.Locale
  *    feature, tool and layer, each starting where the last ended) and their length (TechniqueRender's moves);
  *  - `lines.*` ([jagged]): extruding moves shorter than the slicing tolerance, all and the outer wall's, and the outer wall's
  *    kinks (a turn of more than 150 deg beside a move shorter than the outer line's width), and of those the zigzags (the
- *    line goes on the way it came, not back out of a tip, nor round a square end's corner).
+ *    line goes on the way it came, not back out of a tip, nor round a square end's corner);
+ *  - `sweep.<type>.*` ([sweeps]): per solid fill type (bottom surface, internal solid infill, top surface), its lines and
+ *    the lines laid against their fill's sweep (0: every connected fill laid monotonically).
  * Planning time is not recorded: it varies from run to run (NarrowIslandTimeTest holds it).
  */
 object CatalogMeasures {
@@ -94,7 +96,90 @@ object CatalogMeasures {
         val j = jagged(ms, s.resolutionUm / 1000.0, s.outerWallWidthUm / 1000.0)
         out["lines.tiny_moves"] = j.tiny.toString(); out["lines.tiny_moves.outer_wall"] = j.tinyOuter.toString(); out["lines.outer_kinks"] = j.kinks.toString()
         out["lines.outer_zigzags"] = j.zigzags.toString()
+        for ((type, sw) in sweeps(ms, SOLID_FILLS)) if (sw.lines > 0) { out["sweep.$type.lines"] = sw.lines.toString(); out["sweep.$type.reversed_lines"] = sw.reversed.toString() }
         return Measured(out, problems)
+    }
+
+    /** The solid fills [sweeps] reads: every fill laid as lines across its whole area. */
+    val SOLID_FILLS = listOf("Bottom surface", "Internal solid infill", "Top surface")
+
+    /** [sweeps]'s counts for one fill type: its lines, and the lines laid against their fill's sweep. */
+    class Sweep(val lines: Int, val reversed: Int)
+
+    /**
+     * How the lines of each fill type of [types] were laid across their area, from a file's extruding moves [ms]. On each
+     * layer, tool and type, the fill's lines are its moves along the fill's direction (the direction holding the most of its
+     * length, to within 2 degrees) at least two of their own widths long (shorter, a move is a link along the edge or a
+     * stub), loops left out (a path ending where it starts: a narrow band's rings, laid round, not across); two lines are neighbors where they lie on scanlines next to each other (their distance across the lines between
+     * half and one and a half of the fill's spacing, the spacing the median distance from a line to its nearest other line)
+     * and overlap along them. Neighbors joined make a connected fill. A line is laid against its fill's sweep where a
+     * neighbor ahead of it (in the sweep's sense) was laid before it: in a monotonic sweep each line is laid against the one
+     * behind it only, pieces side by side (the two sides of a hole) in either order. The sweep's sense is, for each
+     * connected fill, the one with fewer lines against it. 0: every connected fill laid in one sweep. (2 degrees, two widths,
+     * a half and one and a half spacings: plymeld's choice, geometric bounds of this measure, not print values.)
+     */
+    fun sweeps(ms: List<TechniqueRender.Move>, types: List<String>): Map<String, Sweep> {
+        val lines = HashMap<String, Int>(); val reversed = HashMap<String, Int>()
+        for (t in types) { lines[t] = 0; reversed[t] = 0 }
+        val groups = LinkedHashMap<Triple<Int, Int, String>, MutableList<TechniqueRender.Move>>()
+        // a loop (a path ending where it starts: a narrow band's rings) is not laid as lines
+        var k = 0
+        while (k < ms.size) {
+            var e = k
+            while (e + 1 < ms.size && ms[e + 1].let { n -> val p = ms[e]; n.feature == p.feature && n.tool == p.tool && n.layer == p.layer && Math.hypot(p.x1 - n.x0, p.y1 - n.y0) < 1e-6 }) e++
+            val loop = e > k && Math.hypot(ms[e].x1 - ms[k].x0, ms[e].y1 - ms[k].y0) < 1e-6
+            if (!loop) for (j in k..e) { val m = ms[j]; if (m.feature in types && m.length > 0) groups.getOrPut(Triple(m.layer, m.tool, m.feature)) { ArrayList() }.add(m) }
+            k = e + 1
+        }
+        for ((key, moves) in groups) {
+            // the fill's direction: the 1-degree bin (mod 180) holding the most length, then the moves within 2 degrees of it
+            fun deg(m: TechniqueRender.Move) = ((Math.toDegrees(Math.atan2(m.y1 - m.y0, m.x1 - m.x0)) % 180.0) + 180.0) % 180.0
+            fun apart(a: Double, b: Double) = Math.abs(a - b).let { minOf(it, 180.0 - it) }
+            val bins = DoubleArray(180)
+            for (m in moves) bins[deg(m).toInt() % 180] += m.length
+            val peak = bins.indices.maxBy { bins[it] } + 0.5
+            var sx = 0.0; var sy = 0.0
+            for (m in moves) if (apart(deg(m), peak) <= 2.0) { val a = Math.toRadians(2 * deg(m)); sx += m.length * Math.cos(a); sy += m.length * Math.sin(a) }
+            val dir = Math.atan2(sy, sx) / 2
+            val ux = Math.cos(dir); val uy = Math.sin(dir)
+            val dirDeg = ((Math.toDegrees(dir) % 180.0) + 180.0) % 180.0
+            val ls = moves.filter { apart(deg(it), dirDeg) <= 2.0 && it.length >= 2 * (if (it.width.isNaN()) 0.0 else it.width) }
+            lines.merge(key.third, ls.size, Int::plus)
+            if (ls.size < 2) continue
+            // across (the normal) and the interval along, in print order
+            val p = DoubleArray(ls.size) { k -> val m = ls[k]; -uy * (m.x0 + m.x1) / 2 + ux * (m.y0 + m.y1) / 2 }
+            val a0 = DoubleArray(ls.size) { k -> val m = ls[k]; minOf(ux * m.x0 + uy * m.y0, ux * m.x1 + uy * m.y1) }
+            val a1 = DoubleArray(ls.size) { k -> val m = ls[k]; maxOf(ux * m.x0 + uy * m.y0, ux * m.x1 + uy * m.y1) }
+            val byP = ls.indices.sortedBy { p[it] }
+            fun overlap(i: Int, j: Int) = minOf(a1[i], a1[j]) - maxOf(a0[i], a0[j]) > 0
+            // the spacing: the median distance across from a line to its nearest other line overlapping it (not on its scanline)
+            val floor = 0.25 * (ls.mapNotNull { if (it.width.isNaN()) null else it.width }.minOrNull() ?: 0.1)
+            val nearest = ArrayList<Double>()
+            for ((r, i) in byP.withIndex()) {
+                var best = Double.POSITIVE_INFINITY
+                for (dr in listOf(-1, 1)) { var q = r + dr
+                    while (q in byP.indices && Math.abs(p[byP[q]] - p[i]) < best) { val j = byP[q]; val d = Math.abs(p[j] - p[i]); if (d > floor && overlap(i, j)) best = d; q += dr } }
+                if (best.isFinite()) nearest += best
+            }
+            if (nearest.isEmpty()) continue
+            val spacing = nearest.sorted()[nearest.size / 2]
+            // neighbors (i < j in print order) and the connected fills
+            val root = IntArray(ls.size) { it }
+            fun find(a: Int): Int { var r = a; while (root[r] != r) r = root[r]; var b = a; while (root[b] != r) { val nb = root[b]; root[b] = r; b = nb }; return r }
+            val pairs = ArrayList<IntArray>()
+            for ((r, i) in byP.withIndex()) { var q = r + 1
+                while (q < byP.size && p[byP[q]] - p[i] < 1.5 * spacing) { val j = byP[q]
+                    if (p[j] - p[i] > 0.5 * spacing && overlap(i, j)) { pairs += intArrayOf(minOf(i, j), maxOf(i, j)); root[find(i)] = find(j) }
+                    q++ } }
+            // against the sweep, per sense: a line with a neighbor ahead of it laid before it
+            val up = BooleanArray(ls.size); val down = BooleanArray(ls.size)
+            for ((i, j) in pairs) { if (p[i] > p[j]) up[j] = true else down[j] = true }
+            val upBy = HashMap<Int, Int>(); val downBy = HashMap<Int, Int>()
+            for (k in ls.indices) { val c = find(k); if (up[k]) upBy.merge(c, 1, Int::plus); if (down[k]) downBy.merge(c, 1, Int::plus) }
+            val comps = ls.indices.map { find(it) }.toSet()
+            reversed.merge(key.third, comps.sumOf { c -> minOf(upBy[c] ?: 0, downBy[c] ?: 0) }, Int::plus)
+        }
+        return types.associateWith { Sweep(lines.getValue(it), reversed.getValue(it)) }
     }
 
     /** [jagged]'s counts: moves shorter than the tolerance (all, the outer wall's), the outer wall's kinks, and of those the zigzags. */

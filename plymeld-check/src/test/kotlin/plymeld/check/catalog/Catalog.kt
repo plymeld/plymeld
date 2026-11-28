@@ -100,6 +100,8 @@ object Catalog {
             Slicing.WALLS, { Models.plateBehindFace }, walls = WallRead(0.9, 1.3)),
         Entry("two-color piece", "two halves of two filaments side by side: a tool change and a purge on every layer", Slicing.TWO_TOOLS,
             { Models.twoColorPiece }, rows = listOf(BASE, Row("purge into infill", listOf("plan.mechanism.purge.into" to "infill")))),
+        Entry("plates inlaid in a slab's bottom", "three plates of a second filament inlaid flush in a slab's bottom: the slab's solid layers broken into pieces round them, each layer's fill laid in one sweep across its pieces",
+            Slicing.TWO_TOOLS, { Models.inlaidPlates }),
         Entry("teeth under a second part", "small teeth of one filament hanging off another's edge over air: islands laid by their beads, nothing bridged or filled over them",
             Slicing.WALLS, { Models.teethUnderBand }, rows = listOf(BASE, SEAM_ROWS[2])),
         Entry("sliver tips inside a second part", "tongues of one filament too thin for a line inside another's area, a few microns from it, and the other's blunt spikes into it: no crack, no loop over its notch",

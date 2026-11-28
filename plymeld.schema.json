@@ -4405,7 +4405,7 @@
                   ]
                 },
                 "pattern": {
-                  "description": "INHERITED: top surface pattern (concentric-outside-in: loops following the outline, each the one outside it moved in; concentric-inside-out: round rings around the surface's middle, arcs where a full circle does not fit, each running on past its arc along a wall, narrowed to the ground left there down to half a line)",
+                  "description": "INHERITED: top surface pattern (monotonic or rectilinear: lines, laid in one monotonic sweep across the surface as every solid fill of lines is, internal solid too: the two names are one pattern; concentric-outside-in: loops following the outline, each the one outside it moved in; concentric-inside-out: round rings around the surface's middle, arcs where a full circle does not fit, each running on past its arc along a wall, narrowed to the ground left there down to half a line)",
                   "enum": [
                     "monotonic",
                     "rectilinear",
@@ -4459,7 +4459,7 @@
                   ]
                 },
                 "pattern": {
-                  "description": "INHERITED: bottom surface pattern (as top_pattern)",
+                  "description": "INHERITED: bottom surface pattern (as plan.layer.top.pattern)",
                   "enum": [
                     "monotonic",
                     "rectilinear",
@@ -4555,7 +4555,7 @@
                   "additionalProperties": false,
                   "properties": {
                     "width": {
-                      "description": "INHERITED: internal solid line width — a length (mm); or a formula (= ...)",
+                      "description": "INHERITED: internal solid line width (internal solid is laid in lines, in one monotonic sweep, as a top's or bottom's lines are) — a length (mm); or a formula (= ...)",
                       "type": [
                         "string",
                         "number"
@@ -6560,7 +6560,7 @@
                   ]
                 },
                 "pattern": {
-                  "description": "INHERITED: top surface pattern (concentric-outside-in: loops following the outline, each the one outside it moved in; concentric-inside-out: round rings around the surface's middle, arcs where a full circle does not fit, each running on past its arc along a wall, narrowed to the ground left there down to half a line)",
+                  "description": "INHERITED: top surface pattern (monotonic or rectilinear: lines, laid in one monotonic sweep across the surface as every solid fill of lines is, internal solid too: the two names are one pattern; concentric-outside-in: loops following the outline, each the one outside it moved in; concentric-inside-out: round rings around the surface's middle, arcs where a full circle does not fit, each running on past its arc along a wall, narrowed to the ground left there down to half a line)",
                   "enum": [
                     "monotonic",
                     "rectilinear",
@@ -6614,7 +6614,7 @@
                   ]
                 },
                 "pattern": {
-                  "description": "INHERITED: bottom surface pattern (as top_pattern)",
+                  "description": "INHERITED: bottom surface pattern (as plan.layer.top.pattern)",
                   "enum": [
                     "monotonic",
                     "rectilinear",
@@ -6710,7 +6710,7 @@
                   "additionalProperties": false,
                   "properties": {
                     "width": {
-                      "description": "INHERITED: internal solid line width — a length (mm); or a formula (= ...)",
+                      "description": "INHERITED: internal solid line width (internal solid is laid in lines, in one monotonic sweep, as a top's or bottom's lines are) — a length (mm); or a formula (= ...)",
                       "type": [
                         "string",
                         "number"
@@ -8834,7 +8834,7 @@
                   ]
                 },
                 "pattern": {
-                  "description": "INHERITED: top surface pattern (concentric-outside-in: loops following the outline, each the one outside it moved in; concentric-inside-out: round rings around the surface's middle, arcs where a full circle does not fit, each running on past its arc along a wall, narrowed to the ground left there down to half a line)",
+                  "description": "INHERITED: top surface pattern (monotonic or rectilinear: lines, laid in one monotonic sweep across the surface as every solid fill of lines is, internal solid too: the two names are one pattern; concentric-outside-in: loops following the outline, each the one outside it moved in; concentric-inside-out: round rings around the surface's middle, arcs where a full circle does not fit, each running on past its arc along a wall, narrowed to the ground left there down to half a line)",
                   "enum": [
                     "monotonic",
                     "rectilinear",
@@ -8888,7 +8888,7 @@
                   ]
                 },
                 "pattern": {
-                  "description": "INHERITED: bottom surface pattern (as top_pattern)",
+                  "description": "INHERITED: bottom surface pattern (as plan.layer.top.pattern)",
                   "enum": [
                     "monotonic",
                     "rectilinear",
@@ -8984,7 +8984,7 @@
                   "additionalProperties": false,
                   "properties": {
                     "width": {
-                      "description": "INHERITED: internal solid line width — a length (mm); or a formula (= ...)",
+                      "description": "INHERITED: internal solid line width (internal solid is laid in lines, in one monotonic sweep, as a top's or bottom's lines are) — a length (mm); or a formula (= ...)",
                       "type": [
                         "string",
                         "number"

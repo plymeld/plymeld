@@ -341,6 +341,25 @@ object Models {
 
     /** A small two-color piece: two halves 6 by 10 mm, 3 mm tall, side by side (A at the left, B at the right): a tool change on every layer. */
     val twoColorPiece: List<TriangleSoup> by lazy { listOf(box(CX - 6, CY - 5, 0.0, CX, CY + 5, 3.0), box(CX, CY - 5, 0.0, CX + 6, CY + 5, 3.0)) }
+    /** The plates of [inlaidPlates] (x0, y0, x1, y1, mm): three, of different sizes, at different heights across the slab. */
+    val INLAID_PLATES = listOf(doubleArrayOf(CX - 11.5, CY - 4, CX - 6.5, CY + 2), doubleArrayOf(CX - 2, CY - 3, CX + 2, CY + 5), doubleArrayOf(CX + 6, CY - 2, CX + 12, CY + 2))
+    /** How thick the plates of [inlaidPlates] are (mm): three of the two-tool rig's 0.2 mm layers. */
+    const val INLAID_PLATE_MM = 0.6
+    /**
+     * Plates inlaid in a slab's bottom: A, a slab 30 by 14 mm, 2 mm tall, with a pocket in its bottom for each of B, three
+     * plates ([INLAID_PLATES]) [INLAID_PLATE_MM] thick, flush with the slab's bottom. The slab's bottom layers are broken
+     * into pieces round the plates: its bottom surface, then internal solid on the layers above it beside the plates,
+     * whole above them.
+     */
+    val inlaidPlates: List<TriangleSoup> by lazy {
+        fun um(x0: Double, y0: Double, x1: Double, y1: Double) = Polygon(longArrayOf(Math.round(x0 * 1000), Math.round(y0 * 1000), Math.round(x1 * 1000), Math.round(y0 * 1000),
+            Math.round(x1 * 1000), Math.round(y1 * 1000), Math.round(x0 * 1000), Math.round(y1 * 1000)))
+        val outer = um(CX - 15, CY - 7, CX + 15, CY + 7)
+        val slab = Shapes.slabs(listOf(0.0, INLAID_PLATE_MM, 2.0)) { z ->
+            if (z > INLAID_PLATE_MM) listOf(outer) else listOf(outer) + INLAID_PLATES.map { um(it[0], it[1], it[2], it[3]).reversed() }
+        }
+        listOf(slab, join(*INLAID_PLATES.map { prism(rect(it[0], it[1], it[2], it[3]), 0.0, INLAID_PLATE_MM) }.toTypedArray()))
+    }
     /**
      * A tooth's outline (mm): its apex [d] below the edge y = [CY] at x [cx], its base [b] wide along that edge, its right side
      * bulging out by [bulge] at its middle (four points on a half sine): a triangle about two lines across, with no corner a

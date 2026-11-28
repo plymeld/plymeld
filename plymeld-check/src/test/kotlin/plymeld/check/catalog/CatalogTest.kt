@@ -3,6 +3,7 @@ package plymeld.check.catalog
 import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import plymeld.check.TechniqueRender
 import plymeld.check.catalog.Baseline.Key
@@ -18,7 +19,8 @@ import plymeld.check.catalog.Catalog.Row
  * ThinRidgeTest, ExposedSliverTest, SpeckNearPartTest); here the pre-print check: each model passes it, or is refused
  * only as its entry names (a finding not yet fixed); the outer wall of the models of straight sides and true arcs: no
  * move shorter than the slicing tolerance and no kink; and the outer wall of the models of narrow islands laid by their
- * beads: no zigzag (a kink where the line goes on the way it came, not a tip's run-in nor a square end's corner).
+ * beads: no zigzag (a kink where the line goes on the way it came, not a tip's run-in nor a square end's corner); and every
+ * model's solid fills: no line laid against its fill's sweep.
  *
  * Controls: a setting changed on one model moves its measures and the comparison reports them; a baseline with a value
  * altered, a line missing and a stray line is reported for each. Determinism: every unit measured side by side on the
@@ -131,6 +133,48 @@ class CatalogTest : StringSpec({
         }
         narrow.all { n -> Catalog.entries.any { it.name == n } } shouldBe true
         withClue(wrong.joinToString("\n")) { wrong.shouldBeEmpty() }
+    }
+
+    /*
+     * Every solid fill (a bottom surface, internal solid, a top surface) is laid monotonically across its area: on each layer
+     * its lines in one sweep, across every piece of a region broken by holes or by a second filament's parts (pieces side by
+     * side in either order). Every model under every row reads no line laid against its fill's sweep. The plates inlaid in a
+     * slab's bottom break its bottom layers' internal solid into pieces, laid as two runs in opposite directions when the
+     * pieces were ordered nearest-first; the speck beside a part's top has a piece below the triangle's tip, beside the end of
+     * one long chain, that went after the chain when the sweep began at the chain's end.
+     */
+    "the solid fills of every model: every line laid in its fill's sweep" {
+        val wrong = ArrayList<String>()
+        for ((e, row) in units) {
+            val v = run().getValue(e.name to row.name).values
+            for (t in CatalogMeasures.SOLID_FILLS) v["sweep.$t.reversed_lines"]?.let {
+                if (it != "0") wrong += "${e.name} / ${row.name}: sweep.$t.reversed_lines $it (of ${v["sweep.$t.lines"]})" }
+        }
+        // the inlaid plates' slab has internal solid broken round them, and it is read
+        (run().getValue("plates inlaid in a slab's bottom" to BASE.name).values["sweep.Internal solid infill.lines"]?.toInt() ?: 0) shouldBeGreaterThan 0
+        withClue(wrong.joinToString("\n")) { wrong.shouldBeEmpty() }
+    }
+
+    /*
+     * The sweep measure counts what it says: five lines 0.45 mm apart laid in one sweep read none; laid from the middle out,
+     * two lines up and then three down, one (in the sense of the longer run, down, the run up's second line was laid with
+     * the line ahead of it already laid); a hole's two sides laid one after the other between a line under them and one over them,
+     * none (pieces side by side go in either order); the same with the right side's lines laid downward, two.
+     */
+    "control: lines laid against their fill's sweep are counted, pieces side by side in either order are not" {
+        fun fill(vararg lines: DoubleArray) = TechniqueRender.read("M83\n;LAYER_CHANGE\n;Z:0.2\n;TYPE:Internal solid infill\n;WIDTH:0.44\n" +
+            lines.joinToString("") { (x0, x1, y) -> "G1 X$x0 Y$y F6000\nG1 X$x1 Y$y E0.5\n" }).moves
+        fun line(x0: Double, x1: Double, k: Int) = doubleArrayOf(x0, x1, 0.45 * k)
+        fun reversed(ms: List<TechniqueRender.Move>) = CatalogMeasures.sweeps(ms, listOf("Internal solid infill")).getValue("Internal solid infill")
+        val one = reversed(fill(*(0..4).map { line(0.0, 10.0, it) }.toTypedArray()))
+        listOf(one.lines, one.reversed) shouldBe listOf(5, 0)
+        val fromMiddle = reversed(fill(*listOf(3, 4, 2, 1, 0).map { line(0.0, 10.0, it) }.toTypedArray()))
+        listOf(fromMiddle.lines, fromMiddle.reversed) shouldBe listOf(5, 1)
+        val sides = listOf(line(0.0, 10.0, 0)) + (1..3).map { line(0.0, 4.0, it) } + (1..3).map { line(6.0, 10.0, it) } + listOf(line(0.0, 10.0, 4))
+        val bySides = reversed(fill(*sides.toTypedArray()))
+        listOf(bySides.lines, bySides.reversed) shouldBe listOf(8, 0)
+        val rightDown = listOf(line(0.0, 10.0, 0)) + (1..3).map { line(0.0, 4.0, it) } + (3 downTo 1).map { line(6.0, 10.0, it) } + listOf(line(0.0, 10.0, 4))
+        reversed(fill(*rightDown.toTypedArray())).reversed shouldBe 2
     }
 
     /*
