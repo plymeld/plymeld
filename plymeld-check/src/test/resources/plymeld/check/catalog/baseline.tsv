@@ -696,16 +696,16 @@ finger inside a second part	base	seams.point	210
 finger inside a second part	base	seams.scar_mm2	3.081
 finger inside a second part	base	seams.scarf	0
 finger inside a second part	base	strings.restart_starved_mm	360.00
-finger inside a second part	base	strings.retractions	236
-finger inside a second part	base	strings.travel_mm	5225.87
+finger inside a second part	base	strings.retractions	229
+finger inside a second part	base	strings.travel_mm	5219.04
 finger inside a second part	base	strings.unretracted_across_tops_mm	0.00
 finger inside a second part	base	strings.unretracted_over_air_mm	0.46
 finger inside a second part	base	strings.unretracted_shown_mm	0.46
-finger inside a second part	base	strings.unretracted_travels	190
+finger inside a second part	base	strings.unretracted_travels	197
 finger inside a second part	base	strings.visible_restarts	72
 finger inside a second part	base	sweep.Top surface.lines	43
 finger inside a second part	base	sweep.Top surface.reversed_lines	0
-finger inside a second part	base	time_s	264.3
+finger inside a second part	base	time_s	263.2
 holes	base	check.problems	0
 holes	base	feature.Bottom surface.length_mm	429.99
 holes	base	feature.Bottom surface.paths	11
@@ -742,7 +742,7 @@ holes	base	seams.scar_mm2	2.571
 holes	base	seams.scarf	0
 holes	base	strings.restart_starved_mm	120.00
 holes	base	strings.retractions	153
-holes	base	strings.travel_mm	2107.01
+holes	base	strings.travel_mm	2107.43
 holes	base	strings.unretracted_across_tops_mm	1.99
 holes	base	strings.unretracted_over_air_mm	4.25
 holes	base	strings.unretracted_shown_mm	6.24
@@ -1384,7 +1384,7 @@ ridge, dipped	base	seams.scar_mm2	9.733
 ridge, dipped	base	seams.scarf	0
 ridge, dipped	base	strings.restart_starved_mm	220.00
 ridge, dipped	base	strings.retractions	107
-ridge, dipped	base	strings.travel_mm	1061.73
+ridge, dipped	base	strings.travel_mm	1060.42
 ridge, dipped	base	strings.unretracted_across_tops_mm	0.00
 ridge, dipped	base	strings.unretracted_over_air_mm	5.04
 ridge, dipped	base	strings.unretracted_shown_mm	5.04
@@ -1477,7 +1477,7 @@ ridge, flat	base	seams.scar_mm2	0.356
 ridge, flat	base	seams.scarf	0
 ridge, flat	base	strings.restart_starved_mm	15.00
 ridge, flat	base	strings.retractions	32
-ridge, flat	base	strings.travel_mm	196.59
+ridge, flat	base	strings.travel_mm	197.22
 ridge, flat	base	strings.unretracted_across_tops_mm	0.00
 ridge, flat	base	strings.unretracted_over_air_mm	4.64
 ridge, flat	base	strings.unretracted_shown_mm	4.64
@@ -1662,7 +1662,7 @@ ridge, wobbly	base	seams.scar_mm2	0.354
 ridge, wobbly	base	seams.scarf	0
 ridge, wobbly	base	strings.restart_starved_mm	20.00
 ridge, wobbly	base	strings.retractions	31
-ridge, wobbly	base	strings.travel_mm	219.77
+ridge, wobbly	base	strings.travel_mm	217.80
 ridge, wobbly	base	strings.unretracted_across_tops_mm	0.00
 ridge, wobbly	base	strings.unretracted_over_air_mm	4.55
 ridge, wobbly	base	strings.unretracted_shown_mm	4.55
@@ -1841,7 +1841,7 @@ sloped top	base	seams.scar_mm2	0.318
 sloped top	base	seams.scarf	0
 sloped top	base	strings.restart_starved_mm	15.00
 sloped top	base	strings.retractions	57
-sloped top	base	strings.travel_mm	672.31
+sloped top	base	strings.travel_mm	672.57
 sloped top	base	strings.unretracted_across_tops_mm	0.00
 sloped top	base	strings.unretracted_over_air_mm	6.48
 sloped top	base	strings.unretracted_shown_mm	6.48
@@ -2120,7 +2120,7 @@ speck beside a part	base	seams.scar_mm2	3.660
 speck beside a part	base	seams.scarf	0
 speck beside a part	base	strings.restart_starved_mm	155.00
 speck beside a part	base	strings.retractions	116
-speck beside a part	base	strings.travel_mm	3734.64
+speck beside a part	base	strings.travel_mm	3729.50
 speck beside a part	base	strings.unretracted_across_tops_mm	0.00
 speck beside a part	base	strings.unretracted_over_air_mm	0.46
 speck beside a part	base	strings.unretracted_shown_mm	0.46
@@ -2131,8 +2131,8 @@ speck beside a part	base	sweep.Bottom surface.reversed_lines	0
 speck beside a part	base	sweep.Internal solid infill.lines	318
 speck beside a part	base	sweep.Internal solid infill.reversed_lines	0
 speck beside a part	base	sweep.Top surface.lines	159
-speck beside a part	base	sweep.Top surface.reversed_lines	1
-speck beside a part	base	time_s	193.4
+speck beside a part	base	sweep.Top surface.reversed_lines	0
+speck beside a part	base	time_s	193.2
 stepped top	base	check.problems	0
 stepped top	base	feature.Bottom surface.length_mm	361.09
 stepped top	base	feature.Bottom surface.paths	1
@@ -2537,16 +2537,16 @@ web 1.6 mm	base	seams.point	22
 web 1.6 mm	base	seams.scar_mm2	1.259
 web 1.6 mm	base	seams.scarf	0
 web 1.6 mm	base	strings.restart_starved_mm	90.00
-web 1.6 mm	base	strings.retractions	63
-web 1.6 mm	base	strings.travel_mm	698.92
+web 1.6 mm	base	strings.retractions	68
+web 1.6 mm	base	strings.travel_mm	718.83
 web 1.6 mm	base	strings.unretracted_across_tops_mm	1.12
 web 1.6 mm	base	strings.unretracted_over_air_mm	4.39
 web 1.6 mm	base	strings.unretracted_shown_mm	5.51
-web 1.6 mm	base	strings.unretracted_travels	164
+web 1.6 mm	base	strings.unretracted_travels	159
 web 1.6 mm	base	strings.visible_restarts	18
 web 1.6 mm	base	sweep.Top surface.lines	20
 web 1.6 mm	base	sweep.Top surface.reversed_lines	0
-web 1.6 mm	base	time_s	92.1
+web 1.6 mm	base	time_s	93.3
 web 1.6 mm	base	walls.doubled_mm2	0.0907
 web 1.6 mm	base	walls.largest_shift_mm	0.043
 web 1.6 mm	base	walls.layers	9
@@ -2590,7 +2590,7 @@ web 2.2 mm	base	seams.scar_mm2	1.261
 web 2.2 mm	base	seams.scarf	0
 web 2.2 mm	base	strings.restart_starved_mm	65.00
 web 2.2 mm	base	strings.retractions	80
-web 2.2 mm	base	strings.travel_mm	709.72
+web 2.2 mm	base	strings.travel_mm	709.62
 web 2.2 mm	base	strings.unretracted_across_tops_mm	0.34
 web 2.2 mm	base	strings.unretracted_over_air_mm	4.39
 web 2.2 mm	base	strings.unretracted_shown_mm	4.73

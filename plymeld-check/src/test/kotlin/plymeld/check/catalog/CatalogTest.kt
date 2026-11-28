@@ -20,7 +20,7 @@ import plymeld.check.catalog.Catalog.Row
  * only as its entry names (a finding not yet fixed); the outer wall of the models of straight sides and true arcs: no
  * move shorter than the slicing tolerance and no kink; and the outer wall of the models of narrow islands laid by their
  * beads: no zigzag (a kink where the line goes on the way it came, not a tip's run-in nor a square end's corner); and every
- * model's solid fills: no line laid against its fill's sweep, but a finding named.
+ * model's solid fills: no line laid against its fill's sweep.
  *
  * Controls: a setting changed on one model moves its measures and the comparison reports them; a baseline with a value
  * altered, a line missing and a stray line is reported for each. Determinism: every unit measured side by side on the
@@ -138,22 +138,20 @@ class CatalogTest : StringSpec({
     /*
      * Every solid fill (a bottom surface, internal solid, a top surface) is laid monotonically across its area: on each layer
      * its lines in one sweep, across every piece of a region broken by holes or by a second filament's parts (pieces side by
-     * side in either order). Every model under every row reads no line laid against its fill's sweep, but the one named
-     * here: the speck beside a part, one line of whose top surface beside the triangle's tip is laid after its neighbor
-     * ahead (a finding not yet fixed, held to its count here and by the baseline). The plates inlaid in a slab's bottom break its bottom layers' internal solid into
-     * pieces, laid as two runs in opposite directions when the pieces were ordered nearest-first.
+     * side in either order). Every model under every row reads no line laid against its fill's sweep. The plates inlaid in a
+     * slab's bottom break its bottom layers' internal solid into pieces, laid as two runs in opposite directions when the
+     * pieces were ordered nearest-first; the speck beside a part's top has a piece below the triangle's tip, beside the end of
+     * one long chain, that went after the chain when the sweep began at the chain's end.
      */
     "the solid fills of every model: every line laid in its fill's sweep" {
-        val known = mapOf(("speck beside a part" to "Top surface") to "1")
         val wrong = ArrayList<String>()
         for ((e, row) in units) {
             val v = run().getValue(e.name to row.name).values
             for (t in CatalogMeasures.SOLID_FILLS) v["sweep.$t.reversed_lines"]?.let {
-                if (it != (known[e.name to t] ?: "0")) wrong += "${e.name} / ${row.name}: sweep.$t.reversed_lines $it (of ${v["sweep.$t.lines"]})" }
+                if (it != "0") wrong += "${e.name} / ${row.name}: sweep.$t.reversed_lines $it (of ${v["sweep.$t.lines"]})" }
         }
         // the inlaid plates' slab has internal solid broken round them, and it is read
         (run().getValue("plates inlaid in a slab's bottom" to BASE.name).values["sweep.Internal solid infill.lines"]?.toInt() ?: 0) shouldBeGreaterThan 0
-        known.keys.all { (n, _) -> Catalog.entries.any { it.name == n } } shouldBe true
         withClue(wrong.joinToString("\n")) { wrong.shouldBeEmpty() }
     }
 

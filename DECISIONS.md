@@ -2576,21 +2576,27 @@ beside the chain's line ahead of it.
 
 **Decision.**
 - Every solid fill laid as lines (a bottom, internal solid, a top) and ironing is a monotonic fill: its lines end a
-  chain where the fill merges past a hole, and its pieces are laid by the sweep, all one way across the island. Internal
+  chain where the next line overlaps a line of the chain's scanline other than the chain's own (where the fill merges
+  past a hole, and where a chain run along the edge out of a notch's stub would land on a line beside the scanline's
+  other piece, passing it by), and its pieces are laid by the sweep, all one way across the island. Internal
   solid is a group of its own, laid before the island's bridges, internal bridges, and sparse infill (still one
   nearest-first group, from where the internal solid ends); its travels are priced as the other interior fills' are (a
   travel that stays inside the part costs nothing more, one that would retract costs the retraction's equivalent
   distance), choosing among the pieces that may go next and between the two senses. Internal solid in one path is laid as
   planned: it is one sweep either way round.
 - The sweep lays a piece only once every piece holding a line right behind one of its own is laid: two lines on
-  neighboring scanlines (no further apart than one and a half times the median distance between neighboring scanlines,
-  the hatch's spacing) overlapping along the lines. Where no piece passes this and the far-edge rule (pieces that each
-  hold a line behind the other), the far-edge rule alone decides, so the sweep never stalls.
+  neighboring scanlines (between half and one and a half of the fill's spacing apart across, the spacing the median
+  distance from a line to the nearest line overlapping it on another scanline, measured line by line: pieces hatched
+  apart can lie on grids a few tens of microns off each other) overlapping along the lines. The first piece is one at
+  the start of the sweep, unless every piece there must wait for another; then one that waits for none. Where no piece
+  passes this and the far-edge rule (pieces that each hold a line behind the other), the far-edge rule alone decides,
+  so the sweep never stalls. Of the two senses, the one that relaxes the rule for fewer pieces is laid, and of two
+  alike, the one with less travel.
 - No setting. A top's or bottom's `monotonic` and `rectilinear` were already one pattern, laid as a sweep; internal solid
   has no pattern setting, and its lines are laid the same way. The settings' descriptions say so.
 - The catalog measures each solid fill type's lines laid against their fill's sweep (`sweep.<type>.reversed_lines`: a
-  line laid after its neighbor ahead, per connected fill, in the sense with fewer), and holds every model to none but one
-  named finding. Its new model, plates of a second filament inlaid flush in a slab's bottom, breaks the slab's bottom
+  line laid after its neighbor ahead, per connected fill, in the sense with fewer), and holds every model to none. Its
+  new model, plates of a second filament inlaid flush in a slab's bottom, breaks the slab's bottom
   layers' internal solid into pieces round them.
 
 **Rejected.** A pattern setting for internal solid beside the top's and bottom's (monotonic by default, nearest-first as
@@ -2601,15 +2607,17 @@ a fork's sides apart, but nearly doubles the runs on a top with holes; ordering 
 the chains and fixes the order. Sorting the pieces by where each begins along the sweep: violation-free, but it sends
 the nozzle back along the lines after every piece beside a hole.
 
-**Consequences.** Every model of the catalog lays its solid fills monotonically but the speck beside a part, one line of
-whose top beside the triangle's tip is still laid after its neighbor ahead (it was before, too). A broken area costs
+**Consequences.** Every model of the catalog lays its solid fills monotonically, the speck beside a part's top too (a
+piece below the triangle's tip, beside the end of one long chain, went after the chain when the sweep began at the
+chain's end, the cheaper sense). A broken area costs
 travel and some retractions: on the regression cases travel grows by 2 to 12 % and retractions by 0 to 3 % (2 more of
 25 on the smallest), the predicted times by at most 0.2 min; on the catalog the most is the holes' block (travel
 +6.5 %, retractions 138 to 153, time +1.2 %), and the bridges, the stepped top and two of the ridges (travel +8 to
 +10 %); the webs between a hole and the side lose
-retractions (74 to 61, 92 to 63, 98 to 80) and 2 to 4 % of their time. Internal solid breaking at merges lays more
+retractions (74 to 61, 92 to 68, 98 to 80) and 2 to 4 % of their time. Internal solid breaking at merges lays more
 paths (the holes' block 22 to 34) and drops the links that ran on past a merge (6.4 mm there). Tests: MonotonicOrderTest
 (the slab's broken internal solid one sweep per layer; control: the same paths nearest-first lay 69 lines against it),
-OrderingTest (a fork's other side before the chain running on into one side; it fails without the rule), CatalogTest
-(every model's solid fills, the measure's controls: lines from the middle out counted, a hole's two sides in either
-order not).
+OrderingTest (a fork's other side before the chain running on into one side; a piece above one long chain's line laid
+before the chain when the sweep runs down, on the chain's grid and on one 30 microns off it; both fail on the sweep
+without these rules), LinkerTest (a chain out of a notch's stub ends there; it runs on without the rule), CatalogTest (every model's
+solid fills, the measure's controls: lines from the middle out counted, a hole's two sides in either order not).

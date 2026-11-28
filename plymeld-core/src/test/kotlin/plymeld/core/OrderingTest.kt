@@ -1,5 +1,6 @@
 package plymeld.core
 
+import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.shouldBe
 
@@ -71,6 +72,30 @@ class OrderingTest : StringSpec({
         val mEnd = seq[0].xy.let { longArrayOf(it[it.size - 2], it[it.size - 1]) }
         val cStart = c.reversed().xy; val rStart = seq[1].xy
         (Math.hypot((cStart[0] - mEnd[0]).toDouble(), (cStart[1] - mEnd[1]).toDouble()) < Math.hypot((rStart[0] - mEnd[0]).toDouble(), (rStart[1] - mEnd[1]).toDouble())) shouldBe true
+    }
+
+    /*
+     * One long chain A up a fill (five lines 10 mm long, then five on the left, 4 mm long) and a block B of three lines on the
+     * right above A's fifth line, with nothing above B (a hole): B holds a line right above one of A's. Swept downward from
+     * above, where the head starts, A holds the start of the sweep and B must go before it; swept upward, A then B. B
+     * hatched on A's grid, and on a grid 30 microns off it (a piece hatched apart, its lines between the rows of A's
+     * scanlines): found beside A's line either way. The order that fails: A first and downward, which lays B's bottom line
+     * after A's line below it (the far-edge rule with the start of the sweep alone gives it).
+     */
+    "a sweep lays a block above one long chain's line before the chain when it sweeps down, on the chain's grid or one a little off" {
+        for (off in listOf(0L, 30L)) {
+            val sp = 450L
+            fun y(k: Int) = k * sp
+            val a = ToolPath(Feature.TOP, longArrayOf(0, y(0), 10_000, y(0), 10_000, y(1), 0, y(1), 0, y(2), 10_000, y(2), 10_000, y(3), 0, y(3),
+                0, y(4), 10_000, y(4), 4_000, y(5), 0, y(5), 0, y(6), 4_000, y(6), 4_000, y(7), 0, y(7), 0, y(8), 4_000, y(8), 4_000, y(9), 0, y(9)),
+                false, 450, 200)
+            val b = ToolPath(Feature.TOP, longArrayOf(10_000, y(5) + off, 6_000, y(5) + off, 6_000, y(6) + off, 10_000, y(6) + off,
+                10_000, y(7) + off, 6_000, y(7) + off), false, 450, 200)
+            val seq = Ordering.sweep(listOf(a, b), 0, y(12))
+            fun isA(p: ToolPath) = p.xy.size == a.xy.size
+            val aFirst = isA(seq[0]); val aDown = seq.first { isA(it) }.let { it.xy[1] > it.xy[it.xy.size - 1] }
+            withClue("offset $off: A first $aFirst, A downward $aDown") { (aFirst && aDown) shouldBe false }
+        }
     }
 
     // a short line beside the end of a long one: greedy took the next long line (nearer) first and reached the short line

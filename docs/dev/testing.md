@@ -37,7 +37,7 @@ the two-color piece) to no move shorter than the slicing tolerance and no kink, 
 islands laid by their beads (the lenses, wedge, strip, ring, blob, letter E, pointed blob, bent stroke and teeth) to no
 zigzag (a tip's line runs in and turns back, and a square end's corners are run into, by design, so their kinks are
 held by the baseline, as are the other features). Every model's solid fills are held to no line laid against their
-sweep, but a finding the test names.
+sweep.
 
 **Adding a model.** Build it in
 [Models.kt](../../plymeld-check/src/test/kotlin/plymeld/check/catalog/Models.kt) (synthetic, in code, never a user's

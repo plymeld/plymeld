@@ -245,14 +245,19 @@ object Ordering {
         // lays a line after its neighbor ahead (a chain running on into one side of a fork, printed before the fork's other
         // side, whose last line then goes down beside the chain's line ahead of it). The block whose far edge is nearest is
         // always allowed when no block passes both (blocks that each hold a line behind the other), so this never
-        // stalls. The first block is one at the start of the sweep. Sorting by where each block
-        // begins is also violation-free but sends the nozzle back along the lines after every block
+        // stalls. The first block is one at the start of the sweep, unless every block there must wait for another (a
+        // block beside it holding a line behind one of its own): then the first is one that waits for none. Sorting by
+        // where each block begins is also violation-free but sends the nozzle back along the lines after every block
         // beside a hole.
-        // Both sweep directions are planned; the one with less travel is kept.
+        // Both sweep directions are planned; the one that lays fewer blocks before a block holding a line right behind
+        // one of theirs is kept (a sense can need none where the other needs some: a block below one long chain and beside
+        // its end), and of two alike, the one with less travel.
         fun endX(p: ToolPath) = if (p.closed) p.xy[0] else p.xy[p.xy.size - 2]
         fun endY(p: ToolPath) = if (p.closed) p.xy[1] else p.xy[p.xy.size - 1]
         val touching = touching(paths, ux, uy)
-        fun ordered(ascending: Boolean): Pair<List<ToolPath>, Double> {
+        /** [paths] in sweep order in one sense, the travel, and how many blocks went before a block holding a line right behind one of their own. */
+        class Swept(val order: List<ToolPath>, val travel: Double, val laidAhead: Int)
+        fun ordered(ascending: Boolean): Swept {
             val s = if (ascending) 1.0 else -1.0
             val ps = paths.map { turned(it, ascending) }
             val lo = DoubleArray(ps.size) { i -> val p = ps[i]; (0 until p.xy.size / 2).minOf { k -> s * across(p.xy[2 * k], p.xy[2 * k + 1]) } }
@@ -264,44 +269,52 @@ object Ordering {
             val start = lo.min()
             val left = ps.indices.toMutableList()
             val out = ArrayList<ToolPath>(ps.size)
-            var x = startX; var y = startY; var travel = 0.0
+            var x = startX; var y = startY; var travel = 0.0; var laidAhead = 0
             while (left.isNotEmpty()) {
                 // the smallest and second-smallest far edge among the blocks left
                 var m1 = -1; var h2 = Double.POSITIVE_INFINITY
                 for (i in left) if (m1 < 0 || hi[i] < hi[m1]) { if (m1 >= 0) h2 = hi[m1]; m1 = i } else if (hi[i] < h2) h2 = hi[i]
                 var best = -1; var bestD = Double.POSITIVE_INFINITY
-                for (strict in listOf(true, false)) {
+                // tier 0: every block holding a line right behind one of its own laid, and the first block at the start of the
+                // sweep; tier 1: those blocks laid, the first wherever it lies (a block at the start can wait for a block
+                // beside it); tier 2: the far-edge rule alone
+                var tier = 0
+                while (tier < 3) {
                     for (i in left) {
                         if (lo[i] > (if (i == m1) h2 else hi[m1])) continue      // something left would lie wholly behind it
-                        if (strict && before[i].any { !done[it] }) continue     // a line right behind one of its own is still to print
-                        if (out.isEmpty() && lo[i] != start) continue           // begin at the start of the sweep
+                        if (tier < 2 && before[i].any { !done[it] }) continue    // a line right behind one of its own is still to print
+                        if (tier == 0 && out.isEmpty() && lo[i] != start) continue  // begin at the start of the sweep
                         var d = Math.hypot((ps[i].xy[0] - x).toDouble(), (ps[i].xy[1] - y).toDouble())
                         if (extra != null && d > freeUm && d <= bestD) d += extra(x, y, ps[i].xy[0], ps[i].xy[1])
                         if (d < bestD || (d == bestD && along(ps[i].xy[0], ps[i].xy[1]) < along(ps[best].xy[0], ps[best].xy[1]))) { bestD = d; best = i }
                     }
                     if (best >= 0) break
+                    tier++
                 }
                 if (best < 0) best = m1
+                if (before[best].any { !done[it] }) laidAhead++
                 left.remove(best); done[best] = true
                 out.add(ps[best]); travel += bestD.takeIf { it.isFinite() } ?: Math.hypot((ps[best].xy[0] - x).toDouble(), (ps[best].xy[1] - y).toDouble())
                 x = endX(ps[best]); y = endY(ps[best])
             }
-            return out to travel
+            return Swept(out, travel, laidAhead)
         }
+        // the sense that lays fewer blocks before a block holding a line right behind one of theirs; of two alike, the one
+        // with less travel
         val up = ordered(true); val down = ordered(false)
-        return if (up.second <= down.second) up.first else down.first
+        return if (up.laidAhead < down.laidAhead || (up.laidAhead == down.laidAhead && up.travel <= down.travel)) up.order else down.order
     }
 
-    /** Two scanlines' positions across the lines closer than this (µm) are one scanline: the grid's rounding, not a spacing. */
-    private const val SAME_SCANLINE_UM = 5.0
+    /** A move whose ends lie further apart across the lines than this (µm) is not along them, and one no longer along them is no line: the grid's rounding. */
+    private const val GRID_ROUNDING_UM = 5.0
 
     /**
      * The pairs of blocks (a, b) of [paths] where a holds a line right behind a line of b, across the lines (the direction
      * ([ux], [uy])) in the ascending sense: on neighboring scanlines, the two overlapping along the lines. A block's lines are
-     * its moves along the lines (its links run along the region's edge, across them); scanlines are neighbors where no
-     * scanline lies between them and they are no further apart than one and a half times the median distance between
-     * neighboring scanlines (a hatch's spacing: further apart, a gap where the fill has none, a hole's width or the space
-     * between two pieces).
+     * its moves along the lines (its links run along the region's edge, across them); two lines are on neighboring scanlines
+     * where they lie between half and one and a half of the fill's spacing apart across (closer, the same scanline; further,
+     * a gap where the fill has none, a hole's width or the space between two pieces), the spacing the median distance from
+     * a line to the nearest line overlapping it on another scanline.
      */
     private fun touching(paths: List<ToolPath>, ux: Double, uy: Double): List<Pair<Int, Int>> {
         if (paths.size < 2) return emptyList()
@@ -312,25 +325,43 @@ object Ordering {
             val x0 = p.xy[2 * k - 2].toDouble(); val y0 = p.xy[2 * k - 1].toDouble(); val x1 = p.xy[2 * k].toDouble(); val y1 = p.xy[2 * k + 1].toDouble()
             val c0 = x0 * nx + y0 * ny; val c1 = x1 * nx + y1 * ny
             val s0 = x0 * ux + y0 * uy; val s1 = x1 * ux + y1 * uy
-            if (Math.abs(c1 - c0) > SAME_SCANLINE_UM || Math.abs(s1 - s0) <= SAME_SCANLINE_UM) continue
+            if (Math.abs(c1 - c0) > GRID_ROUNDING_UM || Math.abs(s1 - s0) <= GRID_ROUNDING_UM) continue
             acr += (c0 + c1) / 2; a0 += minOf(s0, s1); a1 += maxOf(s0, s1); blk += b
         }
         if (acr.size < 2) return emptyList()
         val byAcross = acr.indices.sortedBy { acr[it] }
-        // scanlines: runs of lines no further apart across than SAME_SCANLINE_UM
-        val lines = ArrayList<MutableList<Int>>()
-        var last = Double.NEGATIVE_INFINITY
-        for (k in byAcross) { if (acr[k] - last > SAME_SCANLINE_UM) lines += ArrayList<Int>(); lines.last() += k; last = acr[k] }
-        if (lines.size < 2) return emptyList()
-        val at = DoubleArray(lines.size) { acr[lines[it][0]] }
-        val gaps = (1 until lines.size).map { at[it] - at[it - 1] }.sorted()
-        val reach = 1.5 * gaps[gaps.size / 2]
+        fun overlap(p: Int, q: Int) = minOf(a1[p], a1[q]) - maxOf(a0[p], a0[q]) > 0
+        // the spacing: the median distance across from a line to the nearest line overlapping it on another scanline (a
+        // quarter of the narrowest line's width apart or more: closer, the same scanline). Measured line by line, not
+        // between neighboring scanlines of the whole fill: pieces hatched apart can lie on grids offset from each other by
+        // a few tens of microns, and the gaps between those grids' scanlines say nothing of either's spacing.
+        val floor = paths.minOf { it.widthUm } / 4.0
+        // looked for no further than twice the widest line's width (a fill's spacing is about its line's width)
+        val cap = 2.0 * paths.maxOf { it.widthUm }
+        val nearest = ArrayList<Double>()
+        for ((r, i) in byAcross.withIndex()) {
+            var best = cap
+            for (dr in intArrayOf(-1, 1)) {
+                var q = r + dr
+                while (q in byAcross.indices && Math.abs(acr[byAcross[q]] - acr[i]) < best) {
+                    val j = byAcross[q]; val d = Math.abs(acr[j] - acr[i])
+                    if (d >= floor && overlap(i, j)) best = d
+                    q += dr
+                }
+            }
+            if (best < cap) nearest += best
+        }
+        if (nearest.isEmpty()) return emptyList()
+        nearest.sort()
+        val spacing = nearest[nearest.size / 2]
+        // neighbors: lines between half and one and a half spacings apart across, overlapping along
         val out = LinkedHashSet<Pair<Int, Int>>()
-        for (j in 1 until lines.size) {
-            if (at[j] - at[j - 1] > reach) continue
-            for (p in lines[j - 1]) for (q in lines[j]) {
-                if (blk[p] == blk[q] || minOf(a1[p], a1[q]) - maxOf(a0[p], a0[q]) <= 0) continue
-                out += blk[p] to blk[q]
+        for ((r, p) in byAcross.withIndex()) {
+            var q = r + 1
+            while (q < byAcross.size && acr[byAcross[q]] - acr[p] < 1.5 * spacing) {
+                val j = byAcross[q]
+                if (acr[j] - acr[p] > 0.5 * spacing && blk[p] != blk[j] && overlap(p, j)) out += blk[p] to blk[j]
+                q++
             }
         }
         return out.toList()

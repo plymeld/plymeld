@@ -26,7 +26,10 @@ object Linker {
         // Along-line interval of each segment (all hatch lines share one direction). With
         // `breakAtSplits`, a chain ends where the fill MERGES (the next line overlaps two lines of this
         // scanline, e.g. past a hole): it would otherwise run on past a side not yet printed, and the
-        // sweep would have to come back (monotonic fills). At a split the chain may carry on
+        // sweep would have to come back (monotonic fills). So too where the next line overlaps a line of this scanline
+        // other than the chain's own, whether or not it overlaps the chain's own: a chain run along the edge out of a
+        // notch (its line on this scanline a stub beside the notch) onto a line beside this scanline's other line would
+        // pass that line by. At a split the chain may carry on
         // into one side; the other side is its own block. Breaking at splits too would nearly double the runs on the
         // testplate's top.
         val lo = DoubleArray(n); val hi = DoubleArray(n)
@@ -91,7 +94,7 @@ object Linker {
                     }
                 }
                 if (best < 0 || bestLen > maxConnectorUm) break
-                if (breakAtSplits && byLine.getValue(curLine).count { overlaps(best, it) } > 1) break
+                if (breakAtSplits && byLine.getValue(curLine).any { it != k && overlaps(best, it) }) break
                 val s = (if (bestRev) endPos[best] else startPos[best])!!
                 addArc(chain, rings[e.ring], e, s, bestDir)
                 used[best] = true

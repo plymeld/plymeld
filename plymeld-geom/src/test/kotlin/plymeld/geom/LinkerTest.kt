@@ -69,6 +69,33 @@ class LinkerTest : StringSpec({
         merges.size shouldBe 3
     }
 
+    /*
+     * A notch cuts the second of three lines in two, its right piece a stub beside the notch; the third line runs over the
+     * left piece only. A chain up from the first line runs on into the stub (along the right side), and from the stub along
+     * the notch's edge the third line is in reach: linked, the chain would pass the left piece by, and a sweep laying it
+     * would lay the left piece after the line ahead of it. With breakAtSplits the chain ends at the stub (the third line
+     * overlaps a line of the stub's scanline that is not the stub), and the left piece and the third line are a chain of
+     * their own. Control: the third line overlaps the stub's scanline's left piece only, so counting the lines it overlaps
+     * there (one) would not end the chain.
+     */
+    "breakAtSplits: a chain out of a notch's stub does not run on onto a line beside the scanline's other piece" {
+        val notched = listOf(Polygon(longArrayOf(0, -200, 10_000, -200, 10_000, 600, 8_000, 600, 8_000, 300, 6_000, 300, 6_000, 600,
+            5_500, 600, 5_500, 1_100, 0, 1_100)))
+        val (segs, idx) = Hatch.indexed(notched, 0.0, 450)
+        idx.toList() shouldBe listOf(0, 1, 1, 2)                       // the three lines, the second in two
+        fun ys(c: LongArray) = (1 until c.size step 2).map { c[it] }.toSet()
+        fun xs(c: LongArray) = (0 until c.size step 2).map { c[it] }
+        val chains = Linker.link(segs, idx, notched, 20_000, breakAtSplits = true)
+        chains.size shouldBe 2
+        // the chain holding the third line holds the left piece of the second, not the stub
+        val third = chains.single { c -> 900L in ys(c) }
+        (xs(third).all { it <= 6_000 }) shouldBe true
+        // control: the third line overlaps the second line's left piece alone
+        val lo = (0 until segs.size / 4).map { minOf(segs[4 * it], segs[4 * it + 2]) }; val hi = (0 until segs.size / 4).map { maxOf(segs[4 * it], segs[4 * it + 2]) }
+        val thirdSeg = idx.indexOfFirst { it == 2 }
+        (0 until idx.size).count { idx[it] == 1 && minOf(hi[it], hi[thirdSeg]) > maxOf(lo[it], lo[thirdSeg]) } shouldBe 1
+    }
+
     "control: a connector limit below the line spacing links nothing" {
         val (segs, idx) = Hatch.indexed(sq, 0.0, 1_000)
         Linker.link(segs, idx, sq, 500).size shouldBe 10

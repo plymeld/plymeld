@@ -17,7 +17,8 @@ section the release's version and date.
   in opposite directions. A broken layer costs some travel: a few percent more travel and retractions on such prints,
   and a fraction of a minute.
 - A top or bottom surface whose lines fork round a hole no longer lays the fork's second side after the line beside it
-  ahead: each piece of a surface is laid only once the lines just behind it are.
+  ahead: each piece of a surface is laid only once the lines just behind it are, also where neighboring pieces were
+  filled apart, and the sweep runs the way that keeps every piece in that order.
 
 ## [0.20261128.0] - 2026-11-28
 
