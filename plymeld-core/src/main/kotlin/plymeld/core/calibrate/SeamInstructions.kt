@@ -54,10 +54,11 @@ object SeamInstructions {
         }
         l("## Before you print")
         l()
-        l("1. **Run any other calibration your printer offers before a print**: nozzle or tool offsets on a multi-tool machine, a z-offset, its own flow or pressure-advance calibration (note whether it ran: a seam's size depends on pressure advance and retraction as much as on where it is), a nozzle clean or wipe.")
-        l("2. **Clean the bed**${if (info.plate.isNotEmpty()) ", and use the build plate the file was made for (`${info.plate}`)" else ""}; the bed heats to ${info.bedTempC} C and stays there.")
-        l("3. **Load `${info.filament}` on tool ${info.tool + 1}.** Dry filament matters: moisture shows at every seam as a blob.")
-        l("4. **During the print**: the two leaning pieces (${spec.pieces.filter { it.shape.leanDeg > 0 }.joinToString(" and ") { "${it.index + 1}" }}) reach forward over the slab as they rise; that is their underside, and it prints at the wall's speed with no overhang slow-down. The whole plate prints at one temperature.")
+        l("1. ${PlateInstructions.SPEED_AND_FLOW}")
+        l("2. **Run any other calibration your printer offers before a print**: nozzle or tool offsets on a multi-tool machine, a z-offset, its own flow or pressure-advance calibration (note whether it ran: a seam's size depends on pressure advance and retraction as much as on where it is), a nozzle clean or wipe.")
+        l("3. **Clean the bed**${if (info.plate.isNotEmpty()) ", and use the build plate the file was made for (`${info.plate}`)" else ""}; the bed heats to ${info.bedTempC} C and stays there.")
+        l("4. **Load `${info.filament}` on tool ${info.tool + 1}.** Dry filament matters: moisture shows at every seam as a blob.")
+        l("5. **During the print**: the two leaning pieces (${spec.pieces.filter { it.shape.leanDeg > 0 }.joinToString(" and ") { "${it.index + 1}" }}) reach forward over the slab as they rise; that is their underside, and it prints at the wall's speed with no overhang slow-down. The whole plate prints at one temperature.")
         Levelling.page(info.levelling)?.let { l(); l(it) }
         l()
         l("## What the plate prints with")

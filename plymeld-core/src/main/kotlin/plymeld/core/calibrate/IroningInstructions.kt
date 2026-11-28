@@ -44,10 +44,11 @@ object IroningInstructions {
         }
         l("## Before you print")
         l()
-        l("1. **Run any other calibration your printer offers before a print**: nozzle or tool offsets on a multi-tool machine, a z-offset, its own flow or pressure-advance calibration (note whether it ran: it changes the conditions below), a nozzle clean or wipe.")
-        l("2. **Clean the bed**${if (info.plate.isNotEmpty()) ", and use the build plate the file was made for (`${info.plate}`)" else ""}; the bed heats to ${info.bedTempC} C and stays there.")
-        l("3. **Load `${info.filament}` on tool ${info.tool + 1}.** Dry filament matters: moisture shows as a rough, bubbly top in every zone, ironed or not.")
-        l("4. **During the print**: after the slabs' tops are laid, the nozzle goes back over them zone by zone, laying almost no plastic: that is the ironing, and it is expected. The controls are skipped. The whole plate prints at one temperature.")
+        l("1. ${PlateInstructions.SPEED_AND_FLOW}")
+        l("2. **Run any other calibration your printer offers before a print**: nozzle or tool offsets on a multi-tool machine, a z-offset, its own flow or pressure-advance calibration (note whether it ran: it changes the conditions below), a nozzle clean or wipe.")
+        l("3. **Clean the bed**${if (info.plate.isNotEmpty()) ", and use the build plate the file was made for (`${info.plate}`)" else ""}; the bed heats to ${info.bedTempC} C and stays there.")
+        l("4. **Load `${info.filament}` on tool ${info.tool + 1}.** Dry filament matters: moisture shows as a rough, bubbly top in every zone, ironed or not.")
+        l("5. **During the print**: after the slabs' tops are laid, the nozzle goes back over them zone by zone, laying almost no plastic: that is the ironing, and it is expected. The controls are skipped. The whole plate prints at one temperature.")
         Levelling.page(info.levelling)?.let { l(); l(it) }
         l()
         l("## What the plate prints with")

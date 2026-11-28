@@ -85,13 +85,30 @@ object TomlEdit {
     fun commentLines(comment: List<String>, indent: String = ""): List<String> = comment.flatMap { wrapped(it, "$indent# ", "$indent# ") }
 
     /**
-     * A file's [lines] with every comment line wider than [COMMENT_WIDTH] wrapped as [commentLines] wraps a note: its
-     * continuations under the same `#`, two spaces further in than its text began (so an item in a list reads as one); the
-     * other lines as they are.
+     * A file's [lines] with each note in its comments wrapped as [commentLines] wraps one, the other lines as they are. A
+     * note is a comment line and the ones after it that go on with its sentence: the same lead (`#` and one space), not
+     * blank, the line before not ending a sentence or a clause (`.`, `:`, `;`); a line further in is an item, a note of its
+     * own. A note on one line within [COMMENT_WIDTH] stays as it is; any other is joined and wrapped between words, its
+     * continuations under the same lead (an item's two spaces further in, so it reads as one).
      */
-    fun wrapComments(lines: List<String>): List<String> = lines.flatMap { l ->
-        val m = Regex("""^(\s*#)( +)(.*)$""").matchEntire(l)
-        if (m == null || l.length <= COMMENT_WIDTH) listOf(l) else { val lead = m.groupValues[1] + m.groupValues[2]; wrapped(m.groupValues[3], lead, "$lead  ") }
+    fun wrapComments(lines: List<String>): List<String> {
+        val re = Regex("""^(\s*#)( +)(.*)$""")
+        val out = ArrayList<String>(); var i = 0
+        while (i < lines.size) {
+            val m = re.matchEntire(lines[i])
+            if (m == null) { out += lines[i]; i++; continue }
+            val lead = m.groupValues[1] + m.groupValues[2]
+            val text = StringBuilder(m.groupValues[3].trim()); var j = i + 1
+            while (j < lines.size) {
+                val n = re.matchEntire(lines[j]) ?: break
+                if (m.groupValues[2].length > 1 || n.groupValues[1] + n.groupValues[2] != lead || n.groupValues[3].isBlank() || text.isEmpty() || text.last() in ".:;") break
+                text.append(' ').append(n.groupValues[3].trim()); j++
+            }
+            if (j == i + 1 && lines[i].length <= COMMENT_WIDTH) out += lines[i]
+            else out += wrapped(text.toString(), lead, if (m.groupValues[2].length > 1) "$lead  " else lead)
+            i = j
+        }
+        return out
     }
 
     /** [text] wrapped between words to [COMMENT_WIDTH] columns: its first line after [first], the rest after [more]. */

@@ -571,7 +571,7 @@ class CalibrationPlateTest : StringSpec({
             plymeld.core.calibrate.PlateInstructions.Info("pla test", "a printer", 0, "test", "plate.gcode", 9.0, "0.035 s", 60, 40.0, 100.0, 0.8,
                 maxFlowKey = "hardware.filament.pla test.melt.flow.max", maxFlowNow = "15 mm3/s", printTempC = 214,
                 maxFlowEnterKey = "hardware.filament.\"pla test\".machine.p.melt.flow.max"), "plate.png")
-        md.contains("Level the bed") shouldBe false   // no step to level (Levelling; PlateLevellingTest holds every plate to it)
+        md.contains("Level the bed") shouldBe false   // no step to level (Levelling; PlateBeforePrintingTest holds every plate to it)
         md shouldContain "| pressure advance | 0.035 s |"
         md shouldContain "![The plate, from above and from the front](plate.png)"
         md shouldContain "**Run the melt test first**"

@@ -83,6 +83,10 @@ section the release's version and date.
   runs the machine's levelling or was made with `--no-level`, and otherwise names levelling as the print starts as an
   option where the printer's connection can (`plymeld printer send --print --level`), as the pressure-advance plate does.
   The melt and flow plates say it too, where they said nothing.
+- Every calibration plate's page has you set the printer's speed and flow to 100 % before printing, as the
+  pressure-advance page did: the plate's speeds and the plastic it lays are the readings' conditions.
+- A note in a values file or a readings sheet that ran over several lines is joined before it is wrapped, so it reads
+  as one paragraph, its items each still their own.
 - The stroke font's "1", in every plate's raised labels, has a base and a flat flag at its top, where a slanted flag
   made it read as an arrow; its decimal point is a short upright bar two lines long, where a dot was a single short line.
 

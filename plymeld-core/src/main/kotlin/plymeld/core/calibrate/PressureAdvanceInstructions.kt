@@ -81,7 +81,7 @@ object PressureAdvanceInstructions {
         l()
         val steps = listOf(
             "**Measure the melt rate and the flow ratio first** (`plymeld calibrate melt`, `calibrate flow`): every line is held to a share of the filament's maximum flow, and the readings assume the line is laid at its flow ratio.",
-            "**Set the printer's speed and flow to 100 %** (its screen's speed and flow overrides): the walls' speeds and their plastic are the readings' conditions.",
+            PlateInstructions.SPEED_AND_FLOW,
             "**Turn off any pressure-advance calibration the printer runs by itself before a print**" + (if (info.machineOwn) ": not here, where the machine's own value is what the plate checks" else ": the plate sets its own value before each wall, and a value the printer sets afterwards would replace them") + ".",
             "**Clean the bed**${if (info.plate.isNotEmpty()) ", and use the build plate the file was made for (`${info.plate}`)" else ""}; the bed heats to ${info.bedTempC} C.",
             "**Load `${info.filament}` on tool ${info.tool + 1}**, dry.")

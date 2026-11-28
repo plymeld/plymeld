@@ -72,6 +72,8 @@ object PlateInstructions {
         "the filament's maximum flow, and a wrong one shows up in them as gaps, weak overhangs, or sagging bridges that are not theirs)"
     /** The plates in the dependency order (`calibrate`'s KINDS): the melt rate, the flow ratio, the first layer, the motion, the rest. */
     const val MELT_FIRST = "Run the melt plate first (`calibrate melt`), then the flow plate (`calibrate flow`), the first-layer plate (`calibrate first-layer`), the motion plate (`calibrate motion`), and the filament plate (`calibrate filament`): " + MELT_WHY + "."
+    /** Every plate page's step before printing: the printer's own overrides at 100 %, so the file's speeds and plastic are what prints. */
+    const val SPEED_AND_FLOW = "**Set the printer's speed and flow to 100 %** (its screen's speed and flow overrides): the plate's speeds and the plastic it lays are the readings' conditions."
 
     /** Which plate [spec] is: "melt" (the melt test alone) or "filament" (the motion plate is [MotionPlate]'s). */
     fun kindOf(spec: CalibrationSpec): String = if (spec.melt != null) "melt" else "filament"
@@ -218,11 +220,12 @@ object PlateInstructions {
         l()
         l("The readings are only as good as the print's first layers and the printer's own state, so:")
         l()
-        l("1. **Run any other calibration your printer offers before a print**: nozzle or tool offsets on a multi-tool machine, its own flow or pressure-advance calibration (note whether it ran: it changes the conditions below), a nozzle clean or wipe.")
-        l("2. **Clean the bed** (no fingerprints)${if (info.plate.isNotEmpty()) ", and use the build plate the file was made for (`${info.plate}`)" else ""}; the bed heats to ${info.bedTempC} C.")
-        l("3. **Load `${info.filament}` on tool ${info.tool + 1}.** Dry filament matters: moisture looks like a melt limit (bubbles, rough walls).")
-        l("4. **Watch the first layer**: every part's first layer should be flat and joined. Stop the print if it is not.")
-        l("5. **During the print**: after each layer the head moves off to the front of the plate and pauses, so every layer cools alike; that is expected." +
+        l("1. ${SPEED_AND_FLOW}")
+        l("2. **Run any other calibration your printer offers before a print**: nozzle or tool offsets on a multi-tool machine, its own flow or pressure-advance calibration (note whether it ran: it changes the conditions below), a nozzle clean or wipe.")
+        l("3. **Clean the bed** (no fingerprints)${if (info.plate.isNotEmpty()) ", and use the build plate the file was made for (`${info.plate}`)" else ""}; the bed heats to ${info.bedTempC} C.")
+        l("4. **Load `${info.filament}` on tool ${info.tool + 1}.** Dry filament matters: moisture looks like a melt limit (bubbles, rough walls).")
+        l("5. **Watch the first layer**: every part's first layer should be flat and joined. Stop the print if it is not.")
+        l("6. **During the print**: after each layer the head moves off to the front of the plate and pauses, so every layer cools alike; that is expected." +
             (if (m != null) " Before each step after the first, the head also waits there until the nozzle has reached that step's temperature; then it prints one layer (not read) and the step's top." else "") +
             (if (m != null) " On each melt step's top layer the FAST surface's thicker strips ask for up to ${n(spec.stripFlow(m.count - 1, 0), 1)} mm3/s, likely past what the filament melts, more so in the colder bands (the upper steps): the extruder may click there. That is the test working. If it keeps grinding, or the filament stops feeding, stop the print: a ground filament starves every band above." else ""))
         Levelling.page(info.levelling)?.let { l(); l(it) }

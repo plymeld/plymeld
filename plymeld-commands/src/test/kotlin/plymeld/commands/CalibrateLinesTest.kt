@@ -39,7 +39,7 @@ class CalibrateLinesTest : StringSpec({
         fun check(count: Int) {
             all.size shouldBe count
             all.none { it.second.isEmpty() } shouldBe true
-            // the sample machine neither levels nor has a printer to level as a print starts: no word of levelling (PlateLevellingTest)
+            // the sample machine neither levels nor has a printer to level as a print starts: no word of levelling (PlateBeforePrintingTest)
             withClue(all.joinToString("\n") { it.second.joinToString("\n") }) { all.flatMap { it.second }.filter { "levelling" in it }.shouldBeEmpty() }
             val over = all.flatMap { (args, lines) -> (OutputLines.overLong(lines) + OutputLines.badComments(lines.map { it.removePrefix("  ") })).map { "$args\n    ${it.length}: $it" } } +
                 Files.list(d).use { fs -> fs.toList() }.filter { it.fileName.toString().endsWith(".toml") }.flatMap { f -> OutputLines.badComments(Files.readString(f).lines()).map { "${f.fileName}\n    ${it.length}: $it" } }

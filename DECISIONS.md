@@ -2696,7 +2696,9 @@ Neither the page nor the command tells the reader to level the bed: the reading 
 what the reader already prints with; where the printer can level as a print starts, the page names that as an option.
 Every calibration plate says the same of levelling, in its output and on its page, through one helper
 (`Levelling`): no instruction to level; what the file does where it runs the machine's levelling or was made with
-`--no-level`; else the option to level as the print starts where the printer's connection can.
+`--no-level`; else the option to level as the print starts where the printer's connection can. Every plate's page
+asks for the printer's speed and flow at 100 % before printing, in one shared sentence: the plate's speeds and its
+plastic are the readings' conditions.
 The command's output states one thing a line, each within 200 characters with a path counted as its file name (a
 line that is nothing but a command to copy and run excepted), whatever the length of the user's own keys; every
 calibration plate's output and every `readings` and `values` report is held to the same width, a longer line broken
