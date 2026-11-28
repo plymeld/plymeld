@@ -16,6 +16,12 @@ section the release's version and date.
   folder beside the program, where the fonts of a picture's text look for their configuration. The command line no
   longer depends on that folder being there: where it is missing, the command line makes it, and where the program's
   folder cannot be written, it uses a folder in plymeld's cache instead.
+- `plymeld calibrate first-layer values` writes a filament's window on one build plate when the file already holds its
+  window on another (e.g. a first-layer plate printed on your own `cool` plate, with `first_layer.window.pei` for
+  plymeld's bundled `pei` plate already there). It refused with "the window written does not read back (... there is no
+  build plate 'pei' ...): nothing written": its check after the change knew no build plate but the one being written. It
+  now checks the window it writes against the build plates a slice knows (your config's own and plymeld's bundled ones),
+  and still refuses a plate that is in neither. Slicing read such windows correctly throughout.
 
 ## [0.20261127.1] - 2026-11-27
 
