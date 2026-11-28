@@ -2616,6 +2616,16 @@ names are commands that run as printed: the fine plate inside the bracket, and t
 ends (the highest groove and the lowest ridge) as the neighbors exactly, never below 0: the value is held to the labels'
 0.1 ms, so the steps down and up may differ by that much (`--confirm-step DOWN,UP`), and `values` names the fine
 plate's steps as they come out.
+A row whose walls read flat at both marks on two or more walls (a flat span) says that any value in the span prints the
+same at this plate's speeds and flow step: each row's span is read on its own (a row with one flat wall reads that
+value, one with none its bracket), the rows' ranges must overlap (else refused, as rows that disagree are), and the value
+is the geometric middle of the overlap, sqrt(first x last) at the labels' 0.1 ms, since the plate spaces its values by a
+fixed ratio (a span from 0 takes its lowest value above 0 for the middle); the span is stated and written in the value's
+note, and the corners are reported against it. No finer plate follows a span: inside values that already read flat, the
+same flow step shows nothing more. Nor does the confirm plate: its three flow steps are a third, two thirds, and the
+whole of the find plate's step, so a span that reads flat at the find plate's step reads flat at all of them; only a
+larger flow step than the find plate's would separate the span's values, which takes a faster middle on the find plate
+(`--speeds`), within the filament's flow.
 The speeds are the config's (a visible wall's, the machine's print speed, each held to the plate's share of the
 filament's maximum flow, decision 75), the acceleration the machine's. A pressure model in plymeld's test tooling (a first-order lag of the true value, the set
 value run ahead as Klipper runs it) proves the flip falls exactly at the true value. The slow-down mark reads opposite
@@ -2637,7 +2647,9 @@ that disagree: a trend across the bed would pass as the value.
 
 **Rejected (the values).** Values evenly from 0 to the ceiling on a first plate: at a 1 s ceiling a short filament
 path's whole range falls inside the first step, so a fine plate was always needed. A confirm step of the plate's own
-spacing: from a bracket at the bottom of the plate its lower neighbor fell below 0.
+spacing: from a bracket at the bottom of the plate its lower neighbor fell below 0. The arithmetic middle of a flat
+span: on values a fixed ratio apart it sits toward the span's high end, past most of the walls that read flat. A fine
+plate inside a flat span: at the same flow step its walls read flat too.
 
 **Rejected (the stretches).** Fixed stretches with the plate stating the true value they settle up to: a tool with a
 long filament path would read alike at both marks on every wall and be refused.

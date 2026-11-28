@@ -60,7 +60,11 @@ section the release's version and date.
   corners are a reading of their own: where they flip from bulge to round, reported beside the walls' bracket with
   whether the two agree; the value is the walls'. It names the next plates as commands that run as printed: a fine plate inside the bracket, or
   the confirm plate with exactly the bracket's ends as the neighbors (`--confirm-step DOWN,UP` where the two steps
-  differ by the labels' 0.1 ms); it names the fine plate's steps as the plate will print them.
+  differ by the labels' 0.1 ms); it names the fine plate's steps as the plate will print them. Where two or more walls
+  in a row read flat at both marks (a flat span), any value in the span prints the same at the plate's flow step: the
+  value is the geometric middle of the rows' overlapping spans (the plate spaces its values by a fixed ratio), the span
+  is stated and written in the note, rows whose spans do not overlap are refused, and no finer or confirm plate is
+  named, since neither would show more; the page says how to read a wall flat and what a flat span means.
 
 ### Changed
 

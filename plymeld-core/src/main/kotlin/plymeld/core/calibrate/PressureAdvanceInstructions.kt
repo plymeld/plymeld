@@ -143,6 +143,7 @@ object PressureAdvanceInstructions {
         for (m in MARKS) l("- **$m**: ${MARK_MEANING.getValue(m)}.")
         l()
         l("The **speed-up mark** (the front hole) is the reading. The **slow-down mark** (the back hole) must read the opposite (a groove there with a ridge at the speed-up mark, or both flat); where both read the same (two grooves or two ridges), the wall shows something other than pressure advance, and the readings are refused.")
+        l("A wall reads **flat** where neither mark shows a change: against a light and in a raking light its face runs on past both holes as it was, no thinner or darker band, no thicker or brighter one. Read it flat only then; a faint change is a groove or a ridge.")
         if (find) {
             l()
             l("Then each wall's **corner**, its outside edge where the two lines meet, a reading of its own (too little pressure advance bulges it, too much rounds it in):")
@@ -160,7 +161,7 @@ object PressureAdvanceInstructions {
             l("| if you see | it means |")
             l("|---|---|")
             l("| grooves at the low values and ridges at the high ones, one clean change between, both rows agreeing | the value is between the highest groove and the lowest ridge (flat walls count inside); `values` gives the middle, the bracket's width its uncertainty |")
-            l("| the change spans several flat walls | the flow step is too small for the spacing: the value is honest but wide; a fine plate (`--bracket`) narrows it |")
+            l("| several walls in a row flat at both marks (a flat span) | any value in the span prints the same at these speeds and this flow step: `values` takes the span's middle (the geometric middle, as the plate spaces its values by a fixed ratio), states the span, and names no finer plate, which would show nothing more |")
             l("| both marks the same on a wall | something other than pressure dominates there (the firmware's acceleration limits, a slipping extruder at high values, or a pressure that does not settle within the middle); refused |")
             l("| no defect anywhere, even at 0 | the firmware applies its own value regardless, or the step is too small: check that no value of the printer's own replaces the file's |")
             l("| grooves everywhere | the value lies above the plate's top: raise the tool's `calibrate.pressure_advance.max`, or give higher `--values`, where the top is the ceiling; where it is the bed's, a longer bed axis; where it is the extruder's push limit, this extruder cannot reach it on this plate |")

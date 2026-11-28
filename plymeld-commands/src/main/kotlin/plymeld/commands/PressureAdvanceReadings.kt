@@ -48,7 +48,7 @@ class PressureAdvanceValuesCommand : FilamentValuesCommand("pressure-advance pla
     private val into by option("--into", metavar = "filament|tool", help = "write the value as the filament's (hardware.filament.<key>.pressure_advance, the default) or the tool's (hardware.tool.<key>.pressure_advance)").choice("filament", "tool").default("filament")
 
     override fun help(context: com.github.ajalt.clikt.core.Context) =
-        "Turn a filled-in pressure-advance readings sheet into a pressure advance: on the find plate the middle of the bracket between the highest groove and the lowest ridge at the speed-up marks (flat walls inside it), refused when nothing flips, the two rows disagree by more than one step (one wall's place on the plate), the readings are out of order, or a wall's two marks read alike; the corners read beside the walls, where they flip from bulge to round, and whether that agrees with the walls (a disagreement reported, the value the walls'); " +
+        "Turn a filled-in pressure-advance readings sheet into a pressure advance: on the find plate the middle of the bracket between the highest groove and the lowest ridge at the speed-up marks (flat walls inside it), or, where two or more walls in a row read flat at both marks, the geometric middle of that flat span (any value in it prints the same at the plate's flow step; the rows' spans must overlap; no finer plate follows), refused when nothing flips, the two rows disagree by more than one step (one wall's place on the plate), the readings are out of order, or a wall's two marks read alike; the corners read beside the walls, where they flip from bulge to round, and whether that agrees with the walls (a disagreement reported, the value the walls'); " +
             "on the confirm plate whether the value holds at the three flow steps, depends on the flow, or gives none. Writes it into the config file that defines the filament (among the files -cf names; else plymeld's config folder's), or the tool's with --into tool, the plate, its conditions, and the bracket in the comment above it; prints the change, checks it, writes it, and records it for `plymeld journal --undo`."
 
     override fun run() {
@@ -216,6 +216,9 @@ object PressureAdvanceRecord {
             })
             Bracket(row, lo, hi)
         }
+        // two or more walls in a row flat at both marks: a flat span, read on its own
+        rows.mapValues { (_, ws) -> ws.filter { it.sign == 0 }.map { it.value!! }.sorted() }.takeIf { fs -> fs.values.any { it.size >= 2 } }
+            ?.let { flats -> return flatSpan(s, name, values, brackets.associate { it.row to (it.lo to it.hi) }, flats) }
         if (brackets.size == 2 && Math.abs(brackets[0].at - brackets[1].at) > 1 + 1e-9)
             throw IllegalArgumentException("$name: the front row's flip (between ${n(brackets[0].lo)} and ${n(brackets[0].hi)} s) and the back row's (between ${n(brackets[1].lo)} and ${n(brackets[1].hi)} s) are more than one step (one wall's place on the plate) apart: position or print order matters; no value")
         val maxLo = brackets.maxOf { it.lo }; val minHi = brackets.minOf { it.hi }
@@ -241,6 +244,37 @@ object PressureAdvanceRecord {
             "  next, to confirm it: $neighbors" + "    ${next(s, "--confirm ${n(v)} --confirm-step $steps", "confirm")}"
         return Result(report, v, s.plate, s.conditions,
             "Readings: the walls' speed-up marks, grooves up to ${n(lo)} s and ridges from ${n(hi)} s ($agree; the plate's values ${values.joinToString(", ") { n(it) }} s); the value the middle, +/- ${n((hi - lo) / 2)} s.", s.filament, s.tool)
+    }
+
+    /**
+     * A find plate on which a row reads two or more walls flat at both marks (a flat span): every value in the span prints
+     * the same at this plate's speeds and flow step. Each row's own range ([flats]: its flat walls' values; a row with one
+     * flat wall that value, with none its bracket from [brackets]); the rows' ranges must overlap (else refused, as rows
+     * that disagree are); the value is the geometric middle of the overlap, sqrt(first x last) at the labels' resolution,
+     * since the plate spaces its values by a fixed ratio (a span from 0 takes its lowest value above 0 for the middle). No
+     * finer plate and no confirm plate follow: a finer plate at the same flow step shows nothing more, and the confirm
+     * plate's flow steps are at most this plate's, so the span reads flat there too.
+     */
+    private fun flatSpan(s: Sheet, name: String, values: List<Double>, brackets: Map<String, Pair<Double, Double>>, flats: Map<String, List<Double>>): Result {
+        val ranges = flats.mapValues { (row, f) -> if (f.isNotEmpty()) f.first() to f.last() else brackets.getValue(row) }
+        fun words(row: String) = ranges.getValue(row).let { (a, b) -> when (flats.getValue(row).size) {
+            0 -> "flips between ${n(a)} and ${n(b)} s"; 1 -> "reads flat at ${n(a)} s"; else -> "reads flat from ${n(a)} to ${n(b)} s" } }
+        val a = ranges.values.maxOf { it.first }; val b = ranges.values.minOf { it.second }
+        if (a > b + 1e-12) throw IllegalArgumentException("$name: " + ranges.keys.joinToString(" and ") { "the $it row ${words(it)}" } +
+            ": they do not overlap: position or print order matters; no value")
+        // the middle on the plate's own scale: its values a fixed ratio apart
+        val from = if (a > 0) a else values.firstOrNull { it > 0 && it <= b + 1e-12 } ?: b
+        val v = PressureAdvanceSpec.atLabel(Math.sqrt(from * b))
+        val span = "any value from ${n(a)} to ${n(b)} s reads flat here, at this plate's flow step"
+        val report = listOf("pressure advance from ${s.plate}:") +
+            ranges.keys.map { row -> "  the $row row ${words(row)}" + brackets.getValue(row).let { (lo, hi) -> ", grooves up to ${n(lo)} s, ridges from ${n(hi)} s" } } +
+            "  value: ${n(v)} s, the geometric middle of ${n(a)} to ${n(b)} s (the plate's values a fixed ratio apart): $span" +
+            corners(s, a, b) +
+            "  next: no finer plate: inside a span that already reads flat, the same flow step shows nothing more" +
+            "  no confirm plate either: its flow steps are at most this plate's, so the span reads flat there too; a larger flow step would separate its values"
+        return Result(report, v, s.plate, s.conditions,
+            "Readings: the walls flat at both marks from ${n(a)} to ${n(b)} s (" + ranges.keys.joinToString("; ") { "the $it row ${words(it)}" } +
+                "; the plate's values ${values.joinToString(", ") { n(it) }} s): $span; the value their geometric middle.", s.filament, s.tool)
     }
 
     /**

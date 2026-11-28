@@ -31,6 +31,8 @@ class PressureAdvanceReadingsTest : StringSpec({
     fun fill(blank: String, read: (row: String, value: Double?, step: Int) -> Triple<String, String, String?>) = PressureAdvanceSheets.fill(blank, read)
     fun truth(k: Double) = PressureAdvanceSheets.truth(k)
     fun values(text: String) = PressureAdvanceSheets.values(text)
+    /** The command lines a result suggests (each `plymeld ...` in backquotes in its report). */
+    fun suggested(r: PressureAdvanceRecord.Result) = Regex("`(plymeld [^`]+)`").findAll(r.report.joinToString("\n")).map { it.groupValues[1] }.toList()
 
     val dir = copy()
     val find = plate(dir, "--values", "0,0.01,0.02,0.03,0.04,0.05,0.06,0.07,0.08,0.09,0.1")
@@ -70,6 +72,35 @@ class PressureAdvanceReadingsTest : StringSpec({
         late.value shouldBe (0.05 plusOrMinus 1e-9)
         late.report.joinToString("\n") shouldContain "they disagree with the walls' 0.04 to 0.06 s"
         shouldThrow<IllegalArgumentException> { values(fill(sheet(find)) { r, v, s -> good(r, v, s).let { if (Math.abs(v!! - 0.02) < 1e-9) it.copy(second = "groove") else it } }) }.message!! shouldContain "at both marks"
+    }
+
+    /** Walls below [lo] too low, from [lo] to [hi] flat at both marks (a sharp corner), above [hi] too high. */
+    fun flatFrom(lo: Double, hi: Double): (String, Double?, Int) -> Triple<String, String, String?> = { _, v, _ ->
+        when { v!! < lo - 1e-9 -> Triple("groove", "ridge", "bulge"); v > hi + 1e-9 -> Triple("ridge", "groove", "round"); else -> Triple("flat", "flat", "sharp") } }
+
+    "a flat span: the geometric middle of the flat walls' values, the span stated and written, no finer plate; rows whose spans do not overlap refused" {
+        // both rows flat from 0.02 to 0.06 s: the geometric middle, sqrt(0.02 x 0.06), at the labels' 0.1 ms
+        val r = values(fill(sheet(find), flatFrom(0.02, 0.06)))
+        r.value shouldBe (plymeld.core.calibrate.PressureAdvanceSpec.atLabel(Math.sqrt(0.02 * 0.06)) plusOrMinus 1e-9)
+        // control: the arithmetic middle, 0.04 s, is not the value
+        (Math.abs(r.value!! - 0.04) > 1e-3) shouldBe true
+        val text = r.report.joinToString("\n")
+        text shouldContain "any value from 0.02 to 0.06 s reads flat here"
+        r.provenance shouldContain "any value from 0.02 to 0.06 s reads flat here"
+        text shouldContain "the front row's corners: bulges up to 0.01 s, round from 0.07 s: they agree with the walls"
+        // no finer plate after a span, said; nor a confirm plate (its flow steps are at most this plate's)
+        suggested(r).shouldBeEmpty()
+        text shouldContain "no finer plate"
+        // control: a single flat wall still names the next plates
+        suggested(values(fill(sheet(find), truth(0.05)))).size shouldBe 2
+        // the rows' spans overlapping: the middle of their overlap
+        values(fill(sheet(find)) { row, v, st -> (if (row == "front") flatFrom(0.02, 0.05) else flatFrom(0.04, 0.07))(row, v, st) }).value shouldBe
+            (plymeld.core.calibrate.PressureAdvanceSpec.atLabel(Math.sqrt(0.04 * 0.05)) plusOrMinus 1e-9)
+        // one row a span, the other one flat wall inside it: that wall's value
+        values(fill(sheet(find)) { row, v, st -> (if (row == "front") flatFrom(0.02, 0.06) else truth(0.03))(row, v, st) }).value shouldBe (0.03 plusOrMinus 1e-9)
+        // the rows' spans apart: refused
+        shouldThrow<IllegalArgumentException> { values(fill(sheet(find)) { row, v, st -> (if (row == "front") flatFrom(0.02, 0.03) else flatFrom(0.05, 0.06))(row, v, st) }) }
+            .message!! shouldContain "they do not overlap"
     }
 
     "written as the filament's pressure advance, with the plate, its conditions, and the bracket; the tool's with --into tool; read back through the whole config" {
