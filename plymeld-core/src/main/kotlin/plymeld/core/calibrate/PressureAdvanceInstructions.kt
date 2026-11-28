@@ -143,7 +143,7 @@ object PressureAdvanceInstructions {
         for (m in MARKS) l("- **$m**: ${MARK_MEANING.getValue(m)}.")
         l()
         l("The **speed-up mark** (the front hole) is the reading. The **slow-down mark** (the back hole) must read the opposite (a groove there with a ridge at the speed-up mark, or both flat); where both read the same (two grooves or two ridges), the wall shows something other than pressure advance, and the readings are refused.")
-        l("A wall reads **flat** where neither mark shows a change: against a light and in a raking light its face runs on past both holes as it was, no thinner or darker band, no thicker or brighter one. Read it flat only then; a faint change is a groove or a ridge.")
+        l("A wall reads **flat** where neither mark shows a change: against a light and in a raking light its face runs on past both holes as it was: no brighter or darker band against a light, no bright and dark edge in a raking light. Read it flat only then; a faint change is a groove or a ridge.")
         if (find) {
             l()
             l("Then each wall's **corner**, its outside edge where the two lines meet, a reading of its own (too little pressure advance bulges it, too much rounds it in):")
