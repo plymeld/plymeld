@@ -9,6 +9,19 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Added
+
+- Experimental: two settings for open wall lines (the lines laid where no loop fits, such as a thin area's center
+  line), off unless set, to test what makes the marks at the edges of pockets recessed into a thin face. Either may
+  change or go once that is known.
+  - `plan.layer.walls.open_start = "hidden_end"`: a line with one end on an outside corner of the outline that is
+    seen (from `plan.view_from`) and its other end on none starts at the other end, so its start, and the
+    un-retraction there, are not at the corner. Unset (`nearest`), a line starts at its end nearer the nozzle.
+  - `plan.layer.walls.thin_skin_after_outer = true`: a thin skin's inner line (an open line with the outer wall on
+    both sides of it all along, as in a skin three lines thick) is laid right after the outer wall, starting at its
+    end nearer where the outer wall ended, and stepped onto without a retraction where that step is no longer than
+    two line widths. Unset, it is laid where `plan.layer.walls.order` puts it.
+
 ## [0.20261128.0] - 2026-11-28
 
 ### Fixed

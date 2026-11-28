@@ -3,7 +3,8 @@ package plymeld.core
 /**
  * Path ordering within a layer to cut travel (and, given the cost of a retraction, retractions): greedy nearest-neighbor
  * from the current nozzle position, then an improvement pass ([improve]). Open paths may be reversed (whichever end is
- * nearer is entered, the pass may turn one); closed loops are entered at their seam and never rotated (the seam is a
+ * nearer is entered, the pass may turn one), unless the caller names the end one must be entered at ([order]'s entry);
+ * closed loops are entered at their seam and never rotated (the seam is a
  * quality choice).
  *
  * Order constraints kept: groups are emitted in the given order (e.g. walls before
@@ -20,10 +21,20 @@ object Ordering {
      * distance alone). A travel no longer than [freeUm] costs its length alone (one the writer never retracts:
      * hardware.filament.retract.travel.min), and the improvement pass moves a path whose travel costs extra beside a path
      * that ends within it ([improve]).
+     *
+     * [entry], when given, names the end an open path must be entered at: 0 = its first point (as given), 1 = its last (the
+     * path turned), -1 = either (plan.layer.walls.open_start = hidden_end: a line with one end on a corner the viewer sees
+     * is entered at the other). The order never enters a path at the other end, and the improvement pass never turns it.
      */
-    fun order(paths: List<ToolPath>, startX: Long, startY: Long, extra: ((Long, Long, Long, Long) -> Double)? = null, improvePass: Boolean = true, freeUm: Double = 0.0): List<ToolPath> {
-        if (paths.size <= 1) return paths
+    fun order(paths: List<ToolPath>, startX: Long, startY: Long, extra: ((Long, Long, Long, Long) -> Double)? = null, improvePass: Boolean = true, freeUm: Double = 0.0,
+              entry: ((ToolPath) -> Int)? = null): List<ToolPath> {
+        if (paths.size <= 1) {
+            // one path: entered at the end it must be, if it must
+            val p = paths.singleOrNull() ?: return paths
+            return if (entry != null && !p.closed && entry(p) == 1) listOf(p.reversed()) else paths
+        }
         val n = paths.size
+        val must = IntArray(n) { i -> if (entry == null || paths[i].closed) -1 else entry(paths[i]) }
         // endpoints: 2 per path (loops: both = seam)
         val ex = LongArray(2 * n); val ey = LongArray(2 * n)
         for ((i, p) in paths.withIndex()) {
@@ -55,6 +66,7 @@ object Ordering {
                     if (Math.max(Math.abs(cx - c0x), Math.abs(cy - c0y)) != r) continue
                     for (k in grid[cy * cells + cx]) {
                         if (used[k / 2]) continue
+                        if (must[k / 2] >= 0 && k % 2 != must[k / 2]) continue
                         var d = Math.hypot((ex[k] - px).toDouble(), (ey[k] - py).toDouble())
                         if (d >= bestD) continue
                         if (extra != null && d > freeUm) { d += extra(px, py, ex[k], ey[k]); if (d >= bestD) continue }
@@ -74,7 +86,7 @@ object Ordering {
             px = q.xy[q.xy.size - 2]; py = q.xy[q.xy.size - 1]
             if (q.closed) { px = q.xy[0]; py = q.xy[1] }
         }
-        return if (improvePass) improve(out, startX, startY, extra, freeUm = freeUm) else out
+        return if (improvePass) improve(out, startX, startY, extra, freeUm = freeUm, fixed = if (entry == null) null else { q -> !q.closed && entry(q) >= 0 }) else out
     }
 
     /**
@@ -84,9 +96,11 @@ object Ordering {
      * layer changes the next layers' travel); the improvement pass removes much of that. A stretch of one open path is that path turned end to end. Paths with
      * overhang tiers are never flipped. With [freeUm] (the travel that never retracts), a path whose travel costs extra is
      * also moved beside a path ending within it (relocate, below). A move is costed with `extra` only when its plain
-     * distance could still win, and a travel no longer than [freeUm] not at all.
+     * distance could still win, and a travel no longer than [freeUm] not at all. A path [fixed] names (one entered at the end
+     * it must be: [order]'s entry) is never turned, as one with overhang tiers.
      */
-    fun improve(seq: List<ToolPath>, startX: Long, startY: Long, extra: ((Long, Long, Long, Long) -> Double)? = null, maxPasses: Int = 8, freeUm: Double = 0.0): List<ToolPath> {
+    fun improve(seq: List<ToolPath>, startX: Long, startY: Long, extra: ((Long, Long, Long, Long) -> Double)? = null, maxPasses: Int = 8, freeUm: Double = 0.0,
+                fixed: ((ToolPath) -> Boolean)? = null): List<ToolPath> {
         val n = seq.size
         // O(n^2) per pass: groups above MAX_IMPROVE paths keep the greedy order (a compute bound,
         // not a quality choice)
@@ -98,12 +112,13 @@ object Ordering {
         fun outY(q: ToolPath) = if (q.closed) q.xy[1] else q.xy[q.xy.size - 1]
         fun dist(x0: Long, y0: Long, x1: Long, y1: Long) = Math.hypot((x1 - x0).toDouble(), (y1 - y0).toDouble())
         fun cost(x0: Long, y0: Long, x1: Long, y1: Long): Double { val d = dist(x0, y0, x1, y1); return if (d <= freeUm || extra == null) d else d + extra(x0, y0, x1, y1) }
+        fun turnable(q: ToolPath) = q.closed || (q.overhangShare == null && fixed?.invoke(q) != true)
         val flippable = BooleanArray(n)
         // edge k = travel INTO p[k] (from the start for k = 0)
         val edge = DoubleArray(n)
         fun prevX(k: Int) = if (k == 0) startX else outX(p[k - 1])
         fun prevY(k: Int) = if (k == 0) startY else outY(p[k - 1])
-        fun refresh() { for (k in 0 until n) { edge[k] = cost(prevX(k), prevY(k), inX(p[k]), inY(p[k])); flippable[k] = p[k].closed || p[k].overhangShare == null } }
+        fun refresh() { for (k in 0 until n) { edge[k] = cost(prevX(k), prevY(k), inX(p[k]), inY(p[k])); flippable[k] = turnable(p[k]) } }
         refresh()
         // A path reached or left by a travel that costs more than its length (one [extra] prices, a retraction) is taken out
         // and put back beside a path whose end lies within [freeUm] of one of its own ends (an open one either way round), a
@@ -165,7 +180,7 @@ object Ordering {
                     val cur = at[p[k]] ?: -1
                     val kept = cur >= 0 && (if (k == 0) cur == 0 else at[p[k - 1]].let { it != null && it == cur - 1 })
                     edge[k] = if (kept) oldEdge[cur] else cost(prevX(k), prevY(k), inX(p[k]), inY(p[k]))
-                    flippable[k] = p[k].closed || p[k].overhangShare == null
+                    flippable[k] = turnable(p[k])
                 }
                 moved = true
                 // the paths between its old and new places moved by one: look again from the earlier of the two

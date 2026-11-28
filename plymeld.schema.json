@@ -4390,6 +4390,31 @@
                     "inner_first",
                     "inner_outer_inner"
                   ]
+                },
+                "open_start": {
+                  "description": "EXPERIMENTAL, to test whether the un-retraction and arrival at an open wall line's start make the marks seen at the edges of pockets recessed into a thin face: which end an open wall line (a line where no loop fits, e.g. a thin area's center line) is entered at. nearest (unset) = the end nearer the nozzle, whatever lies there; hidden_end = a line with one end on a seen corner and the other on none is always entered at the other: an end is on a seen corner where an outside corner of the layer's outline (a turn of at least plan.technique.corner_seam.corner_angle across two outer-wall lines, as a corner seam reads one) lies within three outer-wall line widths of it, and that corner is not turned away from where the print is looked at from (plan.view_from: its outward direction, across the corner, has no part along the viewer's line of sight; all_around and above turn no corner away). A line with both ends, or neither, on a seen corner is entered as with nearest. Not with plan.layer.walls.thin_skin_after_outer for the lines that rule lays (they are entered from the end nearer the outer wall's end). Unset with no corner_angle: as nearest",
+                  "enum": [
+                    "nearest",
+                    "hidden_end"
+                  ]
+                },
+                "thin_skin_after_outer": {
+                  "description": "EXPERIMENTAL, to test whether the inner line of a thin skin laid before its outer wall, and entered after a travel and an un-retraction at the skin's end, makes the marks seen at the edges of pockets recessed into a thin face: true = a thin skin's inner line (an open inner wall line every point of which has the contour's outer wall within 1.5 outer-wall line widths on both sides, as in a skin three lines thick) is laid right after the outer wall, whatever plan.layer.walls.order says, entered from its end nearer where the outer wall ended, and that step goes without a retraction when it is no longer than two line widths and stays inside the part (as the wall beside the outer wall is stepped onto with inner_outer_inner); unset or false = laid where plan.layer.walls.order puts it — true or false; or a formula (= ...)",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "true",
+                        "false"
+                      ]
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\s*="
+                    }
+                  ]
                 }
               }
             },
@@ -6544,6 +6569,31 @@
                     "outer_first",
                     "inner_first",
                     "inner_outer_inner"
+                  ]
+                },
+                "open_start": {
+                  "description": "EXPERIMENTAL, to test whether the un-retraction and arrival at an open wall line's start make the marks seen at the edges of pockets recessed into a thin face: which end an open wall line (a line where no loop fits, e.g. a thin area's center line) is entered at. nearest (unset) = the end nearer the nozzle, whatever lies there; hidden_end = a line with one end on a seen corner and the other on none is always entered at the other: an end is on a seen corner where an outside corner of the layer's outline (a turn of at least plan.technique.corner_seam.corner_angle across two outer-wall lines, as a corner seam reads one) lies within three outer-wall line widths of it, and that corner is not turned away from where the print is looked at from (plan.view_from: its outward direction, across the corner, has no part along the viewer's line of sight; all_around and above turn no corner away). A line with both ends, or neither, on a seen corner is entered as with nearest. Not with plan.layer.walls.thin_skin_after_outer for the lines that rule lays (they are entered from the end nearer the outer wall's end). Unset with no corner_angle: as nearest",
+                  "enum": [
+                    "nearest",
+                    "hidden_end"
+                  ]
+                },
+                "thin_skin_after_outer": {
+                  "description": "EXPERIMENTAL, to test whether the inner line of a thin skin laid before its outer wall, and entered after a travel and an un-retraction at the skin's end, makes the marks seen at the edges of pockets recessed into a thin face: true = a thin skin's inner line (an open inner wall line every point of which has the contour's outer wall within 1.5 outer-wall line widths on both sides, as in a skin three lines thick) is laid right after the outer wall, whatever plan.layer.walls.order says, entered from its end nearer where the outer wall ended, and that step goes without a retraction when it is no longer than two line widths and stays inside the part (as the wall beside the outer wall is stepped onto with inner_outer_inner); unset or false = laid where plan.layer.walls.order puts it — true or false; or a formula (= ...)",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "true",
+                        "false"
+                      ]
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\s*="
+                    }
                   ]
                 }
               }
@@ -8818,6 +8868,31 @@
                     "outer_first",
                     "inner_first",
                     "inner_outer_inner"
+                  ]
+                },
+                "open_start": {
+                  "description": "EXPERIMENTAL, to test whether the un-retraction and arrival at an open wall line's start make the marks seen at the edges of pockets recessed into a thin face: which end an open wall line (a line where no loop fits, e.g. a thin area's center line) is entered at. nearest (unset) = the end nearer the nozzle, whatever lies there; hidden_end = a line with one end on a seen corner and the other on none is always entered at the other: an end is on a seen corner where an outside corner of the layer's outline (a turn of at least plan.technique.corner_seam.corner_angle across two outer-wall lines, as a corner seam reads one) lies within three outer-wall line widths of it, and that corner is not turned away from where the print is looked at from (plan.view_from: its outward direction, across the corner, has no part along the viewer's line of sight; all_around and above turn no corner away). A line with both ends, or neither, on a seen corner is entered as with nearest. Not with plan.layer.walls.thin_skin_after_outer for the lines that rule lays (they are entered from the end nearer the outer wall's end). Unset with no corner_angle: as nearest",
+                  "enum": [
+                    "nearest",
+                    "hidden_end"
+                  ]
+                },
+                "thin_skin_after_outer": {
+                  "description": "EXPERIMENTAL, to test whether the inner line of a thin skin laid before its outer wall, and entered after a travel and an un-retraction at the skin's end, makes the marks seen at the edges of pockets recessed into a thin face: true = a thin skin's inner line (an open inner wall line every point of which has the contour's outer wall within 1.5 outer-wall line widths on both sides, as in a skin three lines thick) is laid right after the outer wall, whatever plan.layer.walls.order says, entered from its end nearer where the outer wall ended, and that step goes without a retraction when it is no longer than two line widths and stays inside the part (as the wall beside the outer wall is stepped onto with inner_outer_inner); unset or false = laid where plan.layer.walls.order puts it — true or false; or a formula (= ...)",
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": [
+                        "true",
+                        "false"
+                      ]
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\s*="
+                    }
                   ]
                 }
               }

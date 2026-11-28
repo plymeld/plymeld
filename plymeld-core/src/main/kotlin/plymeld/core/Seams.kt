@@ -23,6 +23,9 @@ object Seams {
     /** The loop rotated to start at its seam, and whether the seam is at a corner. */
     class Placed(val loop: Polygon, val atCorner: Boolean)
 
+    /** An outside corner of a loop ([outsideCorners]): its vertex (µm) and the unit vector it faces out along. */
+    class Corner(val x: Long, val y: Long, val nx: Double, val ny: Double)
+
     /** Turns within this many degrees count as equally sharp. plymeld's choice. */
     const val TIE_DEG = 10.0
     /**
@@ -34,6 +37,41 @@ object Seams {
 
     /** The loop's turn at each vertex in degrees (+ left, - right), between the points [spanUm] back and ahead along it. */
     fun turns(p: Polygon, spanUm: Double): DoubleArray {
+        val sp = spanPoints(p, spanUm)
+        return DoubleArray(p.size) { i ->
+            val b = sp[2 * i]; val a = sp[2 * i + 1]
+            val ix = p.x(i) - b[0]; val iy = p.y(i) - b[1]; val ox = a[0] - p.x(i); val oy = a[1] - p.y(i)
+            Math.toDegrees(Math.atan2(ix * oy - iy * ox, ix * ox + iy * oy))
+        }
+    }
+
+    /**
+     * The outside corners of [p] (left turns of at least [cornerDeg] across [spanUm], as [turns] reads them): per corner its
+     * vertex and the way it faces, the unit vector out of the material halfway between the loop's directions to the points
+     * [spanUm] back and ahead (a rounded corner's vertices all face about the way the whole corner does).
+     */
+    fun outsideCorners(p: Polygon, cornerDeg: Double, spanUm: Double): List<Corner> {
+        val sp = spanPoints(p, spanUm)
+        val t = turns(p, spanUm)
+        val out = ArrayList<Corner>()
+        for (i in 0 until p.size) {
+            if (t[i] < cornerDeg) continue
+            val b = sp[2 * i]; val a = sp[2 * i + 1]
+            val bx = b[0] - p.x(i); val by = b[1] - p.y(i); val ax = a[0] - p.x(i); val ay = a[1] - p.y(i)
+            val lb = Math.hypot(bx, by); val la = Math.hypot(ax, ay)
+            if (lb == 0.0 || la == 0.0) continue
+            // toward the two span points, summed: into the material at an outside corner; out of it, turned round
+            var nx = -(bx / lb + ax / la); var ny = -(by / lb + ay / la)
+            val ln = Math.hypot(nx, ny)
+            if (ln == 0.0) continue
+            nx /= ln; ny /= ln
+            out.add(Corner(p.x(i), p.y(i), nx, ny))
+        }
+        return out
+    }
+
+    /** Per vertex of [p], the points [spanUm] (at most a quarter of the loop) back along it and ahead: [2i] back, [2i + 1] ahead. */
+    private fun spanPoints(p: Polygon, spanUm: Double): Array<DoubleArray> {
         val n = p.size
         val len = DoubleArray(n) { i -> Math.hypot((p.x((i + 1) % n) - p.x(i)).toDouble(), (p.y((i + 1) % n) - p.y(i)).toDouble()) }
         val span = minOf(spanUm, len.sum() / 4)
@@ -50,11 +88,7 @@ object Seams {
                 left -= len[e]; k = next
             }
         }
-        return DoubleArray(n) { i ->
-            val b = along(i, span, -1); val a = along(i, span, 1)
-            val ix = p.x(i) - b[0]; val iy = p.y(i) - b[1]; val ox = a[0] - p.x(i); val oy = a[1] - p.y(i)
-            Math.toDegrees(Math.atan2(ix * oy - iy * ox, ix * ox + iy * oy))
-        }
+        return Array(2 * n) { j -> along(j / 2, span, if (j % 2 == 0) -1 else 1) }
     }
 
     /**

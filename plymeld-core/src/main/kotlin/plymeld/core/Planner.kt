@@ -1561,10 +1561,13 @@ object Planner {
                 Built(b.paths.filter { p -> groups.none { (o, hs) -> Polygons.contains(o, p.xy[0], p.xy[1]) && hs.none { Polygons.contains(it, p.xy[0], p.xy[1]) } } }, b.dropped)
             }
         }
+        // plan.layer.walls.open_start = hidden_end (experimental): the visibility map that says which corners the viewer sees
+        val openStartVis = if (s.wallOpenStart == "hidden_end") plymeld.core.decide.Visibility.of(s) else null
         for (i in 0 until n) {
             // the layer's print order from its built paths and where the head is (LayerCache): a layer under an unchanged one
             // starts where it did, so the whole stack below a change comes back as it was
-            val kb = LayerCache.Builder("order").text(sk).text(i).text(hs[i]).text(layerTopsUm[i]).text(endX).text(endY).polys(effOutlines[i]).polys(asPrinted[i])
+            // (the two experimental wall-line rules named too: a caller's settings key need not have read them yet)
+            val kb = LayerCache.Builder("order").text(sk).text(s.wallOpenStart).text(s.thinSkinAfterOuter).text(i).text(hs[i]).text(layerTopsUm[i]).text(endX).text(endY).polys(effOutlines[i]).polys(asPrinted[i])
             for (p in built[i].paths) {
                 kb.text(p.feature.ordinal).text(p.closed).text(p.widthUm).text(p.heightUm).text(p.ePerMmOverride).text(p.retractBefore).text(p.scarfUm).text(p.scarfStart).longs(p.xy)
                 p.widths?.let { kb.longs(it) }; p.overhangShare?.let { kb.longs(LongArray(it.size) { k -> it[k].toLong() }) }
@@ -1621,6 +1624,18 @@ object Planner {
                 val f: (Long, Long, Long, Long) -> Double = { x0, y0, x1, y1 -> if (isl.clear(x0, y0, x1, y1) { true }) 0.0 else retractCostUm }
                 f
             }
+            // plan.layer.walls.open_start = hidden_end (experimental): an open wall line with one end within three outer-wall
+            // widths of an outside corner of the layer's outline the viewer sees (a corner as the corner seam reads one, across
+            // two widths), and the other end near none, is entered at the other end (WallLineEnds); an outer-wall speck as
+            // nearest-first enters it. [wallEntryBack]: the same for an order built backwards from the seam and then reversed,
+            // where a path's entry becomes its exit
+            val lineUm = if (first) s.firstLayerWidthUm else s.outerWallWidthUm
+            val seenCorners = if (openStartVis == null) emptyList() else WallLineEnds.seenCorners(effOutlines[i], s.seamCornerDeg, 2.0 * lineUm, openStartVis)
+            val wallEntry: ((ToolPath) -> Int)? = if (seenCorners.isEmpty()) null else { p -> if (p.speck) -1 else WallLineEnds.hiddenEnd(p, seenCorners, 3.0 * lineUm) }
+            val wallEntryBack: ((ToolPath) -> Int)? = wallEntry?.let { f -> { p: ToolPath -> f(p).let { e -> if (e < 0) -1 else 1 - e } } }
+            // plan.layer.walls.thin_skin_after_outer (experimental): the thin skins' inner lines laid right after their outer
+            // wall, as laid (the step onto each from the outer wall goes unretracted as the wall beside it with inner_outer_inner)
+            val skinLaid = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<ToolPath, Boolean>())
             val ordered = ArrayList<ToolPath>(paths.size)
             fun emit(g: List<ToolPath>) {
                 if (g.isEmpty()) return
@@ -1639,8 +1654,9 @@ object Planner {
                         }
                     }
                     else if (g[0].feature in monotonic) Ordering.sweep(g, lastX, lastY)
-                    else Ordering.order(g, lastX, lastY, if (g.any { it.feature in interior }) interiorExtra
-                        else if (g.all { it.feature == Feature.OUTER_WALL || it.feature == Feature.INNER_WALL }) wallExtra else null, freeUm = minTravelUm)
+                    else if (g.all { it.feature == Feature.OUTER_WALL || it.feature == Feature.INNER_WALL })
+                        Ordering.order(g, lastX, lastY, wallExtra, freeUm = minTravelUm, entry = wallEntry)
+                    else Ordering.order(g, lastX, lastY, if (g.any { it.feature in interior }) interiorExtra else null, freeUm = minTravelUm)
                 ordered.addAll(o)
                 val tail = o.last()
                 if (tail.closed) { lastX = tail.xy[0]; lastY = tail.xy[1] } else { lastX = tail.xy[tail.xy.size - 2]; lastY = tail.xy[tail.xy.size - 1] }
@@ -1686,9 +1702,26 @@ object Planner {
                     if (q.closed) { lastX = q.xy[0]; lastY = q.xy[1] } else { lastX = q.xy[q.xy.size - 2]; lastY = q.xy[q.xy.size - 1] }
                 }
             }
-            fun emitContour(inner: List<ToolPath>, outer: List<ToolPath>, specks: List<ToolPath> = emptyList()) {
+            fun emitContour(allInner: List<ToolPath>, outer: List<ToolPath>, specks: List<ToolPath> = emptyList()) {
+                // plan.layer.walls.thin_skin_after_outer (experimental): the contour's thin-skin lines (WallLineEnds.thinSkin: the
+                // outer wall within 1.5 of its widths on both sides all along) come out of the inner walls and are laid right after
+                // the outer wall, nearest-first from where it ended, each entered at its end nearer the head
+                val skin = if (!s.thinSkinAfterOuter || outer.size != 1 || !outer[0].closed) emptyList()
+                    else allInner.filter { !it.closed && it.overhangShare == null && WallLineEnds.thinSkin(it, outer[0], 1.5 * s.outerWallWidthUm) }
+                val inner = if (skin.isEmpty()) allInner else allInner.filter { w -> skin.none { it === w } }
+                fun emitOuter() {
+                    emit(outer)
+                    if (skin.isNotEmpty()) {
+                        // where the head is: a scarfed loop ends at its ramp's end, not its start (Scarf.endOf)
+                        val end = Scarf.endOf(ordered.last())
+                        val o = Ordering.order(skin, end[0], end[1], wallExtra, freeUm = minTravelUm)
+                        ordered.addAll(o); skinLaid.addAll(o)
+                        val t = o.last(); lastX = t.xy[t.xy.size - 2]; lastY = t.xy[t.xy.size - 1]
+                    }
+                    emitSpecks(outer, specks)
+                }
                 if (!s.innerWallsFirst || outer.size != 1 || inner.size < 1 || inner.any { !it.closed && it.overhangShare != null }) {
-                    for (f in inIsland.take(2)) { emit(if (f == Feature.OUTER_WALL) outer else inner); if (f == Feature.OUTER_WALL) emitSpecks(outer, specks) }
+                    for (f in inIsland.take(2)) if (f == Feature.OUTER_WALL) emitOuter() else emit(inner)
                     return
                 }
                 val sx = outer[0].xy[0]; val sy = outer[0].xy[1]
@@ -1706,8 +1739,8 @@ object Planner {
                 // wall then has a wall beside it to lean on
                 val split = s.wallOrder == "inner_outer_inner" && outer[0].overhangShare == null && inner.any { it.wall >= 2 } && inner.any { it.wall == 1 }
                 val before = if (split) inner.filter { it.wall != 1 } else inner
-                val forward = Ordering.order(before, lastX, lastY, wallExtra, freeUm = minTravelUm)
-                val backward = Ordering.order(before, sx, sy, wallExtra, freeUm = minTravelUm).asReversed().map { if (it.closed) it else it.reversed() }
+                val forward = Ordering.order(before, lastX, lastY, wallExtra, freeUm = minTravelUm, entry = wallEntry)
+                val backward = Ordering.order(before, sx, sy, wallExtra, freeUm = minTravelUm, entry = wallEntryBack).asReversed().map { if (it.closed) it else it.reversed() }
                 val chosen = if (cost(backward) < cost(forward)) backward else forward
                 // the inner wall laid just before the outer one, a loop, starts (and so ends) nearest the outer wall's start (an
                 // inner wall's start is not seen): left at its own seam, the step onto the outer wall can be a travel of tens
@@ -1715,8 +1748,7 @@ object Planner {
                 val seq = chosen.mapIndexed { q, w -> if (q == chosen.size - 1 && w.closed) w.startingNear(sx, sy) else w }
                 ordered.addAll(seq)
                 lastX = endX(seq.last()); lastY = endY(seq.last())
-                emit(outer)
-                emitSpecks(outer, specks)
+                emitOuter()
                 // the wall beside the outer one, laid after it: each of its loops started at its point nearest where the outer
                 // wall ended (an inner wall's start is not seen), so the head steps onto it, a line in, with no travel across
                 // the contour (kept at its own seam, the step can be a travel of tens of mm and a retraction on the visible face)
@@ -1809,7 +1841,9 @@ object Planner {
                 for (k in 1 until ordered.size) {
                     val a = ordered[k - 1]; val b = ordered[k]
                     val seamStep = (a.feature == Feature.INNER_WALL && b.feature == Feature.OUTER_WALL) ||
-                        (a.feature == Feature.OUTER_WALL && b.feature == Feature.INNER_WALL && b.wall == 1 && s.wallOrder == "inner_outer_inner")
+                        (a.feature == Feature.OUTER_WALL && b.feature == Feature.INNER_WALL && b.wall == 1 && s.wallOrder == "inner_outer_inner") ||
+                        // and a thin skin's line laid right after its outer wall (plan.layer.walls.thin_skin_after_outer)
+                        (a.feature == Feature.OUTER_WALL && b in skinLaid)
                     if (!seamStep && (a.feature !in interior || b.feature !in interior)) continue
                     // where the head is: a scarfed loop ends at its ramp's end (Scarf.endOf)
                     val aEnd = Scarf.endOf(a)

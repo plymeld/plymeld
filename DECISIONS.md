@@ -2562,3 +2562,43 @@ drops it: it guards one way of losing the folder, not a read-only install that l
 **Consequences.** A command line's folder gains a `lib/` at its first run where it had none. A read-only install
 without one keeps an empty `java-home/lib/` in plymeld's cache folder, made again if the cache is cleared. The smoke
 run's Linux check runs two more `render` cases.
+
+## 73. Two experimental rules for open wall lines in a thin face, each behind its own setting and off by default (2026-11-28)
+
+**Context.** A hypothesis to test: the marks at the edges of pockets recessed into a thin face come from where the open
+wall line inside the face starts. Such a face is a thin skin: the outer wall's two passes (the visible face and its
+back) and one open line between them, about half a line behind the face. An open wall line is entered at whichever end
+is nearer the nozzle, so many start at a pocket's corner on the face, after a travel and an un-retraction there. And
+with inner walls laid first, the skin's line is laid before its outer wall and reached by a retracted travel; only a
+loop beside the outer wall is laid after it and stepped onto without one. Each of the two rules below removes one of
+these causes, so that a print with one and a print with the other say which matters.
+
+**Decision.** Two settings, unset unless asked for, each changing nothing while unset:
+- `plan.layer.walls.open_start = hidden_end`: an open wall line with one end within three outer-wall line widths of a
+  seen outside corner of the layer's outline, and the other end near none, is always entered at the other end. A corner
+  is a turn of at least `plan.technique.corner_seam.corner_angle` across two outer-wall line widths, as the corner seam
+  reads one (`Seams.outsideCorners`); it is seen unless the visibility map counts the way it faces as turned away from
+  `plan.view_from` (`Visibility.awayDot` above 0), the notion that discounts a face for every quality measure. The
+  ordering never enters such a line at the seen end and its improvement pass never turns it. A line with both ends seen,
+  or neither, is ordered as before.
+- `plan.layer.walls.thin_skin_after_outer = true`: an open inner wall line with the contour's outer wall within 1.5
+  outer-wall line widths on both sides at every point (read across the line both ways) is laid right after that outer
+  wall, whatever the wall order, nearest-first from where the outer wall ended, and the step onto it goes unretracted
+  under the rule the wall beside the outer wall already follows with `inner_outer_inner`: no longer than two line
+  widths and inside the part. With both rules on, these lines are entered as this rule says.
+
+Three widths, the reach from a line's end to its corner, is plymeld's choice: a skin's line ends about a width from the
+pocket's side and one and a half from the face, about two widths from the corner. 1.5 widths, the reach to the outer wall
+across a skin's line, is plymeld's choice: in a skin three lines thick the outer wall's center lines lie one width
+from it, and a line between walls in a wider area has a side farther than that somewhere.
+
+**Rejected.** A finite cost on entering at a seen end, weighed against travel: a long line would still start at the
+corner, and the test needs every such line moved. The seam's exposure (`Exposure`, rays cast from the point) to judge a
+corner: it needs a threshold between seen and hidden that nothing measured gives, where the map's turned-away test is
+yes or no. Treating every open line's ends near any corner as seen: a skin's back corners, against the part behind it,
+are not seen, and a line between two pockets would never change. Laying the skin's line after the outer wall only with
+`inner_outer_inner`: the cause is the same whatever the order. Making either rule the default before a print shows it
+helps.
+
+**Consequences.** With both unset the output is unchanged. A layer's order cache names both settings. Either may change
+or go once the prints are read.
