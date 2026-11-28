@@ -88,7 +88,7 @@ flow = "100%"
 # matters more than time, without changing each speed
 speed.factor = "100%"
 visible.speed = "100 mm/s"
-visible.acceleration = "= machine.motion.print.acceleration / 2"
+visible.acceleration = "= machine.motion.print.acceleration / 4"
 # inner walls at the hidden lines' speed unless this says otherwise: whether their ripple shows through is not measured yet
 inner_walls.as_visible = "false"
 # first_layer.speed: here only the stand-in for a machine and filament that set none. A filament's own

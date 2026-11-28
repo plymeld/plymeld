@@ -9,6 +9,13 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Changed
+
+- Visible lines (outer walls, top and bottom surfaces) on a machine that sets no visible acceleration of its own
+  (`hardware.machine.<key>.motion.visible.acceleration`) print at a quarter of its printing acceleration, not half:
+  `plan.mechanism.motion.visible.acceleration`'s bundled stand-in is `= machine.motion.print.acceleration / 4`. A
+  machine's measured value, or one in a config of yours, still wins.
+
 ## [0.20261128.0] - 2026-11-28
 
 ### Fixed
