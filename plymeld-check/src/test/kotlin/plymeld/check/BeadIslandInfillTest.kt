@@ -20,15 +20,18 @@ import plymeld.model.SliceSettings
  * tooth's own beads: plastic laid twice, a bridge or solid infill over an outer wall.
  *  - each tooth, with the walls of the catalog's walls rig: its loop is laid by its beads, and nothing inside it is handed to
  *    infill; control: taken out by first point (Walls.arachne innerTakenByArea = false), 0.33 and 0.29 mm² of the first
- *    two teeth are (at least 0.2 mm² required);
+ *    two teeth are (at least 0.2 mm² required). Both with the walls handing over what is two inner lines wide between
+ *    their bands (infillPastFlanks = false), as when the rule was made: since DECISIONS 73 the walls hand nothing in a
+ *    tooth to infill in the first place (a piece nowhere two lines wide between the beads), checked too, and the rule
+ *    stands for wider pieces;
  *  - the catalog's teeth under a second part, sliced: no spot laid twice (taken out by first point, run by hand: 33 spots,
  *    6.5 mm², bridge over outer wall, on 19 of the teeth's 20 layers).
  */
 class BeadIslandInfillTest : StringSpec({
     val s = SliceSettings.of(testSetup(*Slicing.WALLS.values.toTypedArray()))
-    fun walls(o: List<Polygon>, byArea: Boolean) = Walls.arachne(o, s.wallLoops, s.outerWallWidthUm, s.innerWallWidthUm, 80, s.minBeadUm, s.minFeatureUm,
-        s.minLengthFactor, s.transitionLengthUm, toleranceUm = s.resolutionUm, endOverlap = s.infillWallOverlap, maxBeadUm = s.maxBeadFor(s.innerWallWidthUm),
-        innerTakenByArea = byArea)
+    fun walls(o: List<Polygon>, byArea: Boolean, pastFlanks: Boolean = false) = Walls.arachne(o, s.wallLoops, s.outerWallWidthUm, s.innerWallWidthUm, 80,
+        s.minBeadUm, s.minFeatureUm, s.minLengthFactor, s.transitionLengthUm, toleranceUm = s.resolutionUm, endOverlap = s.infillWallOverlap,
+        maxBeadUm = s.maxBeadFor(s.innerWallWidthUm), innerTakenByArea = byArea, infillPastFlanks = pastFlanks)
     /** The area (mm²) of [w]'s infill region inside [o]. */
     fun handedIn(w: plymeld.core.LayerWalls, o: List<Polygon>) = if (w.inner.isEmpty()) 0.0 else Booleans.intersection(w.inner, o).sumOf { it.signedAreaMm2() }
 
@@ -42,8 +45,10 @@ class BeadIslandInfillTest : StringSpec({
             (w.widthsOf(0, 0) != null) shouldBe true
             val handed = handedIn(w, o)
             val old = handedIn(walls(o, false), o)
-            println("tooth $k: handed to infill ${"%.4f".format(handed)} mm2; by first point ${"%.4f".format(old)} mm2")
+            val now = handedIn(walls(o, true, pastFlanks = true), o)
+            println("tooth $k: handed to infill ${"%.4f".format(handed)} mm2; by first point ${"%.4f".format(old)} mm2; with the walls as they are ${"%.4f".format(now)} mm2")
             handed shouldBe 0.0
+            now shouldBe 0.0
             controlMax = maxOf(controlMax, old)
         }
         (controlMax >= 0.2) shouldBe true

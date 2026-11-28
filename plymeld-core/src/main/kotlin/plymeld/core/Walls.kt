@@ -60,9 +60,10 @@ object Walls {
      *     joined again where the exact shrink keeps them ([necksJoined]). Two loops of a level grown from pieces of the fit
      *     less than two spacings apart (a pinch narrower than the loop needs between them) are kept a spacing apart, the
      *     smaller cut back from the larger ([apart]).
-     *  2. What the loops leave uncovered is split by width: pieces at least two inner lines wide
-     *     are the infill region; narrower pieces get ONE center line along their skeleton, as wide
-     *     as the piece is thick there, clamped to [minBeadUm, maxBeadUm]. Where a piece is thinner than
+     *  2. What the loops leave uncovered is split by width: pieces at least two inner lines wide are the infill region, each
+     *     only where it is somewhere two inner lines wide between the beads beside it and the slicing tolerance a side more
+     *     (the beads reach past the bands by half a line less half a spacing); narrower pieces get ONE center line along
+     *     their skeleton, as wide as the piece is thick there, clamped to [minBeadUm, maxBeadUm]. Where a piece is thinner than
      *     [minFeatureUm] no line is laid, however short the stretch (min_feature_size); between walls, pieces thinner than the
      *     narrowest line less what an interior line may overlap the walls a side ([endOverlap] of its width, the infill's
      *     wall overlap, or at least the bead's rounded flank, h (1 - pi / 4)) are left empty too: the narrowest line there
@@ -112,7 +113,9 @@ object Walls {
                 /** False: a loop widened at a slit keeps no point before the slit along an edge ([shareSlits]; a test's control). */
                 slitsAnchored: Boolean = true,
                 /** False: an outer wall shares a slit beside it as an inner one does ([shareSlits]; a test's control). */
-                outerWallsFixed: Boolean = true): LayerWalls {
+                outerWallsFixed: Boolean = true,
+                /** False: what the loops leave goes to infill wherever it is two inner lines wide between their bands, the beads' flanks not counted (a test's control). */
+                infillPastFlanks: Boolean = true): LayerWalls {
         val so = spacing(outerWidthUm, layerHeightUm)
         val si = spacing(innerWidthUm, layerHeightUm)
         // each loop's fit region (where its bead fits: its strict pieces, each an outer polygon and its holes) and its looser fit
@@ -221,7 +224,24 @@ object Walls {
             }
             val left = if (covered.isEmpty()) outline else Booleans.difference(outline, covered)
             // thick leftovers are infill; the rest, if not too thin, gets center lines
-            val thick = if (left.isEmpty()) left else Offset.offset(Offset.offset(left, -innerWidthUm, Offset.Join.MITER), innerWidthUm, Offset.Join.MITER)
+            val opened = if (left.isEmpty()) left else Offset.offset(Offset.offset(left, -innerWidthUm, Offset.Join.MITER), innerWidthUm, Offset.Join.MITER)
+            // a piece of it is infill only where it is somewhere two inner lines wide between the beads beside it: the bands
+            // end half a spacing past their loops, the beads half a line, so the ground between the beads is narrower than
+            // the piece by a line less a spacing; and by the slicing tolerance a side more (the outline is known no closer). A
+            // piece nowhere that wide (a stretch of a channel about two lines wide inside a letter's walls, where it bulges a
+            // little) is a thin area, laid by the line along the channel: handed to infill, no sparse line crossed it but by
+            // chance, the channel's line kept a line's width away from it (the corner slivers below), and the pre-print check
+            // read it as a hole between walls. A piece wide enough somewhere stays whole, as do its corners (cut by a wider
+            // opening, they changed what every layer above and below them laid)
+            val thick = if (opened.isEmpty() || !infillPastFlanks) opened else {
+                val r = innerWidthUm + (innerWidthUm - si + 1) / 2 + toleranceUm
+                // where a disc that wide fits (round: a mitred shrink keeps ground past a turn of the outline that no such disc
+                // reaches, a channel's short bulge read wide)
+                val centers = Offset.offset(left, -r, Offset.Join.ROUND).filter { it.isCcw() }
+                val groups = plymeld.geom.Polygons.group(opened)
+                val kept = groups.filter { (o, hs) -> centers.any { c -> inIsland(o, hs, c.x(0), c.y(0)) } }
+                if (kept.size == groups.size) opened else kept.flatMap { (o, hs) -> listOf(o) + hs }
+            }
             val thin0 = if (left.isEmpty()) left else if (thick.isEmpty()) left else Booleans.difference(left, thick)
             // corner slivers: cutting the infill region out of what is left leaves a sliver in every
             // corner of it, and each became a short center line. Only what is

@@ -2562,3 +2562,63 @@ drops it: it guards one way of losing the folder, not a read-only install that l
 **Consequences.** A command line's folder gains a `lib/` at its first run where it had none. A read-only install
 without one keeps an empty `java-home/lib/` in plymeld's cache folder, made again if the cache is cleared. The smoke
 run's Linux check runs two more `render` cases.
+
+## 73. What the walls hand to infill is two inner lines wide between the beads beside it; the check reads an arc to within 5 µm (2026-11-28)
+
+Amends 26's split of what the loops leave by width; decision 30's hole rule is unchanged.
+
+**Context.** Decision 26 split what the loops leave by an opening at one inner line's width: a piece at least two inner
+lines wide between the loops' bands went to infill, the rest to center lines. Inside a stroke wide enough for its walls
+with a channel about two lines wide between its innermost loops (a letter's stroke), a stretch of the channel that bulges
+a little is such a piece where it is just over two lines wide: too short for a sparse line to cross it or a narrow
+sparse piece's loop to fit in it, while the center line along the rest of the channel stops a line's width short of it
+(the corner slivers beside an infill region are left to its anchors). The beads reach past their bands by half a line
+less half a spacing, h (1 - π/4) / 2 a side, so the bare ground between them was narrower than two inner lines, the
+widest the hole rule takes for the infill's own: the pre-print check refused it as a hole inside the walls, rightly, the
+walls having handed the infill an area narrower than decision 30 says they hand it. As a stroke's sides lean, the
+stretch comes and goes from layer to layer.
+
+The check also read a small loop written as arcs (G2 / G3) narrower than laid: each arc as chords up to 0.5 mm long,
+which on a loop 0.69 mm round lie up to 0.046 mm inside it. A pin's middle the walls hand to infill, more than two lines
+wide between the beads, read as a hole narrower than two lines.
+
+**Decision.**
+- A piece of what the loops leave (their opening at one inner line's width, as before) is the infill region's only where
+  a disc as wide as two inner lines, the beads' reach past the bands, and the slicing tolerance a side (the outline is
+  known no closer) fits somewhere in it: the ground the infill's gaps may leave is then two inner lines wide between the
+  beads beside it. The disc is read round (a mitred shrink keeps ground past a turn of the outline that no disc reaches:
+  a channel's short bulge read wide). A piece nowhere that wide is a thin area, laid by the line along it.
+- A piece wide enough somewhere stays whole, its corners and its narrow stretches with it: where it is left bare, the
+  bare ground round it is as wide as its widest place, which the hole rule takes for the infill's. Where every piece is
+  kept, the region is the same object as before.
+- Walls.arachne `infillPastFlanks = false` hands over by the bands as before (a test's control).
+- The pre-print check reads an arc move as chords no longer than 0.5 mm and lying no further than 0.005 mm inside it
+  (ModelCheck.ARC_SAG_MM, a fifth of the hole rule's cell).
+
+**Rejected.** The infill region as the opening at the wider disc, whole: a mitred opening cuts an acute corner by its
+size, so it reshaped the corners of ordinary infill regions, and the shells above and below them followed, solid infill
+running into a wall's corner and laid twice there. A larger piece's narrow stretches cut off it as well: the parts of
+the piece narrower than half a line round each cut stayed the infill's, slivers no line crossed, refused as holes. A
+cell of slack in the hole rule's limit, or the limit narrowed by the beads' reach: the stretch would pass and stay bare,
+in a channel a line lays elsewhere along it. A finer chord length for every arc: a loop a few millimeters round needs no
+more chords than 0.5 mm gives; the sag sets the count where the radius is small.
+
+**Consequences.** The catalog's new model, letter strokes (Models.letterStrokes: four strokes, three leaning at 80, 70
+and 60 deg and one leaning and turning 50 deg, each with a short bulge in its channel, a little wider layer by layer):
+with the rule as before the pre-print check refused 9 layers, holes 0.86 to 0.87 mm wide at the bulges; now none, and
+nothing laid twice. LetterChannelTest: round every piece handed to infill on every layer of the strokes the widest bare
+ground is at least two inner lines (0.908 mm the narrowest), against 0.864 mm handed over by the bands (the control).
+ArcCheckTest: a pin's middle 0.93 mm across closed in by three loops of two G3 half circles each passes; written as the
+0.5 mm chords the check read (control), refused as a hole 0.83 mm wide; a quarter circle of 1 mm radius is read as 8
+chords, not 4. The regression cases: the 3DBenchy's first layer only (both its cases), where a pocket between walls at
+the lettering on its stern, laid with 1.6 mm of bottom surface across its middle and bare corners round it, is laid by a
+thin area's line of 2.0 mm joined to the line beside it. The catalog: where pieces too narrow for infill by the new
+measure lie round the inlay's opening, its sparse infill falls from 97 paths to 44 (2015 to 1479 mm), its internal solid
+infill from 12 to 5 and its internal bridges from 3 to 1, and its inner walls gain 306 mm in 47 more paths: 62 fewer
+retractions, 15 s less (base row; the support row alike); the teeth under a second part lose a bottom surface line of 22
+mm for 11 mm of inner wall; the ridges lay a few millimeters of internal solid infill as inner wall (the flat and wobbly
+ridges beside a second part 7 to 9 mm); the plate behind a leaning face lays 19 mm of sparse infill as 10 mm of inner
+wall, its uncovered area 20.78 to 20.58 mm² and its doubled area by the walls' reading 0.294 to 0.324 mm², with 10 more
+visible restarts. The pre-print check's problems and laid-twice measure move on no model. Still open: a pocket about a
+quarter of a millimeter wide where the inner walls of several parts meet at a junction, and a part's acute tip beside
+another part left bare along its outline, both refused by the check and neither from these rules.

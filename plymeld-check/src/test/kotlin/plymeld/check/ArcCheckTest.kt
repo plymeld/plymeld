@@ -56,10 +56,51 @@ class ArcCheckTest : StringSpec({
     "arcChords: a clockwise quarter circle from (1, 0) to (0, -1) about the origin, every chord end on the circle" {
         val pts = ArrayList<DoubleArray>()
         ModelCheck.arcChords(1.0, 0.0, 0.0, -1.0, 0.0, 0.0, true) { ax, ay, bx, by -> pts += doubleArrayOf(ax, ay, bx, by) }
-        pts.size shouldBe 4                                   // a quarter of a 1 mm circle, 1.57 mm, in chords of at most 0.5
+        // a quarter of a 1 mm circle in chords lying at most ARC_SAG_MM inside it: each over at most 2 acos(1 - 0.005) =
+        // 0.2003 rad, 8 of them (0.5 mm chords alone, 4)
+        pts.size shouldBe 8
         pts.first()[0] shouldBe 1.0; pts.first()[1] shouldBe 0.0
         pts.last()[2] shouldBe 0.0; pts.last()[3] shouldBe -1.0
         pts.forEach { Math.hypot(it[2], it[3]) shouldBe (1.0 plusOrMinus 1e-12) }
         pts.forEach { (it[3] <= 1e-12) shouldBe true }           // clockwise from (1, 0): through y < 0, not the long way
+        // every chord's middle within ARC_SAG_MM of the circle
+        pts.forEach { (1.0 - Math.hypot((it[0] + it[2]) / 2, (it[1] + it[3]) / 2) <= ModelCheck.ARC_SAG_MM + 1e-12) shouldBe true }
+    }
+
+    /*
+     * A pin's middle as wide as the walls hand to infill, closed in by three loops each laid as two G3 half circles, the
+     * innermost 0.685 mm round its middle (its bead's inner edge 0.465 mm from it): ground 0.93 mm across, wider than two
+     * 0.44 mm inner lines, so the infill's (no sparse line crosses so small a piece). Passes the hole rule; control: the
+     * arcs written as the 0.5 mm chords the check read them as (0.034 mm inside the innermost circle at their middles) leave
+     * it about 0.85 mm across, narrower than two inner lines: refused as a hole.
+     */
+    val pinRadii = listOf(1.531, 1.108, 0.685)
+    val pin = listOf(disc(1.751))
+    fun pinGcode(chords: Boolean): String {
+        val sb = StringBuilder("M83\nG28\nM109 S210\n")
+        for (z in listOf(0.2, 0.4)) {
+            sb.append("; CHANGE_LAYER\n; Z_HEIGHT: $z\n; LAYER_HEIGHT: 0.2\nG1 E-0.8 F2400\nG1 Z${z + 0.2} F600\n")
+            for ((k, rr) in pinRadii.withIndex()) {
+                sb.append("G1 X${110 + rr} Y110 F18000\nG1 Z$z\n; FEATURE: ${if (k == 0) "Outer wall" else "Inner wall"}\n; LINE_WIDTH: 0.44\nG1 F3000\n")
+                // E 0.033 a mm: a 0.44 mm line on 0.2 mm layers (as HoleCheckTest's)
+                val half = Math.PI * rr
+                if (!chords) sb.append("G3 X${110 - rr} Y110 I${-rr} J0 E${0.033 * half}\nG3 X${110 + rr} Y110 I$rr J0 E${0.033 * half}\n")
+                else {
+                    // each half circle in the chords the check read it as: as many as 0.5 mm divides it into
+                    val n = 2 * Math.ceil(half / 0.5).toInt()
+                    for (j in 1..n) { val a = 2 * Math.PI * j / n
+                        sb.append("G1 X${110 + rr * Math.cos(a)} Y${110 + rr * Math.sin(a)} E${0.033 * 2 * rr * Math.sin(Math.PI / n)}\n") }
+                }
+            }
+        }
+        return sb.append("G1 E-0.8 F2400\nG1 Z2 F600\nM104 S0\n").toString()
+    }
+    fun pinHoles(text: String) = ModelCheck.check(text, pin, 0.0, featureMinMm = 0.17, infillMinMm = 0.88).filter { "a hole inside the walls" in it }
+    "a pin's middle as wide as two inner lines, its loops laid as arcs, is no hole; control: the arcs as 0.5 mm chords leave it a hole" {
+        val arcs = pinHoles(pinGcode(false))
+        val chords = pinHoles(pinGcode(true))
+        println("pin: arcs ${arcs.size} hole(s) ${arcs.take(1)}; 0.5 mm chords ${chords.size} ${chords.take(1)}")
+        arcs.shouldBeEmpty()
+        chords.isNotEmpty() shouldBe true
     }
 })

@@ -970,7 +970,8 @@ object ModelCheck {
     /**
      * An arc move (G2 clockwise, G3 counter-clockwise) from (x0, y0) to (x1, y1) about (cx, cy) as chords no longer than
      * [chordMm] ([ARC_CHORD_MM] unless a reader needs them finer, as `plymeld render` does to draw a curve round when
-     * magnified), each passed to [seg]; an arc ending where it starts is a full circle.
+     * magnified) and lying no further than [ARC_SAG_MM] inside the arc, each passed to [seg]; an arc ending where it starts
+     * is a full circle.
      */
     fun arcChords(x0: Double, y0: Double, x1: Double, y1: Double, cx: Double, cy: Double, cw: Boolean, chordMm: Double = ARC_CHORD_MM,
                   seg: (Double, Double, Double, Double) -> Unit) {
@@ -978,7 +979,9 @@ object ModelCheck {
         val a0 = Math.atan2(y0 - cy, x0 - cx); val a1 = Math.atan2(y1 - cy, x1 - cx)
         var sweep = if (cw) a0 - a1 else a1 - a0          // the angle traveled, positive
         while (sweep <= 1e-12) sweep += 2 * Math.PI
-        val n = maxOf(1, Math.ceil(sweep * r / chordMm).toInt())
+        // a chord of an arc of angle t lies r (1 - cos(t / 2)) inside it at its middle
+        val bySag = if (r <= ARC_SAG_MM) 1 else Math.ceil(sweep / (2 * Math.acos(1 - ARC_SAG_MM / r))).toInt()
+        val n = maxOf(1, Math.ceil(sweep * r / chordMm).toInt(), bySag)
         var px = x0; var py = y0
         for (k in 1..n) {
             val a = a0 + (if (cw) -sweep else sweep) * k / n
@@ -991,6 +994,13 @@ object ModelCheck {
      * short add no coarser step. plymeld's choice.
      */
     private const val ARC_CHORD_MM = 0.5
+    /**
+     * The furthest a chord of an arc lies inside it (mm): a fifth of the hole rule's cell (HoleCheck.CELL_MM). Chords only
+     * as long as [ARC_CHORD_MM] lay a small loop's beads inside its arcs (on a loop 0.69 mm round, 0.046 mm), and the
+     * ground they close in read that much narrower each side: a pin's middle as wide as the walls hand to infill read
+     * narrower, a hole. plymeld's choice.
+     */
+    const val ARC_SAG_MM = 0.005
 
     /**
      * Segments (x0, y0, x1, y1, mm; [s] holds four numbers a segment) bucketed on a 1 mm grid: the nearest one to a point

@@ -12,7 +12,8 @@ import plymeld.mesh.TriangleSoup
  * technique it exercises or the weakness it shows), the parts it is built from ([Models]), the [Rig] it is sliced with, and
  * the [Row]s of settings it is measured under (the first always [BASE], the rig as it is). CatalogTest slices every entry
  * under every row, takes the measures (CatalogMeasures) and compares them with the recorded baseline; the technique tests
- * (WallsByWidthTest, ThinRidgeTest, ExposedSliverTest, SpeckNearPartTest) read the same models against their own limits.
+ * (WallsByWidthTest, ThinRidgeTest, LetterChannelTest, ExposedSliverTest, SpeckNearPartTest) read the same models against their
+ * own limits.
  *
  * Adding a model: build it in [Models] (synthetic, in code; never a user's model), add an [Entry] here with what it is for,
  * its rig and the few rows of settings that matter to it, and accept the baseline (docs: the catalog's section of the
@@ -64,6 +65,8 @@ object Catalog {
         walls("bent stroke", "a stroke bent round three quarters of a circle, about as wide as two lines become three: the outer line where a middle line starts",
             { listOf(Models.bentStroke) }, WallRead(0.15, 0.4)),
         walls("block", "a block 10 by 10 mm: an ordinary area, its walls and infill", { listOf(Models.block) }),
+        Entry("letter strokes", "strokes of a letter, leaning and bent, with a channel inside their walls about two lines wide and a short bulge in it: the channel laid by a line, no stretch of it handed to infill as a piece narrower than two lines between the beads",
+            Slicing.WALLS, { listOf(Models.letterStrokes) }),
         Entry("web 1.0 mm", "a web 1.0 mm wide between a hole and the side: room for the two outer lines and a little", Slicing.WALLS,
             { listOf(Models.webBlock(1.0)) }, walls = webWindow(1.0)),
         Entry("web 1.6 mm", "a web 1.6 mm wide between a hole and the side: the two outer lines and a line between", Slicing.WALLS,
