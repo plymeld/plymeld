@@ -211,14 +211,16 @@ object Ordering {
     }
 
     /**
-     * Monotonic surfaces: when a surface cannot be one sweep, print its blocks
+     * Monotonic fills (every solid fill laid as lines): when a fill cannot be one sweep, print its blocks
      * in sweep order anyway, starting at the END of the sweep nearest the nozzle, never in the middle.
      * The sweep runs across the lines (normal to the longest segment). Each open path is turned to
      * advance in the sweep direction; blocks are ordered by where they begin along the sweep (ties by
      * position along the lines). Travel is secondary here.
      * Nearest-first would start a top with holes (the testplate's) at a hole in the middle and go back and forth.
+     * [extra] and [freeUm] price a travel as [order] does (a retraction's equivalent distance on a travel longer than
+     * [freeUm]): among the blocks that may go next, the cheapest to reach; and of the two senses, the cheaper.
      */
-    fun sweep(paths: List<ToolPath>, startX: Long, startY: Long): List<ToolPath> {
+    fun sweep(paths: List<ToolPath>, startX: Long, startY: Long, extra: ((Long, Long, Long, Long) -> Double)? = null, freeUm: Double = 0.0): List<ToolPath> {
         if (paths.isEmpty()) return paths
         var best = 0.0; var ux = 1.0; var uy = 0.0
         for (p in paths) for (k in 1 until p.xy.size / 2) {
@@ -237,19 +239,28 @@ object Ordering {
         }
         // The order: nearest-first, among the blocks that may go next. A block may go next when no
         // block still to print lies wholly behind it (a later block wholly behind an earlier one is
-        // the violation monotonic surfaces forbid; blocks side by side, e.g. the two sides of a hole, may go in
-        // either order). The block whose far edge is nearest is always allowed, so this never
+        // the violation monotonic fills forbid; blocks side by side, e.g. the two sides of a hole, may go in
+        // either order), and when every block holding a line right behind one of its own (on the scanline before, the two
+        // overlapping along the lines) is printed: blocks that overlap along the sweep may otherwise go in an order that
+        // lays a line after its neighbor ahead (a chain running on into one side of a fork, printed before the fork's other
+        // side, whose last line then goes down beside the chain's line ahead of it). The block whose far edge is nearest is
+        // always allowed when no block passes both (blocks that each hold a line behind the other), so this never
         // stalls. The first block is one at the start of the sweep. Sorting by where each block
         // begins is also violation-free but sends the nozzle back along the lines after every block
         // beside a hole.
         // Both sweep directions are planned; the one with less travel is kept.
         fun endX(p: ToolPath) = if (p.closed) p.xy[0] else p.xy[p.xy.size - 2]
         fun endY(p: ToolPath) = if (p.closed) p.xy[1] else p.xy[p.xy.size - 1]
+        val touching = touching(paths, ux, uy)
         fun ordered(ascending: Boolean): Pair<List<ToolPath>, Double> {
             val s = if (ascending) 1.0 else -1.0
             val ps = paths.map { turned(it, ascending) }
             val lo = DoubleArray(ps.size) { i -> val p = ps[i]; (0 until p.xy.size / 2).minOf { k -> s * across(p.xy[2 * k], p.xy[2 * k + 1]) } }
             val hi = DoubleArray(ps.size) { i -> val p = ps[i]; (0 until p.xy.size / 2).maxOf { k -> s * across(p.xy[2 * k], p.xy[2 * k + 1]) } }
+            // the blocks each must follow: those holding a line right behind one of its own, in this sense
+            val before = Array(ps.size) { ArrayList<Int>(2) }
+            for ((a, b) in touching) if (ascending) before[b] += a else before[a] += b
+            val done = BooleanArray(ps.size)
             val start = lo.min()
             val left = ps.indices.toMutableList()
             val out = ArrayList<ToolPath>(ps.size)
@@ -259,19 +270,69 @@ object Ordering {
                 var m1 = -1; var h2 = Double.POSITIVE_INFINITY
                 for (i in left) if (m1 < 0 || hi[i] < hi[m1]) { if (m1 >= 0) h2 = hi[m1]; m1 = i } else if (hi[i] < h2) h2 = hi[i]
                 var best = -1; var bestD = Double.POSITIVE_INFINITY
-                for (i in left) {
-                    if (lo[i] > (if (i == m1) h2 else hi[m1])) continue      // something left would lie wholly behind it
-                    if (out.isEmpty() && lo[i] != start) continue           // begin at the start of the sweep
-                    val d = Math.hypot((ps[i].xy[0] - x).toDouble(), (ps[i].xy[1] - y).toDouble())
-                    if (d < bestD || (d == bestD && along(ps[i].xy[0], ps[i].xy[1]) < along(ps[best].xy[0], ps[best].xy[1]))) { bestD = d; best = i }
+                for (strict in listOf(true, false)) {
+                    for (i in left) {
+                        if (lo[i] > (if (i == m1) h2 else hi[m1])) continue      // something left would lie wholly behind it
+                        if (strict && before[i].any { !done[it] }) continue     // a line right behind one of its own is still to print
+                        if (out.isEmpty() && lo[i] != start) continue           // begin at the start of the sweep
+                        var d = Math.hypot((ps[i].xy[0] - x).toDouble(), (ps[i].xy[1] - y).toDouble())
+                        if (extra != null && d > freeUm && d <= bestD) d += extra(x, y, ps[i].xy[0], ps[i].xy[1])
+                        if (d < bestD || (d == bestD && along(ps[i].xy[0], ps[i].xy[1]) < along(ps[best].xy[0], ps[best].xy[1]))) { bestD = d; best = i }
+                    }
+                    if (best >= 0) break
                 }
-                left.remove(best)
-                out.add(ps[best]); travel += bestD
+                if (best < 0) best = m1
+                left.remove(best); done[best] = true
+                out.add(ps[best]); travel += bestD.takeIf { it.isFinite() } ?: Math.hypot((ps[best].xy[0] - x).toDouble(), (ps[best].xy[1] - y).toDouble())
                 x = endX(ps[best]); y = endY(ps[best])
             }
             return out to travel
         }
         val up = ordered(true); val down = ordered(false)
         return if (up.second <= down.second) up.first else down.first
+    }
+
+    /** Two scanlines' positions across the lines closer than this (µm) are one scanline: the grid's rounding, not a spacing. */
+    private const val SAME_SCANLINE_UM = 5.0
+
+    /**
+     * The pairs of blocks (a, b) of [paths] where a holds a line right behind a line of b, across the lines (the direction
+     * ([ux], [uy])) in the ascending sense: on neighboring scanlines, the two overlapping along the lines. A block's lines are
+     * its moves along the lines (its links run along the region's edge, across them); scanlines are neighbors where no
+     * scanline lies between them and they are no further apart than one and a half times the median distance between
+     * neighboring scanlines (a hatch's spacing: further apart, a gap where the fill has none, a hole's width or the space
+     * between two pieces).
+     */
+    private fun touching(paths: List<ToolPath>, ux: Double, uy: Double): List<Pair<Int, Int>> {
+        if (paths.size < 2) return emptyList()
+        val nx = -uy; val ny = ux
+        // the lines: across, from and to along, block
+        val acr = ArrayList<Double>(); val a0 = ArrayList<Double>(); val a1 = ArrayList<Double>(); val blk = ArrayList<Int>()
+        for ((b, p) in paths.withIndex()) for (k in 1 until p.xy.size / 2) {
+            val x0 = p.xy[2 * k - 2].toDouble(); val y0 = p.xy[2 * k - 1].toDouble(); val x1 = p.xy[2 * k].toDouble(); val y1 = p.xy[2 * k + 1].toDouble()
+            val c0 = x0 * nx + y0 * ny; val c1 = x1 * nx + y1 * ny
+            val s0 = x0 * ux + y0 * uy; val s1 = x1 * ux + y1 * uy
+            if (Math.abs(c1 - c0) > SAME_SCANLINE_UM || Math.abs(s1 - s0) <= SAME_SCANLINE_UM) continue
+            acr += (c0 + c1) / 2; a0 += minOf(s0, s1); a1 += maxOf(s0, s1); blk += b
+        }
+        if (acr.size < 2) return emptyList()
+        val byAcross = acr.indices.sortedBy { acr[it] }
+        // scanlines: runs of lines no further apart across than SAME_SCANLINE_UM
+        val lines = ArrayList<MutableList<Int>>()
+        var last = Double.NEGATIVE_INFINITY
+        for (k in byAcross) { if (acr[k] - last > SAME_SCANLINE_UM) lines += ArrayList<Int>(); lines.last() += k; last = acr[k] }
+        if (lines.size < 2) return emptyList()
+        val at = DoubleArray(lines.size) { acr[lines[it][0]] }
+        val gaps = (1 until lines.size).map { at[it] - at[it - 1] }.sorted()
+        val reach = 1.5 * gaps[gaps.size / 2]
+        val out = LinkedHashSet<Pair<Int, Int>>()
+        for (j in 1 until lines.size) {
+            if (at[j] - at[j - 1] > reach) continue
+            for (p in lines[j - 1]) for (q in lines[j]) {
+                if (blk[p] == blk[q] || minOf(a1[p], a1[q]) - maxOf(a0[p], a0[q]) <= 0) continue
+                out += blk[p] to blk[q]
+            }
+        }
+        return out.toList()
     }
 }

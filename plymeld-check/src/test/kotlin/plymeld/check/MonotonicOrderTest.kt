@@ -3,6 +3,8 @@ package plymeld.check
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.shouldBe
 
+import plymeld.check.catalog.CatalogMeasures
+import plymeld.check.catalog.Models
 import plymeld.core.Feature
 import plymeld.core.IncrementalSlicer
 import plymeld.core.Ordering
@@ -50,5 +52,42 @@ class MonotonicOrderTest : StringSpec({
         // control: the same blocks ordered nearest-first from the middle of the plate go back
         val nearest = Ordering.order(top, 107_000, 158_000, improvePass = false)
         (backtracks(blocks(nearest)) > 0) shouldBe true
+    }
+
+    /** [paths] as the extruding moves a file would hold, for the catalog's sweep measure (one layer, one tool). */
+    fun moves(paths: List<ToolPath>, type: String) = paths.flatMap { p -> (1 until p.xy.size / 2).map { k ->
+        TechniqueRender.Move(p.xy[2 * k - 2] / 1000.0, p.xy[2 * k - 1] / 1000.0, 0.0, p.xy[2 * k] / 1000.0, p.xy[2 * k + 1] / 1000.0, 0.0, 1.0,
+            type, 0, 0.0, p.widthUm / 1000.0, p.heightUm / 1000.0, 0.0, Double.NaN, null, 0, 0.0) } }
+    fun reversed(paths: List<ToolPath>) = CatalogMeasures.sweeps(moves(paths, "Internal solid infill"), listOf("Internal solid infill")).getValue("Internal solid infill")
+
+    /*
+     * Internal solid is a monotonic fill too: the slab of the catalog's plates inlaid in a slab's bottom (its pockets empty,
+     * one filament) has its internal solid broken into pieces round the pockets on the layers beside them, and each such
+     * layer's internal solid is laid in one sweep across its pieces: no line laid against it (CatalogMeasures.sweeps). Control:
+     * the same paths ordered nearest-first (internal solid's order before it was a monotonic fill) lay lines against it on
+     * those layers. A layer of internal solid over the pockets, its area one piece with no hole, is one sweep too.
+     */
+    "internal solid broken round holes: each layer one sweep across its pieces (control: nearest-first goes back)" {
+        val layers = IncrementalSlicer(listOf(Models.inlaidPlates[0]), "test", "slab").planned(testSetup())
+        val broken = layers.filter { l -> l.topZUm - l.heightUm / 2 < Math.round(Models.INLAID_PLATE_MM * 1000) && l.paths.any { it.feature == Feature.SOLID } }
+        (broken.isNotEmpty()) shouldBe true
+        var nearestAgainst = 0
+        for (l in broken) {
+            val solid = l.paths.filter { it.feature == Feature.SOLID }
+            val r = reversed(solid)
+            println("  slab z ${l.topZUm / 1000.0}: internal solid ${solid.size} paths, ${r.lines} lines, ${r.reversed} against the sweep")
+            (solid.size > 1) shouldBe true                  // control: the area is broken into pieces
+            r.reversed shouldBe 0
+            val nearest = Ordering.order(solid, Math.round(Models.CX * 1000), Math.round(Models.CY * 1000))
+            nearestAgainst += reversed(nearest).reversed
+        }
+        println("  nearest-first from the slab's middle: $nearestAgainst lines against the sweep")
+        (nearestAgainst > 0) shouldBe true
+        // a layer over the pockets: one piece, one sweep too
+        val whole = layers.first { l -> l.topZUm - l.heightUm / 2 > Math.round(Models.INLAID_PLATE_MM * 1000) && l.paths.any { it.feature == Feature.SOLID } }
+        val w = reversed(whole.paths.filter { it.feature == Feature.SOLID })
+        println("  slab z ${whole.topZUm / 1000.0} (over the pockets): internal solid ${whole.paths.count { it.feature == Feature.SOLID }} paths, ${w.lines} lines, ${w.reversed} against the sweep")
+        (w.lines > 0) shouldBe true
+        w.reversed shouldBe 0
     }
 })

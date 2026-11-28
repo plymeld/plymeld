@@ -9,6 +9,16 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Changed
+
+- Internal solid infill is laid monotonically, as top and bottom surfaces are: on each layer all its lines one way
+  across the part, each laid beside the one before it. Where holes, or parts of another filament inside the object,
+  break its area into pieces, the pieces are laid in that sweep's order; before, they were laid nearest first, in runs
+  in opposite directions. A broken layer costs some travel: a few percent more travel and retractions on such prints,
+  and a fraction of a minute.
+- A top or bottom surface whose lines fork round a hole no longer lays the fork's second side after the line beside it
+  ahead: each piece of a surface is laid only once the lines just behind it are.
+
 ## [0.20261128.0] - 2026-11-28
 
 ### Fixed

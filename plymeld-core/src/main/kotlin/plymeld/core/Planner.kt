@@ -243,10 +243,14 @@ object Planner {
         val v = (if (center == null) 0.0 else -Math.sin(a) * center[0] + Math.cos(a) * center[1]) + shift
         return ((v % spacingUm) + spacingUm) % spacingUm
     }
-    /** The fills ordered together, nearest-first, inside an island (see the ordering stage). */
-    private val MIXED_FILLS = setOf(Feature.BRIDGE, Feature.INTERNAL_BRIDGE, Feature.SOLID, Feature.SPARSE)
-    /** Surfaces printed as a sweep (monotonic surfaces): chains break at splits, blocks go in sweep order. */
-    private val monotonic = setOf(Feature.TOP, Feature.BOTTOM, Feature.IRONING)
+    /** The fills ordered together, nearest-first, inside an island, after its internal solid (see the ordering stage). */
+    private val MIXED_FILLS = setOf(Feature.BRIDGE, Feature.INTERNAL_BRIDGE, Feature.SPARSE)
+    /**
+     * Fills printed as a sweep (monotonic): chains break at splits, blocks go in sweep order. Every solid fill laid as lines
+     * (a top, a bottom, internal solid) and ironing: each line laid beside the one before it, all one way across the island's
+     * area, however holes or another filament's parts break it.
+     */
+    private val monotonic = setOf(Feature.TOP, Feature.BOTTOM, Feature.SOLID, Feature.IRONING)
 
     /** Stage output: outlines after elephant-foot compensation, and each layer's walls. */
     class WallsOut(val effOutlines: List<List<Polygon>>, val walls: List<LayerWalls>)
@@ -1239,7 +1243,8 @@ object Planner {
                     // Link neighboring lines along the region boundary: one continuous run instead of a
                     // retract + travel per line, the connector at most ANCHOR_SPACINGS line spacings
                     // (sparse / internal solid: another slicer's anchor limit instead, when one is set).
-                    // Top / bottom (monotonic): only to the ADJACENT line, so the sweep stays monotonic.
+                    // Only to the ADJACENT line (Linker); the monotonic fills (top, bottom, internal solid) also end a
+                    // chain where the fill merges past a hole, so their blocks can go in sweep order.
                     val limit = if (feature == Feature.SPARSE || feature == Feature.SOLID) s.anchorMaxUm ?: ANCHOR_SPACINGS * spacing else ANCHOR_SPACINGS * spacing
                     // a curved band's top laid uphill (plan.technique.curved.top_order = "uphill"): laid
                     // one way across the peak, the half the sweep goes down has each new line below the last, beside it, where the
@@ -1638,7 +1643,10 @@ object Planner {
                             rings + Ordering.order(rest, ex, ey)
                         }
                     }
-                    else if (g[0].feature in monotonic) Ordering.sweep(g, lastX, lastY)
+                    // internal solid's travels priced as the other interior fills' (a travel that stays hidden needs no retraction);
+                    // internal solid in one path is laid as planned: it is one sweep either way round
+                    else if (g[0].feature == Feature.SOLID && g.size == 1) g
+                    else if (g[0].feature in monotonic) Ordering.sweep(g, lastX, lastY, if (g[0].feature in interior) interiorExtra else null, freeUm = minTravelUm)
                     else Ordering.order(g, lastX, lastY, if (g.any { it.feature in interior }) interiorExtra
                         else if (g.all { it.feature == Feature.OUTER_WALL || it.feature == Feature.INNER_WALL }) wallExtra else null, freeUm = minTravelUm)
                 ordered.addAll(o)
@@ -1771,12 +1779,13 @@ object Planner {
                 todo.remove(k)
                 val mine = byIsland.getValue(k)
                 emitWalls(mine.filter { it.feature == Feature.OUTER_WALL || it.feature == Feature.INNER_WALL })
-                // Fills: the monotonic surfaces are sweeps of their own; bridges, internal solid
-                // and sparse infill are ONE nearest-first group. Feature by feature, each group started
-                // wherever the last one ended and crossed the island to reach its nearest path.
+                // Fills: the monotonic fills (a bottom, internal solid, a top) are sweeps of their own, each across the
+                // whole island; then bridges, internal bridges and sparse infill are ONE nearest-first group from where the
+                // internal solid ended. Feature by feature, each group started wherever the last one ended and crossed the
+                // island to reach its nearest path.
                 for (f in inIsland.drop(2)) when (f) {
                     Feature.BRIDGE, Feature.INTERNAL_BRIDGE, Feature.SPARSE -> {}
-                    Feature.SOLID -> emit(mine.filter { it.feature in MIXED_FILLS })
+                    Feature.SOLID -> { emit(mine.filter { it.feature == Feature.SOLID }); emit(mine.filter { it.feature in MIXED_FILLS }) }
                     else -> emit(mine.filter { it.feature == f })
                 }
             }

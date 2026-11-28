@@ -49,6 +49,30 @@ class OrderingTest : StringSpec({
         Ordering.order(listOf(a, b), 10_500, 0, improvePass = false).first().xy[0] shouldBe 10_000L
     }
 
+    /*
+     * A fill forking round a hole, laid by a sweep: a chain C up the trunk (three lines 10 mm long) and on into the left side
+     * (three lines 4 mm long), the right side R (three lines beside them), and the merge M above both (two lines). Swept
+     * downward from M (the head starts above it), C's start is the nearer once M is laid, and neither C nor R lies wholly
+     * behind the other; C first would lay the trunk's top line before R, whose bottom line then goes down beside it: the
+     * sweep lays R before C, since R holds a line right behind (above) one of C's. Control: C's start is the nearer from
+     * where M ends, so the order by nearness and far edge alone takes C first.
+     */
+    "a sweep lays a fork's other side before the chain running on into one side, when that chain's line is ahead of it" {
+        val sp = 450L
+        fun y(k: Int) = k * sp
+        val c = ToolPath(Feature.TOP, longArrayOf(0, y(0), 10_000, y(0), 10_000, y(1), 0, y(1), 0, y(2), 10_000, y(2),
+            4_000, y(3), 0, y(3), 0, y(4), 4_000, y(4), 4_000, y(5), 0, y(5)), false, 450, 200)
+        val r = ToolPath(Feature.TOP, longArrayOf(6_000, y(3), 10_000, y(3), 10_000, y(4), 6_000, y(4), 6_000, y(5), 10_000, y(5)), false, 450, 200)
+        val m = ToolPath(Feature.TOP, longArrayOf(0, y(6), 10_000, y(6), 10_000, y(7), 0, y(7)), false, 450, 200)
+        val seq = Ordering.sweep(listOf(c, r, m), 0, y(8))
+        fun which(p: ToolPath) = listOf(c, r, m).indexOfFirst { q -> q.xy.contentEquals(p.xy) || q.reversed().xy.contentEquals(p.xy) }
+        seq.map { which(it) } shouldBe listOf(2, 1, 0)
+        // control: from where M ends (laid downward, it ends on its lower line), C's start (its top, turned downward) is nearer
+        val mEnd = seq[0].xy.let { longArrayOf(it[it.size - 2], it[it.size - 1]) }
+        val cStart = c.reversed().xy; val rStart = seq[1].xy
+        (Math.hypot((cStart[0] - mEnd[0]).toDouble(), (cStart[1] - mEnd[1]).toDouble()) < Math.hypot((rStart[0] - mEnd[0]).toDouble(), (rStart[1] - mEnd[1]).toDouble())) shouldBe true
+    }
+
     // a short line beside the end of a long one: greedy took the next long line (nearer) first and reached the short line
     // last, from 20 mm away, by a retracted travel; it belongs between the two, each travel under the retraction's minimum
     "a path whose travel would retract is moved beside a path ending within the free travel" {

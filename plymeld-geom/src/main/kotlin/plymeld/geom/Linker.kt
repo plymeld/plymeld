@@ -18,7 +18,7 @@ object Linker {
      * of a fork: each side is a block of its own. Without it a chain runs on into one side, and a sweep that runs against the
      * chains (from the merge back to the fork) may print that chain's lines before the fork and then the other side, whose
      * last line then goes down between two printed neighbors (the calibration plates' bases: diagonal lines round a notch
-     * in the edge); used there (CalibrationPlate). The slicing pipeline's monotonic surfaces do not set it.
+     * in the edge); used there (CalibrationPlate). The slicing pipeline's monotonic fills (tops, bottoms, internal solid) do not set it.
      */
     fun link(segs: LongArray, scanline: IntArray, region: List<Polygon>, maxConnectorUm: Long, breakAtSplits: Boolean = false, breakAtForks: Boolean = false): List<LongArray> {
         val n = segs.size / 4
@@ -26,7 +26,7 @@ object Linker {
         // Along-line interval of each segment (all hatch lines share one direction). With
         // `breakAtSplits`, a chain ends where the fill MERGES (the next line overlaps two lines of this
         // scanline, e.g. past a hole): it would otherwise run on past a side not yet printed, and the
-        // sweep would have to come back (monotonic surfaces). At a split the chain may carry on
+        // sweep would have to come back (monotonic fills). At a split the chain may carry on
         // into one side; the other side is its own block. Breaking at splits too would nearly double the runs on the
         // testplate's top.
         val lo = DoubleArray(n); val hi = DoubleArray(n)

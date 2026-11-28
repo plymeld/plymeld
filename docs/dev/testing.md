@@ -8,7 +8,7 @@ models in `test-models/`, and test resources.
 The catalog ([Catalog.kt](../../plymeld-check/src/test/kotlin/plymeld/check/catalog/Catalog.kt)) is one list of small
 models built in code, each with a stable name and a line saying what it is for: one technique, or one known weakness
 (a lens growing from one line to two, a stroke about as wide as two lines become three, a web between a hole and the side, a thin ridge, a sliver of one filament on
-another's face, an inlay on a leaning face, a plate of a second filament buried just behind a leaning face, small teeth hanging off a second part's edge, slivers of one filament ending inside another's area, seams on a cylinder and a post, an overhang ladder, bridges, sloped and
+another's face, an inlay on a leaning face, a plate of a second filament buried just behind a leaning face, small teeth hanging off a second part's edge, slivers of one filament ending inside another's area, plates of one filament inlaid in a slab's bottom breaking its solid layers into pieces, seams on a cylinder and a post, an overhang ladder, bridges, sloped and
 domed tops, an oval's top laid in round rings, a stepped top whose fills of several kinds share edges, a small pillar, holes and pins). Each is sliced with a rig (the machine and plan values over the slicing
 tests' setup) under a few rows of settings that matter to it, the first always the rig as it is.
 
@@ -21,7 +21,8 @@ predicted time; the paths and length of every feature type; and the jagged lines
 slicing tolerance (all, and the outer wall's), the outer wall's kinks (a turn of more than 150 degrees beside a move
 shorter than the outer line's width), and of those its zigzags (the line's direction over a line width before the kink
 and after it within 120 degrees: it goes on the way it came, where a tip's run-in goes back where it came from; nor a
-square end's corner, where the loop turns a right angle into the corner and goes back within two widths). Planning
+square end's corner, where the loop turns a right angle into the corner and goes back within two widths); and each solid
+fill type's lines laid against their fill's sweep (a line laid after its neighbor ahead of it). Planning
 time is not among them (it varies from run
 to run). The measures are compared with the recorded baseline,
 [baseline.tsv](../../plymeld-check/src/test/resources/plymeld/check/catalog/baseline.tsv): one line per model, row
@@ -35,7 +36,8 @@ of straight sides and true arcs (the block, posts, cylinder, holes, pins, fins, 
 the two-color piece) to no move shorter than the slicing tolerance and no kink, and the outer wall of the models of narrow
 islands laid by their beads (the lenses, wedge, strip, ring, blob, letter E, pointed blob, bent stroke and teeth) to no
 zigzag (a tip's line runs in and turns back, and a square end's corners are run into, by design, so their kinks are
-held by the baseline, as are the other features).
+held by the baseline, as are the other features). Every model's solid fills are held to no line laid against their
+sweep, but a finding the test names.
 
 **Adding a model.** Build it in
 [Models.kt](../../plymeld-check/src/test/kotlin/plymeld/check/catalog/Models.kt) (synthetic, in code, never a user's

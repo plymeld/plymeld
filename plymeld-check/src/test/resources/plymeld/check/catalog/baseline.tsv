@@ -124,6 +124,12 @@ block	base	strings.unretracted_over_air_mm	4.25
 block	base	strings.unretracted_shown_mm	4.25
 block	base	strings.unretracted_travels	36
 block	base	strings.visible_restarts	2
+block	base	sweep.Bottom surface.lines	19
+block	base	sweep.Bottom surface.reversed_lines	0
+block	base	sweep.Internal solid infill.lines	207
+block	base	sweep.Internal solid infill.reversed_lines	0
+block	base	sweep.Top surface.lines	35
+block	base	sweep.Top surface.reversed_lines	0
 block	base	time_s	79.4
 block	base	walls.doubled_mm2	0.0000
 block	base	walls.largest_shift_mm	0.312
@@ -172,13 +178,17 @@ bridges	base	seams.scar_mm2	0.000
 bridges	base	seams.scarf	0
 bridges	base	strings.restart_starved_mm	15.00
 bridges	base	strings.retractions	132
-bridges	base	strings.travel_mm	1873.94
+bridges	base	strings.travel_mm	2030.13
 bridges	base	strings.unretracted_across_tops_mm	0.00
 bridges	base	strings.unretracted_over_air_mm	2.28
 bridges	base	strings.unretracted_shown_mm	2.28
 bridges	base	strings.unretracted_travels	309
 bridges	base	strings.visible_restarts	3
-bridges	base	time_s	211.5
+bridges	base	sweep.Internal solid infill.lines	249
+bridges	base	sweep.Internal solid infill.reversed_lines	0
+bridges	base	sweep.Top surface.lines	143
+bridges	base	sweep.Top surface.reversed_lines	0
+bridges	base	time_s	211.8
 buried fin 0.1 mm	base	check.problems	0
 buried fin 0.1 mm	base	feature.Bottom surface.length_mm	296.58
 buried fin 0.1 mm	base	feature.Bottom surface.paths	2
@@ -220,6 +230,12 @@ buried fin 0.1 mm	base	strings.unretracted_over_air_mm	0.46
 buried fin 0.1 mm	base	strings.unretracted_shown_mm	1.43
 buried fin 0.1 mm	base	strings.unretracted_travels	83
 buried fin 0.1 mm	base	strings.visible_restarts	3
+buried fin 0.1 mm	base	sweep.Bottom surface.lines	44
+buried fin 0.1 mm	base	sweep.Bottom surface.reversed_lines	0
+buried fin 0.1 mm	base	sweep.Internal solid infill.lines	683
+buried fin 0.1 mm	base	sweep.Internal solid infill.reversed_lines	0
+buried fin 0.1 mm	base	sweep.Top surface.lines	81
+buried fin 0.1 mm	base	sweep.Top surface.reversed_lines	0
 buried fin 0.1 mm	base	time_s	260.6
 buried fin 0.5 mm	base	check.problems	0
 buried fin 0.5 mm	base	feature.Bottom surface.length_mm	296.58
@@ -262,6 +278,12 @@ buried fin 0.5 mm	base	strings.unretracted_over_air_mm	0.46
 buried fin 0.5 mm	base	strings.unretracted_shown_mm	1.43
 buried fin 0.5 mm	base	strings.unretracted_travels	81
 buried fin 0.5 mm	base	strings.visible_restarts	18
+buried fin 0.5 mm	base	sweep.Bottom surface.lines	44
+buried fin 0.5 mm	base	sweep.Bottom surface.reversed_lines	0
+buried fin 0.5 mm	base	sweep.Internal solid infill.lines	680
+buried fin 0.5 mm	base	sweep.Internal solid infill.reversed_lines	0
+buried fin 0.5 mm	base	sweep.Top surface.lines	81
+buried fin 0.5 mm	base	sweep.Top surface.reversed_lines	0
 buried fin 0.5 mm	base	time_s	267.6
 cornered post	base	check.problems	0
 cornered post	base	feature.Bottom surface.length_mm	82.99
@@ -305,6 +327,12 @@ cornered post	base	strings.unretracted_over_air_mm	4.25
 cornered post	base	strings.unretracted_shown_mm	4.25
 cornered post	base	strings.unretracted_travels	121
 cornered post	base	strings.visible_restarts	2
+cornered post	base	sweep.Bottom surface.lines	15
+cornered post	base	sweep.Bottom surface.reversed_lines	0
+cornered post	base	sweep.Internal solid infill.lines	63
+cornered post	base	sweep.Internal solid infill.reversed_lines	0
+cornered post	base	sweep.Top surface.lines	32
+cornered post	base	sweep.Top surface.reversed_lines	0
 cornered post	base	time_s	269.6
 cornered post	least visible seam	check.problems	0
 cornered post	least visible seam	feature.Bottom surface.length_mm	82.99
@@ -348,6 +376,12 @@ cornered post	least visible seam	strings.unretracted_over_air_mm	4.25
 cornered post	least visible seam	strings.unretracted_shown_mm	4.25
 cornered post	least visible seam	strings.unretracted_travels	121
 cornered post	least visible seam	strings.visible_restarts	2
+cornered post	least visible seam	sweep.Bottom surface.lines	15
+cornered post	least visible seam	sweep.Bottom surface.reversed_lines	0
+cornered post	least visible seam	sweep.Internal solid infill.lines	63
+cornered post	least visible seam	sweep.Internal solid infill.reversed_lines	0
+cornered post	least visible seam	sweep.Top surface.lines	32
+cornered post	least visible seam	sweep.Top surface.reversed_lines	0
 cornered post	least visible seam	time_s	269.6
 cornered post	scarf seams	check.problems	0
 cornered post	scarf seams	feature.Bottom surface.length_mm	82.99
@@ -391,6 +425,12 @@ cornered post	scarf seams	strings.unretracted_over_air_mm	4.25
 cornered post	scarf seams	strings.unretracted_shown_mm	4.25
 cornered post	scarf seams	strings.unretracted_travels	87
 cornered post	scarf seams	strings.visible_restarts	2
+cornered post	scarf seams	sweep.Bottom surface.lines	15
+cornered post	scarf seams	sweep.Bottom surface.reversed_lines	0
+cornered post	scarf seams	sweep.Internal solid infill.lines	63
+cornered post	scarf seams	sweep.Internal solid infill.reversed_lines	0
+cornered post	scarf seams	sweep.Top surface.lines	32
+cornered post	scarf seams	sweep.Top surface.reversed_lines	0
 cornered post	scarf seams	time_s	277.7
 deep lens	base	check.problems	0
 deep lens	base	feature.Brim.length_mm	171.48
@@ -467,14 +507,18 @@ domed top	base	seams.point	30
 domed top	base	seams.scar_mm2	1.232
 domed top	base	seams.scarf	0
 domed top	base	strings.restart_starved_mm	10.00
-domed top	base	strings.retractions	42
-domed top	base	strings.travel_mm	290.68
+domed top	base	strings.retractions	43
+domed top	base	strings.travel_mm	290.59
 domed top	base	strings.unretracted_across_tops_mm	0.00
 domed top	base	strings.unretracted_over_air_mm	4.25
 domed top	base	strings.unretracted_shown_mm	4.25
-domed top	base	strings.unretracted_travels	79
+domed top	base	strings.unretracted_travels	78
 domed top	base	strings.visible_restarts	2
-domed top	base	time_s	197.9
+domed top	base	sweep.Bottom surface.lines	21
+domed top	base	sweep.Bottom surface.reversed_lines	0
+domed top	base	sweep.Internal solid infill.lines	59
+domed top	base	sweep.Internal solid infill.reversed_lines	0
+domed top	base	time_s	198.0
 domed top	flat tops ironed	check.problems	0
 domed top	flat tops ironed	feature.Bottom surface.length_mm	175.24
 domed top	flat tops ironed	feature.Bottom surface.paths	1
@@ -510,14 +554,18 @@ domed top	flat tops ironed	seams.point	30
 domed top	flat tops ironed	seams.scar_mm2	1.232
 domed top	flat tops ironed	seams.scarf	0
 domed top	flat tops ironed	strings.restart_starved_mm	10.00
-domed top	flat tops ironed	strings.retractions	42
-domed top	flat tops ironed	strings.travel_mm	291.10
+domed top	flat tops ironed	strings.retractions	43
+domed top	flat tops ironed	strings.travel_mm	291.01
 domed top	flat tops ironed	strings.unretracted_across_tops_mm	0.00
 domed top	flat tops ironed	strings.unretracted_over_air_mm	4.25
 domed top	flat tops ironed	strings.unretracted_shown_mm	4.25
-domed top	flat tops ironed	strings.unretracted_travels	80
+domed top	flat tops ironed	strings.unretracted_travels	79
 domed top	flat tops ironed	strings.visible_restarts	2
-domed top	flat tops ironed	time_s	198.9
+domed top	flat tops ironed	sweep.Bottom surface.lines	21
+domed top	flat tops ironed	sweep.Bottom surface.reversed_lines	0
+domed top	flat tops ironed	sweep.Internal solid infill.lines	59
+domed top	flat tops ironed	sweep.Internal solid infill.reversed_lines	0
+domed top	flat tops ironed	time_s	199.0
 exposed wedge	base	check.problems	0
 exposed wedge	base	feature.Bottom surface.length_mm	325.25
 exposed wedge	base	feature.Bottom surface.paths	1
@@ -559,6 +607,12 @@ exposed wedge	base	strings.unretracted_over_air_mm	0.45
 exposed wedge	base	strings.unretracted_shown_mm	0.45
 exposed wedge	base	strings.unretracted_travels	73
 exposed wedge	base	strings.visible_restarts	12
+exposed wedge	base	sweep.Bottom surface.lines	37
+exposed wedge	base	sweep.Bottom surface.reversed_lines	0
+exposed wedge	base	sweep.Internal solid infill.lines	551
+exposed wedge	base	sweep.Internal solid infill.reversed_lines	0
+exposed wedge	base	sweep.Top surface.lines	60
+exposed wedge	base	sweep.Top surface.reversed_lines	0
 exposed wedge	base	time_s	322.5
 exposed wedge	sliver at the surface to its neighbor	check.problems	0
 exposed wedge	sliver at the surface to its neighbor	feature.Bottom surface.length_mm	325.25
@@ -601,6 +655,12 @@ exposed wedge	sliver at the surface to its neighbor	strings.unretracted_over_air
 exposed wedge	sliver at the surface to its neighbor	strings.unretracted_shown_mm	0.45
 exposed wedge	sliver at the surface to its neighbor	strings.unretracted_travels	69
 exposed wedge	sliver at the surface to its neighbor	strings.visible_restarts	12
+exposed wedge	sliver at the surface to its neighbor	sweep.Bottom surface.lines	37
+exposed wedge	sliver at the surface to its neighbor	sweep.Bottom surface.reversed_lines	0
+exposed wedge	sliver at the surface to its neighbor	sweep.Internal solid infill.lines	551
+exposed wedge	sliver at the surface to its neighbor	sweep.Internal solid infill.reversed_lines	0
+exposed wedge	sliver at the surface to its neighbor	sweep.Top surface.lines	60
+exposed wedge	sliver at the surface to its neighbor	sweep.Top surface.reversed_lines	0
 exposed wedge	sliver at the surface to its neighbor	time_s	322.4
 finger inside a second part	base	check.problems	0
 finger inside a second part	base	feature.Bottom surface.length_mm	28.46
@@ -636,14 +696,16 @@ finger inside a second part	base	seams.point	210
 finger inside a second part	base	seams.scar_mm2	3.081
 finger inside a second part	base	seams.scarf	0
 finger inside a second part	base	strings.restart_starved_mm	360.00
-finger inside a second part	base	strings.retractions	229
-finger inside a second part	base	strings.travel_mm	5219.04
+finger inside a second part	base	strings.retractions	236
+finger inside a second part	base	strings.travel_mm	5225.87
 finger inside a second part	base	strings.unretracted_across_tops_mm	0.00
 finger inside a second part	base	strings.unretracted_over_air_mm	0.46
 finger inside a second part	base	strings.unretracted_shown_mm	0.46
-finger inside a second part	base	strings.unretracted_travels	197
+finger inside a second part	base	strings.unretracted_travels	190
 finger inside a second part	base	strings.visible_restarts	72
-finger inside a second part	base	time_s	263.2
+finger inside a second part	base	sweep.Top surface.lines	43
+finger inside a second part	base	sweep.Top surface.reversed_lines	0
+finger inside a second part	base	time_s	264.3
 holes	base	check.problems	0
 holes	base	feature.Bottom surface.length_mm	429.99
 holes	base	feature.Bottom surface.paths	11
@@ -653,8 +715,8 @@ holes	base	feature.Inner wall.length_mm	2090.76
 holes	base	feature.Inner wall.paths	93
 holes	base	feature.Internal Bridge.length_mm	638.04
 holes	base	feature.Internal Bridge.paths	8
-holes	base	feature.Internal solid infill.length_mm	1850.09
-holes	base	feature.Internal solid infill.paths	22
+holes	base	feature.Internal solid infill.length_mm	1843.69
+holes	base	feature.Internal solid infill.paths	34
 holes	base	feature.Outer wall.length_mm	1953.34
 holes	base	feature.Outer wall.paths	75
 holes	base	feature.Prime line.length_mm	30.00
@@ -663,8 +725,8 @@ holes	base	feature.Sparse infill.length_mm	1719.79
 holes	base	feature.Sparse infill.paths	126
 holes	base	feature.Top surface.length_mm	894.92
 holes	base	feature.Top surface.paths	13
-holes	base	filament.T0_mm	315.77
-holes	base	filament_mm	315.77
+holes	base	filament.T0_mm	315.57
+holes	base	filament_mm	315.57
 holes	base	laid_twice.area_mm2	0.000
 holes	base	laid_twice.layers	0
 holes	base	laid_twice.spots	0
@@ -679,14 +741,20 @@ holes	base	seams.point	75
 holes	base	seams.scar_mm2	2.571
 holes	base	seams.scarf	0
 holes	base	strings.restart_starved_mm	120.00
-holes	base	strings.retractions	138
-holes	base	strings.travel_mm	1978.91
+holes	base	strings.retractions	153
+holes	base	strings.travel_mm	2107.01
 holes	base	strings.unretracted_across_tops_mm	1.99
 holes	base	strings.unretracted_over_air_mm	4.25
 holes	base	strings.unretracted_shown_mm	6.24
-holes	base	strings.unretracted_travels	220
+holes	base	strings.unretracted_travels	217
 holes	base	strings.visible_restarts	24
-holes	base	time_s	188.2
+holes	base	sweep.Bottom surface.lines	81
+holes	base	sweep.Bottom surface.reversed_lines	0
+holes	base	sweep.Internal solid infill.lines	339
+holes	base	sweep.Internal solid infill.reversed_lines	0
+holes	base	sweep.Top surface.lines	171
+holes	base	sweep.Top surface.reversed_lines	0
+holes	base	time_s	190.5
 inlay on a leaning face	base	check.problems	0
 inlay on a leaning face	base	feature.Bottom surface.length_mm	221.65
 inlay on a leaning face	base	feature.Bottom surface.paths	1
@@ -721,14 +789,20 @@ inlay on a leaning face	base	seams.point	141
 inlay on a leaning face	base	seams.scar_mm2	2.573
 inlay on a leaning face	base	seams.scarf	0
 inlay on a leaning face	base	strings.restart_starved_mm	330.00
-inlay on a leaning face	base	strings.retractions	327
-inlay on a leaning face	base	strings.travel_mm	8570.75
+inlay on a leaning face	base	strings.retractions	329
+inlay on a leaning face	base	strings.travel_mm	8648.94
 inlay on a leaning face	base	strings.unretracted_across_tops_mm	0.00
 inlay on a leaning face	base	strings.unretracted_over_air_mm	0.45
 inlay on a leaning face	base	strings.unretracted_shown_mm	0.45
-inlay on a leaning face	base	strings.unretracted_travels	196
+inlay on a leaning face	base	strings.unretracted_travels	194
 inlay on a leaning face	base	strings.visible_restarts	66
-inlay on a leaning face	base	time_s	444.4
+inlay on a leaning face	base	sweep.Bottom surface.lines	29
+inlay on a leaning face	base	sweep.Bottom surface.reversed_lines	0
+inlay on a leaning face	base	sweep.Internal solid infill.lines	102
+inlay on a leaning face	base	sweep.Internal solid infill.reversed_lines	0
+inlay on a leaning face	base	sweep.Top surface.lines	47
+inlay on a leaning face	base	sweep.Top surface.reversed_lines	0
+inlay on a leaning face	base	time_s	444.9
 inlay on a leaning face	support	check.problems	0
 inlay on a leaning face	support	feature.Bottom surface.length_mm	221.65
 inlay on a leaning face	support	feature.Bottom surface.paths	1
@@ -767,14 +841,20 @@ inlay on a leaning face	support	seams.point	141
 inlay on a leaning face	support	seams.scar_mm2	2.573
 inlay on a leaning face	support	seams.scarf	0
 inlay on a leaning face	support	strings.restart_starved_mm	360.00
-inlay on a leaning face	support	strings.retractions	350
-inlay on a leaning face	support	strings.travel_mm	8679.92
+inlay on a leaning face	support	strings.retractions	352
+inlay on a leaning face	support	strings.travel_mm	8757.04
 inlay on a leaning face	support	strings.unretracted_across_tops_mm	0.00
 inlay on a leaning face	support	strings.unretracted_over_air_mm	0.45
 inlay on a leaning face	support	strings.unretracted_shown_mm	0.45
-inlay on a leaning face	support	strings.unretracted_travels	191
+inlay on a leaning face	support	strings.unretracted_travels	189
 inlay on a leaning face	support	strings.visible_restarts	72
-inlay on a leaning face	support	time_s	448.4
+inlay on a leaning face	support	sweep.Bottom surface.lines	29
+inlay on a leaning face	support	sweep.Bottom surface.reversed_lines	0
+inlay on a leaning face	support	sweep.Internal solid infill.lines	102
+inlay on a leaning face	support	sweep.Internal solid infill.reversed_lines	0
+inlay on a leaning face	support	sweep.Top surface.lines	47
+inlay on a leaning face	support	sweep.Top surface.reversed_lines	0
+inlay on a leaning face	support	time_s	449.0
 lens alone	base	check.problems	0
 lens alone	base	feature.Brim.length_mm	206.01
 lens alone	base	feature.Brim.paths	10
@@ -856,6 +936,8 @@ lens beside a second part	base	strings.unretracted_over_air_mm	0.45
 lens beside a second part	base	strings.unretracted_shown_mm	0.45
 lens beside a second part	base	strings.unretracted_travels	53
 lens beside a second part	base	strings.visible_restarts	21
+lens beside a second part	base	sweep.Internal solid infill.lines	21
+lens beside a second part	base	sweep.Internal solid infill.reversed_lines	0
 lens beside a second part	base	time_s	146.5
 lens beside a second part	base	walls.doubled_mm2	0.6911
 lens beside a second part	base	walls.largest_shift_mm	0.038
@@ -942,12 +1024,18 @@ oval top in rings	base	seams.scar_mm2	0.234
 oval top in rings	base	seams.scarf	0
 oval top in rings	base	strings.restart_starved_mm	215.00
 oval top in rings	base	strings.retractions	53
-oval top in rings	base	strings.travel_mm	685.54
+oval top in rings	base	strings.travel_mm	685.93
 oval top in rings	base	strings.unretracted_across_tops_mm	0.54
 oval top in rings	base	strings.unretracted_over_air_mm	4.25
 oval top in rings	base	strings.unretracted_shown_mm	4.79
 oval top in rings	base	strings.unretracted_travels	19
 oval top in rings	base	strings.visible_restarts	43
+oval top in rings	base	sweep.Bottom surface.lines	37
+oval top in rings	base	sweep.Bottom surface.reversed_lines	0
+oval top in rings	base	sweep.Internal solid infill.lines	188
+oval top in rings	base	sweep.Internal solid infill.reversed_lines	0
+oval top in rings	base	sweep.Top surface.lines	37
+oval top in rings	base	sweep.Top surface.reversed_lines	0
 oval top in rings	base	time_s	74.8
 oval top in rings	base	walls.doubled_mm2	0.1660
 oval top in rings	base	walls.largest_shift_mm	0.000
@@ -969,8 +1057,8 @@ overhang ladder	base	feature.Inner wall.length_mm	1515.19
 overhang ladder	base	feature.Inner wall.paths	65
 overhang ladder	base	feature.Internal Bridge.length_mm	234.40
 overhang ladder	base	feature.Internal Bridge.paths	4
-overhang ladder	base	feature.Internal solid infill.length_mm	2445.09
-overhang ladder	base	feature.Internal solid infill.paths	53
+overhang ladder	base	feature.Internal solid infill.length_mm	2444.03
+overhang ladder	base	feature.Internal solid infill.paths	55
 overhang ladder	base	feature.Outer wall.length_mm	1719.55
 overhang ladder	base	feature.Outer wall.paths	65
 overhang ladder	base	feature.Prime line.length_mm	30.00
@@ -979,8 +1067,8 @@ overhang ladder	base	feature.Sparse infill.length_mm	773.01
 overhang ladder	base	feature.Sparse infill.paths	56
 overhang ladder	base	feature.Top surface.length_mm	985.74
 overhang ladder	base	feature.Top surface.paths	12
-overhang ladder	base	filament.T0_mm	267.53
-overhang ladder	base	filament_mm	267.53
+overhang ladder	base	filament.T0_mm	267.50
+overhang ladder	base	filament_mm	267.50
 overhang ladder	base	laid_twice.area_mm2	0.000
 overhang ladder	base	laid_twice.layers	0
 overhang ladder	base	laid_twice.spots	0
@@ -994,15 +1082,21 @@ overhang ladder	base	seams.jog_mm	52.794
 overhang ladder	base	seams.point	65
 overhang ladder	base	seams.scar_mm2	4.922
 overhang ladder	base	seams.scarf	0
-overhang ladder	base	strings.restart_starved_mm	55.00
-overhang ladder	base	strings.retractions	136
-overhang ladder	base	strings.travel_mm	1158.58
-overhang ladder	base	strings.unretracted_across_tops_mm	0.67
+overhang ladder	base	strings.restart_starved_mm	60.00
+overhang ladder	base	strings.retractions	139
+overhang ladder	base	strings.travel_mm	1243.90
+overhang ladder	base	strings.unretracted_across_tops_mm	0.27
 overhang ladder	base	strings.unretracted_over_air_mm	4.25
-overhang ladder	base	strings.unretracted_shown_mm	4.92
-overhang ladder	base	strings.unretracted_travels	130
-overhang ladder	base	strings.visible_restarts	11
-overhang ladder	base	time_s	201.6
+overhang ladder	base	strings.unretracted_shown_mm	4.52
+overhang ladder	base	strings.unretracted_travels	129
+overhang ladder	base	strings.visible_restarts	12
+overhang ladder	base	sweep.Bottom surface.lines	53
+overhang ladder	base	sweep.Bottom surface.reversed_lines	0
+overhang ladder	base	sweep.Internal solid infill.lines	322
+overhang ladder	base	sweep.Internal solid infill.reversed_lines	0
+overhang ladder	base	sweep.Top surface.lines	240
+overhang ladder	base	sweep.Top surface.reversed_lines	0
+overhang ladder	base	time_s	202.2
 overhang ladder	support	check.problems	0
 overhang ladder	support	feature.Bottom surface.length_mm	506.19
 overhang ladder	support	feature.Bottom surface.paths	1
@@ -1012,8 +1106,8 @@ overhang ladder	support	feature.Inner wall.length_mm	1515.19
 overhang ladder	support	feature.Inner wall.paths	65
 overhang ladder	support	feature.Internal Bridge.length_mm	234.40
 overhang ladder	support	feature.Internal Bridge.paths	4
-overhang ladder	support	feature.Internal solid infill.length_mm	2445.09
-overhang ladder	support	feature.Internal solid infill.paths	53
+overhang ladder	support	feature.Internal solid infill.length_mm	2444.03
+overhang ladder	support	feature.Internal solid infill.paths	55
 overhang ladder	support	feature.Outer wall.length_mm	1719.55
 overhang ladder	support	feature.Outer wall.paths	65
 overhang ladder	support	feature.Prime line.length_mm	30.00
@@ -1026,8 +1120,8 @@ overhang ladder	support	feature.Support.length_mm	11.77
 overhang ladder	support	feature.Support.paths	15
 overhang ladder	support	feature.Top surface.length_mm	985.74
 overhang ladder	support	feature.Top surface.paths	12
-overhang ladder	support	filament.T0_mm	277.03
-overhang ladder	support	filament_mm	277.03
+overhang ladder	support	filament.T0_mm	277.00
+overhang ladder	support	filament_mm	277.00
 overhang ladder	support	laid_twice.area_mm2	0.000
 overhang ladder	support	laid_twice.layers	0
 overhang ladder	support	laid_twice.spots	0
@@ -1041,15 +1135,21 @@ overhang ladder	support	seams.jog_mm	52.794
 overhang ladder	support	seams.point	65
 overhang ladder	support	seams.scar_mm2	4.922
 overhang ladder	support	seams.scarf	0
-overhang ladder	support	strings.restart_starved_mm	55.00
-overhang ladder	support	strings.retractions	170
-overhang ladder	support	strings.travel_mm	1444.68
-overhang ladder	support	strings.unretracted_across_tops_mm	0.67
+overhang ladder	support	strings.restart_starved_mm	60.00
+overhang ladder	support	strings.retractions	176
+overhang ladder	support	strings.travel_mm	1521.07
+overhang ladder	support	strings.unretracted_across_tops_mm	0.27
 overhang ladder	support	strings.unretracted_over_air_mm	9.77
-overhang ladder	support	strings.unretracted_shown_mm	10.45
-overhang ladder	support	strings.unretracted_travels	157
-overhang ladder	support	strings.visible_restarts	11
-overhang ladder	support	time_s	211.0
+overhang ladder	support	strings.unretracted_shown_mm	10.04
+overhang ladder	support	strings.unretracted_travels	153
+overhang ladder	support	strings.visible_restarts	12
+overhang ladder	support	sweep.Bottom surface.lines	53
+overhang ladder	support	sweep.Bottom surface.reversed_lines	0
+overhang ladder	support	sweep.Internal solid infill.lines	322
+overhang ladder	support	sweep.Internal solid infill.reversed_lines	0
+overhang ladder	support	sweep.Top surface.lines	240
+overhang ladder	support	sweep.Top surface.reversed_lines	0
+overhang ladder	support	time_s	212.0
 pins	base	check.problems	0
 pins	base	feature.Bottom surface.length_mm	464.26
 pins	base	feature.Bottom surface.paths	1
@@ -1059,8 +1159,8 @@ pins	base	feature.Inner wall.length_mm	816.71
 pins	base	feature.Inner wall.paths	85
 pins	base	feature.Internal Bridge.length_mm	31.90
 pins	base	feature.Internal Bridge.paths	2
-pins	base	feature.Internal solid infill.length_mm	1873.44
-pins	base	feature.Internal solid infill.paths	16
+pins	base	feature.Internal solid infill.length_mm	1871.84
+pins	base	feature.Internal solid infill.paths	19
 pins	base	feature.Outer wall.length_mm	1008.33
 pins	base	feature.Outer wall.paths	85
 pins	base	feature.Prime line.length_mm	30.00
@@ -1069,8 +1169,8 @@ pins	base	feature.Sparse infill.length_mm	238.97
 pins	base	feature.Sparse infill.paths	38
 pins	base	feature.Top surface.length_mm	816.71
 pins	base	feature.Top surface.paths	11
-pins	base	filament.T0_mm	174.99
-pins	base	filament_mm	174.99
+pins	base	filament.T0_mm	174.94
+pins	base	filament_mm	174.94
 pins	base	laid_twice.area_mm2	0.000
 pins	base	laid_twice.layers	0
 pins	base	laid_twice.spots	0
@@ -1084,15 +1184,21 @@ pins	base	seams.jog_mm	69.048
 pins	base	seams.point	85
 pins	base	seams.scar_mm2	12.548
 pins	base	seams.scarf	0
-pins	base	strings.restart_starved_mm	95.00
-pins	base	strings.retractions	124
-pins	base	strings.travel_mm	896.59
+pins	base	strings.restart_starved_mm	100.00
+pins	base	strings.retractions	125
+pins	base	strings.travel_mm	953.89
 pins	base	strings.unretracted_across_tops_mm	1.09
 pins	base	strings.unretracted_over_air_mm	4.25
 pins	base	strings.unretracted_shown_mm	5.34
-pins	base	strings.unretracted_travels	123
-pins	base	strings.visible_restarts	19
-pins	base	time_s	214.1
+pins	base	strings.unretracted_travels	126
+pins	base	strings.visible_restarts	20
+pins	base	sweep.Bottom surface.lines	59
+pins	base	sweep.Bottom surface.reversed_lines	0
+pins	base	sweep.Internal solid infill.lines	245
+pins	base	sweep.Internal solid infill.reversed_lines	0
+pins	base	sweep.Top surface.lines	169
+pins	base	sweep.Top surface.reversed_lines	0
+pins	base	time_s	214.3
 plate behind a leaning face	base	check.problems	0
 plate behind a leaning face	base	feature.Bottom surface.length_mm	65.14
 plate behind a leaning face	base	feature.Bottom surface.paths	1
@@ -1134,6 +1240,12 @@ plate behind a leaning face	base	strings.unretracted_over_air_mm	0.45
 plate behind a leaning face	base	strings.unretracted_shown_mm	0.45
 plate behind a leaning face	base	strings.unretracted_travels	215
 plate behind a leaning face	base	strings.visible_restarts	36
+plate behind a leaning face	base	sweep.Bottom surface.lines	15
+plate behind a leaning face	base	sweep.Bottom surface.reversed_lines	0
+plate behind a leaning face	base	sweep.Internal solid infill.lines	235
+plate behind a leaning face	base	sweep.Internal solid infill.reversed_lines	0
+plate behind a leaning face	base	sweep.Top surface.lines	26
+plate behind a leaning face	base	sweep.Top surface.reversed_lines	0
 plate behind a leaning face	base	time_s	426.5
 plate behind a leaning face	base	walls.doubled_mm2	0.2938
 plate behind a leaning face	base	walls.largest_shift_mm	1.307
@@ -1146,6 +1258,54 @@ plate behind a leaning face	base	walls.shortest_path_mm	1.634
 plate behind a leaning face	base	walls.uncovered_mm2	20.7793
 plate behind a leaning face	base	walls.uncovered_wider_than_floor_mm2	19.0268
 plate behind a leaning face	base	walls.uncovered_widest_mm	2.220
+plates inlaid in a slab's bottom	base	check.problems	0
+plates inlaid in a slab's bottom	base	feature.Bottom surface.length_mm	502.99
+plates inlaid in a slab's bottom	base	feature.Bottom surface.paths	11
+plates inlaid in a slab's bottom	base	feature.Inner wall.length_mm	1223.04
+plates inlaid in a slab's bottom	base	feature.Inner wall.paths	30
+plates inlaid in a slab's bottom	base	feature.Internal Bridge.length_mm	1012.02
+plates inlaid in a slab's bottom	base	feature.Internal Bridge.paths	1
+plates inlaid in a slab's bottom	base	feature.Internal solid infill.length_mm	2376.92
+plates inlaid in a slab's bottom	base	feature.Internal solid infill.paths	20
+plates inlaid in a slab's bottom	base	feature.Outer wall.length_mm	1253.64
+plates inlaid in a slab's bottom	base	feature.Outer wall.paths	28
+plates inlaid in a slab's bottom	base	feature.Prime tower.length_mm	1150.59
+plates inlaid in a slab's bottom	base	feature.Prime tower.paths	9
+plates inlaid in a slab's bottom	base	feature.Sparse infill.length_mm	715.74
+plates inlaid in a slab's bottom	base	feature.Sparse infill.paths	4
+plates inlaid in a slab's bottom	base	feature.Top surface.length_mm	1397.93
+plates inlaid in a slab's bottom	base	feature.Top surface.paths	1
+plates inlaid in a slab's bottom	base	filament.T0_mm	255.65
+plates inlaid in a slab's bottom	base	filament.T1_mm	40.97
+plates inlaid in a slab's bottom	base	filament_mm	296.63
+plates inlaid in a slab's bottom	base	laid_twice.area_mm2	0.000
+plates inlaid in a slab's bottom	base	laid_twice.layers	0
+plates inlaid in a slab's bottom	base	laid_twice.spots	0
+plates inlaid in a slab's bottom	base	laid_twice.widest_mm	0.000
+plates inlaid in a slab's bottom	base	lines.outer_kinks	0
+plates inlaid in a slab's bottom	base	lines.outer_zigzags	0
+plates inlaid in a slab's bottom	base	lines.tiny_moves	1
+plates inlaid in a slab's bottom	base	lines.tiny_moves.outer_wall	0
+plates inlaid in a slab's bottom	base	seams.count	28
+plates inlaid in a slab's bottom	base	seams.jog_mm	0.000
+plates inlaid in a slab's bottom	base	seams.point	28
+plates inlaid in a slab's bottom	base	seams.scar_mm2	0.000
+plates inlaid in a slab's bottom	base	seams.scarf	0
+plates inlaid in a slab's bottom	base	strings.restart_starved_mm	55.00
+plates inlaid in a slab's bottom	base	strings.retractions	63
+plates inlaid in a slab's bottom	base	strings.travel_mm	1249.10
+plates inlaid in a slab's bottom	base	strings.unretracted_across_tops_mm	0.00
+plates inlaid in a slab's bottom	base	strings.unretracted_over_air_mm	0.46
+plates inlaid in a slab's bottom	base	strings.unretracted_shown_mm	0.46
+plates inlaid in a slab's bottom	base	strings.unretracted_travels	40
+plates inlaid in a slab's bottom	base	strings.visible_restarts	11
+plates inlaid in a slab's bottom	base	sweep.Bottom surface.lines	121
+plates inlaid in a slab's bottom	base	sweep.Bottom surface.reversed_lines	0
+plates inlaid in a slab's bottom	base	sweep.Internal solid infill.lines	419
+plates inlaid in a slab's bottom	base	sweep.Internal solid infill.reversed_lines	0
+plates inlaid in a slab's bottom	base	sweep.Top surface.lines	110
+plates inlaid in a slab's bottom	base	sweep.Top surface.reversed_lines	0
+plates inlaid in a slab's bottom	base	time_s	155.0
 pointed blob	base	check.problems	0
 pointed blob	base	feature.Brim.length_mm	167.41
 pointed blob	base	feature.Brim.paths	10
@@ -1223,14 +1383,20 @@ ridge, dipped	base	seams.point	164
 ridge, dipped	base	seams.scar_mm2	9.733
 ridge, dipped	base	seams.scarf	0
 ridge, dipped	base	strings.restart_starved_mm	220.00
-ridge, dipped	base	strings.retractions	105
-ridge, dipped	base	strings.travel_mm	962.31
+ridge, dipped	base	strings.retractions	107
+ridge, dipped	base	strings.travel_mm	1061.73
 ridge, dipped	base	strings.unretracted_across_tops_mm	0.00
 ridge, dipped	base	strings.unretracted_over_air_mm	5.04
 ridge, dipped	base	strings.unretracted_shown_mm	5.04
-ridge, dipped	base	strings.unretracted_travels	210
+ridge, dipped	base	strings.unretracted_travels	208
 ridge, dipped	base	strings.visible_restarts	44
-ridge, dipped	base	time_s	294.8
+ridge, dipped	base	sweep.Bottom surface.lines	23
+ridge, dipped	base	sweep.Bottom surface.reversed_lines	0
+ridge, dipped	base	sweep.Internal solid infill.lines	264
+ridge, dipped	base	sweep.Internal solid infill.reversed_lines	0
+ridge, dipped	base	sweep.Top surface.lines	45
+ridge, dipped	base	sweep.Top surface.reversed_lines	0
+ridge, dipped	base	time_s	295.5
 ridge, dipped, beside a second part	base	check.problems	0
 ridge, dipped, beside a second part	base	feature.Bottom surface.length_mm	157.53
 ridge, dipped, beside a second part	base	feature.Bottom surface.paths	1
@@ -1266,12 +1432,18 @@ ridge, dipped, beside a second part	base	seams.scar_mm2	10.622
 ridge, dipped, beside a second part	base	seams.scarf	0
 ridge, dipped, beside a second part	base	strings.restart_starved_mm	305.00
 ridge, dipped, beside a second part	base	strings.retractions	243
-ridge, dipped, beside a second part	base	strings.travel_mm	9447.49
+ridge, dipped, beside a second part	base	strings.travel_mm	9473.18
 ridge, dipped, beside a second part	base	strings.unretracted_across_tops_mm	1.20
 ridge, dipped, beside a second part	base	strings.unretracted_over_air_mm	0.60
 ridge, dipped, beside a second part	base	strings.unretracted_shown_mm	1.80
 ridge, dipped, beside a second part	base	strings.unretracted_travels	295
 ridge, dipped, beside a second part	base	strings.visible_restarts	61
+ridge, dipped, beside a second part	base	sweep.Bottom surface.lines	23
+ridge, dipped, beside a second part	base	sweep.Bottom surface.reversed_lines	0
+ridge, dipped, beside a second part	base	sweep.Internal solid infill.lines	312
+ridge, dipped, beside a second part	base	sweep.Internal solid infill.reversed_lines	0
+ridge, dipped, beside a second part	base	sweep.Top surface.lines	24
+ridge, dipped, beside a second part	base	sweep.Top surface.reversed_lines	0
 ridge, dipped, beside a second part	base	time_s	404.0
 ridge, flat	base	check.problems	0
 ridge, flat	base	feature.Bottom surface.length_mm	74.74
@@ -1311,6 +1483,12 @@ ridge, flat	base	strings.unretracted_over_air_mm	4.64
 ridge, flat	base	strings.unretracted_shown_mm	4.64
 ridge, flat	base	strings.unretracted_travels	41
 ridge, flat	base	strings.visible_restarts	3
+ridge, flat	base	sweep.Bottom surface.lines	14
+ridge, flat	base	sweep.Bottom surface.reversed_lines	0
+ridge, flat	base	sweep.Internal solid infill.lines	174
+ridge, flat	base	sweep.Internal solid infill.reversed_lines	0
+ridge, flat	base	sweep.Top surface.lines	19
+ridge, flat	base	sweep.Top surface.reversed_lines	0
 ridge, flat	base	time_s	143.5
 ridge, flat, beside a second part	base	check.problems	0
 ridge, flat, beside a second part	base	feature.Bottom surface.length_mm	74.76
@@ -1351,6 +1529,12 @@ ridge, flat, beside a second part	base	strings.unretracted_over_air_mm	0.45
 ridge, flat, beside a second part	base	strings.unretracted_shown_mm	1.87
 ridge, flat, beside a second part	base	strings.unretracted_travels	42
 ridge, flat, beside a second part	base	strings.visible_restarts	10
+ridge, flat, beside a second part	base	sweep.Bottom surface.lines	15
+ridge, flat, beside a second part	base	sweep.Bottom surface.reversed_lines	0
+ridge, flat, beside a second part	base	sweep.Internal solid infill.lines	174
+ridge, flat, beside a second part	base	sweep.Internal solid infill.reversed_lines	0
+ridge, flat, beside a second part	base	sweep.Top surface.lines	19
+ridge, flat, beside a second part	base	sweep.Top surface.reversed_lines	0
 ridge, flat, beside a second part	base	time_s	177.4
 ridge, pointed	base	check.problems	0
 ridge, pointed	base	feature.Bottom surface.length_mm	74.74
@@ -1386,12 +1570,18 @@ ridge, pointed	base	seams.scar_mm2	0.909
 ridge, pointed	base	seams.scarf	0
 ridge, pointed	base	strings.restart_starved_mm	25.00
 ridge, pointed	base	strings.retractions	42
-ridge, pointed	base	strings.travel_mm	253.28
+ridge, pointed	base	strings.travel_mm	257.28
 ridge, pointed	base	strings.unretracted_across_tops_mm	0.00
 ridge, pointed	base	strings.unretracted_over_air_mm	4.62
 ridge, pointed	base	strings.unretracted_shown_mm	4.62
 ridge, pointed	base	strings.unretracted_travels	44
 ridge, pointed	base	strings.visible_restarts	5
+ridge, pointed	base	sweep.Bottom surface.lines	14
+ridge, pointed	base	sweep.Bottom surface.reversed_lines	0
+ridge, pointed	base	sweep.Internal solid infill.lines	174
+ridge, pointed	base	sweep.Internal solid infill.reversed_lines	0
+ridge, pointed	base	sweep.Top surface.lines	19
+ridge, pointed	base	sweep.Top surface.reversed_lines	0
 ridge, pointed	base	time_s	164.0
 ridge, steep	base	check.problems	0
 ridge, steep	base	feature.Bottom surface.length_mm	74.74
@@ -1427,12 +1617,18 @@ ridge, steep	base	seams.scar_mm2	0.727
 ridge, steep	base	seams.scarf	0
 ridge, steep	base	strings.restart_starved_mm	30.00
 ridge, steep	base	strings.retractions	43
-ridge, steep	base	strings.travel_mm	257.29
+ridge, steep	base	strings.travel_mm	261.31
 ridge, steep	base	strings.unretracted_across_tops_mm	0.00
 ridge, steep	base	strings.unretracted_over_air_mm	4.55
 ridge, steep	base	strings.unretracted_shown_mm	4.55
 ridge, steep	base	strings.unretracted_travels	42
 ridge, steep	base	strings.visible_restarts	6
+ridge, steep	base	sweep.Bottom surface.lines	14
+ridge, steep	base	sweep.Bottom surface.reversed_lines	0
+ridge, steep	base	sweep.Internal solid infill.lines	174
+ridge, steep	base	sweep.Internal solid infill.reversed_lines	0
+ridge, steep	base	sweep.Top surface.lines	19
+ridge, steep	base	sweep.Top surface.reversed_lines	0
 ridge, steep	base	time_s	157.7
 ridge, wobbly	base	check.problems	0
 ridge, wobbly	base	feature.Bottom surface.length_mm	74.74
@@ -1465,14 +1661,20 @@ ridge, wobbly	base	seams.point	23
 ridge, wobbly	base	seams.scar_mm2	0.354
 ridge, wobbly	base	seams.scarf	0
 ridge, wobbly	base	strings.restart_starved_mm	20.00
-ridge, wobbly	base	strings.retractions	30
-ridge, wobbly	base	strings.travel_mm	199.77
+ridge, wobbly	base	strings.retractions	31
+ridge, wobbly	base	strings.travel_mm	219.77
 ridge, wobbly	base	strings.unretracted_across_tops_mm	0.00
 ridge, wobbly	base	strings.unretracted_over_air_mm	4.55
 ridge, wobbly	base	strings.unretracted_shown_mm	4.55
-ridge, wobbly	base	strings.unretracted_travels	48
+ridge, wobbly	base	strings.unretracted_travels	47
 ridge, wobbly	base	strings.visible_restarts	4
-ridge, wobbly	base	time_s	143.5
+ridge, wobbly	base	sweep.Bottom surface.lines	14
+ridge, wobbly	base	sweep.Bottom surface.reversed_lines	0
+ridge, wobbly	base	sweep.Internal solid infill.lines	191
+ridge, wobbly	base	sweep.Internal solid infill.reversed_lines	0
+ridge, wobbly	base	sweep.Top surface.lines	19
+ridge, wobbly	base	sweep.Top surface.reversed_lines	0
+ridge, wobbly	base	time_s	143.6
 ridge, wobbly, beside a second part	base	check.problems	0
 ridge, wobbly, beside a second part	base	feature.Bottom surface.length_mm	74.76
 ridge, wobbly, beside a second part	base	feature.Bottom surface.paths	1
@@ -1506,12 +1708,18 @@ ridge, wobbly, beside a second part	base	seams.scar_mm2	0.724
 ridge, wobbly, beside a second part	base	seams.scarf	0
 ridge, wobbly, beside a second part	base	strings.restart_starved_mm	65.00
 ridge, wobbly, beside a second part	base	strings.retractions	78
-ridge, wobbly, beside a second part	base	strings.travel_mm	3769.65
+ridge, wobbly, beside a second part	base	strings.travel_mm	3769.90
 ridge, wobbly, beside a second part	base	strings.unretracted_across_tops_mm	0.40
 ridge, wobbly, beside a second part	base	strings.unretracted_over_air_mm	0.45
 ridge, wobbly, beside a second part	base	strings.unretracted_shown_mm	0.85
 ridge, wobbly, beside a second part	base	strings.unretracted_travels	45
 ridge, wobbly, beside a second part	base	strings.visible_restarts	13
+ridge, wobbly, beside a second part	base	sweep.Bottom surface.lines	15
+ridge, wobbly, beside a second part	base	sweep.Bottom surface.reversed_lines	0
+ridge, wobbly, beside a second part	base	sweep.Internal solid infill.lines	174
+ridge, wobbly, beside a second part	base	sweep.Internal solid infill.reversed_lines	0
+ridge, wobbly, beside a second part	base	sweep.Top surface.lines	19
+ridge, wobbly, beside a second part	base	sweep.Top surface.reversed_lines	0
 ridge, wobbly, beside a second part	base	time_s	181.3
 ring	base	check.problems	0
 ring	base	feature.Brim.length_mm	206.60
@@ -1592,6 +1800,12 @@ sliver tips inside a second part	base	strings.unretracted_over_air_mm	0.46
 sliver tips inside a second part	base	strings.unretracted_shown_mm	0.46
 sliver tips inside a second part	base	strings.unretracted_travels	123
 sliver tips inside a second part	base	strings.visible_restarts	28
+sliver tips inside a second part	base	sweep.Bottom surface.lines	10
+sliver tips inside a second part	base	sweep.Bottom surface.reversed_lines	0
+sliver tips inside a second part	base	sweep.Internal solid infill.lines	143
+sliver tips inside a second part	base	sweep.Internal solid infill.reversed_lines	0
+sliver tips inside a second part	base	sweep.Top surface.lines	20
+sliver tips inside a second part	base	sweep.Top surface.reversed_lines	0
 sliver tips inside a second part	base	time_s	162.0
 sloped top	base	check.problems	0
 sloped top	base	feature.Bottom surface.length_mm	317.17
@@ -1626,14 +1840,18 @@ sloped top	base	seams.point	36
 sloped top	base	seams.scar_mm2	0.318
 sloped top	base	seams.scarf	0
 sloped top	base	strings.restart_starved_mm	15.00
-sloped top	base	strings.retractions	59
-sloped top	base	strings.travel_mm	662.81
+sloped top	base	strings.retractions	57
+sloped top	base	strings.travel_mm	672.31
 sloped top	base	strings.unretracted_across_tops_mm	0.00
 sloped top	base	strings.unretracted_over_air_mm	6.48
 sloped top	base	strings.unretracted_shown_mm	6.48
-sloped top	base	strings.unretracted_travels	107
+sloped top	base	strings.unretracted_travels	109
 sloped top	base	strings.visible_restarts	3
-sloped top	base	time_s	238.0
+sloped top	base	sweep.Bottom surface.lines	35
+sloped top	base	sweep.Bottom surface.reversed_lines	0
+sloped top	base	sweep.Internal solid infill.lines	87
+sloped top	base	sweep.Internal solid infill.reversed_lines	0
+sloped top	base	time_s	238.2
 small pillar	base	check.problems	0
 small pillar	base	feature.Brim.length_mm	186.18
 small pillar	base	feature.Brim.paths	10
@@ -1674,6 +1892,8 @@ small pillar	base	strings.unretracted_over_air_mm	4.25
 small pillar	base	strings.unretracted_shown_mm	4.25
 small pillar	base	strings.unretracted_travels	189
 small pillar	base	strings.visible_restarts	1
+small pillar	base	sweep.Top surface.lines	4
+small pillar	base	sweep.Top surface.reversed_lines	0
 small pillar	base	time_s	394.2
 small pillar	no slowdown	check.problems	0
 small pillar	no slowdown	feature.Brim.length_mm	186.18
@@ -1715,6 +1935,8 @@ small pillar	no slowdown	strings.unretracted_over_air_mm	4.25
 small pillar	no slowdown	strings.unretracted_shown_mm	4.25
 small pillar	no slowdown	strings.unretracted_travels	189
 small pillar	no slowdown	strings.visible_restarts	1
+small pillar	no slowdown	sweep.Top surface.lines	4
+small pillar	no slowdown	sweep.Top surface.reversed_lines	0
 small pillar	no slowdown	time_s	36.1
 smooth cylinder	base	check.problems	0
 smooth cylinder	base	feature.Bottom surface.length_mm	175.32
@@ -1758,6 +1980,12 @@ smooth cylinder	base	strings.unretracted_over_air_mm	4.25
 smooth cylinder	base	strings.unretracted_shown_mm	4.25
 smooth cylinder	base	strings.unretracted_travels	50
 smooth cylinder	base	strings.visible_restarts	3
+smooth cylinder	base	sweep.Bottom surface.lines	21
+smooth cylinder	base	sweep.Bottom surface.reversed_lines	0
+smooth cylinder	base	sweep.Internal solid infill.lines	81
+smooth cylinder	base	sweep.Internal solid infill.reversed_lines	0
+smooth cylinder	base	sweep.Top surface.lines	40
+smooth cylinder	base	sweep.Top surface.reversed_lines	0
 smooth cylinder	base	time_s	263.1
 smooth cylinder	least visible seam	check.problems	0
 smooth cylinder	least visible seam	feature.Bottom surface.length_mm	175.32
@@ -1801,6 +2029,12 @@ smooth cylinder	least visible seam	strings.unretracted_over_air_mm	4.25
 smooth cylinder	least visible seam	strings.unretracted_shown_mm	4.25
 smooth cylinder	least visible seam	strings.unretracted_travels	50
 smooth cylinder	least visible seam	strings.visible_restarts	3
+smooth cylinder	least visible seam	sweep.Bottom surface.lines	21
+smooth cylinder	least visible seam	sweep.Bottom surface.reversed_lines	0
+smooth cylinder	least visible seam	sweep.Internal solid infill.lines	81
+smooth cylinder	least visible seam	sweep.Internal solid infill.reversed_lines	0
+smooth cylinder	least visible seam	sweep.Top surface.lines	40
+smooth cylinder	least visible seam	sweep.Top surface.reversed_lines	0
 smooth cylinder	least visible seam	time_s	263.1
 smooth cylinder	scarf seams	check.problems	0
 smooth cylinder	scarf seams	feature.Bottom surface.length_mm	175.32
@@ -1844,6 +2078,12 @@ smooth cylinder	scarf seams	strings.unretracted_over_air_mm	4.25
 smooth cylinder	scarf seams	strings.unretracted_shown_mm	4.25
 smooth cylinder	scarf seams	strings.unretracted_travels	50
 smooth cylinder	scarf seams	strings.visible_restarts	3
+smooth cylinder	scarf seams	sweep.Bottom surface.lines	21
+smooth cylinder	scarf seams	sweep.Bottom surface.reversed_lines	0
+smooth cylinder	scarf seams	sweep.Internal solid infill.lines	81
+smooth cylinder	scarf seams	sweep.Internal solid infill.reversed_lines	0
+smooth cylinder	scarf seams	sweep.Top surface.lines	40
+smooth cylinder	scarf seams	sweep.Top surface.reversed_lines	0
 smooth cylinder	scarf seams	time_s	266.5
 speck beside a part	base	check.problems	0
 speck beside a part	base	feature.Bottom surface.length_mm	599.97
@@ -1852,8 +2092,8 @@ speck beside a part	base	feature.Inner wall.length_mm	1615.51
 speck beside a part	base	feature.Inner wall.paths	120
 speck beside a part	base	feature.Internal Bridge.length_mm	837.54
 speck beside a part	base	feature.Internal Bridge.paths	3
-speck beside a part	base	feature.Internal solid infill.length_mm	2379.57
-speck beside a part	base	feature.Internal solid infill.paths	11
+speck beside a part	base	feature.Internal solid infill.length_mm	2378.51
+speck beside a part	base	feature.Internal solid infill.paths	13
 speck beside a part	base	feature.Outer wall.length_mm	1714.00
 speck beside a part	base	feature.Outer wall.paths	72
 speck beside a part	base	feature.Prime tower.length_mm	3500.11
@@ -1862,9 +2102,9 @@ speck beside a part	base	feature.Sparse infill.length_mm	1170.73
 speck beside a part	base	feature.Sparse infill.paths	36
 speck beside a part	base	feature.Top surface.length_mm	1157.27
 speck beside a part	base	feature.Top surface.paths	3
-speck beside a part	base	filament.T0_mm	326.34
+speck beside a part	base	filament.T0_mm	326.30
 speck beside a part	base	filament.T1_mm	75.10
-speck beside a part	base	filament_mm	401.44
+speck beside a part	base	filament_mm	401.40
 speck beside a part	base	laid_twice.area_mm2	0.000
 speck beside a part	base	laid_twice.layers	0
 speck beside a part	base	laid_twice.spots	0
@@ -1880,13 +2120,19 @@ speck beside a part	base	seams.scar_mm2	3.660
 speck beside a part	base	seams.scarf	0
 speck beside a part	base	strings.restart_starved_mm	155.00
 speck beside a part	base	strings.retractions	116
-speck beside a part	base	strings.travel_mm	3711.20
+speck beside a part	base	strings.travel_mm	3734.64
 speck beside a part	base	strings.unretracted_across_tops_mm	0.00
 speck beside a part	base	strings.unretracted_over_air_mm	0.46
 speck beside a part	base	strings.unretracted_shown_mm	0.46
-speck beside a part	base	strings.unretracted_travels	159
+speck beside a part	base	strings.unretracted_travels	161
 speck beside a part	base	strings.visible_restarts	31
-speck beside a part	base	time_s	193.6
+speck beside a part	base	sweep.Bottom surface.lines	78
+speck beside a part	base	sweep.Bottom surface.reversed_lines	0
+speck beside a part	base	sweep.Internal solid infill.lines	318
+speck beside a part	base	sweep.Internal solid infill.reversed_lines	0
+speck beside a part	base	sweep.Top surface.lines	159
+speck beside a part	base	sweep.Top surface.reversed_lines	1
+speck beside a part	base	time_s	193.4
 stepped top	base	check.problems	0
 stepped top	base	feature.Bottom surface.length_mm	361.09
 stepped top	base	feature.Bottom surface.paths	1
@@ -1922,13 +2168,19 @@ stepped top	base	seams.point	25
 stepped top	base	seams.scar_mm2	0.000
 stepped top	base	seams.scarf	0
 stepped top	base	strings.restart_starved_mm	20.00
-stepped top	base	strings.retractions	47
-stepped top	base	strings.travel_mm	451.27
+stepped top	base	strings.retractions	46
+stepped top	base	strings.travel_mm	487.72
 stepped top	base	strings.unretracted_across_tops_mm	0.00
 stepped top	base	strings.unretracted_over_air_mm	10.02
 stepped top	base	strings.unretracted_shown_mm	10.02
-stepped top	base	strings.unretracted_travels	45
+stepped top	base	strings.unretracted_travels	46
 stepped top	base	strings.visible_restarts	4
+stepped top	base	sweep.Bottom surface.lines	37
+stepped top	base	sweep.Bottom surface.reversed_lines	0
+stepped top	base	sweep.Internal solid infill.lines	175
+stepped top	base	sweep.Internal solid infill.reversed_lines	0
+stepped top	base	sweep.Top surface.lines	118
+stepped top	base	sweep.Top surface.reversed_lines	0
 stepped top	base	time_s	188.7
 strip	base	check.problems	0
 strip	base	feature.Brim.length_mm	293.12
@@ -2015,6 +2267,8 @@ teeth under a second part	base	strings.unretracted_over_air_mm	0.45
 teeth under a second part	base	strings.unretracted_shown_mm	0.45
 teeth under a second part	base	strings.unretracted_travels	75
 teeth under a second part	base	strings.visible_restarts	60
+teeth under a second part	base	sweep.Top surface.lines	29
+teeth under a second part	base	sweep.Top surface.reversed_lines	0
 teeth under a second part	base	time_s	269.3
 teeth under a second part	scarf seams	check.problems	0
 teeth under a second part	scarf seams	feature.Bottom surface.length_mm	22.01
@@ -2057,6 +2311,8 @@ teeth under a second part	scarf seams	strings.unretracted_over_air_mm	0.45
 teeth under a second part	scarf seams	strings.unretracted_shown_mm	0.45
 teeth under a second part	scarf seams	strings.unretracted_travels	71
 teeth under a second part	scarf seams	strings.visible_restarts	60
+teeth under a second part	scarf seams	sweep.Top surface.lines	29
+teeth under a second part	scarf seams	sweep.Top surface.reversed_lines	0
 teeth under a second part	scarf seams	time_s	270.9
 two blobs and a neck	base	check.problems	0
 two blobs and a neck	base	feature.Brim.length_mm	180.98
@@ -2143,6 +2399,12 @@ two-color piece	base	strings.unretracted_over_air_mm	0.46
 two-color piece	base	strings.unretracted_shown_mm	1.38
 two-color piece	base	strings.unretracted_travels	64
 two-color piece	base	strings.visible_restarts	3
+two-color piece	base	sweep.Bottom surface.lines	32
+two-color piece	base	sweep.Bottom surface.reversed_lines	0
+two-color piece	base	sweep.Internal solid infill.lines	129
+two-color piece	base	sweep.Internal solid infill.reversed_lines	0
+two-color piece	base	sweep.Top surface.lines	64
+two-color piece	base	sweep.Top surface.reversed_lines	0
 two-color piece	base	time_s	130.6
 two-color piece	purge into infill	check.problems	0
 two-color piece	purge into infill	feature.Bottom surface.length_mm	152.97
@@ -2185,6 +2447,12 @@ two-color piece	purge into infill	strings.unretracted_over_air_mm	0.46
 two-color piece	purge into infill	strings.unretracted_shown_mm	1.38
 two-color piece	purge into infill	strings.unretracted_travels	64
 two-color piece	purge into infill	strings.visible_restarts	3
+two-color piece	purge into infill	sweep.Bottom surface.lines	32
+two-color piece	purge into infill	sweep.Bottom surface.reversed_lines	0
+two-color piece	purge into infill	sweep.Internal solid infill.lines	129
+two-color piece	purge into infill	sweep.Internal solid infill.reversed_lines	0
+two-color piece	purge into infill	sweep.Top surface.lines	64
+two-color piece	purge into infill	sweep.Top surface.reversed_lines	0
 two-color piece	purge into infill	time_s	131.3
 web 1.0 mm	base	check.problems	0
 web 1.0 mm	base	feature.Bottom surface.length_mm	13.62
@@ -2217,14 +2485,16 @@ web 1.0 mm	base	seams.point	23
 web 1.0 mm	base	seams.scar_mm2	2.085
 web 1.0 mm	base	seams.scarf	0
 web 1.0 mm	base	strings.restart_starved_mm	95.00
-web 1.0 mm	base	strings.retractions	74
-web 1.0 mm	base	strings.travel_mm	621.20
+web 1.0 mm	base	strings.retractions	61
+web 1.0 mm	base	strings.travel_mm	629.93
 web 1.0 mm	base	strings.unretracted_across_tops_mm	0.34
 web 1.0 mm	base	strings.unretracted_over_air_mm	4.39
 web 1.0 mm	base	strings.unretracted_shown_mm	4.72
-web 1.0 mm	base	strings.unretracted_travels	124
+web 1.0 mm	base	strings.unretracted_travels	137
 web 1.0 mm	base	strings.visible_restarts	19
-web 1.0 mm	base	time_s	93.0
+web 1.0 mm	base	sweep.Top surface.lines	20
+web 1.0 mm	base	sweep.Top surface.reversed_lines	0
+web 1.0 mm	base	time_s	91.1
 web 1.0 mm	base	walls.doubled_mm2	0.6429
 web 1.0 mm	base	walls.largest_shift_mm	0.228
 web 1.0 mm	base	walls.layers	9
@@ -2267,14 +2537,16 @@ web 1.6 mm	base	seams.point	22
 web 1.6 mm	base	seams.scar_mm2	1.259
 web 1.6 mm	base	seams.scarf	0
 web 1.6 mm	base	strings.restart_starved_mm	90.00
-web 1.6 mm	base	strings.retractions	92
-web 1.6 mm	base	strings.travel_mm	716.47
+web 1.6 mm	base	strings.retractions	63
+web 1.6 mm	base	strings.travel_mm	698.92
 web 1.6 mm	base	strings.unretracted_across_tops_mm	1.12
 web 1.6 mm	base	strings.unretracted_over_air_mm	4.39
 web 1.6 mm	base	strings.unretracted_shown_mm	5.51
-web 1.6 mm	base	strings.unretracted_travels	135
+web 1.6 mm	base	strings.unretracted_travels	164
 web 1.6 mm	base	strings.visible_restarts	18
-web 1.6 mm	base	time_s	95.8
+web 1.6 mm	base	sweep.Top surface.lines	20
+web 1.6 mm	base	sweep.Top surface.reversed_lines	0
+web 1.6 mm	base	time_s	92.1
 web 1.6 mm	base	walls.doubled_mm2	0.0907
 web 1.6 mm	base	walls.largest_shift_mm	0.043
 web 1.6 mm	base	walls.layers	9
@@ -2316,15 +2588,17 @@ web 2.2 mm	base	seams.jog_mm	0.000
 web 2.2 mm	base	seams.point	22
 web 2.2 mm	base	seams.scar_mm2	1.261
 web 2.2 mm	base	seams.scarf	0
-web 2.2 mm	base	strings.restart_starved_mm	60.00
-web 2.2 mm	base	strings.retractions	98
-web 2.2 mm	base	strings.travel_mm	710.32
+web 2.2 mm	base	strings.restart_starved_mm	65.00
+web 2.2 mm	base	strings.retractions	80
+web 2.2 mm	base	strings.travel_mm	709.72
 web 2.2 mm	base	strings.unretracted_across_tops_mm	0.34
 web 2.2 mm	base	strings.unretracted_over_air_mm	4.39
 web 2.2 mm	base	strings.unretracted_shown_mm	4.73
-web 2.2 mm	base	strings.unretracted_travels	122
-web 2.2 mm	base	strings.visible_restarts	12
-web 2.2 mm	base	time_s	96.6
+web 2.2 mm	base	strings.unretracted_travels	140
+web 2.2 mm	base	strings.visible_restarts	13
+web 2.2 mm	base	sweep.Top surface.lines	32
+web 2.2 mm	base	sweep.Top surface.reversed_lines	0
+web 2.2 mm	base	time_s	94.2
 web 2.2 mm	base	walls.doubled_mm2	0.0000
 web 2.2 mm	base	walls.largest_shift_mm	0.021
 web 2.2 mm	base	walls.layers	9
