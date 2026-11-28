@@ -109,6 +109,56 @@ object Schema {
         "strength" to "the finished print's ability to withstand the loads it will see in use; with no loads marked, its weakest direction (usually across the layers)",
         "reliability" to "the chance that the print finishes usable, run after run, without a failure that would likely need a reprint (lost adhesion, warping that lifts the part, a part knocked loose or tipped over, a nozzle collision, spaghetti, a failed tool change, running out of filament); on a plate, one object failing counts")
 
+    /** A machine's value that stands in for a maximum it and its model leave unset: [path] under the machine, in [words]. */
+    class StandIn(val path: String, val words: String, val max: String)
+
+    /**
+     * The machine's maximums a travel value stands in for, after its model's (Config's fallbacks): a machine with no model
+     * that gives one (a printer plymeld ships nothing for) then needs nothing it did not need before.
+     */
+    val TRAVEL_STAND_INS = linkedMapOf(
+        "motion.speed.max" to StandIn("motion.travel.speed", "travel speed", "top speed"),
+        "motion.acceleration.max" to StandIn("motion.travel.acceleration", "travel acceleration", "highest acceleration"))
+
+    /**
+     * Whether a machine's value at `hardware.machine.<key>.<rest>` is taken from its model's `hardware.model.<model>.<rest>` where
+     * the machine sets none: both are declared (`like` aside). One rule for every value a machine and its model share.
+     */
+    fun fromModel(rest: List<String>): Boolean =
+        rest.isNotEmpty() && rest != listOf("like") && match(listOf("hardware", "machine", "k") + rest) != null && match(listOf("hardware", "model", "k") + rest) != null
+
+    /**
+     * Whether a tool's value at `hardware.tool.<key>.<rest>` is taken from its machine's model's toolhead (the one of the tool's
+     * index) where the tool sets none: both are declared. One rule for every value a tool and a toolhead share.
+     */
+    fun fromToolhead(rest: List<String>): Boolean =
+        rest.isNotEmpty() && rest != listOf("like") && match(listOf("hardware", "tool", "k") + rest) != null && match(listOf("hardware", "model", "k", "toolhead", "0") + rest) != null
+
+    /**
+     * Each machine and tool declaration's meaning, and each model and toolhead declaration's it shares a tail with, ends on
+     * where the value comes from when unset ([fromModel], [fromToolhead], [TRAVEL_STAND_INS]): written once here, so every
+     * shared value says the same.
+     */
+    private fun withFallbackWords() {
+        for ((i, d) in all.withIndex()) {
+            val s = d.segments
+            val words = when {
+                s.size > 3 && s[0] == "hardware" && s[1] == "machine" && fromModel(s.drop(3)) -> {
+                    val tail = s.drop(3).joinToString(".")
+                    "unset = its model's (hardware.model.<key>.$tail)" + (TRAVEL_STAND_INS[tail]?.let { ", else its ${it.words} (${it.path}), where that is not worked out from it" } ?: "")
+                }
+                s.size > 3 && s[0] == "hardware" && s[1] == "tool" && fromToolhead(s.drop(3)) ->
+                    "unset = its machine model's toolhead's, the one of its index (hardware.model.<key>.toolhead.<index - 1>.${s.drop(3).joinToString(".")})"
+                s.size > 5 && s[0] == "hardware" && s[1] == "model" && s[3] == "toolhead" && fromToolhead(s.drop(5)) ->
+                    "a tool on this toolhead that sets no ${s.drop(5).joinToString(".")} of its own takes it (hardware.tool.<key>.${s.drop(5).joinToString(".")})"
+                s.size > 3 && s[0] == "hardware" && s[1] == "model" && fromModel(s.drop(3)) ->
+                    "a machine of this model that sets no ${s.drop(3).joinToString(".")} of its own takes it (hardware.machine.<key>.${s.drop(3).joinToString(".")})"
+                else -> null
+            } ?: continue
+            all[i] = Decl(d.path, d.type, "${d.meaning}; $words", d.feeds != null)
+        }
+    }
+
     private val all = ArrayList<Decl>()
     val decls: List<Decl> get() = all
     private fun d(path: String, type: Type, meaning: String, feeds: Boolean = false) { all += Decl(path, type, meaning, feeds) }
@@ -125,19 +175,20 @@ object Schema {
         q("$m.build.z", Dimension.LENGTH, "printable height (Z)", feeds = true)
         d("$m.build.origin", Type.Choice(listOf("front-left", "center")), "where 0,0 is on the bed")
         q("$m.motion.print.speed", Dimension.SPEED, "fastest printing move (the maker's print speed; travel has motion.travel.speed): hidden lines (inner walls, infill, solid, support) print at it unless the filament's melt rate caps them first, and no printing move goes faster", feeds = true)
-        q("$m.motion.acceleration.max", Dimension.ACCEL, "highest acceleration: what formulas read (the first-use setup writes the print and travel accelerations as formulas of it); nothing else reads it directly: time predictions take the print and travel accelerations from the config, the rest from the machine description")
-        q("$m.motion.z.speed.max", Dimension.SPEED, "fastest Z move (Klipper's [printer] max_z_velocity), for time predictions; unset = its model's", feeds = true)
-        q("$m.motion.z.acceleration.max", Dimension.ACCEL, "highest Z acceleration (Klipper's [printer] max_z_accel), for time predictions; unset = its model's", feeds = true)
+        q("$m.motion.speed.max", Dimension.SPEED, "the machine's top speed (Klipper's [printer] max_velocity), what formulas read: plymeld's bundled visible speed is a quarter of it (at most the print speed), and the first-use setup writes the travel speed (and, where its model gives no print speed, the print speed) as formulas of it; time predictions take the print and travel speeds instead")
+        q("$m.motion.acceleration.max", Dimension.ACCEL, "the machine's highest acceleration (Klipper's [printer] max_accel), what formulas read: plymeld's bundled visible acceleration is a quarter of it (at most the print acceleration), and the first-use setup writes the print and travel accelerations as formulas of it; time predictions take the print and travel accelerations instead")
+        q("$m.motion.z.speed.max", Dimension.SPEED, "fastest Z move (Klipper's [printer] max_z_velocity), for time predictions", feeds = true)
+        q("$m.motion.z.acceleration.max", Dimension.ACCEL, "highest Z acceleration (Klipper's [printer] max_z_accel), for time predictions", feeds = true)
         q("$m.motion.z.step", Dimension.LENGTH, "the smallest Z move the machine makes (its Z motor's step as configured: Klipper's rotation_distance / (full_steps_per_rotation x microsteps), with the Z axis's own gearing): flat layers' tops are held to its whole multiples above the object's bottom, so no layer alternates between two thicknesses where its height is not a multiple (bands); unset = layers as planned", feeds = true)
-        q("$m.motion.corner.speed", Dimension.SPEED, "speed kept through a square corner (Klipper's [printer] square_corner_velocity), for time predictions; unset = its model's", feeds = true)
+        q("$m.motion.corner.speed", Dimension.SPEED, "speed kept through a square corner (Klipper's [printer] square_corner_velocity), for time predictions", feeds = true)
         q("$m.motion.travel.speed", Dimension.SPEED, "speed of moves that do not print", feeds = true)
         q("$m.motion.print.acceleration", Dimension.ACCEL, "acceleration of printing moves", feeds = true)
         q("$m.motion.travel.acceleration", Dimension.ACCEL, "acceleration of moves that do not print", feeds = true)
         q("$m.motion.first_layer.speed", Dimension.SPEED, "the machine's default speed of everything on the first layer, for a filament that sets none of its own (hardware.filament.<key>.motion.first_layer.speed); unset = plymeld's stand-in (plan.mechanism.motion.first_layer.speed in its bundled defaults)")
         // the visible lines' speed and acceleration as measured on the machine (its motion plate, `plymeld calibrate motion values`):
         // read by ConfigSetup.withMachine into plan.mechanism.motion.visible.*, under a value a config of the user's sets there
-        q("$m.motion.visible.speed", Dimension.SPEED, "the speed this machine lays a visible line (outer walls, top and bottom surfaces) at without ringing, as its motion plate measured it (`plymeld calibrate motion values` writes it); used for plan.mechanism.motion.visible.speed unless a config of yours sets that; unset = plymeld's stand-in")
-        q("$m.motion.visible.acceleration", Dimension.ACCEL, "the acceleration this machine lays a visible line at without ringing, as its motion plate measured it; used for plan.mechanism.motion.visible.acceleration unless a config of yours sets that; unset = plymeld's stand-in")
+        q("$m.motion.visible.speed", Dimension.SPEED, "the speed this machine lays a visible line (outer walls, top and bottom surfaces) at without ringing, as its motion plate measured it (`plymeld calibrate motion values` writes it); used for plan.mechanism.motion.visible.speed unless a config of yours sets that; unset = plymeld's stand-in, a quarter of its top speed (motion.speed.max), at most its print speed")
+        q("$m.motion.visible.acceleration", Dimension.ACCEL, "the acceleration this machine lays a visible line at without ringing, as its motion plate measured it; used for plan.mechanism.motion.visible.acceleration unless a config of yours sets that; unset = plymeld's stand-in, a quarter of its highest acceleration (motion.acceleration.max), at most its print acceleration")
         d("$m.firmware.flavor", Type.Choice(listOf("klipper")), "the firmware family its g-code is written for", feeds = true)
         d("$m.firmware.dialect", Type.Choice(plymeld.machine.Dialect.entries.map { it.id }), "the comments and acceleration command its files are written with, as the maker's own files for its printers have them (flashforge: `;LAYER_CHANGE`, `;TYPE:`, SET_VELOCITY_LIMIT, and the file header the maker's own slicer writes; qidi: `; CHANGE_LAYER`, `; FEATURE:`, M204; klipper: the flashforge comments and SET_VELOCITY_LIMIT with no maker's header), so its screen and previewers read them; unset = its model's default (model)", feeds = true)
         d("$m.firmware.arcs", Type.Bool, "the firmware takes arcs (G2/G3)", feeds = true)
@@ -146,12 +197,13 @@ object Schema {
         d("$m.tool_change.kind", Type.Choice(listOf("none", "swap_filament", "swap_tool")), "how it changes filament (not yet used)")
         q("$m.tool_change.time", Dimension.TIME, "the machine's own time for one change, beyond the g-code's moves", feeds = true)
         q("$m.pressure_advance", Dimension.TIME, "pressure advance every tool prints with (Klipper's, in seconds, e.g. \"0.035 s\") unless the tool or the filament sets its own; none set = the firmware's own, and plymeld writes none", feeds = true)
+        q("$m.heater.<key>.temperature.max", Dimension.TEMPERATURE, "a heater's (by its name in the firmware: extruder, heater_bed, ...) highest temperature, as its firmware sets it, what formulas read (machine.heater.heater_bed.temperature.max); nothing else reads it yet")
         d("$m.gcode.start", Type.Text, "g-code before the print (plymeld's template variables: nozzle_temperature, first_layer_nozzle_temperature, bed_temperature, first_layer_bed_temperature, layers, max_z, max_layer_z, initial_tool (the tool the print starts with, as T<n>), max_filament_flow (mm3/s), filament_diameter (mm), z_hop (mm, the travel lift: the first filament's retract.z_hop), max_print_height (mm, the machine's build.z))", feeds = true)
         d("$m.gcode.end", Type.Text, "g-code after the print (the same variables as the start)", feeds = true)
         d("$m.gcode.pause", Type.Text, "g-code that pauses for the user", feeds = true)
         d("$m.gcode.level", Type.Text, "g-code that levels the bed (e.g. a bed mesh), run after the start template when a print asks for levelling (a calibration plate does unless --no-level); empty = none known for the machine", feeds = true)
         d("$m.gcode.layer_change", Type.Text, "g-code at each layer change (layer_z, layer_number)", feeds = true)
-        d("$m.gcode.pictures", Type.Text, "the preview pictures its screen reads from the g-code file, as pixel sizes WIDTHxHEIGHT separated by commas (e.g. \"96x96, 300x300\"): plymeld draws the plate's parts into each and writes it as a PNG in a `; thumbnail begin` comment block near the top of the file; unset or empty = no picture", feeds = true)
+        d("$m.gcode.pictures", Type.Text, "the preview pictures its screen reads from the g-code file, as pixel sizes WIDTHxHEIGHT separated by commas (e.g. \"96x96, 300x300\"): plymeld draws the plate's parts into each and writes it as a PNG in a `; thumbnail begin` comment block near the top of the file; empty = no picture", feeds = true)
         // how it is reached: the protocol ids are plymeld-printer's Protocol
         // (a test there holds the two lists equal); a credential is the NAME of an environment variable, never a value
         d("$m.connection.api", Type.Choice(listOf("flashforge-http", "moonraker")), "the protocol `plymeld printer` speaks to it: flashforge-http = Flashforge's LAN HTTP API (the Creator 5), moonraker = Moonraker's HTTP API on a Klipper machine")
@@ -182,42 +234,42 @@ object Schema {
         d("$md.dialect", Type.Choice(plymeld.machine.Dialect.entries.map { it.id }), "the g-code dialect a machine of this model writes unless it sets its own (hardware.machine.<key>.firmware.dialect)")
         d("$md.notes", Type.Text, "notes on the model's description: where its facts come from, what is not known")
         d("$md.command.<key>", Type.Text, "a g-code command the model accepts (the key is the command word, e.g. PRINT_START): the writer refuses every command its model does not list. The value is its evidence, one \"kind: detail\" per line (kinds: tested, measured, firmware_config, used_by_firmware, documented, manufacturer_profile, observed, stand_in; a line without one counts as your config's; a \"purpose: ...\" line says what it does); empty is allowed")
-        q("$md.motion.speed.max", Dimension.SPEED, "the firmware's top speed (Klipper's [printer] max_velocity), for time predictions")
-        q("$md.motion.acceleration.max", Dimension.ACCEL, "the firmware's top acceleration (Klipper's [printer] max_accel), for time predictions")
-        q("$md.motion.z.speed.max", Dimension.SPEED, "the firmware's top Z speed (Klipper's [printer] max_z_velocity), for time predictions")
-        q("$md.motion.z.acceleration.max", Dimension.ACCEL, "the firmware's top Z acceleration (Klipper's [printer] max_z_accel), for time predictions")
-        q("$md.motion.corner.speed", Dimension.SPEED, "the speed the firmware keeps through a square corner (Klipper's [printer] square_corner_velocity), for time predictions")
+        q("$md.motion.speed.max", Dimension.SPEED, "the firmware's top speed (Klipper's [printer] max_velocity), for time predictions where a config sets none")
+        q("$md.motion.acceleration.max", Dimension.ACCEL, "the firmware's top acceleration (Klipper's [printer] max_accel), for time predictions where a config sets none")
+        q("$md.motion.z.speed.max", Dimension.SPEED, "the firmware's top Z speed (Klipper's [printer] max_z_velocity), for time predictions where a config sets none")
+        q("$md.motion.z.acceleration.max", Dimension.ACCEL, "the firmware's top Z acceleration (Klipper's [printer] max_z_accel), for time predictions where a config sets none")
+        q("$md.motion.corner.speed", Dimension.SPEED, "the speed the firmware keeps through a square corner (Klipper's [printer] square_corner_velocity), for time predictions where a config sets none")
         for (limit in listOf("speed.max", "acceleration.max", "z.speed.max", "z.acceleration.max", "corner.speed"))
             d("$md.evidence.motion.$limit", Type.Text, "the evidence of motion.$limit, \"kind: detail\"")
-        q("$md.motion.print.speed", Dimension.SPEED, "the maker's top print speed, which may be below motion.speed.max (the axes' top speed, travel's): the first-use setup's default for hardware.machine.<key>.motion.print.speed; unset = motion.speed.max")
+        q("$md.motion.print.speed", Dimension.SPEED, "the maker's top print speed, which may be below motion.speed.max (the axes' top speed, travel's); the first-use setup offers it, and where it is unset the machine's top speed (= machine.motion.speed.max)")
         d("$md.evidence.motion.print.speed", Type.Text, "the evidence of motion.print.speed, \"kind: detail\"")
         // what a machine of this model starts from in the first-use setup (plymeld init offers them as its defaults)
         for (a in listOf("x", "y", "z"))
-            q("$md.build.$a", Dimension.LENGTH, "the build area's ${if (a == "z") "height" else "size along $a"} on a machine of this model, as its maker gives it: the first-use setup's default for hardware.machine.<key>.build.$a")
+            q("$md.build.$a", Dimension.LENGTH, "the build area's ${if (a == "z") "height" else "size along $a"} on a machine of this model, as its maker gives it; the first-use setup offers it")
         d("$md.evidence.build", Type.Text, "the evidence of build.x / .y / .z, \"kind: detail\"")
-        d("$md.gcode.start", Type.Text, "the g-code before a print as the model's firmware defines it (e.g. its start macro; template variables as in hardware.machine.<key>.gcode.start): the first-use setup's default; unset = plymeld's generic start from the commands the model accepts")
-        d("$md.gcode.end", Type.Text, "the g-code after a print as the model's firmware defines it: the first-use setup's default; unset = plymeld's generic end")
-        d("$md.gcode.pause", Type.Text, "the g-code that pauses a print on this model: the first-use setup's default for hardware.machine.<key>.gcode.pause; unset = none offered")
-        d("$md.gcode.pictures", Type.Text, "the preview pictures this model's screen reads, as in hardware.machine.<key>.gcode.pictures: the first-use setup's default; unset = none offered")
+        d("$md.gcode.start", Type.Text, "the g-code before a print as the model's firmware defines it (e.g. its start macro; template variables as in hardware.machine.<key>.gcode.start); the first-use setup offers it, and where it is unset plymeld's generic start from the commands the model accepts")
+        d("$md.gcode.end", Type.Text, "the g-code after a print as the model's firmware defines it; the first-use setup offers it, and where it is unset plymeld's generic end")
+        d("$md.gcode.pause", Type.Text, "the g-code that pauses a print on this model; the first-use setup offers it")
+        d("$md.gcode.pictures", Type.Text, "the preview pictures this model's screen reads, as in hardware.machine.<key>.gcode.pictures; the first-use setup offers it")
         d("$md.evidence.gcode", Type.Text, "the evidence of gcode.start / .end / .pause / .pictures, \"kind: detail\" (one line each)")
         d("$md.fan.<key>.role", Type.Choice(listOf("part_cooling", "auxiliary_part_cooling", "chamber_circulation", "automatic", "unassigned")), "what a fan (by its name) is for (not yet used)")
         d("$md.fan.<key>.command", Type.Text, "the command that drives a fan, {s255} standing for its speed 0-255 (not yet used)")
         d("$md.fan.<key>.evidence", Type.Text, "where a fan's facts come from (not yet used)")
         d("$md.heater.<key>.section", Type.Text, "a heater's section in the firmware's config (not yet used)")
-        q("$md.heater.<key>.temperature.max", Dimension.TEMPERATURE, "a heater's highest temperature, as its firmware sets it (not yet used)")
+        q("$md.heater.<key>.temperature.max", Dimension.TEMPERATURE, "a heater's (by its name in the firmware) highest temperature, as its firmware sets it")
         d("$md.heater.<key>.evidence", Type.Text, "where a heater's facts come from (not yet used)")
-        q("$md.toolhead.<key>.head.nozzle.angle", Dimension.ANGLE, "a toolhead's (by its index, from 0) nozzle tip cone, its side's angle from horizontal; a tool's head.nozzle.angle wins over it")
-        q("$md.toolhead.<key>.head.nozzle.height", Dimension.LENGTH, "how far a toolhead's nozzle tip sits below the rest of the head; a tool's head.nozzle.height wins over it")
+        q("$md.toolhead.<key>.head.nozzle.angle", Dimension.ANGLE, "a toolhead's (by its index, from 0) nozzle tip cone, its side's angle from horizontal")
+        q("$md.toolhead.<key>.head.nozzle.height", Dimension.LENGTH, "how far a toolhead's nozzle tip sits below the rest of the head")
         for (axis in listOf("x", "y")) {
-            q("$md.toolhead.<key>.head.size.$axis", Dimension.LENGTH, "a toolhead's size along the machine's ${axis.uppercase()} axis, seen from below (its underside as a rectangle), with head.nozzle.$axis; a tool's head.size wins over it")
-            q("$md.toolhead.<key>.head.nozzle.$axis", Dimension.LENGTH, "a toolhead's nozzle position within its underside along ${axis.uppercase()}: its distance from the head's edge on the machine's -${axis.uppercase()} side, with head.size.$axis; a tool's head.nozzle.$axis wins over it")
+            q("$md.toolhead.<key>.head.size.$axis", Dimension.LENGTH, "a toolhead's size along the machine's ${axis.uppercase()} axis, seen from below (its underside as a rectangle), with head.nozzle.$axis")
+            q("$md.toolhead.<key>.head.nozzle.$axis", Dimension.LENGTH, "a toolhead's nozzle position within its underside along ${axis.uppercase()}: its distance from the head's edge on the machine's -${axis.uppercase()} side, with head.size.$axis")
         }
-        q("$md.toolhead.<key>.temperature.max", Dimension.TEMPERATURE, "the hottest the maker lets a toolhead's nozzle be set: the first-use setup's default for its tool's temperature.max")
+        q("$md.toolhead.<key>.temperature.max", Dimension.TEMPERATURE, "the hottest the maker lets a toolhead's nozzle be set; the first-use setup offers it")
         q("$md.toolhead.<key>.head.radius", Dimension.LENGTH, "a toolhead as a circle around its nozzle tip, its radius (one object at a time keeps objects this far apart when no head outline is known)")
         q("$md.toolhead.<key>.gantry.height", Dimension.LENGTH, "how far the gantry's rod sits above a toolhead's nozzle tip (one object at a time keeps every object but the last below it)")
         q("$md.toolhead.<key>.gantry.distance", Dimension.LENGTH, "how far the gantry's rod sits from a toolhead's nozzle tip, across")
         q("$md.toolhead.<key>.lid.height", Dimension.LENGTH, "how far the machine's lid sits above a toolhead's nozzle tip")
-        q("$md.toolhead.<key>.heat.time", Dimension.TIME, "how long a toolhead's nozzle takes to heat to print temperature: on a multi-nozzle machine, the next nozzle heated this long (print time) before its change; a tool's heat.time wins over it")
+        q("$md.toolhead.<key>.heat.time", Dimension.TIME, "how long a toolhead's nozzle takes to heat to print temperature: on a multi-nozzle machine, the next nozzle heated this long (print time) before its change")
         d("$md.toolhead.<key>.evidence", Type.Text, "where a toolhead's geometry comes from, \"kind: detail\" per line")
         // ---- hardware: plates
         val p = "hardware.plate.<key>"
@@ -241,18 +293,20 @@ object Schema {
         q("$t.first_layer.height.max", Dimension.LENGTH, "thickest FIRST layer it lays (the first layer only; the layers above keep layer.height.max): the first-layer window's heights are taken up to it, and a first-layer height set above it earns a warning; unset = layer.height.max")
         // the loaded head's shape around the nozzle: the head's XY size, the nozzle's XY position within it, the
         // nozzle's height and angle; measured, as makers do not publish them
-        q("$t.head.nozzle.angle", Dimension.ANGLE, "the nozzle's cone: the angle of its side from horizontal (a surface no steeper than it clears the cone); needed by curved layers; unset = its machine model's toolhead's (hardware.model.<key>.toolhead.<key>.head.nozzle.angle)", feeds = true)
-        q("$t.head.nozzle.height", Dimension.LENGTH, "how far the nozzle tip sits below the lowest other part of the loaded head (heater block, sock, duct, carriage); needed by curved layers; unset = its machine model's toolhead's (hardware.model.<key>.toolhead.<key>.head.nozzle.height)", feeds = true)
+        q("$t.head.nozzle.angle", Dimension.ANGLE, "the nozzle's cone: the angle of its side from horizontal (a surface no steeper than it clears the cone); needed by curved layers", feeds = true)
+        q("$t.head.nozzle.height", Dimension.LENGTH, "how far the nozzle tip sits below the lowest other part of the loaded head (heater block, sock, duct, carriage); needed by curved layers", feeds = true)
         q("$t.head.nozzle.x", Dimension.LENGTH, "the nozzle's position within the head along X: its distance from the head's edge on the machine's -X side (left on a front-left origin)", feeds = true)
         q("$t.head.nozzle.y", Dimension.LENGTH, "the nozzle's position within the head along Y: its distance from the head's edge on the machine's -Y side (front on a front-left origin)", feeds = true)
         q("$t.head.size.x", Dimension.LENGTH, "the loaded head's size along the machine's X axis, seen from below (its outline, a rectangle)", feeds = true)
         q("$t.head.size.y", Dimension.LENGTH, "the loaded head's size along the machine's Y axis, seen from below", feeds = true)
-        // (the machine's head.<key>.head.radius and gantry_height, so that "head" means only the loaded head)
-        q("$t.head.radius", Dimension.LENGTH, "the loaded head as a circle around the nozzle, its radius, for clearance (not yet used)")
-        q("$t.gantry.height", Dimension.LENGTH, "how far the gantry sits above the nozzle tip, for clearance (not yet used)")
+        // the clearances one object at a time needs: the head as a circle, the gantry's rod and the lid above the nozzle tip
+        q("$t.head.radius", Dimension.LENGTH, "the loaded head as a circle around the nozzle, its radius: one object at a time keeps objects this far apart where the head's outline (head.size, head.nozzle) is not known", feeds = true)
+        q("$t.gantry.height", Dimension.LENGTH, "how far the gantry's rod sits above the nozzle tip: one object at a time keeps every object but the last below it (with lid.height, what it needs known)", feeds = true)
+        q("$t.gantry.distance", Dimension.LENGTH, "how far the gantry's rod sits from the nozzle tip, across (not yet used)")
+        q("$t.lid.height", Dimension.LENGTH, "how far the machine's lid sits above the nozzle tip (with gantry.height, what one object at a time needs known)", feeds = true)
         q("$t.temperature.max", Dimension.TEMPERATURE, "hottest its nozzle may be set (the machine maker's figure): above it plymeld warns", feeds = true)
         q("$t.pressure_advance", Dimension.TIME, "pressure advance it prints with (Klipper's, in seconds, e.g. \"0.035 s\") unless the filament sets its own; unset = the machine's (hardware.machine.<key>.pressure_advance)", feeds = true)
-        q("$t.heat.time", Dimension.TIME, "on a multi-nozzle machine, heat the next nozzle this long (print time) before its change; unset = its machine model's toolhead's (hardware.model.<key>.toolhead.<key>.heat.time), else no preheat (the change waits for the nozzle)", feeds = true)
+        q("$t.heat.time", Dimension.TIME, "on a multi-nozzle machine, heat the next nozzle this long (print time) before its change; with none here or on its toolhead, no preheat (the change waits for the nozzle)", feeds = true)
         q("$t.extrude.section.max", Dimension.AREA, "the largest cross-section a move may extrude (filament per mm of head motion times the filament's cross-section) as its firmware checks it: Klipper's max_extrude_cross_section, whose own default is 4 times the nozzle diameter squared. A restore spread over a path (filament retract.return.distance) stays within it; unset = not known, and every restore stands still", feeds = true)
         for (a in listOf("x", "y", "z")) q("$t.offset.$a", Dimension.LENGTH, "its nozzle's offset from the first tool's, $a (not yet used)")
         // ---- hardware: filaments
@@ -451,9 +505,9 @@ object Schema {
         q("$pl.top.line.width", Dimension.LENGTH, "INHERITED: top surface line width", feeds = true)
         q("$pl.bridge.flow", Dimension.RATIO, "INHERITED: bridge extrusion multiplier", feeds = true)
         val mo = "plan.mechanism.motion"
-        q("$mo.visible.speed", Dimension.SPEED, "speed of visible lines: outer walls, top and bottom surfaces; a value in a config of yours wins over the machine's (hardware.machine.<key>.motion.visible.speed, from its motion plate); plymeld's bundled value is only the stand-in for a machine that sets none (until decided from the quality weight)", feeds = true)
+        q("$mo.visible.speed", Dimension.SPEED, "speed of visible lines: outer walls, top and bottom surfaces; a value in a config of yours wins over the machine's (hardware.machine.<key>.motion.visible.speed, from its motion plate); plymeld's bundled value is only the stand-in for a machine that sets none (until decided from the quality weight): a quarter of the machine's top speed (hardware.machine.<key>.motion.speed.max), at most its print speed", feeds = true)
         d("$mo.inner_walls.as_visible", Type.Bool, "INHERITED: inner walls at the visible lines' speed and acceleration (visible.speed, visible.acceleration), so the ripple of a wall laid fast right behind the outer wall does not show through it; false = at the hidden lines' (the machine's printing speed and acceleration)", feeds = true)
-        q("$mo.visible.acceleration", Dimension.ACCEL, "acceleration of visible lines; the rest print at the machine's printing acceleration; a value in a config of yours wins over the machine's (hardware.machine.<key>.motion.visible.acceleration); plymeld's bundled value is only the stand-in", feeds = true)
+        q("$mo.visible.acceleration", Dimension.ACCEL, "acceleration of visible lines; the rest print at the machine's printing acceleration; a value in a config of yours wins over the machine's (hardware.machine.<key>.motion.visible.acceleration); plymeld's bundled value is only the stand-in: a quarter of the machine's highest acceleration (hardware.machine.<key>.motion.acceleration.max), at most its print acceleration", feeds = true)
         // not fed directly: its setting (of the same id) is made from this, the filament's, the machine's, and the filament's
         // first-layer window ([made], ConfigSetup.derived)
         q("$mo.first_layer.speed", Dimension.SPEED, "speed of everything on the first layer (adhesion): a value in a config locks it over the filament's first-layer window (hardware.filament.<key>.first_layer.window.<plate>), its motion.first_layer.speed, and the machine's (hardware.machine.<key>.motion.first_layer.speed); plymeld's bundled value is only the stand-in for a machine and filament that set none")
@@ -664,6 +718,7 @@ object Schema {
         d("method.search.log.file", Type.Text, "the search log's file; empty = search.log in plymeld's state folder; a leading ~/ is your home directory; made with its directories when missing", feeds = true)
         q("method.slicing.tolerance", Dimension.LENGTH, "outline simplification; variable-width walls also read it as how much narrower than a wall loop needs (a side) an area may be where the loop joins pieces of itself across it (the outline is known no closer)", feeds = true)
         q("method.slicing.close_gaps", Dimension.LENGTH, "gaps narrower than twice this are closed", feeds = true)
+        withFallbackWords()
     }
 
     /**

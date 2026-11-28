@@ -9,6 +9,45 @@ section the release's version and date.
 
 ## [Unreleased]
 
+### Changed
+
+- Visible lines (outer walls, top and bottom surfaces) on a machine that sets no visible speed or acceleration of its own
+  (`hardware.machine.<key>.motion.visible.*`, from its motion plate) print at a quarter of its top speed and of its
+  highest acceleration, never above its print speed and print acceleration: plymeld's stand-ins
+  `plan.mechanism.motion.visible.speed` and `.visible.acceleration` follow the machine instead of being one speed for
+  every printer (100 mm/s) and half its print acceleration. On a Creator 5 or a QIDI Q2 (a top speed of 600 mm/s) the
+  visible lines print at 150 mm/s where they printed at 100; their acceleration is unchanged where `plymeld init` wrote
+  the machine (Creator 5: 30000 / 4 = 7500 mm/s2; Q2: 20000 / 4 = 5000 mm/s2), and moves where the print acceleration you
+  set is not half the highest. What follows the visible speed moves with it: short walls and scarf seams' ramps at half of
+  it (75 mm/s where 50), the purge tower above its first layer at it (150 mm/s on a Creator 5 where 100), the seam
+  decision's cost of a scarf's extra pass, the visible surfaces of calibration plates (each still held to the filament's
+  melt rate), and the time predicted. A machine plymeld ships no values for takes its travel speed and travel acceleration
+  as its top speed and acceleration. A value of yours, in the job or on the machine, still wins.
+- A machine takes every value it leaves unset from its printer model where the model has one (its top speed and
+  acceleration, Z and corner limits, print speed, build area, start, end, and pause g-code, preview pictures), and a tool
+  from its machine model's toolhead, the one of its index (the nozzle's cone and height, the head's outline and radius, the
+  gantry and lid heights above the nozzle, the hottest nozzle temperature, the preheat time): one rule, which formulas,
+  `plymeld config`, and the slice all read, each such value shown with the model's line it came from (e.g. `[bundled
+  03_models.toml:462 via the machine's model flashforge-c5]`). A machine of a bundled model no longer needs its build area
+  set; one of your own setting still wins. On a Creator 5 whose tools set no head outline (as `plymeld init` writes
+  them), travels now also rise over printed parts the head's body would reach, by its toolhead's outline (90 x 75 mm), as
+  they did only for a tool with its own outline; a park-style dwell (`plan.mechanism.cooling.dwell.style = "park"`)
+  parks clear of the layer by it; a tool's preheat is its own toolhead's (it was the longest of every toolhead's: the same
+  15 s on a Creator 5). A time prediction shows a limit taken this way as the config's.
+- `plymeld init` writes a new machine's top speed beside its highest acceleration (its model's limits, where the model
+  gives them) and its travel speed as a formula of it (`= machine.motion.speed.max`), and its print speed too where the
+  model gives no print speed of its own (a QIDI Q2), as it already wrote the accelerations.
+- A formula that reads a machine's or tool's value nothing sets names the setting to add and what it means; for a top
+  speed or acceleration, the travel value that would stand in for it, or why it cannot (a travel acceleration written as
+  `= machine.motion.acceleration.max` is worked out from it).
+
+### Added
+
+- `hardware.machine.<key>.motion.speed.max`, the machine's top speed (Klipper's max_velocity), and
+  `hardware.machine.<key>.heater.<heater>.temperature.max`, a heater's highest temperature, for formulas to read; and a
+  tool's `lid.height` and `gantry.distance`, beside its `head.radius` and `gantry.height`, which now reach one object at a
+  time's clearances over its model's toolhead's. Each is its model's (or toolhead's) where unset.
+
 ## [0.20261128.0] - 2026-11-28
 
 ### Fixed

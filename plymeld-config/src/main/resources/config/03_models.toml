@@ -1,7 +1,7 @@
-# plymeld's bundled machine models (docs/user/reference/bundled-data.md, "Machine models"): what each printer model
-# accepts and is, each fact with its evidence. A machine names one by its key in
-# hardware.machine.<key>.model. Your own printer: a [hardware.model.<key>] table in your config, `like` one of these
-# to start from it (docs/user/how-to/describe-a-printer.md).
+# plymeld's bundled machine models: what each printer model accepts and is, each fact with its evidence. A machine names
+# one by its key in hardware.machine.<key>.model and takes its value of any setting the two share that it sets none of
+# (top speed, build area, start g-code, ...); a tool, its toolhead's of the tool's index (index 1: toolhead 0). Your own
+# printer: a [hardware.model.<key>] table in your config, `like` one of these to start from it.
 #
 # A command's value is its evidence, one "kind: detail" per line (a "purpose: ..." line says what it does);
 # kinds, strongest first: tested, measured, firmware_config, used_by_firmware, documented, manufacturer_profile, observed,

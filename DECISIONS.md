@@ -2562,3 +2562,67 @@ drops it: it guards one way of losing the folder, not a read-only install that l
 **Consequences.** A command line's folder gains a `lib/` at its first run where it had none. A read-only install
 without one keeps an empty `java-home/lib/` in plymeld's cache folder, made again if the cache is cleared. The smoke
 run's Linux check runs two more `render` cases.
+
+## 73. A machine's unset value is its model's, a tool's its toolhead's, resolved where every value is; the visible lines' stand-ins are a quarter of the machine's maximums (2026-11-28)
+
+**Context.** A machine and its printer model share many settings (top speed and acceleration, Z and corner limits, the
+print speed, the build area, the start, end and pause g-code, the preview pictures), and a tool and its model's
+toolhead share the head's shape, its clearances and its preheat time. Where the machine or tool set none, each reader
+filled the gap its own way: the time prediction took the model's limits from the machine description, the nozzle cone
+and the preheat fell back to the toolhead in code (the preheat to the longest of every toolhead's, whatever the tool),
+the bridge order's head reach likewise, and the first-use setup copied some model values into the machine's config and
+wrote others as formulas. A formula reading `machine.…` or `tool.…` saw a value only where a config set it, so
+`plymeld config` and the formulas could disagree with what the slice used. Some model values had no machine or tool
+counterpart at all (the top speed, a heater's highest temperature, the lid's height above the nozzle, the gantry's
+distance), so no formula could read them. The visible lines' stand-ins were one speed for every printer (100 mm/s) and
+half the printing acceleration.
+
+**Decision.** One rule, applied where the config is resolved (`Config`), so a formula, `plymeld config`, the source
+block, and the pipeline all see the same value with the same source:
+- a machine's value that its model also has (both declared, `Schema.fromModel`) is, in order, the machine's own (a
+  config file of the user's, or taken over through `like`), else its model's (through the model's `like`), sourced
+  "… via the machine's model <key>";
+- a tool's value that a toolhead also has (`Schema.fromToolhead`) is its own, else its machine's model's toolhead's, the
+  one of the tool's index (index 1, or none, is toolhead 0), sourced "… via the machine's model <key>, toolhead <n>";
+- a machine's top speed and highest acceleration with neither given are its own travel speed and travel acceleration,
+  as the formula `= machine.motion.travel.…`, sourced "the machine's travel speed: no top speed set, …", so a printer
+  plymeld ships no values for needs nothing it did not need before. Where the travel value is itself worked out from
+  the maximum (the first-use setup's `travel.acceleration = "= machine.motion.acceleration.max"`), it does not stand in:
+  the maximum stays unset, and a formula reading it names the setting to add, what it means, and why the travel value
+  cannot stand in, instead of reporting that the formulas loop. The loop is found by working the stand-in out once,
+  when the config is resolved.
+The lines behind such a value are the model's line and the references that lead there (the machine's `model`, the
+tool's `machine` and `index`), so the source block counts them as read; the config fingerprint leaves the value itself
+out, being made of lines already in it. The counterparts that were missing are declared:
+`hardware.machine.<key>.motion.speed.max`, `hardware.machine.<key>.heater.<key>.temperature.max`,
+`hardware.tool.<key>.lid.height`, `hardware.tool.<key>.gantry.distance`; a tool's `head.radius`, `gantry.height` and
+`lid.height` now reach one object at a time's clearances, over the description's. Every shared declaration's
+description ends on the same words for where an unset value comes from, written once by the schema. The bundled
+visible speed and acceleration are `= min(machine.motion.speed.max / 4, machine.motion.print.speed)` and
+`= min(machine.motion.acceleration.max / 4, machine.motion.print.acceleration)`: placeholders until the quality weight
+decides them, a quarter so the cap follows what each machine can do, and never above the printing speed and acceleration,
+so visible lines never print faster or harder than the hidden ones (a quarter of a model's top acceleration can be above
+the print acceleration a user set, which the pre-print check refuses); a machine's motion plate reading, and a value in a
+config file of the user's, still win. The first-use setup writes a machine's
+top speed beside its highest acceleration (each the model's limit, where it gives one) and its print and travel speeds
+as formulas of the top speed, as it already wrote the accelerations (the maker's print speed where the model gives
+one).
+
+**Rejected.** Letting formulas read the model by a context name of its own beside `machine`: a second name for one
+value, and a value a machine sets would not be what a formula reads. Per-setting fallbacks in the code that reads each value: each reader
+decides alone, the config and the slice can disagree, and every new reader has to remember them. Flat constants for
+the visible stand-ins (one speed for every printer): too fast for a slow printer and needlessly slow for a fast one.
+Copying every model value into the machine's config at first use: the copies go stale when the bundled model is
+corrected, and a machine configured by hand would still have none. Breaking the stand-in's loop by reporting the loop:
+true, but it names no value to set, where the maximum is what is missing.
+
+**Consequences.** On a machine whose top speed is 600 mm/s (the bundled Creator 5's and QIDI Q2's), the visible lines
+print at 150 mm/s where they printed at 100, and what follows them moves with them (short walls and scarf seams at half
+of it, the purge tower at it, capped by the hidden lines' and travel speeds); their acceleration stays where the
+first-use setup's formulas put it (a quarter of the highest, as half of half the printing one was). A machine that
+leaves its build area, start or end g-code, preview pictures, or Z and corner limits unset now takes its model's instead
+of being refused or reading the description; a tool its toolhead's, by its index (the preheat, the nozzle cone, the
+head's outline, its clearances). Readers that took only the tool's own value now see the toolhead's too: on a Creator 5
+whose tools set no outline, travels rise over what the head's body would reach, and a park-style dwell parks clear by
+it. An imported profile's tools take the same toolhead values in the importer, where the rule's config is absent. A time
+prediction shows such a limit as the config's.

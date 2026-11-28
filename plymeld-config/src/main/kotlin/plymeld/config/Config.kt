@@ -27,8 +27,8 @@ data class Site(val machine: String? = null, val plate: String? = null, val tool
 
 /**
  * The config of one run, resolved: the layered values with `like`
- * taken over, every path checked against the schema, keys in one namespace, the objects on the
- * plate keyed, and formulas worked out where each value is used.
+ * taken over, every path checked against the schema, keys in one namespace, the machines' and tools' unset values taken
+ * from their model ([fallbacks]), the objects on the plate keyed, and formulas worked out where each value is used.
  */
 class Config(stack: ConfigStack, models: List<ModelObject>, machineArg: String? = null) {
     /** Things to tell the user that do not stop the run (missing units, scopes that match nothing). */
@@ -41,7 +41,10 @@ class Config(stack: ConfigStack, models: List<ModelObject>, machineArg: String? 
     val readDirectly: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
     @Volatile private var readsCount = false
 
-    /** Every value by path text, with the ones taken over through `like` (source "... via like K"). */
+    /**
+     * Every value by path text, with the ones taken over through `like` (source "... via like K") and the ones a machine or
+     * tool takes from its model, its toolhead, or its travel value where it sets none ([fallbacks]).
+     */
     val values: Map<String, Entry>
     /** The kind of each key ("filament", "object" ...). */
     val keys = LinkedHashMap<String, String>()
@@ -55,12 +58,22 @@ class Config(stack: ConfigStack, models: List<ModelObject>, machineArg: String? 
     /** The keys of the values set in the files themselves (not taken over through `like`). */
     private val ownKeys: Set<String>
 
+    /**
+     * The values a machine or a tool takes from elsewhere because it sets none itself ([fallbacks]), by key, each with the
+     * lines behind it (the model's or toolhead's line and the references that lead there).
+     */
+    private val fallbackLines = HashMap<String, List<String>>()
+
+    /** Why a maximum the travel value cannot stand in for has none ([fallbacks]), by its key: for the message naming it. */
+    private val noStandIn = HashMap<String, String>()
+
     init {
         // the settings read under a new name or left out (Migrations): told, not stopped
         warnings += stack.migrated
         val own = stack.effective.values.map(::normalized)
         ownKeys = own.mapTo(HashSet()) { it.key }
-        values = LinkedHashMap<String, Entry>().also { m -> for (e in own) m[e.key] = e; for (e in takenOver(own)) m.putIfAbsent(e.key, e) }
+        val all = LinkedHashMap<String, Entry>().also { m -> for (e in own) m[e.key] = e; for (e in takenOver(own)) m.putIfAbsent(e.key, e) }
+        values = all
         for ((kind, table) in Schema.ENTRY_TABLES) {
             if (kind == "object") continue
             val prefix = table.split('.')
@@ -69,6 +82,8 @@ class Config(stack: ConfigStack, models: List<ModelObject>, machineArg: String? 
         objects = plateObjects(models)
         for (o in objects) { claim(o.key, "object", o.model.source); if (o.copy == 1) claim(o.base, "object", o.model.source) }
         for (e in values.values) check(e)
+        // after the checks: a value taken from a model was checked where it is set
+        fallbacks(all)
         firstLayerWindows = FirstLayerWindow.read(values.values, keysOf("plate").toSet(), problems)
         // the machine that prints: named (--machine, else job.machine), else the only one defined;
         // several and none named is not guessed
@@ -124,6 +139,70 @@ class Config(stack: ConfigStack, models: List<ModelObject>, machineArg: String? 
             }
         }
         return out
+    }
+
+    // ---- fallbacks: a machine's values from its model, a tool's from its toolhead, a maximum from the travel value
+
+    /**
+     * The values a machine or a tool sets neither itself nor through `like`, taken from where plymeld knows them, so every
+     * reader (a formula, `plymeld config`, the pipeline) sees one value with its source:
+     *  - a machine's value its model also has ([Schema.fromModel]): the model's (`hardware.machine.<key>.model`, through the
+     *    model's own `like`), sourced "… via the machine's model <model>";
+     *  - a tool's value its machine's model's toolhead also has ([Schema.fromToolhead]): that toolhead's, the one of the tool's
+     *    index (`hardware.tool.<key>.index`, 1 = toolhead 0; unset = 1);
+     *  - a machine's top speed or acceleration still unset ([Schema.TRAVEL_STAND_INS]): its own travel value, as the formula
+     *    `= machine.motion.travel.…`, so a machine with no model to give one needs nothing it did not need before. Where the
+     *    travel value is itself worked out from the maximum (the first-use setup writes `travel.acceleration =
+     *    "= machine.motion.acceleration.max"`), it cannot stand in: the maximum stays unset, and a formula that reads it is
+     *    told to set it ([noStandIn]) rather than that the formulas loop.
+     * A value set in any config file wins over all of these: it is the machine's or tool's own.
+     */
+    private fun fallbacks(all: LinkedHashMap<String, Entry>) {
+        val md = listOf("hardware", "model")
+        fun modelOf(machine: String): Pair<String, Entry>? = all[ConfigFiles.pathText(listOf("hardware", "machine", machine, "model"))]?.let { e -> (e.value as? String)?.let { it to e } }
+        fun under(prefix: List<String>) = all.values.filter { it.path.size > prefix.size && it.path.subList(0, prefix.size) == prefix }
+        fun add(path: List<String>, value: Any, source: String, lines: List<String>) {
+            val key = ConfigFiles.pathText(path)
+            if (key in all) return
+            all[key] = Entry(path, value, source)
+            fallbackLines[key] = lines
+        }
+        for (k in keysOf("machine")) {
+            val (model, ref) = modelOf(k) ?: continue
+            for (e in under(md + model)) {
+                val rest = e.path.drop(3)
+                if (Schema.fromModel(rest)) add(listOf("hardware", "machine", k) + rest, e.value, "${e.source} via the machine's model $model", origins(e) + origins(ref))
+            }
+        }
+        for (t in keysOf("tool")) {
+            val on = all[ConfigFiles.pathText(listOf("hardware", "tool", t, "machine"))] ?: continue
+            val (model, ref) = (on.value as? String)?.let(::modelOf) ?: continue
+            val indexE = all[ConfigFiles.pathText(listOf("hardware", "tool", t, "index"))]
+            // an index that cannot be worked out is reported where the tool is laid out (ConfigSetup.slots)
+            val index = if (indexE == null) 1 else runCatching { quantity(indexE, Dimension.COUNT, Site(tool = t)).toInt() }.getOrNull() ?: continue
+            val head = md + model + "toolhead" + (index - 1).toString()
+            for (e in under(head)) {
+                val rest = e.path.drop(head.size)
+                if (Schema.fromToolhead(rest)) add(listOf("hardware", "tool", t) + rest, e.value, "${e.source} via the machine's model $model, toolhead ${index - 1}",
+                    origins(e) + origins(on) + origins(ref) + (indexE?.let(::origins) ?: emptyList()))
+            }
+        }
+        for (k in keysOf("machine")) for ((max, stand) in Schema.TRAVEL_STAND_INS) {
+            val path = listOf("hardware", "machine", k) + max.split('.')
+            val key = ConfigFiles.pathText(path)
+            val travel = all[ConfigFiles.pathText(listOf("hardware", "machine", k) + stand.path.split('.'))] ?: continue
+            if (key in all) continue
+            add(path, "= machine.${stand.path}", "the machine's ${stand.words}: no ${stand.max} set, on the machine or by its model", emptyList())
+            val dim = (Schema.find(path)?.type as Schema.Type.Quantity).dim
+            try { quantity(all.getValue(key), dim, Site(machine = k)) }
+            catch (loop: FormulaLoop) {
+                if (loop.key != key) continue
+                all.remove(key); fallbackLines.remove(key)
+                noStandIn[key] = "its ${stand.words} cannot stand in for it: ${travel.key} = \"${travel.value}\" (${travel.source}) is worked out from it"
+            } catch (e: IllegalArgumentException) {
+                // another value the travel value reads is missing here: told where the value is used, naming that one
+            }
+        }
     }
 
     // ---- objects
@@ -244,10 +323,12 @@ class Config(stack: ConfigStack, models: List<ModelObject>, machineArg: String? 
 
     /**
      * The keys of the lines in the files behind [e]: its own; for a value taken over through `like`, each `like` line on the
-     * way and the line of the base that sets it.
+     * way and the line of the base that sets it; for a value a machine or tool takes from its model or its travel value
+     * ([fallbacks]), the lines it was taken from (a formula's reads are the caller's to add).
      */
     fun origins(e: Entry): List<String> {
         if (e.key in ownKeys) return listOf(e.key)
+        fallbackLines[e.key]?.let { return it }
         val (kind, table) = Schema.ENTRY_TABLES.entries.firstOrNull { (_, t) ->
             val p = t.split('.'); e.path.size > p.size + 1 && e.path.subList(0, p.size) == p } ?: return listOf(e.key)
         val prefix = table.split('.')
@@ -315,7 +396,7 @@ class Config(stack: ConfigStack, models: List<ModelObject>, machineArg: String? 
     private fun quantity(e: Entry, dim: Dimension, site: Site, chain: List<String>): Double {
         val what = "${e.key} (${e.source})"
         if (!Formula.isFormula(e.value)) return Units.parse(e.value, dim, what).value
-        if (e.key in chain) throw IllegalArgumentException("formulas form a loop: ${(chain.dropWhile { it != e.key } + e.key).joinToString(" -> ")}")
+        if (e.key in chain) throw FormulaLoop(e.key, chain)
         val here = siteOf(e.path, site)
         return Formula.evaluate(e.value as String, dim, what) { p -> reference(p, here, chain + e.key, what) }
     }
@@ -327,7 +408,7 @@ class Config(stack: ConfigStack, models: List<ModelObject>, machineArg: String? 
         val what = "${e.key} (${e.source})"
         (e.value as? Boolean)?.let { return it }
         if (!Formula.isFormula(e.value)) throw IllegalArgumentException("$what: expected true or false, got '${e.value}'")
-        if (e.key in chain) throw IllegalArgumentException("formulas form a loop: ${(chain.dropWhile { it != e.key } + e.key).joinToString(" -> ")}")
+        if (e.key in chain) throw FormulaLoop(e.key, chain)
         val here = siteOf(e.path, site)
         return Formula.evaluateSwitch(e.value as String, what) { p -> reference(p, here, chain + e.key, what) }
     }
@@ -369,9 +450,16 @@ class Config(stack: ConfigStack, models: List<ModelObject>, machineArg: String? 
             else -> entry(p)
         }
         if (target == null) {
-            // where the value would be set, when the reference names an entry in play
+            // where the value would be set, when the reference names an entry in play, and what it means (the schema's
+            // words up to their first ';'); for a maximum, why its travel value does not stand in
             val key = when (p[0]) { "machine" -> site.machine; "plate" -> site.plate; "tool" -> site.tool; "filament" -> site.filament; else -> null }
-            val set = key?.let { " (set hardware.${p[0]}.$it.${rest.joinToString(".")})" } ?: ""
+            val set = key?.let {
+                val path = listOf("hardware", p[0], it) + rest
+                val means = Schema.find(path)?.meaning?.substringBefore(';')?.let { m -> ": $m" } ?: ""
+                val stand = if (p[0] == "machine") Schema.TRAVEL_STAND_INS[rest.joinToString(".")] else null
+                val or = noStandIn[ConfigFiles.pathText(path)] ?: stand?.let { s -> "or its ${s.words}, hardware.machine.$it.${s.path}, which stands in for it" }
+                " (set ${ConfigFiles.pathText(path)}$means${or?.let { w -> "; $w" } ?: ""})"
+            } ?: ""
             throw MissingReference("$what: '${p.joinToString(".")}' names no value$set")
         }
         return when (val t = Schema.find(target.path)?.type) {
@@ -392,7 +480,8 @@ class Config(stack: ConfigStack, models: List<ModelObject>, machineArg: String? 
         // from: the job locks it writes for the surface techniques the search weighed are left out, as its plan values are
         fun fileOf(source: String) = source.substringBeforeLast(':')
         val planFiles = values.values.filter { it.path.size > 1 && it.path[0] == "plan" && it.path[1] == "source_fingerprint" }.map { fileOf(it.source) }.toSet()
-        return UsedEntries.inPrint(values.values, machine).filter { it.path[0] != "plan" && fileOf(it.source) !in planFiles }.groupBy { it.path[0] }.mapValues { (_, es) ->
+        // a value a machine or tool takes from its model or travel value is a function of the lines it came from, already here
+        return UsedEntries.inPrint(values.values.filter { it.key !in fallbackLines }, machine).filter { it.path[0] != "plan" && fileOf(it.source) !in planFiles }.groupBy { it.path[0] }.mapValues { (_, es) ->
             Fingerprint.of(es.sortedBy { it.key }.joinToString("\n") { "${it.key}=${it.value}" })
         }
     }
@@ -407,6 +496,10 @@ class Config(stack: ConfigStack, models: List<ModelObject>, machineArg: String? 
 
 /** A formula names a value that nothing sets: [message] names the formula's own key and what to set. */
 class MissingReference(message: String) : IllegalArgumentException(message)
+
+/** Formulas that read each other round to [key] again ([chain]: the keys on the way, [key] among them). */
+class FormulaLoop(val key: String, chain: List<String>) :
+    IllegalArgumentException("formulas form a loop: ${(chain.dropWhile { it != key } + key).joinToString(" -> ")}")
 
 /** Short stable hashes (SHA-256, first 16 hex digits). */
 object Fingerprint {

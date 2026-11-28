@@ -88,14 +88,20 @@ object FirstUse {
             Ask("build.y", "the build area's depth (y)", m.build["y"], if (m.build.isEmpty()) buildWhy else "the model's, as above"),
             Ask("build.z", "the build height (z)", m.build["z"], if (m.build.isEmpty()) buildWhy else "the model's, as above"),
             Ask("build.origin", "where x 0, y 0 is", "front-left", "most printers: the bed's front-left corner", listOf("front-left", "center")),
-            Ask("motion.acceleration.max", "its highest acceleration", limit("max_accel", "mm/s2"), "the model's firmware limit (${m.name})", optional = true),
-            Ask("motion.print.speed", "the fastest it prints", m.printSpeed ?: limit("max_velocity", "mm/s"),
-                (if (m.printSpeed != null) "the maker's top print speed (${m.printSpeedWhy ?: m.name})" else "the model's firmware limit (${m.name})") +
+            // the top speed and acceleration: the model's limits as written (unset, the machine takes its model's); the speeds and
+            // accelerations below are formulas of them, so a changed limit carries through
+            Ask("motion.speed.max", "its top speed (the axes' fastest)", limit("max_velocity", "mm/s"),
+                if (m.limits["max_velocity"] != null) "the model's firmware limit (${m.name})" else "the model names none; empty: its travel speed stands in", optional = true),
+            Ask("motion.acceleration.max", "its highest acceleration", limit("max_accel", "mm/s2"),
+                if (m.limits["max_accel"] != null) "the model's firmware limit (${m.name})" else "the model names none: Klipper's [printer] max_accel in its printer.cfg", optional = true),
+            Ask("motion.print.speed", "the fastest it prints", m.printSpeed ?: "= machine.motion.speed.max".takeIf { m.limits["max_velocity"] != null },
+                (if (m.printSpeed != null) "the maker's top print speed (${m.printSpeedWhy ?: m.name})" else if (m.limits["max_velocity"] != null) "its top speed (the model names no print speed)" else "the model names none") +
                     "; a slower print is a lower number", optional = true),
             Ask("motion.print.acceleration", "the acceleration it prints at", "= machine.motion.acceleration.max / 2", "half its highest: plymeld's stand-in until a motion plate measures it"),
-            // travel prints nothing, so it goes at the axes' top speed where the model gives one, not at the print speed
-            Ask("motion.travel.speed", "the speed it travels at (moves that do not print)", limit("max_velocity", "mm/s") ?: "= machine.motion.print.speed",
-                if (m.limits["max_velocity"] != null) "the model's top speed (${m.name}): a travel prints nothing" else "as fast as it prints"),
+            // travel prints nothing, so it goes at the top speed where the model gives one, not at the print speed (where it gives
+            // none, the top speed is the travel speed: a formula of it would go round)
+            Ask("motion.travel.speed", "the speed it travels at (moves that do not print)", if (m.limits["max_velocity"] != null) "= machine.motion.speed.max" else "= machine.motion.print.speed",
+                if (m.limits["max_velocity"] != null) "its top speed: a travel prints nothing" else "as fast as it prints"),
             Ask("motion.travel.acceleration", "the acceleration it travels at", "= machine.motion.acceleration.max", "its highest"),
             Ask("firmware.arcs", "whether its firmware takes arcs (G2 / G3)", m.arcs.toString(),
                 if (m.arcs) "the model's command list has G2 and G3" else "the model's command list has no G2 / G3", listOf("true", "false")),

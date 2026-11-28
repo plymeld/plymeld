@@ -32,21 +32,21 @@
                 "additionalProperties": false,
                 "properties": {
                   "x": {
-                    "description": "printable width (X) — a length (mm); or a formula (= ...)",
+                    "description": "printable width (X); unset = its model's (hardware.model.<key>.build.x) — a length (mm); or a formula (= ...)",
                     "type": [
                       "string",
                       "number"
                     ]
                   },
                   "y": {
-                    "description": "printable depth (Y) — a length (mm); or a formula (= ...)",
+                    "description": "printable depth (Y); unset = its model's (hardware.model.<key>.build.y) — a length (mm); or a formula (= ...)",
                     "type": [
                       "string",
                       "number"
                     ]
                   },
                   "z": {
-                    "description": "printable height (Z) — a length (mm); or a formula (= ...)",
+                    "description": "printable height (Z); unset = its model's (hardware.model.<key>.build.z) — a length (mm); or a formula (= ...)",
                     "type": [
                       "string",
                       "number"
@@ -70,7 +70,7 @@
                     "additionalProperties": false,
                     "properties": {
                       "speed": {
-                        "description": "fastest printing move (the maker's print speed; travel has motion.travel.speed): hidden lines (inner walls, infill, solid, support) print at it unless the filament's melt rate caps them first, and no printing move goes faster — a speed (mm/s); or a formula (= ...)",
+                        "description": "fastest printing move (the maker's print speed; travel has motion.travel.speed): hidden lines (inner walls, infill, solid, support) print at it unless the filament's melt rate caps them first, and no printing move goes faster; unset = its model's (hardware.model.<key>.motion.print.speed) — a speed (mm/s); or a formula (= ...)",
                         "type": [
                           "string",
                           "number"
@@ -85,12 +85,25 @@
                       }
                     }
                   },
+                  "speed": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "max": {
+                        "description": "the machine's top speed (Klipper's [printer] max_velocity), what formulas read: plymeld's bundled visible speed is a quarter of it (at most the print speed), and the first-use setup writes the travel speed (and, where its model gives no print speed, the print speed) as formulas of it; time predictions take the print and travel speeds instead; unset = its model's (hardware.model.<key>.motion.speed.max), else its travel speed (motion.travel.speed), where that is not worked out from it — a speed (mm/s); or a formula (= ...)",
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      }
+                    }
+                  },
                   "acceleration": {
                     "type": "object",
                     "additionalProperties": false,
                     "properties": {
                       "max": {
-                        "description": "highest acceleration: what formulas read (the first-use setup writes the print and travel accelerations as formulas of it); nothing else reads it directly: time predictions take the print and travel accelerations from the config, the rest from the machine description — a accel (mm/s2); or a formula (= ...)",
+                        "description": "the machine's highest acceleration (Klipper's [printer] max_accel), what formulas read: plymeld's bundled visible acceleration is a quarter of it (at most the print acceleration), and the first-use setup writes the print and travel accelerations as formulas of it; time predictions take the print and travel accelerations instead; unset = its model's (hardware.model.<key>.motion.acceleration.max), else its travel acceleration (motion.travel.acceleration), where that is not worked out from it — a accel (mm/s2); or a formula (= ...)",
                         "type": [
                           "string",
                           "number"
@@ -107,7 +120,7 @@
                         "additionalProperties": false,
                         "properties": {
                           "max": {
-                            "description": "fastest Z move (Klipper's [printer] max_z_velocity), for time predictions; unset = its model's — a speed (mm/s); or a formula (= ...)",
+                            "description": "fastest Z move (Klipper's [printer] max_z_velocity), for time predictions; unset = its model's (hardware.model.<key>.motion.z.speed.max) — a speed (mm/s); or a formula (= ...)",
                             "type": [
                               "string",
                               "number"
@@ -120,7 +133,7 @@
                         "additionalProperties": false,
                         "properties": {
                           "max": {
-                            "description": "highest Z acceleration (Klipper's [printer] max_z_accel), for time predictions; unset = its model's — a accel (mm/s2); or a formula (= ...)",
+                            "description": "highest Z acceleration (Klipper's [printer] max_z_accel), for time predictions; unset = its model's (hardware.model.<key>.motion.z.acceleration.max) — a accel (mm/s2); or a formula (= ...)",
                             "type": [
                               "string",
                               "number"
@@ -142,7 +155,7 @@
                     "additionalProperties": false,
                     "properties": {
                       "speed": {
-                        "description": "speed kept through a square corner (Klipper's [printer] square_corner_velocity), for time predictions; unset = its model's — a speed (mm/s); or a formula (= ...)",
+                        "description": "speed kept through a square corner (Klipper's [printer] square_corner_velocity), for time predictions; unset = its model's (hardware.model.<key>.motion.corner.speed) — a speed (mm/s); or a formula (= ...)",
                         "type": [
                           "string",
                           "number"
@@ -188,14 +201,14 @@
                     "additionalProperties": false,
                     "properties": {
                       "speed": {
-                        "description": "the speed this machine lays a visible line (outer walls, top and bottom surfaces) at without ringing, as its motion plate measured it (`plymeld calibrate motion values` writes it); used for plan.mechanism.motion.visible.speed unless a config of yours sets that; unset = plymeld's stand-in — a speed (mm/s); or a formula (= ...)",
+                        "description": "the speed this machine lays a visible line (outer walls, top and bottom surfaces) at without ringing, as its motion plate measured it (`plymeld calibrate motion values` writes it); used for plan.mechanism.motion.visible.speed unless a config of yours sets that; unset = plymeld's stand-in, a quarter of its top speed (motion.speed.max), at most its print speed — a speed (mm/s); or a formula (= ...)",
                         "type": [
                           "string",
                           "number"
                         ]
                       },
                       "acceleration": {
-                        "description": "the acceleration this machine lays a visible line at without ringing, as its motion plate measured it; used for plan.mechanism.motion.visible.acceleration unless a config of yours sets that; unset = plymeld's stand-in — a accel (mm/s2); or a formula (= ...)",
+                        "description": "the acceleration this machine lays a visible line at without ringing, as its motion plate measured it; used for plan.mechanism.motion.visible.acceleration unless a config of yours sets that; unset = plymeld's stand-in, a quarter of its highest acceleration (motion.acceleration.max), at most its print acceleration — a accel (mm/s2); or a formula (= ...)",
                         "type": [
                           "string",
                           "number"
@@ -296,20 +309,43 @@
                   "number"
                 ]
               },
+              "heater": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "temperature": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "max": {
+                          "description": "a heater's (by its name in the firmware: extruder, heater_bed, ...) highest temperature, as its firmware sets it, what formulas read (machine.heater.heater_bed.temperature.max); nothing else reads it yet; unset = its model's (hardware.model.<key>.heater.<key>.temperature.max) — a temperature (C); or a formula (= ...)",
+                          "type": [
+                            "string",
+                            "number"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "properties": {}
+              },
               "gcode": {
                 "type": "object",
                 "additionalProperties": false,
                 "properties": {
                   "start": {
-                    "description": "g-code before the print (plymeld's template variables: nozzle_temperature, first_layer_nozzle_temperature, bed_temperature, first_layer_bed_temperature, layers, max_z, max_layer_z, initial_tool (the tool the print starts with, as T<n>), max_filament_flow (mm3/s), filament_diameter (mm), z_hop (mm, the travel lift: the first filament's retract.z_hop), max_print_height (mm, the machine's build.z))",
+                    "description": "g-code before the print (plymeld's template variables: nozzle_temperature, first_layer_nozzle_temperature, bed_temperature, first_layer_bed_temperature, layers, max_z, max_layer_z, initial_tool (the tool the print starts with, as T<n>), max_filament_flow (mm3/s), filament_diameter (mm), z_hop (mm, the travel lift: the first filament's retract.z_hop), max_print_height (mm, the machine's build.z)); unset = its model's (hardware.model.<key>.gcode.start)",
                     "type": "string"
                   },
                   "end": {
-                    "description": "g-code after the print (the same variables as the start)",
+                    "description": "g-code after the print (the same variables as the start); unset = its model's (hardware.model.<key>.gcode.end)",
                     "type": "string"
                   },
                   "pause": {
-                    "description": "g-code that pauses for the user",
+                    "description": "g-code that pauses for the user; unset = its model's (hardware.model.<key>.gcode.pause)",
                     "type": "string"
                   },
                   "level": {
@@ -321,7 +357,7 @@
                     "type": "string"
                   },
                   "pictures": {
-                    "description": "the preview pictures its screen reads from the g-code file, as pixel sizes WIDTHxHEIGHT separated by commas (e.g. \"96x96, 300x300\"): plymeld draws the plate's parts into each and writes it as a PNG in a `; thumbnail begin` comment block near the top of the file; unset or empty = no picture",
+                    "description": "the preview pictures its screen reads from the g-code file, as pixel sizes WIDTHxHEIGHT separated by commas (e.g. \"96x96, 300x300\"): plymeld draws the plate's parts into each and writes it as a PNG in a `; thumbnail begin` comment block near the top of the file; empty = no picture; unset = its model's (hardware.model.<key>.gcode.pictures)",
                     "type": "string"
                   }
                 }
@@ -545,7 +581,7 @@
                     "additionalProperties": false,
                     "properties": {
                       "max": {
-                        "description": "the firmware's top speed (Klipper's [printer] max_velocity), for time predictions — a speed (mm/s); or a formula (= ...)",
+                        "description": "the firmware's top speed (Klipper's [printer] max_velocity), for time predictions where a config sets none; a machine of this model that sets no motion.speed.max of its own takes it (hardware.machine.<key>.motion.speed.max) — a speed (mm/s); or a formula (= ...)",
                         "type": [
                           "string",
                           "number"
@@ -558,7 +594,7 @@
                     "additionalProperties": false,
                     "properties": {
                       "max": {
-                        "description": "the firmware's top acceleration (Klipper's [printer] max_accel), for time predictions — a accel (mm/s2); or a formula (= ...)",
+                        "description": "the firmware's top acceleration (Klipper's [printer] max_accel), for time predictions where a config sets none; a machine of this model that sets no motion.acceleration.max of its own takes it (hardware.machine.<key>.motion.acceleration.max) — a accel (mm/s2); or a formula (= ...)",
                         "type": [
                           "string",
                           "number"
@@ -575,7 +611,7 @@
                         "additionalProperties": false,
                         "properties": {
                           "max": {
-                            "description": "the firmware's top Z speed (Klipper's [printer] max_z_velocity), for time predictions — a speed (mm/s); or a formula (= ...)",
+                            "description": "the firmware's top Z speed (Klipper's [printer] max_z_velocity), for time predictions where a config sets none; a machine of this model that sets no motion.z.speed.max of its own takes it (hardware.machine.<key>.motion.z.speed.max) — a speed (mm/s); or a formula (= ...)",
                             "type": [
                               "string",
                               "number"
@@ -588,7 +624,7 @@
                         "additionalProperties": false,
                         "properties": {
                           "max": {
-                            "description": "the firmware's top Z acceleration (Klipper's [printer] max_z_accel), for time predictions — a accel (mm/s2); or a formula (= ...)",
+                            "description": "the firmware's top Z acceleration (Klipper's [printer] max_z_accel), for time predictions where a config sets none; a machine of this model that sets no motion.z.acceleration.max of its own takes it (hardware.machine.<key>.motion.z.acceleration.max) — a accel (mm/s2); or a formula (= ...)",
                             "type": [
                               "string",
                               "number"
@@ -603,7 +639,7 @@
                     "additionalProperties": false,
                     "properties": {
                       "speed": {
-                        "description": "the speed the firmware keeps through a square corner (Klipper's [printer] square_corner_velocity), for time predictions — a speed (mm/s); or a formula (= ...)",
+                        "description": "the speed the firmware keeps through a square corner (Klipper's [printer] square_corner_velocity), for time predictions where a config sets none; a machine of this model that sets no motion.corner.speed of its own takes it (hardware.machine.<key>.motion.corner.speed) — a speed (mm/s); or a formula (= ...)",
                         "type": [
                           "string",
                           "number"
@@ -616,7 +652,7 @@
                     "additionalProperties": false,
                     "properties": {
                       "speed": {
-                        "description": "the maker's top print speed, which may be below motion.speed.max (the axes' top speed, travel's): the first-use setup's default for hardware.machine.<key>.motion.print.speed; unset = motion.speed.max — a speed (mm/s); or a formula (= ...)",
+                        "description": "the maker's top print speed, which may be below motion.speed.max (the axes' top speed, travel's); the first-use setup offers it, and where it is unset the machine's top speed (= machine.motion.speed.max); a machine of this model that sets no motion.print.speed of its own takes it (hardware.machine.<key>.motion.print.speed) — a speed (mm/s); or a formula (= ...)",
                         "type": [
                           "string",
                           "number"
@@ -717,21 +753,21 @@
                 "additionalProperties": false,
                 "properties": {
                   "x": {
-                    "description": "the build area's size along x on a machine of this model, as its maker gives it: the first-use setup's default for hardware.machine.<key>.build.x — a length (mm); or a formula (= ...)",
+                    "description": "the build area's size along x on a machine of this model, as its maker gives it; the first-use setup offers it; a machine of this model that sets no build.x of its own takes it (hardware.machine.<key>.build.x) — a length (mm); or a formula (= ...)",
                     "type": [
                       "string",
                       "number"
                     ]
                   },
                   "y": {
-                    "description": "the build area's size along y on a machine of this model, as its maker gives it: the first-use setup's default for hardware.machine.<key>.build.y — a length (mm); or a formula (= ...)",
+                    "description": "the build area's size along y on a machine of this model, as its maker gives it; the first-use setup offers it; a machine of this model that sets no build.y of its own takes it (hardware.machine.<key>.build.y) — a length (mm); or a formula (= ...)",
                     "type": [
                       "string",
                       "number"
                     ]
                   },
                   "z": {
-                    "description": "the build area's height on a machine of this model, as its maker gives it: the first-use setup's default for hardware.machine.<key>.build.z — a length (mm); or a formula (= ...)",
+                    "description": "the build area's height on a machine of this model, as its maker gives it; the first-use setup offers it; a machine of this model that sets no build.z of its own takes it (hardware.machine.<key>.build.z) — a length (mm); or a formula (= ...)",
                     "type": [
                       "string",
                       "number"
@@ -744,19 +780,19 @@
                 "additionalProperties": false,
                 "properties": {
                   "start": {
-                    "description": "the g-code before a print as the model's firmware defines it (e.g. its start macro; template variables as in hardware.machine.<key>.gcode.start): the first-use setup's default; unset = plymeld's generic start from the commands the model accepts",
+                    "description": "the g-code before a print as the model's firmware defines it (e.g. its start macro; template variables as in hardware.machine.<key>.gcode.start); the first-use setup offers it, and where it is unset plymeld's generic start from the commands the model accepts; a machine of this model that sets no gcode.start of its own takes it (hardware.machine.<key>.gcode.start)",
                     "type": "string"
                   },
                   "end": {
-                    "description": "the g-code after a print as the model's firmware defines it: the first-use setup's default; unset = plymeld's generic end",
+                    "description": "the g-code after a print as the model's firmware defines it; the first-use setup offers it, and where it is unset plymeld's generic end; a machine of this model that sets no gcode.end of its own takes it (hardware.machine.<key>.gcode.end)",
                     "type": "string"
                   },
                   "pause": {
-                    "description": "the g-code that pauses a print on this model: the first-use setup's default for hardware.machine.<key>.gcode.pause; unset = none offered",
+                    "description": "the g-code that pauses a print on this model; the first-use setup offers it; a machine of this model that sets no gcode.pause of its own takes it (hardware.machine.<key>.gcode.pause)",
                     "type": "string"
                   },
                   "pictures": {
-                    "description": "the preview pictures this model's screen reads, as in hardware.machine.<key>.gcode.pictures: the first-use setup's default; unset = none offered",
+                    "description": "the preview pictures this model's screen reads, as in hardware.machine.<key>.gcode.pictures; the first-use setup offers it; a machine of this model that sets no gcode.pictures of its own takes it (hardware.machine.<key>.gcode.pictures)",
                     "type": "string"
                   }
                 }
@@ -804,7 +840,7 @@
                       "additionalProperties": false,
                       "properties": {
                         "max": {
-                          "description": "a heater's highest temperature, as its firmware sets it (not yet used) — a temperature (C); or a formula (= ...)",
+                          "description": "a heater's (by its name in the firmware) highest temperature, as its firmware sets it; a machine of this model that sets no heater.<key>.temperature.max of its own takes it (hardware.machine.<key>.heater.<key>.temperature.max) — a temperature (C); or a formula (= ...)",
                           "type": [
                             "string",
                             "number"
@@ -835,28 +871,28 @@
                           "additionalProperties": false,
                           "properties": {
                             "angle": {
-                              "description": "a toolhead's (by its index, from 0) nozzle tip cone, its side's angle from horizontal; a tool's head.nozzle.angle wins over it — a angle (deg); or a formula (= ...)",
+                              "description": "a toolhead's (by its index, from 0) nozzle tip cone, its side's angle from horizontal; a tool on this toolhead that sets no head.nozzle.angle of its own takes it (hardware.tool.<key>.head.nozzle.angle) — a angle (deg); or a formula (= ...)",
                               "type": [
                                 "string",
                                 "number"
                               ]
                             },
                             "height": {
-                              "description": "how far a toolhead's nozzle tip sits below the rest of the head; a tool's head.nozzle.height wins over it — a length (mm); or a formula (= ...)",
+                              "description": "how far a toolhead's nozzle tip sits below the rest of the head; a tool on this toolhead that sets no head.nozzle.height of its own takes it (hardware.tool.<key>.head.nozzle.height) — a length (mm); or a formula (= ...)",
                               "type": [
                                 "string",
                                 "number"
                               ]
                             },
                             "x": {
-                              "description": "a toolhead's nozzle position within its underside along X: its distance from the head's edge on the machine's -X side, with head.size.x; a tool's head.nozzle.x wins over it — a length (mm); or a formula (= ...)",
+                              "description": "a toolhead's nozzle position within its underside along X: its distance from the head's edge on the machine's -X side, with head.size.x; a tool on this toolhead that sets no head.nozzle.x of its own takes it (hardware.tool.<key>.head.nozzle.x) — a length (mm); or a formula (= ...)",
                               "type": [
                                 "string",
                                 "number"
                               ]
                             },
                             "y": {
-                              "description": "a toolhead's nozzle position within its underside along Y: its distance from the head's edge on the machine's -Y side, with head.size.y; a tool's head.nozzle.y wins over it — a length (mm); or a formula (= ...)",
+                              "description": "a toolhead's nozzle position within its underside along Y: its distance from the head's edge on the machine's -Y side, with head.size.y; a tool on this toolhead that sets no head.nozzle.y of its own takes it (hardware.tool.<key>.head.nozzle.y) — a length (mm); or a formula (= ...)",
                               "type": [
                                 "string",
                                 "number"
@@ -869,14 +905,14 @@
                           "additionalProperties": false,
                           "properties": {
                             "x": {
-                              "description": "a toolhead's size along the machine's X axis, seen from below (its underside as a rectangle), with head.nozzle.x; a tool's head.size wins over it — a length (mm); or a formula (= ...)",
+                              "description": "a toolhead's size along the machine's X axis, seen from below (its underside as a rectangle), with head.nozzle.x; a tool on this toolhead that sets no head.size.x of its own takes it (hardware.tool.<key>.head.size.x) — a length (mm); or a formula (= ...)",
                               "type": [
                                 "string",
                                 "number"
                               ]
                             },
                             "y": {
-                              "description": "a toolhead's size along the machine's Y axis, seen from below (its underside as a rectangle), with head.nozzle.y; a tool's head.size wins over it — a length (mm); or a formula (= ...)",
+                              "description": "a toolhead's size along the machine's Y axis, seen from below (its underside as a rectangle), with head.nozzle.y; a tool on this toolhead that sets no head.size.y of its own takes it (hardware.tool.<key>.head.size.y) — a length (mm); or a formula (= ...)",
                               "type": [
                                 "string",
                                 "number"
@@ -885,7 +921,7 @@
                           }
                         },
                         "radius": {
-                          "description": "a toolhead as a circle around its nozzle tip, its radius (one object at a time keeps objects this far apart when no head outline is known) — a length (mm); or a formula (= ...)",
+                          "description": "a toolhead as a circle around its nozzle tip, its radius (one object at a time keeps objects this far apart when no head outline is known); a tool on this toolhead that sets no head.radius of its own takes it (hardware.tool.<key>.head.radius) — a length (mm); or a formula (= ...)",
                           "type": [
                             "string",
                             "number"
@@ -898,7 +934,7 @@
                       "additionalProperties": false,
                       "properties": {
                         "max": {
-                          "description": "the hottest the maker lets a toolhead's nozzle be set: the first-use setup's default for its tool's temperature.max — a temperature (C); or a formula (= ...)",
+                          "description": "the hottest the maker lets a toolhead's nozzle be set; the first-use setup offers it; a tool on this toolhead that sets no temperature.max of its own takes it (hardware.tool.<key>.temperature.max) — a temperature (C); or a formula (= ...)",
                           "type": [
                             "string",
                             "number"
@@ -911,14 +947,14 @@
                       "additionalProperties": false,
                       "properties": {
                         "height": {
-                          "description": "how far the gantry's rod sits above a toolhead's nozzle tip (one object at a time keeps every object but the last below it) — a length (mm); or a formula (= ...)",
+                          "description": "how far the gantry's rod sits above a toolhead's nozzle tip (one object at a time keeps every object but the last below it); a tool on this toolhead that sets no gantry.height of its own takes it (hardware.tool.<key>.gantry.height) — a length (mm); or a formula (= ...)",
                           "type": [
                             "string",
                             "number"
                           ]
                         },
                         "distance": {
-                          "description": "how far the gantry's rod sits from a toolhead's nozzle tip, across — a length (mm); or a formula (= ...)",
+                          "description": "how far the gantry's rod sits from a toolhead's nozzle tip, across; a tool on this toolhead that sets no gantry.distance of its own takes it (hardware.tool.<key>.gantry.distance) — a length (mm); or a formula (= ...)",
                           "type": [
                             "string",
                             "number"
@@ -931,7 +967,7 @@
                       "additionalProperties": false,
                       "properties": {
                         "height": {
-                          "description": "how far the machine's lid sits above a toolhead's nozzle tip — a length (mm); or a formula (= ...)",
+                          "description": "how far the machine's lid sits above a toolhead's nozzle tip; a tool on this toolhead that sets no lid.height of its own takes it (hardware.tool.<key>.lid.height) — a length (mm); or a formula (= ...)",
                           "type": [
                             "string",
                             "number"
@@ -944,7 +980,7 @@
                       "additionalProperties": false,
                       "properties": {
                         "time": {
-                          "description": "how long a toolhead's nozzle takes to heat to print temperature: on a multi-nozzle machine, the next nozzle heated this long (print time) before its change; a tool's heat.time wins over it — a time (s); or a formula (= ...)",
+                          "description": "how long a toolhead's nozzle takes to heat to print temperature: on a multi-nozzle machine, the next nozzle heated this long (print time) before its change; a tool on this toolhead that sets no heat.time of its own takes it (hardware.tool.<key>.heat.time) — a time (s); or a formula (= ...)",
                           "type": [
                             "string",
                             "number"
@@ -1159,28 +1195,28 @@
                     "additionalProperties": false,
                     "properties": {
                       "angle": {
-                        "description": "the nozzle's cone: the angle of its side from horizontal (a surface no steeper than it clears the cone); needed by curved layers; unset = its machine model's toolhead's (hardware.model.<key>.toolhead.<key>.head.nozzle.angle) — a angle (deg); or a formula (= ...)",
+                        "description": "the nozzle's cone: the angle of its side from horizontal (a surface no steeper than it clears the cone); needed by curved layers; unset = its machine model's toolhead's, the one of its index (hardware.model.<key>.toolhead.<index - 1>.head.nozzle.angle) — a angle (deg); or a formula (= ...)",
                         "type": [
                           "string",
                           "number"
                         ]
                       },
                       "height": {
-                        "description": "how far the nozzle tip sits below the lowest other part of the loaded head (heater block, sock, duct, carriage); needed by curved layers; unset = its machine model's toolhead's (hardware.model.<key>.toolhead.<key>.head.nozzle.height) — a length (mm); or a formula (= ...)",
+                        "description": "how far the nozzle tip sits below the lowest other part of the loaded head (heater block, sock, duct, carriage); needed by curved layers; unset = its machine model's toolhead's, the one of its index (hardware.model.<key>.toolhead.<index - 1>.head.nozzle.height) — a length (mm); or a formula (= ...)",
                         "type": [
                           "string",
                           "number"
                         ]
                       },
                       "x": {
-                        "description": "the nozzle's position within the head along X: its distance from the head's edge on the machine's -X side (left on a front-left origin) — a length (mm); or a formula (= ...)",
+                        "description": "the nozzle's position within the head along X: its distance from the head's edge on the machine's -X side (left on a front-left origin); unset = its machine model's toolhead's, the one of its index (hardware.model.<key>.toolhead.<index - 1>.head.nozzle.x) — a length (mm); or a formula (= ...)",
                         "type": [
                           "string",
                           "number"
                         ]
                       },
                       "y": {
-                        "description": "the nozzle's position within the head along Y: its distance from the head's edge on the machine's -Y side (front on a front-left origin) — a length (mm); or a formula (= ...)",
+                        "description": "the nozzle's position within the head along Y: its distance from the head's edge on the machine's -Y side (front on a front-left origin); unset = its machine model's toolhead's, the one of its index (hardware.model.<key>.toolhead.<index - 1>.head.nozzle.y) — a length (mm); or a formula (= ...)",
                         "type": [
                           "string",
                           "number"
@@ -1193,14 +1229,14 @@
                     "additionalProperties": false,
                     "properties": {
                       "x": {
-                        "description": "the loaded head's size along the machine's X axis, seen from below (its outline, a rectangle) — a length (mm); or a formula (= ...)",
+                        "description": "the loaded head's size along the machine's X axis, seen from below (its outline, a rectangle); unset = its machine model's toolhead's, the one of its index (hardware.model.<key>.toolhead.<index - 1>.head.size.x) — a length (mm); or a formula (= ...)",
                         "type": [
                           "string",
                           "number"
                         ]
                       },
                       "y": {
-                        "description": "the loaded head's size along the machine's Y axis, seen from below — a length (mm); or a formula (= ...)",
+                        "description": "the loaded head's size along the machine's Y axis, seen from below; unset = its machine model's toolhead's, the one of its index (hardware.model.<key>.toolhead.<index - 1>.head.size.y) — a length (mm); or a formula (= ...)",
                         "type": [
                           "string",
                           "number"
@@ -1209,7 +1245,7 @@
                     }
                   },
                   "radius": {
-                    "description": "the loaded head as a circle around the nozzle, its radius, for clearance (not yet used) — a length (mm); or a formula (= ...)",
+                    "description": "the loaded head as a circle around the nozzle, its radius: one object at a time keeps objects this far apart where the head's outline (head.size, head.nozzle) is not known; unset = its machine model's toolhead's, the one of its index (hardware.model.<key>.toolhead.<index - 1>.head.radius) — a length (mm); or a formula (= ...)",
                     "type": [
                       "string",
                       "number"
@@ -1222,7 +1258,27 @@
                 "additionalProperties": false,
                 "properties": {
                   "height": {
-                    "description": "how far the gantry sits above the nozzle tip, for clearance (not yet used) — a length (mm); or a formula (= ...)",
+                    "description": "how far the gantry's rod sits above the nozzle tip: one object at a time keeps every object but the last below it (with lid.height, what it needs known); unset = its machine model's toolhead's, the one of its index (hardware.model.<key>.toolhead.<index - 1>.gantry.height) — a length (mm); or a formula (= ...)",
+                    "type": [
+                      "string",
+                      "number"
+                    ]
+                  },
+                  "distance": {
+                    "description": "how far the gantry's rod sits from the nozzle tip, across (not yet used); unset = its machine model's toolhead's, the one of its index (hardware.model.<key>.toolhead.<index - 1>.gantry.distance) — a length (mm); or a formula (= ...)",
+                    "type": [
+                      "string",
+                      "number"
+                    ]
+                  }
+                }
+              },
+              "lid": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "height": {
+                    "description": "how far the machine's lid sits above the nozzle tip (with gantry.height, what one object at a time needs known); unset = its machine model's toolhead's, the one of its index (hardware.model.<key>.toolhead.<index - 1>.lid.height) — a length (mm); or a formula (= ...)",
                     "type": [
                       "string",
                       "number"
@@ -1235,7 +1291,7 @@
                 "additionalProperties": false,
                 "properties": {
                   "max": {
-                    "description": "hottest its nozzle may be set (the machine maker's figure): above it plymeld warns — a temperature (C); or a formula (= ...)",
+                    "description": "hottest its nozzle may be set (the machine maker's figure): above it plymeld warns; unset = its machine model's toolhead's, the one of its index (hardware.model.<key>.toolhead.<index - 1>.temperature.max) — a temperature (C); or a formula (= ...)",
                     "type": [
                       "string",
                       "number"
@@ -1255,7 +1311,7 @@
                 "additionalProperties": false,
                 "properties": {
                   "time": {
-                    "description": "on a multi-nozzle machine, heat the next nozzle this long (print time) before its change; unset = its machine model's toolhead's (hardware.model.<key>.toolhead.<key>.heat.time), else no preheat (the change waits for the nozzle) — a time (s); or a formula (= ...)",
+                    "description": "on a multi-nozzle machine, heat the next nozzle this long (print time) before its change; with none here or on its toolhead, no preheat (the change waits for the nozzle); unset = its machine model's toolhead's, the one of its index (hardware.model.<key>.toolhead.<index - 1>.heat.time) — a time (s); or a formula (= ...)",
                     "type": [
                       "string",
                       "number"
@@ -4613,14 +4669,14 @@
                   "additionalProperties": false,
                   "properties": {
                     "speed": {
-                      "description": "speed of visible lines: outer walls, top and bottom surfaces; a value in a config of yours wins over the machine's (hardware.machine.<key>.motion.visible.speed, from its motion plate); plymeld's bundled value is only the stand-in for a machine that sets none (until decided from the quality weight) — a speed (mm/s); or a formula (= ...)",
+                      "description": "speed of visible lines: outer walls, top and bottom surfaces; a value in a config of yours wins over the machine's (hardware.machine.<key>.motion.visible.speed, from its motion plate); plymeld's bundled value is only the stand-in for a machine that sets none (until decided from the quality weight): a quarter of the machine's top speed (hardware.machine.<key>.motion.speed.max), at most its print speed — a speed (mm/s); or a formula (= ...)",
                       "type": [
                         "string",
                         "number"
                       ]
                     },
                     "acceleration": {
-                      "description": "acceleration of visible lines; the rest print at the machine's printing acceleration; a value in a config of yours wins over the machine's (hardware.machine.<key>.motion.visible.acceleration); plymeld's bundled value is only the stand-in — a accel (mm/s2); or a formula (= ...)",
+                      "description": "acceleration of visible lines; the rest print at the machine's printing acceleration; a value in a config of yours wins over the machine's (hardware.machine.<key>.motion.visible.acceleration); plymeld's bundled value is only the stand-in: a quarter of the machine's highest acceleration (hardware.machine.<key>.motion.acceleration.max), at most its print acceleration — a accel (mm/s2); or a formula (= ...)",
                       "type": [
                         "string",
                         "number"
@@ -6768,14 +6824,14 @@
                   "additionalProperties": false,
                   "properties": {
                     "speed": {
-                      "description": "speed of visible lines: outer walls, top and bottom surfaces; a value in a config of yours wins over the machine's (hardware.machine.<key>.motion.visible.speed, from its motion plate); plymeld's bundled value is only the stand-in for a machine that sets none (until decided from the quality weight) — a speed (mm/s); or a formula (= ...)",
+                      "description": "speed of visible lines: outer walls, top and bottom surfaces; a value in a config of yours wins over the machine's (hardware.machine.<key>.motion.visible.speed, from its motion plate); plymeld's bundled value is only the stand-in for a machine that sets none (until decided from the quality weight): a quarter of the machine's top speed (hardware.machine.<key>.motion.speed.max), at most its print speed — a speed (mm/s); or a formula (= ...)",
                       "type": [
                         "string",
                         "number"
                       ]
                     },
                     "acceleration": {
-                      "description": "acceleration of visible lines; the rest print at the machine's printing acceleration; a value in a config of yours wins over the machine's (hardware.machine.<key>.motion.visible.acceleration); plymeld's bundled value is only the stand-in — a accel (mm/s2); or a formula (= ...)",
+                      "description": "acceleration of visible lines; the rest print at the machine's printing acceleration; a value in a config of yours wins over the machine's (hardware.machine.<key>.motion.visible.acceleration); plymeld's bundled value is only the stand-in: a quarter of the machine's highest acceleration (hardware.machine.<key>.motion.acceleration.max), at most its print acceleration — a accel (mm/s2); or a formula (= ...)",
                       "type": [
                         "string",
                         "number"
@@ -9042,14 +9098,14 @@
                   "additionalProperties": false,
                   "properties": {
                     "speed": {
-                      "description": "speed of visible lines: outer walls, top and bottom surfaces; a value in a config of yours wins over the machine's (hardware.machine.<key>.motion.visible.speed, from its motion plate); plymeld's bundled value is only the stand-in for a machine that sets none (until decided from the quality weight) — a speed (mm/s); or a formula (= ...)",
+                      "description": "speed of visible lines: outer walls, top and bottom surfaces; a value in a config of yours wins over the machine's (hardware.machine.<key>.motion.visible.speed, from its motion plate); plymeld's bundled value is only the stand-in for a machine that sets none (until decided from the quality weight): a quarter of the machine's top speed (hardware.machine.<key>.motion.speed.max), at most its print speed — a speed (mm/s); or a formula (= ...)",
                       "type": [
                         "string",
                         "number"
                       ]
                     },
                     "acceleration": {
-                      "description": "acceleration of visible lines; the rest print at the machine's printing acceleration; a value in a config of yours wins over the machine's (hardware.machine.<key>.motion.visible.acceleration); plymeld's bundled value is only the stand-in — a accel (mm/s2); or a formula (= ...)",
+                      "description": "acceleration of visible lines; the rest print at the machine's printing acceleration; a value in a config of yours wins over the machine's (hardware.machine.<key>.motion.visible.acceleration); plymeld's bundled value is only the stand-in: a quarter of the machine's highest acceleration (hardware.machine.<key>.motion.acceleration.max), at most its print acceleration — a accel (mm/s2); or a formula (= ...)",
                       "type": [
                         "string",
                         "number"

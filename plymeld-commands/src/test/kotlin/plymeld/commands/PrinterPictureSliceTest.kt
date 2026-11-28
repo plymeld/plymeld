@@ -88,15 +88,20 @@ class PrinterPictureSliceTest : StringSpec({
         pictures(none) shouldHaveSize 0
     }
 
-    "on a machine with Flash Studio's header the picture follows the header block, as observed; control: none without the setting" {
+    "on a machine with Flash Studio's header the picture follows the header block, as observed; unset, the model's sizes; control: none with an empty setting" {
         val text = slice("flashforge-c5", "140x110")
         val lines = text.lines()
         lines.first() shouldBe "; HEADER_BLOCK_START"
         pictures(text) shouldHaveSize 1
         lines.indexOf("; THUMBNAIL_BLOCK_START") shouldBeGreaterThan lines.indexOf("; HEADER_BLOCK_END")
         lines.indexOf("; THUMBNAIL_BLOCK_END") shouldBeLessThan lines.indexOfFirst { it.isNotEmpty() && !it.startsWith(";") }
-        // control: no picture block (the source block may still name the model's evidence for its picture size)
-        val none = slice("flashforge-c5", null)
+        // unset on the machine: its model's (the bundled Creator 5's 140x110)
+        val fromModel = slice("flashforge-c5", null)
+        pictures(fromModel) shouldHaveSize 1
+        fromModel shouldContain "; thumbnail begin 140x110"
+        // control: the machine's own empty value wins over the model's: no picture block (the source block may still name the
+        // model's evidence for its picture size)
+        val none = slice("flashforge-c5", "")
         none shouldNotContain "; thumbnail begin"
         pictures(none) shouldHaveSize 0
     }

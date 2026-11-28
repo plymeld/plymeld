@@ -98,8 +98,8 @@ class CurvedIslandLockTest : StringSpec({
         val isl = plan.layout.techniques.single().islands.single()
         val fact = coneFact(plan)
         println("model's cone: $fact; $isl, steepest %.2f deg".format(java.util.Locale.ROOT, isl.maxSlopeDeg()))
-        fact shouldContain "45 deg (its machine model's, hardware.model.flashforge-c5.toolhead.0.head.nozzle.angle"
-        fact shouldContain "its tip 4 mm below the head (its machine model's, hardware.model.flashforge-c5.toolhead.0.head.nozzle.height"
+        fact shouldContain "45 deg (hardware.tool.<key>.head.nozzle.angle: bundled 03_models.toml:513 via the machine's model flashforge-c5, toolhead 0)"
+        fact shouldContain "its tip 4 mm below the head (hardware.tool.<key>.head.nozzle.height: bundled 03_models.toml:512 via the machine's model flashforge-c5, toolhead 0)"
         // the pre-print check finds the island again with the same cone, and judges the head's clearance over it
         withClue("the check") { checked(pr, d).shouldBeEmpty() }
         // the tool's own values win over the model's; one set alone takes the other from the model
@@ -111,7 +111,7 @@ class CurvedIslandLockTest : StringSpec({
         Files.writeString(d.resolve("angle.toml"), "[hardware.tool.t1]\nhead.nozzle.angle = \"40 deg\"\n")
         val half = coneFact(product(d, listOf("hw.toml", "isl.toml", "angle.toml")).decide())
         half shouldContain "40 deg (hardware.tool.<key>.head.nozzle.angle: "
-        half shouldContain "its tip 4 mm below the head (its machine model's"
+        half shouldContain "its tip 4 mm below the head (hardware.tool.<key>.head.nozzle.height: bundled 03_models.toml:512 via the machine's model flashforge-c5, toolhead 0)"
         // control: a model whose toolhead gives no cone (the Q2's), the tool none: refused, naming where to set it
         Files.writeString(d.resolve("bare.toml"), IslandPin.hardware.replace("head.nozzle.angle = \"45 deg\"\nhead.nozzle.height = \"4 mm\"\n", ""))
         val e = shouldThrow<IllegalStateException> { product(d, listOf("bare.toml", "isl.toml")).decide() }.message!!
@@ -142,7 +142,7 @@ class CurvedIslandLockTest : StringSpec({
         curvedLimits(plan, pr.result.setup, 0).tip!!.let { listOf(it.coneDeg, it.protrusionMm) } shouldBe listOf(40.0, 3.0)
         // control: tool 1's own 50 deg, 5 mm: tool 2's model values (45 deg, 4 mm) are now the stricter
         val (pr2, other) = run("head.nozzle.angle = \"50 deg\"\nhead.nozzle.height = \"5 mm\"")
-        coneFact(other) shouldContain "45 deg (tool 2's, the strictest of the object's tools: its machine model's, hardware.model.flashforge-c5.toolhead.1.head.nozzle.angle"
+        coneFact(other) shouldContain "45 deg (tool 2's, the strictest of the object's tools: hardware.tool.<key>.head.nozzle.angle: bundled 03_models.toml:530 via the machine's model flashforge-c5, toolhead 1)"
         coneFact(other) shouldContain "its tip 4 mm below the head (tool 2's, the strictest"
         curvedLimits(other, pr2.result.setup, 0).tip!!.let { listOf(it.coneDeg, it.protrusionMm) } shouldBe listOf(45.0, 4.0)
     }
